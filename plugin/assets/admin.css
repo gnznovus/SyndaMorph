@@ -67,3 +67,19 @@ body.syndamorph-modal-open { overflow: hidden; }
     .syndamorph-preview-footer { flex-wrap: wrap; }
     .syndamorph-preview-actions { margin-left: auto; }
 }
+
+.syndamorph-asset-report {
+    background: #fff8e5;
+    border-bottom: 1px solid #e5cf8b;
+    color: #614a15;
+    padding: 12px 18px;
+    max-height: 150px;
+    overflow: auto;
+    flex-shrink: 0;
+}
+.syndamorph-asset-report[hidden] { display: none; }
+.syndamorph-asset-report ul {
+    margin: 6px 0 0 20px;
+    list-style: disc;
+}
+.syndamorph-asset-report li { overflow-wrap: anywhere; }
