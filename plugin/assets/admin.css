@@ -83,3 +83,19 @@ body.syndamorph-modal-open { overflow: hidden; }
     list-style: disc;
 }
 .syndamorph-asset-report li { overflow-wrap: anywhere; }
+
+.syndamorph-css-report {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+.syndamorph-css-report-details { min-width: 0; }
+.syndamorph-css-report p { margin: 8px 0 0; }
+.syndamorph-css-report button { flex-shrink: 0; }
+.syndamorph-css-report button[hidden] { display: none; }
+#syndamorph-css-fix-status { font-weight: 600; }
+@media (max-width: 782px) {
+    .syndamorph-css-report { flex-direction: column; }
+    .syndamorph-css-report button { align-self: flex-end; }
+}
