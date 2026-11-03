@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SyndaMorph
  * Description: Transform static HTML into independently editable native Gutenberg blocks.
- * Version: 0.5.0
+ * Version: 0.6.0
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Text Domain: syndamorph
@@ -58,6 +58,7 @@ function syndamorph_render_import_page(): void {
                         <span>Review before creating a WordPress draft.</span>
                         <div class="syndamorph-preview-actions">
                             <button id="syndamorph-cancel-preview" type="button" class="button">Close</button>
+                            <button id="syndamorph-save-pattern" type="button" class="button">Save as Pattern</button>
                             <button id="syndamorph-create-draft" type="button" class="button button-primary">Create Draft</button>
                         </div>
                     </div>
@@ -91,6 +92,80 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
             'editUrl' => admin_url( 'post.php' ),
             'restUrl' => rest_url( 'wp/v2/pages' ),
             'placeholderUrl' => plugin_dir_url( __FILE__ ) . 'assets/missing-image.svg',
+            'patternUrl' => rest_url( 'syndamorph/v1/patterns' ),
+        ) ) . ';',
+        'before'
+    );
+} );
+
+/**
+ * Create an unsynced, independently editable WordPress pattern.
+ * Both the import preview and the block editor use this one endpoint.
+ */
+add_action( 'rest_api_init', static function (): void {
+    register_rest_route( 'syndamorph/v1', '/patterns', array(
+        'methods'             => 'POST',
+        'permission_callback' => static function (): bool {
+            return current_user_can( 'edit_pages' );
+        },
+        'args'                => array(
+            'title'   => array( 'type' => 'string', 'required' => true ),
+            'content' => array( 'type' => 'string', 'required' => true ),
+            'post_id' => array( 'type' => 'integer', 'required' => false ),
+        ),
+        'callback'            => static function ( WP_REST_Request $request ) {
+            $title = sanitize_text_field( $request->get_param( 'title' ) );
+            $content = (string) $request->get_param( 'content' );
+            $post_id = absint( $request->get_param( 'post_id' ) );
+            if ( '' === $title || '' === trim( $content ) || strlen( $content ) > 2 * 1024 * 1024 ) {
+                return new WP_Error( 'syndamorph_invalid_pattern', 'Provide a pattern name and block content under 2 MB.', array( 'status' => 400 ) );
+            }
+            if ( $post_id && ( ! get_post( $post_id ) || ! current_user_can( 'edit_post', $post_id ) ) ) {
+                return new WP_Error( 'syndamorph_forbidden_source', 'You cannot use this source post.', array( 'status' => 403 ) );
+            }
+            if ( ! has_blocks( $content ) ) {
+                return new WP_Error( 'syndamorph_not_blocks', 'Pattern must contain Gutenberg block markup.', array( 'status' => 400 ) );
+            }
+            $id = wp_insert_post( wp_slash( array(
+                'post_type'    => 'wp_block',
+                'post_status'  => 'publish',
+                'post_title'   => $title,
+                'post_content' => $content,
+            ) ), true );
+            if ( is_wp_error( $id ) ) { return $id; }
+            if ( ! $id ) {
+                return new WP_Error( 'syndamorph_pattern_failed', 'Could not save the pattern.', array( 'status' => 500 ) );
+            }
+            update_post_meta( $id, 'wp_pattern_sync_status', 'unsynced' );
+            return new WP_REST_Response( array(
+                'id'     => $id,
+                'title'  => $title,
+                'synced' => false,
+            ), 201 );
+        },
+    ) );
+} );
+
+/**
+ * Provide the same Save as Pattern action for already-created drafts/pages.
+ */
+add_action( 'enqueue_block_editor_assets', static function (): void {
+    $screen = get_current_screen();
+    if ( ! $screen || 'post' !== $screen->base || ! in_array( $screen->post_type, array( 'page', 'post' ), true ) || ! current_user_can( 'edit_pages' ) ) {
+        return;
+    }
+    wp_enqueue_script(
+        'syndamorph-editor-pattern',
+        plugin_dir_url( __FILE__ ) . 'assets/editor-pattern.js',
+        array( 'wp-plugins', 'wp-edit-post', 'wp-element', 'wp-data', 'wp-api-fetch' ),
+        (string) filemtime( plugin_dir_path( __FILE__ ) . 'assets/editor-pattern.js' ),
+        true
+    );
+    wp_add_inline_script(
+        'syndamorph-editor-pattern',
+        'window.SyndaMorphPattern=' . wp_json_encode( array(
+            'endpoint' => rest_url( 'syndamorph/v1/patterns' ),
+            'nonce'    => wp_create_nonce( 'wp_rest' ),
         ) ) . ';',
         'before'
     );
