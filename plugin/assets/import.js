@@ -172,7 +172,7 @@
 
         // Preview the same converted markup that will be saved to WordPress.
         // Strip Gutenberg block delimiters only for rendering in the sandboxed iframe.
-        const rendered = content.replace( /<!--\\s*\\/?wp:[\\s\\S]*?-->/g, '' );
+        const rendered = content.replace( /<!--\s*\/?wp:[\s\S]*?-->/g, '' );
         const previewStyles = `
             *, *::before, *::after { box-sizing: border-box; }
             body { margin: 0; padding: 20px; background: #fff; color: #1e1e1e; font-family: system-ui, sans-serif; line-height: 1.6; }
