@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500" role="img" aria-label="Missing image. Replace this image in Gutenberg.">
+  <rect width="800" height="500" fill="#f2f4f7"/>
+  <rect x="18" y="18" width="764" height="464" rx="12" fill="none" stroke="#b9c2cd" stroke-width="4" stroke-dasharray="14 10"/>
+  <g transform="translate(350 134)" fill="none" stroke="#68798c" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="0" y="0" width="100" height="86" rx="7"/>
+    <circle cx="72" cy="24" r="10"/>
+    <path d="M12 66 40 39 58 56 72 46 92 70"/>
+  </g>
+  <text x="400" y="290" text-anchor="middle" font-family="Arial,sans-serif" font-size="36" font-weight="bold" fill="#34465a">IMAGE MISSING</text>
+  <text x="400" y="335" text-anchor="middle" font-family="Arial,sans-serif" font-size="22" fill="#617287">Select this image in Gutenberg and choose Replace</text>
+</svg>
