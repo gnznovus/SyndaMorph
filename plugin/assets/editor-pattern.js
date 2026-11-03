@@ -17,12 +17,8 @@
                 window.alert( 'This page has no blocks to save as a pattern.' );
                 return;
             }
-            const name = window.prompt( 'Name this Gutenberg pattern:', defaultName );
+            const name = await window.SyndaMorphPatternDialog.open( defaultName );
             if ( name === null ) { return; }
-            if ( ! name.trim() ) {
-                window.alert( 'Pattern name cannot be empty.' );
-                return;
-            }
 
             setSaving( true );
             try {
@@ -36,9 +32,15 @@
                         post_id: postId,
                     },
                 } );
-                window.alert( 'Saved "' + pattern.title + '" as an unsynced pattern. Find it in Gutenberg → Patterns → My Patterns.' );
+                wp.data.dispatch( 'core/notices' ).createSuccessNotice(
+                    'Saved "' + pattern.title + '" to Patterns → SyndaMorph.',
+                    { type: 'snackbar' }
+                );
             } catch ( error ) {
-                window.alert( 'Could not save pattern: ' + ( error.message || String( error ) ) );
+                wp.data.dispatch( 'core/notices' ).createErrorNotice(
+                    'Could not save pattern: ' + ( error.message || String( error ) ),
+                    { type: 'snackbar' }
+                );
             } finally {
                 setSaving( false );
             }
