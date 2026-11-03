@@ -99,3 +99,52 @@ body.syndamorph-modal-open { overflow: hidden; }
     .syndamorph-css-report { flex-direction: column; }
     .syndamorph-css-report button { align-self: flex-end; }
 }
+
+/* Shared naming dialog: used by both the importer and Gutenberg. */
+.syndamorph-name-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100200;
+    background: rgba(0, 0, 0, .52);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+.syndamorph-name-dialog {
+    background: #fff;
+    color: #1d2327;
+    width: min(460px, 100%);
+    border-radius: 9px;
+    overflow: hidden;
+    box-shadow: 0 15px 55px rgba(0, 0, 0, .3);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.syndamorph-name-header,
+.syndamorph-name-actions {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.syndamorph-name-header { border-bottom: 1px solid #e1e3e6; }
+.syndamorph-name-header h2 { margin: 0; font-size: 17px; line-height: 1.4; }
+.syndamorph-name-x {
+    background: none;
+    border: 0;
+    color: #646970;
+    cursor: pointer;
+    font-size: 25px;
+    line-height: 1;
+    padding: 0 4px;
+}
+.syndamorph-name-body { padding: 18px 20px; }
+.syndamorph-name-body > p:first-child { margin: 0 0 18px; color: #50575e; font-size: 13px; }
+.syndamorph-name-body label { display: block; margin-bottom: 7px; font-size: 13px; }
+#syndamorph-name-input { width: 100%; max-width: 100%; min-height: 38px; font-size: 14px; }
+.syndamorph-name-error { color: #b32d2e; font-size: 12px; margin: 7px 0 0; }
+.syndamorph-name-error[hidden] { display: none; }
+.syndamorph-name-actions { justify-content: flex-end; border-top: 1px solid #e1e3e6; background: #f9fafb; }
+.syndamorph-name-actions .button { min-height: 34px; }
