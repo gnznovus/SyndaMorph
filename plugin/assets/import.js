@@ -495,12 +495,8 @@
                 result.textContent = 'HTML changed. Preview it again before saving a pattern.';
                 return;
             }
-            const name = window.prompt( 'Name this Gutenberg pattern:', title.value.trim() || 'Imported Pattern' );
+            const name = await window.SyndaMorphPatternDialog.open( title.value.trim() || 'Imported Pattern' );
             if ( name === null ) { return; }
-            if ( ! name.trim() ) {
-                result.textContent = 'Pattern name cannot be empty.';
-                return;
-            }
             saving = true;
             patternButton.disabled = true;
             createButton.disabled = true;
@@ -516,7 +512,7 @@
                 if ( ! response.ok || ! data.id ) {
                     throw new Error( data.message || 'Failed to save pattern (HTTP ' + response.status + ').' );
                 }
-                result.textContent = 'Pattern saved: ' + name.trim() + '. Find it in Gutenberg → Patterns → My Patterns.';
+                result.textContent = 'Pattern saved: ' + name.trim() + '. Find it in Gutenberg → Patterns → SyndaMorph.';
                 closePreview();
                 card.hidden = true;
                 document.body.classList.remove( 'syndamorph-modal-open' );
