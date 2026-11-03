@@ -21,12 +21,16 @@ Stop the environment with `docker compose down`. To discard the local WordPress 
 ## Current POC scope
 
 - Creates a new WordPress **draft page**, leaving existing pages untouched.
-- Converts `h1`–`h6`, `p`, and `img` into separate native Gutenberg blocks.
+- Converts `h1`–`h6`, `p`, `img`, and standalone links into native Gutenberg blocks.
+- Converts semantic containers (`header`, `main`, `section`, `article`, `nav`, `footer`) and `div` into native Group blocks.
+- Converts simple `display: flex` or `display: grid` containers with 2–4 direct children into native Columns/Column blocks.
+- Supports a narrow CSS subset from inline styles and simple `<style>` selectors: text alignment, hexadecimal text color, and hexadecimal group background color.
 - Accepts pasted HTML or a local HTML file (up to 2 MB).
 - Executes no imported scripts. No proprietary package, custom editor, or WPML dependency.
-- Does not preserve external CSS, layout fidelity, JavaScript-driven DOM, or import media files.
+- Does not preserve external CSS, complete layout fidelity, responsive media queries, pseudo-selectors, CSS variables, JavaScript-driven DOM, or imported media files.
+- CSS grid/flex layout is approximated as equal-width native columns, not pixel-perfect positioning. Gutenberg validates saved markup; visually check each imported block for recovery warnings.
 - Image URLs must be reachable for previews; broken sources can be replaced from the editor.
-- Maximum 500 supported elements per import. Intended as a POC, not production hardened.
+- Maximum 500 generated blocks and 200 simple CSS rules per import. Intended as a POC, not production hardened.
 
 ## Structure
 
