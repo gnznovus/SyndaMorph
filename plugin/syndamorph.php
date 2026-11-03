@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SyndaMorph
  * Description: Transform static HTML into independently editable native Gutenberg blocks.
- * Version: 0.3.1
+ * Version: 0.3.2
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Text Domain: syndamorph
@@ -39,7 +39,7 @@ function syndamorph_render_import_page(): void {
                     <div class="syndamorph-preview-heading">
                         <div>
                             <strong id="syndamorph-preview-title">Import Preview</strong>
-                            <p id="syndamorph-preview-description">HTML reference · Gutenberg may render some styles differently</p>
+                            <p id="syndamorph-preview-description">Converted Gutenberg preview · theme styles may differ</p>
                         </div>
                         <button id="syndamorph-close-preview" type="button" class="button-link syndamorph-preview-close" aria-label="Close preview">&times;</button>
                     </div>
