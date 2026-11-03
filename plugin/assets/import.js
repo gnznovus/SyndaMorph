@@ -176,8 +176,8 @@
         const previewStyles = `
             *, *::before, *::after { box-sizing: border-box; }
             body { margin: 0; padding: 20px; background: #fff; color: #1e1e1e; font-family: system-ui, sans-serif; line-height: 1.6; }
-            /* Match Gutenberg's centered content flow, without centering text itself. */
-            .syndamorph-preview-content { width: 100%; max-width: 650px; margin-inline: auto; }
+            /* Use the modal's available width; do not impose the editor's narrow content width. */
+            .syndamorph-preview-content { width: 100%; margin-inline: auto; }
             .wp-block-group { min-width: 0; }
             .wp-block-group > .wp-block-image,
             .wp-block-group > .wp-block-columns { margin-inline: auto; }
