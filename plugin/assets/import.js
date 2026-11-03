@@ -183,19 +183,50 @@
         const previewButton = $( '#syndamorph-convert' );
         const createButton = $( '#syndamorph-create-draft' );
         const card = $( '#syndamorph-preview' );
+        const closeButton = $( '#syndamorph-close-preview' );
+        const cancelButton = $( '#syndamorph-cancel-preview' );
         const frame = $( '#syndamorph-preview-frame' );
         const result = $( '#syndamorph-result' );
-        if ( ! file || ! input || ! title || ! previewButton || ! createButton || ! card || ! frame || ! result ) { return; }
+        if ( ! file || ! input || ! title || ! previewButton || ! createButton || ! card || ! frame || ! result || ! closeButton || ! cancelButton ) { return; }
 
         let prepared = null;
         let preparedSource = '';
+        let saving = false;
+        let returnFocus = null;
+        const closePreview = () => {
+            if ( saving ) { return; }
+            card.hidden = true;
+            document.body.classList.remove( 'syndamorph-modal-open' );
+            if ( returnFocus ) { returnFocus.focus(); }
+        };
         const invalidatePreview = () => {
+            closePreview();
             prepared = null;
             preparedSource = '';
-            card.hidden = true;
             frame.removeAttribute( 'srcdoc' );
             createButton.disabled = true;
         };
+        [ closeButton, cancelButton ].forEach( ( control ) => control.addEventListener( 'click', closePreview ) );
+        card.addEventListener( 'click', ( event ) => {
+            if ( event.target === card ) { closePreview(); }
+        } );
+        card.addEventListener( 'keydown', ( event ) => {
+            if ( event.key === 'Escape' ) {
+                event.preventDefault();
+                closePreview();
+            } else if ( event.key === 'Tab' ) {
+                const controls = [ closeButton, cancelButton, createButton ].filter( ( control ) => ! control.disabled );
+                const first = controls[ 0 ];
+                const last = controls[ controls.length - 1 ];
+                if ( event.shiftKey && document.activeElement === first ) {
+                    event.preventDefault();
+                    last.focus();
+                } else if ( ! event.shiftKey && document.activeElement === last ) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            }
+        } );
         input.addEventListener( 'input', invalidatePreview );
 
         file.addEventListener( 'change', async () => {
@@ -231,8 +262,11 @@
                 prepared = prepareImport( source );
                 preparedSource = source;
                 frame.srcdoc = prepared.preview;
+                returnFocus = previewButton;
                 card.hidden = false;
+                document.body.classList.add( 'syndamorph-modal-open' );
                 createButton.disabled = false;
+                closeButton.focus();
                 result.textContent = 'Preview ready. Review the HTML before creating a draft.';
             } catch ( error ) {
                 result.textContent = 'Preview failed: ' + ( error.message || String( error ) );
@@ -250,6 +284,7 @@
             }
             createButton.disabled = true;
             previewButton.disabled = true;
+            saving = true;
             try {
                 result.textContent = 'Saving approved WordPress draft…';
                 const response = await fetch( SyndaMorphImport.restUrl, {
@@ -273,6 +308,8 @@
                 console.error( '[SyndaMorph] Draft:', error );
                 createButton.disabled = false;
                 previewButton.disabled = false;
+            } finally {
+                saving = false;
             }
         } );
     } );
