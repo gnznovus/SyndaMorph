@@ -1,0 +1,12 @@
+# Local and editor files
+.env
+*.log
+.DS_Store
+.idea/
+.vscode/
+node_modules/
+vendor/
+
+# Do not commit WordPress uploads or database dumps
+*.sql
+*.sql.gz
