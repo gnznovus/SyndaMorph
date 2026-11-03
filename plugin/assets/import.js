@@ -170,9 +170,30 @@
         const content = childBlocks( doc.body, context );
         if ( ! content ) { throw new Error( 'No supported editable blocks found.' ); }
 
-        // Use an isolated, script-disabled iframe for the original HTML reference.
-        // Embedded styles are retained for preview; Gutenberg receives only converted blocks.
-        const preview = '<!doctype html>\n' + doc.documentElement.outerHTML;
+        // Preview the same converted markup that will be saved to WordPress.
+        // Strip Gutenberg block delimiters only for rendering in the sandboxed iframe.
+        const rendered = content.replace( /<!--\\s*\\/?wp:[\\s\\S]*?-->/g, '' );
+        const previewStyles = `
+            *, *::before, *::after { box-sizing: border-box; }
+            body { margin: 0; padding: 20px; background: #fff; color: #1e1e1e; font-family: system-ui, sans-serif; line-height: 1.6; }
+            .wp-block-group { min-width: 0; }
+            .wp-block-group.has-background { padding: 1.5em 2em; }
+            .wp-block-columns { display: flex; flex-wrap: nowrap; align-items: normal; gap: 2em; margin-bottom: 1.75em; }
+            .wp-block-column { flex-basis: 0; flex-grow: 1; min-width: 0; overflow-wrap: break-word; }
+            .wp-block-image { margin: 0 0 1em; }
+            .wp-block-image img { display: block; max-width: 100%; height: auto; }
+            .has-text-align-left { text-align: left; }
+            .has-text-align-center { text-align: center; }
+            .has-text-align-right { text-align: right; }
+            .has-text-align-justify { text-align: justify; }
+            @media (max-width: 600px) {
+                .wp-block-columns { flex-wrap: wrap; }
+                .wp-block-column { flex-basis: 100%; }
+            }
+        `;
+        const preview = '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+            '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+            '<style>' + previewStyles + '</style></head><body>' + rendered + '</body></html>';
         return { content, preview };
     };
 
@@ -267,7 +288,7 @@
                 document.body.classList.add( 'syndamorph-modal-open' );
                 createButton.disabled = false;
                 closeButton.focus();
-                result.textContent = 'Preview ready. Review the HTML before creating a draft.';
+                result.textContent = 'Converted block preview ready. Review before creating a draft.';
             } catch ( error ) {
                 result.textContent = 'Preview failed: ' + ( error.message || String( error ) );
                 console.error( '[SyndaMorph] Preview:', error );
