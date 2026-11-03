@@ -21,7 +21,7 @@ Stop the environment with `docker compose down`. To discard the local WordPress 
 ## Current POC scope
 
 - **Preview-first approval:** renders an HTML reference preview inside an isolated, script-disabled iframe; no draft is created until **Create Draft** is selected. Changing the imported HTML invalidates the preview and requires review again.
-- The preview displays the imported HTML/CSS reference, not a pixel-perfect Gutenberg rendering. The converted block content is generated at preview time and only saved on approval.
+- The preview renders the **same converted Gutenberg markup** that will be saved on approval, using lightweight block-layout styling. It shows converted columns, constrained images, alignment and supported colors—not the original HTML/CSS. Active WordPress theme/editor styles may still differ.
 
 - Creates a new WordPress **draft page**, leaving existing pages untouched.
 - Converts `h1`–`h6`, `p`, `img`, and standalone links into native Gutenberg blocks.
