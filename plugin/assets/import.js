@@ -391,7 +391,8 @@
         fixButton.addEventListener( 'click', async () => {
             if ( ! prepared || ! prepared.stylesheets.missing.length || preparedSource !== input.value ) { return; }
             // Open from the user's direct click so popup blockers do not discard the tab.
-            const tab = window.open( 'https://chatgpt.com/', '_blank', 'noopener,noreferrer' );
+            const tab = window.open( 'https://chatgpt.com/', '_blank' );
+            if ( tab ) { tab.opener = null; }
             const prompt = makeCssRepairPrompt( preparedSource, prepared.stylesheets.missing );
             try {
                 await navigator.clipboard.writeText( prompt );
