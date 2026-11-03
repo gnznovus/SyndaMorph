@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SyndaMorph
  * Description: Transform static HTML into independently editable native Gutenberg blocks.
- * Version: 0.3.2
+ * Version: 0.4.0
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Text Domain: syndamorph
@@ -43,6 +43,7 @@ function syndamorph_render_import_page(): void {
                         </div>
                         <button id="syndamorph-close-preview" type="button" class="button-link syndamorph-preview-close" aria-label="Close preview">&times;</button>
                     </div>
+                    <div id="syndamorph-asset-report" class="syndamorph-asset-report" hidden role="status"></div>
                     <iframe id="syndamorph-preview-frame" title="Imported HTML preview" sandbox="" referrerpolicy="no-referrer"></iframe>
                     <div class="syndamorph-preview-footer">
                         <span>Review before creating a WordPress draft.</span>
@@ -80,6 +81,7 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
             'nonce' => wp_create_nonce( 'wp_rest' ),
             'editUrl' => admin_url( 'post.php' ),
             'restUrl' => rest_url( 'wp/v2/pages' ),
+            'placeholderUrl' => plugin_dir_url( __FILE__ ) . 'assets/missing-image.svg',
         ) ) . ';',
         'before'
     );
