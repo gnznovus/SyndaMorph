@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SyndaMorph
  * Description: Transform static HTML into independently editable native Gutenberg blocks.
- * Version: 0.4.0
+ * Version: 0.5.0
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Text Domain: syndamorph
@@ -44,6 +44,15 @@ function syndamorph_render_import_page(): void {
                         <button id="syndamorph-close-preview" type="button" class="button-link syndamorph-preview-close" aria-label="Close preview">&times;</button>
                     </div>
                     <div id="syndamorph-asset-report" class="syndamorph-asset-report" hidden role="status"></div>
+                    <div id="syndamorph-css-report" class="syndamorph-asset-report syndamorph-css-report" hidden role="status">
+                        <div class="syndamorph-css-report-details">
+                            <strong id="syndamorph-css-report-title">Missing CSS detected</strong>
+                            <ul id="syndamorph-css-list"></ul>
+                            <p>External CSS is not imported. Quick Fix copies your HTML plus a repair prompt and opens ChatGPT in a new tab. Paste the copied text there, then paste the returned HTML back here and preview again. Review your HTML before sharing it with any external service.</p>
+                            <p id="syndamorph-css-fix-status" aria-live="polite"></p>
+                        </div>
+                        <button id="syndamorph-quick-fix" type="button" class="button button-secondary">Quick Fix</button>
+                    </div>
                     <iframe id="syndamorph-preview-frame" title="Imported HTML preview" sandbox="" referrerpolicy="no-referrer"></iframe>
                     <div class="syndamorph-preview-footer">
                         <span>Review before creating a WordPress draft.</span>
