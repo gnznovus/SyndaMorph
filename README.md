@@ -30,11 +30,11 @@ Smoke test: `tests/fixtures/missing-css.html`.
 
 SyndaMorph can save the current converted preview **or** the current content in the Gutenberg page/post editor as a native WordPress **unsynced pattern**. Pattern instances remain independently editable; editing an inserted copy does not update other copies.
 
-- **Before creating a draft:** Tools → SyndaMorph → **Preview Import** → **Save as Pattern** → enter a name. No page draft is created.
-- **From an existing draft/page/post:** Open the Gutenberg editor → editor options (three-dot menu) → **Save as Pattern (SyndaMorph)** → enter a name. The current editor content is saved as a pattern snapshot, including unsaved changes; it does **not** publish or modify the draft.
-- Insert the saved design from Gutenberg's **Patterns → My Patterns** collection.
+- **Before creating a draft:** Tools → SyndaMorph → **Preview Import** → **Save as Pattern** → enter a name in the SyndaMorph dialog. No page draft is created.
+- **From an existing draft/page/post:** Open the Gutenberg editor → editor options (three-dot menu) → **Save as Pattern (SyndaMorph)** → enter a name in the SyndaMorph dialog. The current editor content is saved as a pattern snapshot, including unsaved changes; it does **not** publish or modify the draft.
+- Insert the saved design from Gutenberg's **Patterns → SyndaMorph** category.
 
-Both actions store the same standard Gutenberg block markup as `wp_block` posts with `wp_pattern_sync_status=unsynced`. Pattern creation requires permission to edit pages. This is a **full-content snapshot**, not a selection-only pattern; missing-image placeholders remain replaceable native Image blocks.
+Both actions store the same standard Gutenberg block markup as `wp_block` posts with `wp_pattern_sync_status=unsynced`, assigned to the native `wp_pattern_category` term **SyndaMorph**. The custom name dialog replaces browser prompts in both workflows. Patterns created before v0.6.1 remain in their previous category; only newly saved patterns are automatically categorized. Pattern creation requires permission to edit pages. This is a **full-content snapshot**, not a selection-only pattern; missing-image placeholders remain replaceable native Image blocks.
 
 ## Current POC scope
 
@@ -61,6 +61,7 @@ plugin/
   syndamorph.php
   assets/import.js
   assets/editor-pattern.js
+  assets/pattern-dialog.js
   assets/admin.css
   assets/missing-image.svg
 tests/fixtures/basic.html
