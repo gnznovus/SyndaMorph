@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SyndaMorph
  * Description: Transform static HTML into independently editable native Gutenberg blocks.
- * Version: 0.1.0
+ * Version: 0.2.0
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Text Domain: syndamorph
@@ -34,7 +34,7 @@ function syndamorph_render_import_page(): void {
             <input id="syndamorph-page-title" class="regular-text" type="text" value="Imported HTML" maxlength="200">
             <p><button id="syndamorph-convert" type="button" class="button button-primary">Create Gutenberg Draft</button></p>
             <div id="syndamorph-result" role="status" aria-live="polite"></div>
-            <p class="description">POC scope: static HTML only. Scripts are not executed. External stylesheets are not imported. Missing images may need replacement in Gutenberg. Created drafts remain ordinary WordPress pages.</p>
+            <p class="description">POC scope: headings, paragraphs, images, semantic groups, and simple flex/grid columns. Basic inline and embedded CSS colors/alignment are translated to native block settings. Complex CSS and external stylesheets are not imported. Scripts are not executed.</p>
         </div>
     </div>
     <?php
