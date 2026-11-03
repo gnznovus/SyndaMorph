@@ -176,7 +176,11 @@
         const previewStyles = `
             *, *::before, *::after { box-sizing: border-box; }
             body { margin: 0; padding: 20px; background: #fff; color: #1e1e1e; font-family: system-ui, sans-serif; line-height: 1.6; }
+            /* Match Gutenberg's centered content flow, without centering text itself. */
+            .syndamorph-preview-content { width: 100%; max-width: 900px; margin-inline: auto; }
             .wp-block-group { min-width: 0; }
+            .wp-block-group > .wp-block-image,
+            .wp-block-group > .wp-block-columns { margin-inline: auto; }
             .wp-block-group.has-background { padding: 1.5em 2em; }
             .wp-block-columns { display: flex; flex-wrap: nowrap; align-items: normal; gap: 2em; margin-bottom: 1.75em; }
             .wp-block-column { flex-basis: 0; flex-grow: 1; min-width: 0; overflow-wrap: break-word; }
@@ -193,7 +197,7 @@
         `;
         const preview = '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
             '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-            '<style>' + previewStyles + '</style></head><body>' + rendered + '</body></html>';
+            '<style>' + previewStyles + '</style></head><body><div class="syndamorph-preview-content">' + rendered + '</div></body></html>';
         return { content, preview };
     };
 
