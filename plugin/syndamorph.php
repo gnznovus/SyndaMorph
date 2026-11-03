@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SyndaMorph
  * Description: Transform static HTML into independently editable native Gutenberg blocks.
- * Version: 0.2.0
+ * Version: 0.3.0
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Text Domain: syndamorph
@@ -24,7 +24,7 @@ function syndamorph_render_import_page(): void {
     ?>
     <div class="wrap" id="syndamorph-html-import">
         <h1>SyndaMorph <span style="font-weight:normal;font-size:13px;">POC</span></h1>
-        <p>Paste static HTML or choose an .html file. Convert it into a new WordPress draft and edit using Gutenberg.</p>
+        <p>Paste static HTML or choose an .html file. Review the preview, then approve draft creation.</p>
         <div style="max-width:900px;">
             <p><label for="syndamorph-html-file"><strong>HTML file (optional)</strong></label></p>
             <input id="syndamorph-html-file" type="file" accept=".html,.htm,text/html">
@@ -32,8 +32,19 @@ function syndamorph_render_import_page(): void {
             <textarea id="syndamorph-html-input" rows="15" class="large-text code" placeholder="<section><h1>Welcome</h1><p>Edit me in Gutenberg.</p></section>"></textarea>
             <p><label for="syndamorph-page-title"><strong>Draft title</strong></label></p>
             <input id="syndamorph-page-title" class="regular-text" type="text" value="Imported HTML" maxlength="200">
-            <p><button id="syndamorph-convert" type="button" class="button button-primary">Create Gutenberg Draft</button></p>
+            <p><button id="syndamorph-convert" type="button" class="button button-primary">Preview Import</button></p>
             <div id="syndamorph-result" role="status" aria-live="polite"></div>
+            <section id="syndamorph-preview" class="syndamorph-preview" hidden aria-label="HTML import preview">
+                <div class="syndamorph-preview-heading">
+                    <strong>Import Preview</strong>
+                    <span>HTML reference · Gutenberg may render some styles differently</span>
+                </div>
+                <iframe id="syndamorph-preview-frame" title="Imported HTML preview" sandbox="" referrerpolicy="no-referrer"></iframe>
+                <div class="syndamorph-preview-footer">
+                    <span>Review the layout before creating a WordPress draft.</span>
+                    <button id="syndamorph-create-draft" type="button" class="button button-primary">Create Draft</button>
+                </div>
+            </section>
             <p class="description">POC scope: headings, paragraphs, images, semantic groups, and simple flex/grid columns. Basic inline and embedded CSS colors/alignment are translated to native block settings. Complex CSS and external stylesheets are not imported. Scripts are not executed.</p>
         </div>
     </div>
@@ -42,6 +53,12 @@ function syndamorph_render_import_page(): void {
 
 add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
     if ( 'tools_page_syndamorph' !== $hook || ! current_user_can( 'edit_pages' ) ) { return; }
+    wp_enqueue_style(
+        'syndamorph-admin',
+        plugin_dir_url( __FILE__ ) . 'assets/admin.css',
+        array(),
+        (string) filemtime( plugin_dir_path( __FILE__ ) . 'assets/admin.css' )
+    );
     wp_enqueue_script(
         'syndamorph-import',
         plugin_dir_url( __FILE__ ) . 'assets/import.js',
