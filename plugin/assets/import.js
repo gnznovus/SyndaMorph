@@ -330,6 +330,7 @@
         const title = $( '#syndamorph-page-title' );
         const previewButton = $( '#syndamorph-convert' );
         const createButton = $( '#syndamorph-create-draft' );
+        const patternButton = $( '#syndamorph-save-pattern' );
         const card = $( '#syndamorph-preview' );
         const closeButton = $( '#syndamorph-close-preview' );
         const cancelButton = $( '#syndamorph-cancel-preview' );
@@ -341,7 +342,7 @@
         const fixButton = $( '#syndamorph-quick-fix' );
         const fixStatus = $( '#syndamorph-css-fix-status' );
         const result = $( '#syndamorph-result' );
-        if ( ! file || ! input || ! title || ! previewButton || ! createButton || ! card || ! frame || ! assetReport || ! cssReport || ! cssList || ! cssTitle || ! fixButton || ! fixStatus || ! result || ! closeButton || ! cancelButton ) { return; }
+        if ( ! file || ! input || ! title || ! previewButton || ! createButton || ! patternButton || ! card || ! frame || ! assetReport || ! cssReport || ! cssList || ! cssTitle || ! fixButton || ! fixStatus || ! result || ! closeButton || ! cancelButton ) { return; }
 
         let prepared = null;
         let preparedSource = '';
@@ -366,6 +367,7 @@
             cssList.replaceChildren();
             fixStatus.textContent = '';
             createButton.disabled = true;
+            patternButton.disabled = true;
         };
         [ closeButton, cancelButton ].forEach( ( control ) => control.addEventListener( 'click', closePreview ) );
         card.addEventListener( 'click', ( event ) => {
@@ -376,7 +378,7 @@
                 event.preventDefault();
                 closePreview();
             } else if ( event.key === 'Tab' ) {
-                const controls = [ closeButton, ...( cssReport.hidden ? [] : [ fixButton ] ), cancelButton, createButton ].filter( ( control ) => ! control.disabled );
+                const controls = [ closeButton, ...( cssReport.hidden ? [] : [ fixButton ] ), cancelButton, patternButton, createButton ].filter( ( control ) => ! control.disabled );
                 const first = controls[ 0 ];
                 const last = controls[ controls.length - 1 ];
                 if ( event.shiftKey && document.activeElement === first ) {
@@ -476,12 +478,56 @@
                 card.hidden = false;
                 document.body.classList.add( 'syndamorph-modal-open' );
                 createButton.disabled = false;
+                patternButton.disabled = false;
                 closeButton.focus();
                 result.textContent = 'Converted block preview ready. Review before creating a draft.';
             } catch ( error ) {
                 result.textContent = 'Preview failed: ' + ( error.message || String( error ) );
                 console.error( '[SyndaMorph] Preview:', error );
             } finally {
+                previewButton.disabled = false;
+            }
+        } );
+
+        patternButton.addEventListener( 'click', async () => {
+            if ( ! prepared || preparedSource !== input.value ) {
+                invalidatePreview();
+                result.textContent = 'HTML changed. Preview it again before saving a pattern.';
+                return;
+            }
+            const name = window.prompt( 'Name this Gutenberg pattern:', title.value.trim() || 'Imported Pattern' );
+            if ( name === null ) { return; }
+            if ( ! name.trim() ) {
+                result.textContent = 'Pattern name cannot be empty.';
+                return;
+            }
+            saving = true;
+            patternButton.disabled = true;
+            createButton.disabled = true;
+            previewButton.disabled = true;
+            try {
+                const response = await fetch( SyndaMorphImport.patternUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': SyndaMorphImport.nonce },
+                    body: JSON.stringify( { title: name.trim(), content: prepared.content } ),
+                } );
+                const data = await response.json();
+                if ( ! response.ok || ! data.id ) {
+                    throw new Error( data.message || 'Failed to save pattern (HTTP ' + response.status + ').' );
+                }
+                result.textContent = 'Pattern saved: ' + name.trim() + '. Find it in Gutenberg → Patterns → My Patterns.';
+                closePreview();
+                card.hidden = true;
+                document.body.classList.remove( 'syndamorph-modal-open' );
+                previewButton.focus();
+            } catch ( error ) {
+                result.textContent = 'Save pattern failed: ' + ( error.message || String( error ) );
+                console.error( '[SyndaMorph] Pattern:', error );
+            } finally {
+                saving = false;
+                patternButton.disabled = false;
+                createButton.disabled = false;
                 previewButton.disabled = false;
             }
         } );
