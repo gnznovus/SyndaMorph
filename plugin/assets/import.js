@@ -1,33 +1,146 @@
 /* global SyndaMorphImport */
 ( function () {
     'use strict';
+
     const $ = ( selector ) => document.querySelector( selector );
     const escapeHtml = ( value ) => String( value ).replace( /&/g, '&amp;' ).replace( /</g, '&lt;' ).replace( />/g, '&gt;' ).replace( /"/g, '&quot;' );
-    const escapeAttribute = escapeHtml;
-    const serializeBlock = ( node ) => {
-        const tag = node.tagName.toLowerCase();
-        if ( /^h[1-6]$/.test( tag ) ) {
-            const content = node.textContent.trim();
-            if ( ! content ) { return ''; }
-            const level = Number( tag[ 1 ] );
-            return '<!-- wp:heading {"level":' + level + '} --><h' + level + ' class="wp-block-heading">' + escapeHtml( content ) + '</h' + level + '><!-- /wp:heading -->';
-        }
-        if ( tag === 'p' ) {
-            const content = node.textContent.trim();
-            return content ? '<!-- wp:paragraph --><p>' + escapeHtml( content ) + '</p><!-- /wp:paragraph -->' : '';
-        }
-        if ( tag === 'img' ) {
-            const source = ( node.getAttribute( 'src' ) || '' ).trim();
-            if ( ! source ) { return ''; }
-            let url;
+    const encodeAttributes = ( attributes ) => Object.keys( attributes ).length ? ' ' + JSON.stringify( attributes ) : '';
+    const block = ( name, attributes, html ) => '<!-- wp:' + name + encodeAttributes( attributes ) + ' -->' + html + '<!-- /wp:' + name + ' -->';
+    const allowedColor = ( value ) => /^#[\da-f]{3,8}$/i.test( value || '' ) ? value.toLowerCase() : '';
+    const acceptedAlign = ( value ) => [ 'left', 'center', 'right', 'justify' ].includes( value ) ? value : '';
+    const childBlocks = ( node, context ) => Array.from( node.children ).map( ( child ) => convert( child, context ) ).filter( Boolean ).join( '\n\n' );
+    const countBlock = ( context ) => {
+        context.count++;
+        if ( context.count > 500 ) { throw new Error( 'POC limit: maximum 500 Gutenberg blocks.' ); }
+    };
+
+    // Intentionally supports only simple element, class and ID selectors.
+    // @media, pseudo-selectors, CSS variables and external stylesheets are not imported.
+    const extractStyles = ( doc ) => {
+        const rules = [];
+        doc.querySelectorAll( 'style' ).forEach( ( styleNode ) => {
+            const css = styleNode.textContent.replace( /\/\*[\s\S]*?\*\//g, '' );
+            const matcher = /([^{}]+)\{([^{}]*)\}/g;
+            let match;
+            while ( ( match = matcher.exec( css ) ) !== null ) {
+                const selector = match[ 1 ].trim();
+                if ( ! selector || selector.startsWith( '@' ) ) { continue; }
+                if ( ! /^[\w\s.#>,+~-]+$/.test( selector ) ) { continue; }
+                rules.push( { selector, declaration: match[ 2 ] } );
+                if ( rules.length >= 200 ) { break; }
+            }
+        } );
+        return rules;
+    };
+
+    const readStyles = ( node, context ) => {
+        const style = document.createElement( 'div' ).style;
+        context.rules.forEach( ( rule ) => {
             try {
-                url = new URL( source, window.location.origin );
-                if ( ! [ 'https:', 'http:' ].includes( url.protocol ) ) { return ''; }
-            } catch ( error ) { return ''; }
-            const alt = node.getAttribute( 'alt' ) || '';
-            return '<!-- wp:image {"sizeSlug":"full","linkDestination":"none"} --><figure class="wp-block-image size-full"><img src="' + escapeAttribute( url.href ) + '" alt="' + escapeAttribute( alt ) + '"/></figure><!-- /wp:image -->';
+                if ( node.matches( rule.selector ) ) {
+                    style.cssText += ';' + rule.declaration;
+                }
+            } catch ( error ) { /* Ignore invalid CSS selectors. */ }
+        } );
+        style.cssText += ';' + ( node.getAttribute( 'style' ) || '' );
+        return {
+            display: style.display,
+            textAlign: acceptedAlign( style.textAlign ),
+            color: allowedColor( style.color ),
+            background: allowedColor( style.backgroundColor ),
+        };
+    };
+
+    const textAppearance = ( styles ) => {
+        const attrs = {};
+        const classes = [];
+        const inline = [];
+        if ( styles.textAlign ) {
+            attrs.align = styles.textAlign;
+            classes.push( 'has-text-align-' + styles.textAlign );
         }
-        return null;
+        if ( styles.color ) {
+            attrs.style = { color: { text: styles.color } };
+            classes.push( 'has-text-color' );
+            inline.push( 'color:' + styles.color );
+        }
+        return { attrs, className: classes.join( ' ' ), inlineStyle: inline.join( ';' ) };
+    };
+    const htmlAttributes = ( className, inlineStyle ) => ( className ? ' class="' + escapeHtml( className ) + '"' : '' ) +
+        ( inlineStyle ? ' style="' + escapeHtml( inlineStyle ) + '"' : '' );
+
+    const safeUrl = ( raw, context ) => {
+        if ( ! raw || ! raw.trim() ) { return ''; }
+        try {
+            const url = new URL( raw.trim(), context.baseUrl );
+            return [ 'https:', 'http:' ].includes( url.protocol ) ? url.href : '';
+        } catch ( error ) { return ''; }
+    };
+
+    const convert = ( node, context ) => {
+        const tag = node.tagName.toLowerCase();
+        const styles = readStyles( node, context );
+        let markup = '';
+
+        if ( /^h[1-6]$/.test( tag ) || tag === 'p' ) {
+            const value = node.textContent.trim();
+            if ( ! value ) { return ''; }
+            const heading = tag !== 'p';
+            const appearance = textAppearance( styles );
+            const attributes = { ...appearance.attrs };
+            if ( heading ) { attributes.level = Number( tag[ 1 ] ); }
+            const className = ( heading ? 'wp-block-heading ' : '' ) + appearance.className;
+            const html = '<' + tag + htmlAttributes( className.trim(), appearance.inlineStyle ) + '>' + escapeHtml( value ) + '</' + tag + '>';
+            markup = block( heading ? 'heading' : 'paragraph', attributes, html );
+        } else if ( tag === 'img' ) {
+            const src = safeUrl( node.getAttribute( 'src' ), context );
+            if ( ! src ) { return ''; }
+            const alt = escapeHtml( node.getAttribute( 'alt' ) || '' );
+            markup = block( 'image', { sizeSlug: 'full', linkDestination: 'none' },
+                '<figure class="wp-block-image size-full"><img src="' + escapeHtml( src ) + '" alt="' + alt + '"/></figure>' );
+        } else if ( tag === 'a' && ! node.querySelector( 'h1,h2,h3,h4,h5,h6,p,img' ) ) {
+            const url = safeUrl( node.getAttribute( 'href' ), context );
+            const value = node.textContent.trim();
+            if ( value ) {
+                const content = url ? '<a href="' + escapeHtml( url ) + '">' + escapeHtml( value ) + '</a>' : escapeHtml( value );
+                markup = block( 'paragraph', {}, '<p>' + content + '</p>' );
+            }
+        } else if ( [ 'header', 'footer', 'nav', 'main', 'section', 'article', 'div' ].includes( tag ) ) {
+            const children = Array.from( node.children );
+            const isColumns = ( styles.display === 'flex' || styles.display === 'grid' ) &&
+                children.length >= 2 && children.length <= 4;
+            if ( isColumns ) {
+                const cols = children.map( ( child ) => {
+                    const inner = convert( child, context );
+                    if ( ! inner ) { return ''; }
+                    countBlock( context );
+                    return block( 'column', {}, '<div class="wp-block-column">' + inner + '</div>' );
+                } ).filter( Boolean ).join( '\n\n' );
+                if ( cols ) {
+                    markup = block( 'columns', {}, '<div class="wp-block-columns">' + cols + '</div>' );
+                }
+            } else {
+                const inner = childBlocks( node, context );
+                if ( ! inner ) { return ''; }
+                const attrs = { layout: { type: 'default' } };
+                if ( tag !== 'div' ) { attrs.tagName = tag; }
+                const element = tag === 'div' ? 'div' : tag;
+                const classes = [ 'wp-block-group' ];
+                let inline = '';
+                if ( styles.background ) {
+                    attrs.style = { color: { background: styles.background } };
+                    classes.push( 'has-background' );
+                    inline = 'background-color:' + styles.background;
+                }
+                markup = block( 'group', attrs, '<' + element + htmlAttributes( classes.join( ' ' ), inline ) + '>' + inner + '</' + element + '>' );
+            }
+        } else {
+            // Unknown containers are transparent, not Custom HTML blocks.
+            return childBlocks( node, context );
+        }
+
+        if ( markup ) { countBlock( context ); }
+        return markup;
     };
 
     document.addEventListener( 'DOMContentLoaded', () => {
@@ -37,6 +150,7 @@
         const button = $( '#syndamorph-convert' );
         const result = $( '#syndamorph-result' );
         if ( ! file || ! input || ! title || ! button || ! result ) { return; }
+
         file.addEventListener( 'change', async () => {
             const selected = file.files && file.files[ 0 ];
             if ( ! selected ) { return; }
@@ -62,23 +176,17 @@
             try {
                 result.textContent = 'Parsing HTML…';
                 const doc = new DOMParser().parseFromString( input.value, 'text/html' );
-                doc.querySelectorAll( 'script, style, iframe, object, embed, form, template' ).forEach( ( node ) => node.remove() );
+                const rules = extractStyles( doc );
+                doc.querySelectorAll( 'script, style, iframe, object, embed, form, template, svg' ).forEach( ( node ) => node.remove() );
                 stage = 'convert';
-                result.textContent = 'Converting supported elements…';
-                const blocks = [];
-                const elements = doc.body.querySelectorAll( 'h1,h2,h3,h4,h5,h6,p,img' );
-                if ( elements.length > 500 ) {
-                    throw new Error( 'POC limit: maximum 500 supported elements.' );
-                }
-                elements.forEach( ( element ) => {
-                    // Avoid importing content twice when supported elements nest.
-                    if ( element.parentElement && element.parentElement.closest( 'h1,h2,h3,h4,h5,h6,p' ) ) { return; }
-                    const block = serializeBlock( element );
-                    if ( block ) { blocks.push( block ); }
-                } );
-                if ( ! blocks.length ) {
-                    throw new Error( 'No supported heading, paragraph, or image elements found.' );
-                }
+                result.textContent = 'Converting content and layout…';
+                const context = {
+                    count: 0,
+                    rules,
+                    baseUrl: window.location.origin,
+                };
+                const content = childBlocks( doc.body, context );
+                if ( ! content ) { throw new Error( 'No supported editable blocks found.' ); }
 
                 stage = 'save';
                 result.textContent = 'Saving WordPress draft…';
@@ -88,7 +196,7 @@
                     headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': SyndaMorphImport.nonce },
                     body: JSON.stringify( {
                         title: title.value.trim() || 'Imported HTML',
-                        content: blocks.join( '\n\n' ),
+                        content,
                         status: 'draft',
                     } ),
                 } );
