@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>.asset-row { display: flex; }</style>
+</head>
+<body>
+  <main>
+    <h1>Missing Media Test</h1>
+    <section class="asset-row">
+      <div>
+        <h2>Valid Image</h2>
+        <img src="https://placehold.co/400x250/png" alt="Working photo">
+      </div>
+      <div>
+        <h2>Missing Relative Image</h2>
+        <img src="./assets/not-uploaded.jpg" alt="Unpacked room photo">
+      </div>
+    </section>
+    <section>
+      <p>This draft should still be editable when some images are missing.</p>
+      <img src="https://example.invalid/broken-image.png" alt="Unavailable hero photo">
+      <img alt="Image with missing source">
+    </section>
+  </main>
+</body>
+</html>
