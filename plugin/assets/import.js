@@ -212,8 +212,67 @@
         return missing;
     };
 
+    // A 404 on a same-origin stylesheet is definitive. Cross-origin requests can be
+    // opaque or CORS-blocked, so they are reported as unverified, not falsely missing.
+    const inspectStylesheets = async ( doc ) => {
+        const links = Array.from( doc.querySelectorAll( 'link[rel~="stylesheet"]' ) );
+        const missing = [];
+        const unverified = [];
+        await Promise.all( links.map( async ( link ) => {
+            const source = ( link.getAttribute( 'href' ) || '' ).trim();
+            if ( ! source ) {
+                missing.push( '(empty stylesheet href)' );
+                return;
+            }
+            let url;
+            try {
+                url = new URL( source, window.location.href );
+            } catch ( error ) {
+                missing.push( source );
+                return;
+            }
+            if ( ! [ 'http:', 'https:' ].includes( url.protocol ) ) {
+                missing.push( source );
+                return;
+            }
+            if ( url.origin !== window.location.origin ) {
+                unverified.push( source );
+                return;
+            }
+            const controller = new AbortController();
+            const timeout = setTimeout( () => controller.abort(), 4000 );
+            try {
+                const response = await fetch( url.href, {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    signal: controller.signal,
+                } );
+                if ( ! response.ok ) { missing.push( source ); }
+            } catch ( error ) {
+                unverified.push( source );
+            } finally {
+                clearTimeout( timeout );
+            }
+        } ) );
+        return { missing, unverified };
+    };
+
+    const makeCssRepairPrompt = ( html, missing ) => [
+        'Repair the following standalone HTML document whose linked stylesheets are unavailable.',
+        'Missing stylesheet references: ' + missing.join( ', ' ),
+        'Reconstruct a reasonable layout based on the HTML structure, class names and content. The original design cannot be recovered exactly.',
+        'Put the replacement CSS in a single <style> element inside <head>.',
+        'Remove references to the unavailable stylesheets. Preserve content, semantic elements, image URLs, alt text, IDs and classes.',
+        'Use responsive CSS where appropriate. Do not add JavaScript or third-party dependencies.',
+        'Return only one complete HTML document, without explanation or Markdown fences.',
+        '',
+        'HTML:',
+        html,
+    ].join( '\n' );
+
     const prepareImport = async ( source ) => {
         const doc = new DOMParser().parseFromString( source, 'text/html' );
+        const stylesheets = await inspectStylesheets( doc );
         const rules = extractStyles( doc );
         // No source scripts or active embeds are allowed in the preview or block output.
         doc.querySelectorAll( 'script, iframe, object, embed, form, template, svg, link, base' ).forEach( ( node ) => node.remove() );
@@ -262,7 +321,7 @@
         const preview = '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
             '<meta name="viewport" content="width=device-width, initial-scale=1">' +
             '<style>' + previewStyles + '</style></head><body><div class="syndamorph-preview-content">' + rendered + '</div></body></html>';
-        return { content, preview, missing };
+        return { content, preview, missing, stylesheets };
     };
 
     document.addEventListener( 'DOMContentLoaded', () => {
@@ -276,8 +335,13 @@
         const cancelButton = $( '#syndamorph-cancel-preview' );
         const frame = $( '#syndamorph-preview-frame' );
         const assetReport = $( '#syndamorph-asset-report' );
+        const cssReport = $( '#syndamorph-css-report' );
+        const cssList = $( '#syndamorph-css-list' );
+        const cssTitle = $( '#syndamorph-css-report-title' );
+        const fixButton = $( '#syndamorph-quick-fix' );
+        const fixStatus = $( '#syndamorph-css-fix-status' );
         const result = $( '#syndamorph-result' );
-        if ( ! file || ! input || ! title || ! previewButton || ! createButton || ! card || ! frame || ! assetReport || ! result || ! closeButton || ! cancelButton ) { return; }
+        if ( ! file || ! input || ! title || ! previewButton || ! createButton || ! card || ! frame || ! assetReport || ! cssReport || ! cssList || ! cssTitle || ! fixButton || ! fixStatus || ! result || ! closeButton || ! cancelButton ) { return; }
 
         let prepared = null;
         let preparedSource = '';
@@ -298,6 +362,9 @@
             frame.removeAttribute( 'srcdoc' );
             assetReport.hidden = true;
             assetReport.replaceChildren();
+            cssReport.hidden = true;
+            cssList.replaceChildren();
+            fixStatus.textContent = '';
             createButton.disabled = true;
         };
         [ closeButton, cancelButton ].forEach( ( control ) => control.addEventListener( 'click', closePreview ) );
@@ -309,7 +376,7 @@
                 event.preventDefault();
                 closePreview();
             } else if ( event.key === 'Tab' ) {
-                const controls = [ closeButton, cancelButton, createButton ].filter( ( control ) => ! control.disabled );
+                const controls = [ closeButton, ...( cssReport.hidden ? [] : [ fixButton ] ), cancelButton, createButton ].filter( ( control ) => ! control.disabled );
                 const first = controls[ 0 ];
                 const last = controls[ controls.length - 1 ];
                 if ( event.shiftKey && document.activeElement === first ) {
@@ -319,6 +386,21 @@
                     event.preventDefault();
                     first.focus();
                 }
+            }
+        } );
+        fixButton.addEventListener( 'click', async () => {
+            if ( ! prepared || ! prepared.stylesheets.missing.length || preparedSource !== input.value ) { return; }
+            // Open from the user's direct click so popup blockers do not discard the tab.
+            const tab = window.open( 'https://chatgpt.com/', '_blank', 'noopener,noreferrer' );
+            const prompt = makeCssRepairPrompt( preparedSource, prepared.stylesheets.missing );
+            try {
+                await navigator.clipboard.writeText( prompt );
+                fixStatus.textContent = 'Copied! Paste into ChatGPT (Ctrl+V), then reimport the repaired HTML here.';
+            } catch ( error ) {
+                fixStatus.textContent = 'Clipboard permission denied. Copy your HTML manually and ask ChatGPT to reconstruct missing CSS, then reimport.';
+            }
+            if ( ! tab ) {
+                fixStatus.textContent += ' Your browser blocked the new tab: open https://chatgpt.com manually.';
             }
         } );
         input.addEventListener( 'input', invalidatePreview );
@@ -369,6 +451,24 @@
                     } );
                     assetReport.replaceChildren( heading, list );
                     assetReport.hidden = false;
+                }
+                if ( prepared.stylesheets.missing.length || prepared.stylesheets.unverified.length ) {
+                    const missing = prepared.stylesheets.missing;
+                    const unverified = prepared.stylesheets.unverified;
+                    cssTitle.textContent = missing.length
+                        ? missing.length + ' missing stylesheet(s) detected'
+                        : 'External stylesheet(s) could not be verified';
+                    const entries = [
+                        ...missing.map( ( href ) => 'Missing: ' + href ),
+                        ...unverified.map( ( href ) => 'Unverified (external): ' + href ),
+                    ];
+                    entries.forEach( ( value ) => {
+                        const item = document.createElement( 'li' );
+                        item.textContent = value;
+                        cssList.appendChild( item );
+                    } );
+                    fixButton.hidden = ! missing.length;
+                    cssReport.hidden = false;
                 }
                 frame.srcdoc = prepared.preview;
                 returnFocus = previewButton;
