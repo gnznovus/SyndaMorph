@@ -177,11 +177,13 @@
             *, *::before, *::after { box-sizing: border-box; }
             body { margin: 0; padding: 20px; background: #fff; color: #1e1e1e; font-family: system-ui, sans-serif; line-height: 1.6; }
             /* Match Gutenberg's centered content flow, without centering text itself. */
-            .syndamorph-preview-content { width: 100%; max-width: 900px; margin-inline: auto; }
+            .syndamorph-preview-content { width: 100%; max-width: 650px; margin-inline: auto; }
             .wp-block-group { min-width: 0; }
             .wp-block-group > .wp-block-image,
             .wp-block-group > .wp-block-columns { margin-inline: auto; }
-            .wp-block-group.has-background { padding: 1.5em 2em; }
+            /* Gutenberg does not inject padding into a Group merely because it has a background. */
+            .wp-block-group.has-background { padding: 0; }
+            .wp-block-group.has-background > p { margin-block: 0; }
             .wp-block-columns { display: flex; flex-wrap: nowrap; align-items: normal; gap: 2em; margin-bottom: 1.75em; }
             .wp-block-column { flex-basis: 0; flex-grow: 1; min-width: 0; overflow-wrap: break-word; }
             .wp-block-image { margin: 0 0 1em; }
