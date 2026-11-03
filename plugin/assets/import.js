@@ -185,9 +185,10 @@
             .wp-block-group.has-background { padding: 0; }
             .wp-block-group.has-background > p { margin-block: 0; }
             .wp-block-columns { display: flex; flex-wrap: nowrap; align-items: normal; gap: 2em; margin-bottom: 1.75em; }
-            .wp-block-column { flex-basis: 0; flex-grow: 1; min-width: 0; overflow-wrap: break-word; }
-            .wp-block-image { margin: 0 0 1em; }
-            .wp-block-image img { display: block; max-width: 100%; height: auto; }
+            .wp-block-column { flex: 1 1 0; min-width: 0; overflow-wrap: break-word; }
+            /* A figure's intrinsic image width must not expand beyond its column. */
+            .wp-block-image { display: block; width: 100%; max-width: 100%; min-width: 0; margin: 0 0 1em; }
+            .wp-block-image img { display: block; width: 100%; max-width: 100%; height: auto; }
             .has-text-align-left { text-align: left; }
             .has-text-align-center { text-align: center; }
             .has-text-align-right { text-align: right; }
