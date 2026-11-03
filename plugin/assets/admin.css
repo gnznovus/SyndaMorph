@@ -1,13 +1,25 @@
-.syndamorph-preview {
-    margin-top: 22px;
-    max-width: 100%;
-    background: #fff;
-    border: 1px solid #c3c4c7;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, .05);
+.syndamorph-preview-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100100;
+    padding: 24px;
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, .65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-.syndamorph-preview[hidden] { display: none; }
+.syndamorph-preview-modal[hidden] { display: none; }
+.syndamorph-preview-card {
+    background: #fff;
+    border-radius: 8px;
+    width: min(1100px, 100%);
+    max-height: calc(100vh - 48px);
+    box-shadow: 0 12px 48px rgba(0, 0, 0, .3);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
 .syndamorph-preview-heading,
 .syndamorph-preview-footer {
     display: flex;
@@ -15,28 +27,43 @@
     justify-content: space-between;
     gap: 16px;
     padding: 14px 18px;
+    flex-shrink: 0;
 }
 .syndamorph-preview-heading {
     border-bottom: 1px solid #e1e3e6;
 }
-.syndamorph-preview-heading span,
-.syndamorph-preview-footer span {
+.syndamorph-preview-heading strong { font-size: 16px; }
+.syndamorph-preview-heading p {
+    margin: 4px 0 0;
     color: #646970;
     font-size: 12px;
+}
+.syndamorph-preview-close {
+    font-size: 28px;
+    line-height: 1;
+    padding: 4px 8px;
+    text-decoration: none;
+    color: #50575e;
 }
 #syndamorph-preview-frame {
     display: block;
     width: 100%;
-    height: 520px;
+    min-height: 200px;
+    height: min(65vh, 680px);
+    flex: 1 1 auto;
     box-sizing: border-box;
     border: 0;
-    background: white;
+    background: #fff;
 }
 .syndamorph-preview-footer {
     border-top: 1px solid #e1e3e6;
 }
+.syndamorph-preview-footer > span { color: #646970; font-size: 12px; }
+.syndamorph-preview-actions { display: flex; gap: 8px; }
+body.syndamorph-modal-open { overflow: hidden; }
 @media (max-width: 782px) {
-    .syndamorph-preview-heading,
-    .syndamorph-preview-footer { align-items: flex-start; flex-direction: column; }
-    .syndamorph-preview-footer button { align-self: flex-end; }
+    .syndamorph-preview-modal { padding: 12px; }
+    .syndamorph-preview-card { max-height: calc(100vh - 24px); }
+    .syndamorph-preview-footer { flex-wrap: wrap; }
+    .syndamorph-preview-actions { margin-left: auto; }
 }
