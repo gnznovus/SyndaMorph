@@ -20,7 +20,7 @@ Stop the environment with `docker compose down`. To discard the local WordPress 
 
 ## Current POC scope
 
-- **Preview-first approval:** renders an HTML reference preview inside an isolated, script-disabled iframe; no draft is created until **Create Draft** is selected. Changing the imported HTML invalidates the preview and requires review again.
+- **Preview-first approval:** renders an converted Gutenberg layout preview inside an isolated, script-disabled iframe; no draft is created until **Create Draft** is selected. Changing the imported HTML invalidates the preview and requires review again.
 - The preview renders the **same converted Gutenberg markup** that will be saved on approval, using lightweight block-layout styling. It shows converted columns, constrained images, alignment and supported colors—not the original HTML/CSS. Active WordPress theme/editor styles may still differ.
 
 - Creates a new WordPress **draft page**, leaving existing pages untouched.
@@ -32,7 +32,8 @@ Stop the environment with `docker compose down`. To discard the local WordPress 
 - Executes no imported scripts. No proprietary package, custom editor, or WPML dependency.
 - Does not preserve external CSS, complete layout fidelity, responsive media queries, pseudo-selectors, CSS variables, JavaScript-driven DOM, or imported media files.
 - CSS grid/flex layout is approximated as equal-width native columns, not pixel-perfect positioning. Gutenberg validates saved markup; visually check each imported block for recovery warnings.
-- Image URLs must be reachable for previews; broken sources can be replaced from the editor.
+- **Missing image handling:** before preview approval, browser-load checks validate referenced images (up to 5 seconds per unique source, six parallel checks). Broken, absent, and unavailable sources become local visual placeholders in **native Image blocks**. The preview lists their original paths, and the editor's **Replace** control lets users select or upload replacement media. Missing assets never block draft creation.
+- External images are referenced by URL, not downloaded into the Media Library. Network issues and slow endpoints may be classified as unavailable; retry preview if necessary.
 - Maximum 500 generated blocks and 200 simple CSS rules per import. Intended as a POC, not production hardened.
 
 ## Structure
@@ -42,7 +43,10 @@ plugin/
   syndamorph.php
   assets/import.js
   assets/admin.css
+  assets/missing-image.svg
 tests/fixtures/basic.html
+tests/fixtures/layout.html
+tests/fixtures/missing-assets.html
 compose.yaml
 ```
 
