@@ -14,11 +14,14 @@ docker compose up -d
 
 Open **http://localhost:8085**, complete the WordPress installation, then activate **SyndaMorph** under **Plugins**. The plugin is bind-mounted from `./plugin`, so code edits are reflected without rebuilding the image.
 
-Go to **Tools → SyndaMorph** to paste HTML or select an `.html`/`.htm` file. Select **Create Gutenberg Draft**, then edit the result in the native WordPress editor.
+Go to **Tools → SyndaMorph** to paste HTML or select an `.html`/`.htm` file. Select **Preview Import** to inspect the HTML in a sandboxed preview card. Only after reviewing it, select **Create Draft** at the bottom-right of the card to save a new page and open Gutenberg.
 
 Stop the environment with `docker compose down`. To discard the local WordPress database and content, run `docker compose down -v` (**destructive**).
 
 ## Current POC scope
+
+- **Preview-first approval:** renders an HTML reference preview inside an isolated, script-disabled iframe; no draft is created until **Create Draft** is selected. Changing the imported HTML invalidates the preview and requires review again.
+- The preview displays the imported HTML/CSS reference, not a pixel-perfect Gutenberg rendering. The converted block content is generated at preview time and only saved on approval.
 
 - Creates a new WordPress **draft page**, leaving existing pages untouched.
 - Converts `h1`–`h6`, `p`, `img`, and standalone links into native Gutenberg blocks.
@@ -38,6 +41,7 @@ Stop the environment with `docker compose down`. To discard the local WordPress 
 plugin/
   syndamorph.php
   assets/import.js
+  assets/admin.css
 tests/fixtures/basic.html
 compose.yaml
 ```
