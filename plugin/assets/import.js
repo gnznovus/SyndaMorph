@@ -6,7 +6,16 @@
     const escapeHtml = ( value ) => String( value ).replace( /&/g, '&amp;' ).replace( /</g, '&lt;' ).replace( />/g, '&gt;' ).replace( /"/g, '&quot;' );
     const encodeAttributes = ( attributes ) => Object.keys( attributes ).length ? ' ' + JSON.stringify( attributes ) : '';
     const block = ( name, attributes, html ) => '<!-- wp:' + name + encodeAttributes( attributes ) + ' -->' + html + '<!-- /wp:' + name + ' -->';
-    const allowedColor = ( value ) => /^#[\da-f]{3,8}$/i.test( value || '' ) ? value.toLowerCase() : '';
+    const allowedColor = ( value ) => {
+        const color = ( value || '' ).trim().toLowerCase();
+        if ( /^#[\da-f]{3}(?:[\da-f]{3})?$/i.test( color ) ) { return color; }
+        // CSSOM often serializes #rrggbb as rgb(r, g, b).
+        const rgb = color.match( /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*([\d.]+))?\s*\)$/ );
+        if ( ! rgb || ( rgb[ 4 ] !== undefined && Number( rgb[ 4 ] ) !== 1 ) ) { return ''; }
+        const channels = rgb.slice( 1, 4 ).map( Number );
+        if ( channels.some( ( channel ) => channel > 255 ) ) { return ''; }
+        return '#' + channels.map( ( channel ) => channel.toString( 16 ).padStart( 2, '0' ) ).join( '' );
+    };
     const acceptedAlign = ( value ) => [ 'left', 'center', 'right', 'justify' ].includes( value ) ? value : '';
     const childBlocks = ( node, context ) => Array.from( node.children ).map( ( child ) => convert( child, context ) ).filter( Boolean ).join( '\n\n' );
     const countBlock = ( context ) => {
