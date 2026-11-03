@@ -152,15 +152,54 @@
         return markup;
     };
 
+    const prepareImport = ( source ) => {
+        const doc = new DOMParser().parseFromString( source, 'text/html' );
+        const rules = extractStyles( doc );
+        // No source scripts or active embeds are allowed in the preview or block output.
+        doc.querySelectorAll( 'script, iframe, object, embed, form, template, svg, link, base' ).forEach( ( node ) => node.remove() );
+        doc.querySelectorAll( '*' ).forEach( ( node ) => {
+            Array.from( node.attributes ).forEach( ( attribute ) => {
+                if ( /^on/i.test( attribute.name ) ||
+                    ( /^(src|href|xlink:href|formaction)$/i.test( attribute.name ) &&
+                        /^\s*(?:javascript|data|vbscript):/i.test( attribute.value ) ) ) {
+                    node.removeAttribute( attribute.name );
+                }
+            } );
+        } );
+        const context = { count: 0, rules, baseUrl: window.location.origin };
+        const content = childBlocks( doc.body, context );
+        if ( ! content ) { throw new Error( 'No supported editable blocks found.' ); }
+
+        // Use an isolated, script-disabled iframe for the original HTML reference.
+        // Embedded styles are retained for preview; Gutenberg receives only converted blocks.
+        const preview = '<!doctype html>\n' + doc.documentElement.outerHTML;
+        return { content, preview };
+    };
+
     document.addEventListener( 'DOMContentLoaded', () => {
         const file = $( '#syndamorph-html-file' );
         const input = $( '#syndamorph-html-input' );
         const title = $( '#syndamorph-page-title' );
-        const button = $( '#syndamorph-convert' );
+        const previewButton = $( '#syndamorph-convert' );
+        const createButton = $( '#syndamorph-create-draft' );
+        const card = $( '#syndamorph-preview' );
+        const frame = $( '#syndamorph-preview-frame' );
         const result = $( '#syndamorph-result' );
-        if ( ! file || ! input || ! title || ! button || ! result ) { return; }
+        if ( ! file || ! input || ! title || ! previewButton || ! createButton || ! card || ! frame || ! result ) { return; }
+
+        let prepared = null;
+        let preparedSource = '';
+        const invalidatePreview = () => {
+            prepared = null;
+            preparedSource = '';
+            card.hidden = true;
+            frame.removeAttribute( 'srcdoc' );
+            createButton.disabled = true;
+        };
+        input.addEventListener( 'input', invalidatePreview );
 
         file.addEventListener( 'change', async () => {
+            invalidatePreview();
             const selected = file.files && file.files[ 0 ];
             if ( ! selected ) { return; }
             if ( ! /\.html?$/i.test( selected.name ) || selected.size > 2 * 1024 * 1024 ) {
@@ -168,44 +207,58 @@
                 file.value = '';
                 return;
             }
-            input.value = await selected.text();
-            if ( ! title.value.trim() || title.value === 'Imported HTML' ) {
-                title.value = selected.name.replace( /\.html?$/i, '' );
+            try {
+                input.value = await selected.text();
+                if ( ! title.value.trim() || title.value === 'Imported HTML' ) {
+                    title.value = selected.name.replace( /\.html?$/i, '' );
+                }
+                result.textContent = 'HTML loaded. Select Preview Import.';
+            } catch ( error ) {
+                result.textContent = 'Unable to read HTML file: ' + ( error.message || String( error ) );
             }
-            result.textContent = 'HTML loaded.';
         } );
 
-        button.addEventListener( 'click', async () => {
-            if ( ! input.value.trim() ) {
+        previewButton.addEventListener( 'click', () => {
+            invalidatePreview();
+            const source = input.value;
+            if ( ! source.trim() ) {
                 result.textContent = 'Paste HTML or select an HTML file first.';
                 return;
             }
-            let stage = 'parse';
-            button.disabled = true;
+            previewButton.disabled = true;
             try {
-                result.textContent = 'Parsing HTML…';
-                const doc = new DOMParser().parseFromString( input.value, 'text/html' );
-                const rules = extractStyles( doc );
-                doc.querySelectorAll( 'script, style, iframe, object, embed, form, template, svg' ).forEach( ( node ) => node.remove() );
-                stage = 'convert';
-                result.textContent = 'Converting content and layout…';
-                const context = {
-                    count: 0,
-                    rules,
-                    baseUrl: window.location.origin,
-                };
-                const content = childBlocks( doc.body, context );
-                if ( ! content ) { throw new Error( 'No supported editable blocks found.' ); }
+                result.textContent = 'Preparing import preview…';
+                prepared = prepareImport( source );
+                preparedSource = source;
+                frame.srcdoc = prepared.preview;
+                card.hidden = false;
+                createButton.disabled = false;
+                result.textContent = 'Preview ready. Review the HTML before creating a draft.';
+            } catch ( error ) {
+                result.textContent = 'Preview failed: ' + ( error.message || String( error ) );
+                console.error( '[SyndaMorph] Preview:', error );
+            } finally {
+                previewButton.disabled = false;
+            }
+        } );
 
-                stage = 'save';
-                result.textContent = 'Saving WordPress draft…';
+        createButton.addEventListener( 'click', async () => {
+            if ( ! prepared || preparedSource !== input.value ) {
+                invalidatePreview();
+                result.textContent = 'HTML changed. Preview the import again before creating a draft.';
+                return;
+            }
+            createButton.disabled = true;
+            previewButton.disabled = true;
+            try {
+                result.textContent = 'Saving approved WordPress draft…';
                 const response = await fetch( SyndaMorphImport.restUrl, {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': SyndaMorphImport.nonce },
                     body: JSON.stringify( {
                         title: title.value.trim() || 'Imported HTML',
-                        content,
+                        content: prepared.content,
                         status: 'draft',
                     } ),
                 } );
@@ -213,13 +266,13 @@
                 if ( ! response.ok || ! data.id ) {
                     throw new Error( ( data && data.message ) || 'WordPress draft creation failed (HTTP ' + response.status + ').' );
                 }
-                stage = 'open';
                 result.textContent = 'Draft created. Opening Gutenberg…';
                 window.location.assign( SyndaMorphImport.editUrl + '?post=' + encodeURIComponent( data.id ) + '&action=edit' );
             } catch ( error ) {
-                result.textContent = 'Import failed [' + stage + ']: ' + ( error.message || String( error ) );
-                console.error( '[SyndaMorph] Stage:', stage, error );
-                button.disabled = false;
+                result.textContent = 'Draft creation failed: ' + ( error.message || String( error ) );
+                console.error( '[SyndaMorph] Draft:', error );
+                createButton.disabled = false;
+                previewButton.disabled = false;
             }
         } );
     } );
