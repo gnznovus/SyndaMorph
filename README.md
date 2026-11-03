@@ -26,6 +26,16 @@ Cross-origin CSS that cannot be verified due to browser security restrictions is
 
 Smoke test: `tests/fixtures/missing-css.html`.
 
+## Scenario #2 — Save as Pattern
+
+SyndaMorph can save the current converted preview **or** the current content in the Gutenberg page/post editor as a native WordPress **unsynced pattern**. Pattern instances remain independently editable; editing an inserted copy does not update other copies.
+
+- **Before creating a draft:** Tools → SyndaMorph → **Preview Import** → **Save as Pattern** → enter a name. No page draft is created.
+- **From an existing draft/page/post:** Open the Gutenberg editor → editor options (three-dot menu) → **Save as Pattern (SyndaMorph)** → enter a name. The current editor content is saved as a pattern snapshot, including unsaved changes; it does **not** publish or modify the draft.
+- Insert the saved design from Gutenberg's **Patterns → My Patterns** collection.
+
+Both actions store the same standard Gutenberg block markup as `wp_block` posts with `wp_pattern_sync_status=unsynced`. Pattern creation requires permission to edit pages. This is a **full-content snapshot**, not a selection-only pattern; missing-image placeholders remain replaceable native Image blocks.
+
 ## Current POC scope
 
 - **Preview-first approval:** renders an converted Gutenberg layout preview inside an isolated, script-disabled iframe; no draft is created until **Create Draft** is selected. Changing the imported HTML invalidates the preview and requires review again.
@@ -50,6 +60,7 @@ Smoke test: `tests/fixtures/missing-css.html`.
 plugin/
   syndamorph.php
   assets/import.js
+  assets/editor-pattern.js
   assets/admin.css
   assets/missing-image.svg
 tests/fixtures/basic.html
