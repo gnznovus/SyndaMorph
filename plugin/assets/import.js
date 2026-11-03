@@ -152,7 +152,67 @@
         return markup;
     };
 
-    const prepareImport = ( source ) => {
+    // Browser image loading checks work for cross-origin images without CORS headers.
+    // A failed or timed-out load is treated as unavailable for this import.
+    const checkImage = ( url ) => new Promise( ( resolve ) => {
+        const image = new Image();
+        let settled = false;
+        const finish = ( available ) => {
+            if ( settled ) { return; }
+            settled = true;
+            clearTimeout( timer );
+            image.onload = null;
+            image.onerror = null;
+            resolve( available );
+        };
+        const timer = setTimeout( () => finish( false ), 5000 );
+        image.onload = () => finish( image.naturalWidth > 0 );
+        image.onerror = () => finish( false );
+        image.src = url;
+    } );
+
+    const resolveImages = async ( doc ) => {
+        const nodes = Array.from( doc.querySelectorAll( 'img' ) );
+        const missing = [];
+        const cache = new Map();
+        const baseUrl = window.location.origin;
+        let cursor = 0;
+        const worker = async () => {
+            while ( cursor < nodes.length ) {
+                const index = cursor++;
+                const node = nodes[ index ];
+                const original = ( node.getAttribute( 'src' ) || '' ).trim();
+                let url = '';
+                try {
+                    const parsed = new URL( original, baseUrl );
+                    if ( original && [ 'http:', 'https:' ].includes( parsed.protocol ) ) {
+                        url = parsed.href;
+                    }
+                } catch ( error ) { /* Unsupported or malformed source. */ }
+
+                let available = false;
+                if ( url ) {
+                    if ( ! cache.has( url ) ) { cache.set( url, checkImage( url ) ); }
+                    available = await cache.get( url );
+                }
+                // srcset and sizes can override src, including in Gutenberg previews.
+                node.removeAttribute( 'srcset' );
+                node.removeAttribute( 'sizes' );
+                if ( available ) {
+                    node.setAttribute( 'src', url );
+                } else {
+                    node.setAttribute( 'src', SyndaMorphImport.placeholderUrl );
+                    node.setAttribute( 'alt', 'Missing image — ' + ( node.getAttribute( 'alt' ) || original || 'source not provided' ).slice( 0, 180 ) );
+                    missing.push( { index: index + 1, source: original || '(no source)' } );
+                }
+            }
+        };
+        await Promise.all( Array.from( { length: Math.min( 6, nodes.length ) }, worker ) );
+        missing.sort( ( a, b ) => a.index - b.index );
+        return missing;
+    };
+
+    const prepareImport = async ( source ) => {
         const doc = new DOMParser().parseFromString( source, 'text/html' );
         const rules = extractStyles( doc );
         // No source scripts or active embeds are allowed in the preview or block output.
@@ -166,6 +226,7 @@
                 }
             } );
         } );
+        const missing = await resolveImages( doc );
         const context = { count: 0, rules, baseUrl: window.location.origin };
         const content = childBlocks( doc.body, context );
         if ( ! content ) { throw new Error( 'No supported editable blocks found.' ); }
@@ -201,7 +262,7 @@
         const preview = '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
             '<meta name="viewport" content="width=device-width, initial-scale=1">' +
             '<style>' + previewStyles + '</style></head><body><div class="syndamorph-preview-content">' + rendered + '</div></body></html>';
-        return { content, preview };
+        return { content, preview, missing };
     };
 
     document.addEventListener( 'DOMContentLoaded', () => {
@@ -214,13 +275,15 @@
         const closeButton = $( '#syndamorph-close-preview' );
         const cancelButton = $( '#syndamorph-cancel-preview' );
         const frame = $( '#syndamorph-preview-frame' );
+        const assetReport = $( '#syndamorph-asset-report' );
         const result = $( '#syndamorph-result' );
-        if ( ! file || ! input || ! title || ! previewButton || ! createButton || ! card || ! frame || ! result || ! closeButton || ! cancelButton ) { return; }
+        if ( ! file || ! input || ! title || ! previewButton || ! createButton || ! card || ! frame || ! assetReport || ! result || ! closeButton || ! cancelButton ) { return; }
 
         let prepared = null;
         let preparedSource = '';
         let saving = false;
         let returnFocus = null;
+        let previewGeneration = 0;
         const closePreview = () => {
             if ( saving ) { return; }
             card.hidden = true;
@@ -228,10 +291,13 @@
             if ( returnFocus ) { returnFocus.focus(); }
         };
         const invalidatePreview = () => {
+            previewGeneration++;
             closePreview();
             prepared = null;
             preparedSource = '';
             frame.removeAttribute( 'srcdoc' );
+            assetReport.hidden = true;
+            assetReport.replaceChildren();
             createButton.disabled = true;
         };
         [ closeButton, cancelButton ].forEach( ( control ) => control.addEventListener( 'click', closePreview ) );
@@ -277,18 +343,33 @@
             }
         } );
 
-        previewButton.addEventListener( 'click', () => {
+        previewButton.addEventListener( 'click', async () => {
             invalidatePreview();
             const source = input.value;
             if ( ! source.trim() ) {
                 result.textContent = 'Paste HTML or select an HTML file first.';
                 return;
             }
+            const version = previewGeneration;
             previewButton.disabled = true;
             try {
-                result.textContent = 'Preparing import preview…';
-                prepared = prepareImport( source );
+                result.textContent = 'Checking image assets and preparing preview…';
+                const next = await prepareImport( source );
+                if ( version !== previewGeneration || source !== input.value ) { return; }
+                prepared = next;
                 preparedSource = source;
+                if ( prepared.missing.length ) {
+                    const heading = document.createElement( 'strong' );
+                    heading.textContent = prepared.missing.length + ' missing image(s) — replace these in Gutenberg after creating the draft.';
+                    const list = document.createElement( 'ul' );
+                    prepared.missing.forEach( ( item ) => {
+                        const entry = document.createElement( 'li' );
+                        entry.textContent = 'Image ' + item.index + ': ' + item.source;
+                        list.appendChild( entry );
+                    } );
+                    assetReport.replaceChildren( heading, list );
+                    assetReport.hidden = false;
+                }
                 frame.srcdoc = prepared.preview;
                 returnFocus = previewButton;
                 card.hidden = false;
