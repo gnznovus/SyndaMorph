@@ -18,6 +18,14 @@ Go to **Tools → SyndaMorph** to paste HTML or select an `.html`/`.htm` file. S
 
 Stop the environment with `docker compose down`. To discard the local WordPress database and content, run `docker compose down -v` (**destructive**).
 
+## Missing CSS Quick Fix
+
+When a linked stylesheet is missing (e.g., a same-origin 404 or empty/invalid link), the preview shows a **Missing CSS** warning and a **Quick Fix** button. Clicking Quick Fix opens `https://chatgpt.com/` in a new browser tab and copies a repair prompt containing the entire imported HTML to the clipboard. The user must **paste it into ChatGPT**, review the suggested CSS, and paste the repaired HTML back into SyndaMorph for another preview. No HTML is automatically transmitted to ChatGPT by the plugin. Check the HTML for sensitive material before choosing Quick Fix.
+
+Cross-origin CSS that cannot be verified due to browser security restrictions is shown as **Unverified**, not assumed missing. External stylesheets are not otherwise imported into Gutenberg. Quick Fix is optional; users can still create a draft without it. This is a best-effort reconstruction, not guaranteed recovery of original design.
+
+Smoke test: `tests/fixtures/missing-css.html`.
+
 ## Current POC scope
 
 - **Preview-first approval:** renders an converted Gutenberg layout preview inside an isolated, script-disabled iframe; no draft is created until **Create Draft** is selected. Changing the imported HTML invalidates the preview and requires review again.
@@ -47,6 +55,7 @@ plugin/
 tests/fixtures/basic.html
 tests/fixtures/layout.html
 tests/fixtures/missing-assets.html
+tests/fixtures/missing-css.html
 compose.yaml
 ```
 
