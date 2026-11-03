@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SyndaMorph
  * Description: Transform static HTML into independently editable native Gutenberg blocks.
- * Version: 0.3.0
+ * Version: 0.3.1
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Text Domain: syndamorph
@@ -34,15 +34,23 @@ function syndamorph_render_import_page(): void {
             <input id="syndamorph-page-title" class="regular-text" type="text" value="Imported HTML" maxlength="200">
             <p><button id="syndamorph-convert" type="button" class="button button-primary">Preview Import</button></p>
             <div id="syndamorph-result" role="status" aria-live="polite"></div>
-            <section id="syndamorph-preview" class="syndamorph-preview" hidden aria-label="HTML import preview">
-                <div class="syndamorph-preview-heading">
-                    <strong>Import Preview</strong>
-                    <span>HTML reference · Gutenberg may render some styles differently</span>
-                </div>
-                <iframe id="syndamorph-preview-frame" title="Imported HTML preview" sandbox="" referrerpolicy="no-referrer"></iframe>
-                <div class="syndamorph-preview-footer">
-                    <span>Review the layout before creating a WordPress draft.</span>
-                    <button id="syndamorph-create-draft" type="button" class="button button-primary">Create Draft</button>
+            <section id="syndamorph-preview" class="syndamorph-preview-modal" hidden role="dialog" aria-modal="true" aria-labelledby="syndamorph-preview-title" aria-describedby="syndamorph-preview-description">
+                <div class="syndamorph-preview-card">
+                    <div class="syndamorph-preview-heading">
+                        <div>
+                            <strong id="syndamorph-preview-title">Import Preview</strong>
+                            <p id="syndamorph-preview-description">HTML reference · Gutenberg may render some styles differently</p>
+                        </div>
+                        <button id="syndamorph-close-preview" type="button" class="button-link syndamorph-preview-close" aria-label="Close preview">&times;</button>
+                    </div>
+                    <iframe id="syndamorph-preview-frame" title="Imported HTML preview" sandbox="" referrerpolicy="no-referrer"></iframe>
+                    <div class="syndamorph-preview-footer">
+                        <span>Review before creating a WordPress draft.</span>
+                        <div class="syndamorph-preview-actions">
+                            <button id="syndamorph-cancel-preview" type="button" class="button">Close</button>
+                            <button id="syndamorph-create-draft" type="button" class="button button-primary">Create Draft</button>
+                        </div>
+                    </div>
                 </div>
             </section>
             <p class="description">POC scope: headings, paragraphs, images, semantic groups, and simple flex/grid columns. Basic inline and embedded CSS colors/alignment are translated to native block settings. Complex CSS and external stylesheets are not imported. Scripts are not executed.</p>
