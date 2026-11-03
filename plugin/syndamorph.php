@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SyndaMorph
  * Description: Transform static HTML into independently editable native Gutenberg blocks.
- * Version: 0.6.0
+ * Version: 0.6.1
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Text Domain: syndamorph
@@ -79,9 +79,16 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
         (string) filemtime( plugin_dir_path( __FILE__ ) . 'assets/admin.css' )
     );
     wp_enqueue_script(
+        'syndamorph-pattern-dialog',
+        plugin_dir_url( __FILE__ ) . 'assets/pattern-dialog.js',
+        array(),
+        (string) filemtime( plugin_dir_path( __FILE__ ) . 'assets/pattern-dialog.js' ),
+        true
+    );
+    wp_enqueue_script(
         'syndamorph-import',
         plugin_dir_url( __FILE__ ) . 'assets/import.js',
-        array(),
+        array( 'syndamorph-pattern-dialog' ),
         (string) filemtime( plugin_dir_path( __FILE__ ) . 'assets/import.js' ),
         true
     );
@@ -137,10 +144,29 @@ add_action( 'rest_api_init', static function (): void {
                 return new WP_Error( 'syndamorph_pattern_failed', 'Could not save the pattern.', array( 'status' => 500 ) );
             }
             update_post_meta( $id, 'wp_pattern_sync_status', 'unsynced' );
+
+            // User-created patterns use the wp_pattern_category taxonomy, not only
+            // register_block_pattern_category(), which categorizes code-defined patterns.
+            $category = term_exists( 'syndamorph', 'wp_pattern_category' );
+            if ( ! $category ) {
+                $category = wp_insert_term( 'SyndaMorph', 'wp_pattern_category', array( 'slug' => 'syndamorph' ) );
+            }
+            if ( is_wp_error( $category ) ) {
+                wp_delete_post( $id, true );
+                return new WP_Error( 'syndamorph_pattern_category_failed', 'Could not create the SyndaMorph category.', array( 'status' => 500 ) );
+            }
+            $term_id = is_array( $category ) ? (int) $category['term_id'] : (int) $category;
+            $assigned = wp_set_object_terms( $id, array( $term_id ), 'wp_pattern_category', false );
+            if ( is_wp_error( $assigned ) ) {
+                wp_delete_post( $id, true );
+                return new WP_Error( 'syndamorph_pattern_category_failed', 'Could not assign the SyndaMorph category.', array( 'status' => 500 ) );
+            }
+
             return new WP_REST_Response( array(
                 'id'     => $id,
                 'title'  => $title,
                 'synced' => false,
+                'category' => 'SyndaMorph',
             ), 201 );
         },
     ) );
@@ -154,10 +180,23 @@ add_action( 'enqueue_block_editor_assets', static function (): void {
     if ( ! $screen || 'post' !== $screen->base || ! in_array( $screen->post_type, array( 'page', 'post' ), true ) || ! current_user_can( 'edit_pages' ) ) {
         return;
     }
+    wp_enqueue_style(
+        'syndamorph-editor-admin',
+        plugin_dir_url( __FILE__ ) . 'assets/admin.css',
+        array(),
+        (string) filemtime( plugin_dir_path( __FILE__ ) . 'assets/admin.css' )
+    );
+    wp_enqueue_script(
+        'syndamorph-pattern-dialog',
+        plugin_dir_url( __FILE__ ) . 'assets/pattern-dialog.js',
+        array(),
+        (string) filemtime( plugin_dir_path( __FILE__ ) . 'assets/pattern-dialog.js' ),
+        true
+    );
     wp_enqueue_script(
         'syndamorph-editor-pattern',
         plugin_dir_url( __FILE__ ) . 'assets/editor-pattern.js',
-        array( 'wp-plugins', 'wp-edit-post', 'wp-element', 'wp-data', 'wp-api-fetch' ),
+        array( 'wp-plugins', 'wp-edit-post', 'wp-element', 'wp-data', 'wp-api-fetch', 'syndamorph-pattern-dialog' ),
         (string) filemtime( plugin_dir_path( __FILE__ ) . 'assets/editor-pattern.js' ),
         true
     );
