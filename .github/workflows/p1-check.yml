@@ -1,0 +1,23 @@
+name: P1 Syntax and Compose
+
+on:
+  push:
+    branches: [feat/p1-html-rendering]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate JavaScript syntax
+        run: |
+          node --check plugin/assets/import.js
+          node --check renderer/server.js
+          node --check renderer/render-worker.js
+      - name: Validate PHP syntax
+        run: |
+          php -l plugin/syndamorph.php
+          php -l plugin/includes/render-endpoint.php
+      - name: Validate Docker Compose schema
+        run: docker compose config --quiet
