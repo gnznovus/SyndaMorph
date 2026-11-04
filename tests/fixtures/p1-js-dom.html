@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>P1 JavaScript DOM rendering</title>
+<style>.js-cards { display: flex; } .js-title { color:#17375e; text-align:center; }</style></head>
+<body>
+<header><h1>Static welcome</h1></header>
+<main id="app"></main>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelector('#app').innerHTML = `
+    <section>
+      <h2 class="js-title">Rendered by JavaScript</h2>
+      <p>This paragraph does not exist in the initial static DOM.</p>
+      <div class="js-cards">
+        <div><h3>Ocean Room</h3><ul><li>Breakfast</li><li>Sea view</li></ul></div>
+        <div><h3>Garden Room</h3><p>Peaceful retreat</p></div>
+      </div>
+      <a class="btn" href="https://example.com/booking">Book Now</a>
+      <img src="./assets/js-only-missing.jpg" alt="Missing JS generated photo">
+    </section>`;
+  setTimeout(() => {
+    document.querySelector('.js-title').textContent = 'Rendered and Updated by JavaScript';
+  }, 150);
+});
+</script>
+</body></html>

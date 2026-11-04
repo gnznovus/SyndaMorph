@@ -86,12 +86,65 @@
         } catch ( error ) { return ''; }
     };
 
+    const simpleInline = ( node, context ) => Array.from( node.childNodes ).map( ( part ) => {
+        if ( part.nodeType === 3 ) { return escapeHtml( part.textContent ); }
+        if ( part.nodeType !== 1 ) { return ''; }
+        const tag = part.tagName.toLowerCase();
+        if ( tag === 'br' ) { return '<br>'; }
+        if ( [ 'strong', 'b', 'em', 'i', 'code', 'sup', 'sub' ].includes( tag ) ) {
+            return '<' + tag + '>' + simpleInline( part, context ) + '</' + tag + '>';
+        }
+        if ( tag === 'a' ) {
+            const href = safeUrl( part.getAttribute( 'href' ), context );
+            return href ? '<a href="' + escapeHtml( href ) + '">' + simpleInline( part, context ) + '</a>' : simpleInline( part, context );
+        }
+        return simpleInline( part, context );
+    } ).join( '' );
+
+    const asButton = ( label, href ) => {
+        const anchor = '<a class="wp-block-button__link wp-element-button"' +
+            ( href ? ' href="' + escapeHtml( href ) + '"' : '' ) + '>' + escapeHtml( label ) + '</a>';
+        const inner = block( 'button', {}, '<div class="wp-block-button">' + anchor + '</div>' );
+        return block( 'buttons', {}, '<div class="wp-block-buttons">' + inner + '</div>' );
+    };
+
+    const asList = ( node, context ) => {
+        const ordered = node.tagName.toLowerCase() === 'ol';
+        const tag = ordered ? 'ol' : 'ul';
+        const items = Array.from( node.children ).filter( ( child ) => child.tagName.toLowerCase() === 'li' )
+            .map( ( item ) => {
+                countBlock( context );
+                return block( 'list-item', {}, '<li>' + simpleInline( item, context ) + '</li>' );
+            } ).join( '' );
+        if ( ! items ) { return ''; }
+        return block( 'list', ordered ? { ordered: true } : {}, '<' + tag + ' class="wp-block-list">' + items + '</' + tag + '>' );
+    };
+
+    const asTable = ( node ) => {
+        const sections = Array.from( node.children ).filter( ( section ) => [ 'thead', 'tbody', 'tfoot', 'tr' ].includes( section.tagName.toLowerCase() ) );
+        const cells = ( row ) => '<tr>' + Array.from( row.children ).filter( ( c ) => [ 'td', 'th' ].includes( c.tagName.toLowerCase() ) )
+            .map( ( c ) => '<' + c.tagName.toLowerCase() + '>' + escapeHtml( c.textContent.trim() ) + '</' + c.tagName.toLowerCase() + '>' ).join( '' ) + '</tr>';
+        const html = sections.map( ( section ) => {
+            const tag = section.tagName.toLowerCase();
+            if ( tag === 'tr' ) { return cells( section ); }
+            return '<' + tag + '>' + Array.from( section.children ).filter( ( c ) => c.tagName.toLowerCase() === 'tr' )
+                .map( cells ).join( '' ) + '</' + tag + '>';
+        } ).join( '' );
+        if ( ! html ) { return ''; }
+        const normalized = sections.every( ( section ) => section.tagName.toLowerCase() === 'tr' ) ? '<tbody>' + html + '</tbody>' : html;
+        return block( 'table', {}, '<figure class="wp-block-table"><table class="has-fixed-layout">' + normalized + '</table></figure>' );
+    };
+
     const convert = ( node, context ) => {
         const tag = node.tagName.toLowerCase();
         const styles = readStyles( node, context );
         let markup = '';
 
-        if ( /^h[1-6]$/.test( tag ) || tag === 'p' ) {
+        if ( tag === 'p' && node.children.length === 1 && node.firstElementChild.tagName.toLowerCase() === 'a' &&
+            /(?:^|\s)(?:btn|button|cta)(?:$|\s)/i.test( node.firstElementChild.className || '' ) ) {
+            const anchor = node.firstElementChild;
+            markup = asButton( anchor.textContent.trim(), safeUrl( anchor.getAttribute( 'href' ), context ) );
+        } else if ( /^h[1-6]$/.test( tag ) || tag === 'p' ) {
             const value = node.textContent.trim();
             if ( ! value ) { return ''; }
             const heading = tag !== 'p';
@@ -99,8 +152,17 @@
             const attributes = { ...appearance.attrs };
             if ( heading ) { attributes.level = Number( tag[ 1 ] ); }
             const className = ( heading ? 'wp-block-heading ' : '' ) + appearance.className;
-            const html = '<' + tag + htmlAttributes( className.trim(), appearance.inlineStyle ) + '>' + escapeHtml( value ) + '</' + tag + '>';
+            const html = '<' + tag + htmlAttributes( className.trim(), appearance.inlineStyle ) + '>' + simpleInline( node, context ) + '</' + tag + '>';
             markup = block( heading ? 'heading' : 'paragraph', attributes, html );
+        } else if ( tag === 'button' || ( tag === 'a' && /(?:^|\s)(?:btn|button|cta)(?:$|\s)/i.test( node.className || '' ) ) ) {
+            const value = node.textContent.trim();
+            if ( value ) { markup = asButton( value, tag === 'a' ? safeUrl( node.getAttribute( 'href' ), context ) : '' ); }
+        } else if ( tag === 'ul' || tag === 'ol' ) {
+            markup = asList( node, context );
+        } else if ( tag === 'table' ) {
+            markup = asTable( node );
+        } else if ( tag === 'hr' ) {
+            markup = block( 'separator', {}, '<hr class="wp-block-separator has-alpha-channel-opacity"/>' );
         } else if ( tag === 'img' ) {
             const src = safeUrl( node.getAttribute( 'src' ), context );
             if ( ! src ) { return ''; }
@@ -270,8 +332,25 @@
         html,
     ].join( '\n' );
 
-    const prepareImport = async ( source ) => {
-        const doc = new DOMParser().parseFromString( source, 'text/html' );
+    const renderInlineJs = async ( html ) => {
+        const response = await fetch( SyndaMorphImport.renderUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': SyndaMorphImport.nonce },
+            body: JSON.stringify( { html } ),
+        } );
+        const data = await response.json();
+        if ( ! response.ok || typeof data.html !== 'string' ) {
+            throw new Error( data.message || 'JavaScript rendering service failed (HTTP ' + response.status + ').' );
+        }
+        return data.html;
+    };
+
+    const prepareImport = async ( source, jsMode = false ) => {
+        // JS runs only in the separate Docker renderer; the WP admin never
+        // evaluates source scripts. Both modes use the same converter below.
+        const html = jsMode ? await renderInlineJs( source ) : source;
+        const doc = new DOMParser().parseFromString( html, 'text/html' );
         const stylesheets = await inspectStylesheets( doc );
         const rules = extractStyles( doc );
         // No source scripts or active embeds are allowed in the preview or block output.
@@ -309,6 +388,12 @@
             /* A figure's intrinsic image width must not expand beyond its column. */
             .wp-block-image { display: block; width: 100%; max-width: 100%; min-width: 0; margin: 0 0 1em; }
             .wp-block-image img { display: block; width: 100%; max-width: 100%; height: auto; }
+            .wp-block-buttons { display: flex; gap: .5em; margin-bottom: 1em; }
+            .wp-block-button__link { display: inline-block; padding: .65em 1.2em; border-radius: 4px; background: #32373c; color: #fff; text-decoration: none; }
+            .wp-block-table { width: 100%; overflow-x: auto; }
+            .wp-block-table table { width: 100%; border-collapse: collapse; }
+            .wp-block-table td, .wp-block-table th { padding: .55em; border: 1px solid #aab0b6; }
+            .wp-block-separator { border: 0; border-top: 1px solid #aab0b6; margin-block: 1.5em; }
             .has-text-align-left { text-align: left; }
             .has-text-align-center { text-align: center; }
             .has-text-align-right { text-align: right; }
@@ -328,6 +413,7 @@
         const file = $( '#syndamorph-html-file' );
         const input = $( '#syndamorph-html-input' );
         const title = $( '#syndamorph-page-title' );
+        const jsToggle = $( '#syndamorph-js-render' );
         const previewButton = $( '#syndamorph-convert' );
         const createButton = $( '#syndamorph-create-draft' );
         const patternButton = $( '#syndamorph-save-pattern' );
@@ -342,10 +428,11 @@
         const fixButton = $( '#syndamorph-quick-fix' );
         const fixStatus = $( '#syndamorph-css-fix-status' );
         const result = $( '#syndamorph-result' );
-        if ( ! file || ! input || ! title || ! previewButton || ! createButton || ! patternButton || ! card || ! frame || ! assetReport || ! cssReport || ! cssList || ! cssTitle || ! fixButton || ! fixStatus || ! result || ! closeButton || ! cancelButton ) { return; }
+        if ( ! file || ! input || ! title || ! jsToggle || ! previewButton || ! createButton || ! patternButton || ! card || ! frame || ! assetReport || ! cssReport || ! cssList || ! cssTitle || ! fixButton || ! fixStatus || ! result || ! closeButton || ! cancelButton ) { return; }
 
         let prepared = null;
         let preparedSource = '';
+        let preparedMode = false;
         let saving = false;
         let returnFocus = null;
         let previewGeneration = 0;
@@ -360,6 +447,7 @@
             closePreview();
             prepared = null;
             preparedSource = '';
+            preparedMode = false;
             frame.removeAttribute( 'srcdoc' );
             assetReport.hidden = true;
             assetReport.replaceChildren();
@@ -391,7 +479,7 @@
             }
         } );
         fixButton.addEventListener( 'click', async () => {
-            if ( ! prepared || ! prepared.stylesheets.missing.length || preparedSource !== input.value ) { return; }
+            if ( ! prepared || ! prepared.stylesheets.missing.length || preparedSource !== input.value || preparedMode !== jsToggle.checked ) { return; }
             // Open from the user's direct click so popup blockers do not discard the tab.
             const tab = window.open( 'https://chatgpt.com/', '_blank' );
             if ( tab ) { tab.opener = null; }
@@ -407,6 +495,11 @@
             }
         } );
         input.addEventListener( 'input', invalidatePreview );
+        jsToggle.addEventListener( 'change', invalidatePreview );
+        if ( ! SyndaMorphImport.rendererAvailable ) {
+            jsToggle.disabled = true;
+            jsToggle.title = 'Start the Docker renderer service to enable JavaScript rendering.';
+        }
 
         file.addEventListener( 'change', async () => {
             invalidatePreview();
@@ -436,13 +529,15 @@
                 return;
             }
             const version = previewGeneration;
+            const jsMode = jsToggle.checked;
             previewButton.disabled = true;
             try {
-                result.textContent = 'Checking image assets and preparing preview…';
-                const next = await prepareImport( source );
-                if ( version !== previewGeneration || source !== input.value ) { return; }
+                result.textContent = jsMode ? 'Rendering inline JavaScript in isolated browser…' : 'Checking image assets and preparing preview…';
+                const next = await prepareImport( source, jsMode );
+                if ( version !== previewGeneration || source !== input.value || jsMode !== jsToggle.checked ) { return; }
                 prepared = next;
                 preparedSource = source;
+                preparedMode = jsMode;
                 if ( prepared.missing.length ) {
                     const heading = document.createElement( 'strong' );
                     heading.textContent = prepared.missing.length + ' missing image(s) — replace these in Gutenberg after creating the draft.';
@@ -490,7 +585,7 @@
         } );
 
         patternButton.addEventListener( 'click', async () => {
-            if ( ! prepared || preparedSource !== input.value ) {
+            if ( ! prepared || preparedSource !== input.value || preparedMode !== jsToggle.checked ) {
                 invalidatePreview();
                 result.textContent = 'HTML changed. Preview it again before saving a pattern.';
                 return;
@@ -529,7 +624,7 @@
         } );
 
         createButton.addEventListener( 'click', async () => {
-            if ( ! prepared || preparedSource !== input.value ) {
+            if ( ! prepared || preparedSource !== input.value || preparedMode !== jsToggle.checked ) {
                 invalidatePreview();
                 result.textContent = 'HTML changed. Preview the import again before creating a draft.';
                 return;
