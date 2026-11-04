@@ -18,6 +18,22 @@ Go to **Tools → SyndaMorph** to paste HTML or select an `.html`/`.htm` file. S
 
 Stop the environment with `docker compose down`. To discard the local WordPress database and content, run `docker compose down -v` (**destructive**).
 
+## P2 — Native Layout & CSS (acceptance pending)
+
+This initial P2 slice improves the editable conversion of explicit CSS values without introducing a rendering engine:
+
+- Group, Columns and Heading/Paragraph blocks: `padding` and `margin` with explicit per-side values; generated as Gutenberg `style.spacing` attributes and corresponding inline CSS.
+- Headings/paragraphs: `font-size` translated to `style.typography.fontSize`.
+- Flex/Grid columns: `gap` or `column-gap` translated to the native Columns block's `style.spacing.blockGap`.
+- Children of a 2–4-item flex/grid container: explicit percentage `width` or `flex-basis` becomes the native Column block `width` attribute (e.g. 65% / 35%).
+- Supported source lengths are nonnegative `px`, `em`, `rem`, and `%`, with a conservative maximum numeric component; unsupported `calc()`, `auto`, negative offsets, CSS variables, and arbitrary CSS are intentionally ignored.
+
+These are best-effort native settings, **not pixel-perfect CSS preservation**. Responsive behavior follows Gutenberg's built-in Columns block (the source CSS media-query breakpoints are not imported). CSS grid layouts with more than four direct children, nested complex grid placement, and absolute positioning remain future work. Static and JS-rendered DOM inputs share this conversion.
+
+### P2 local acceptance
+
+Use `tests/fixtures/p2-layout-spacing.html` in **static mode** and verify the heading's font size, 40px/24px hero padding, 32px gap, and 65%/35% columns in Gutenberg. Change padding and column widths from block controls; ensure **Preview Import → Create Draft** and **Save as Pattern** still behave as in P1. Recheck at desktop and mobile editor widths. No runtime acceptance has been claimed yet.
+
 ## P1 — HTML Rendering & Conversion (experimental)
 
 **Static mode (default):** Parse HTML directly. No JavaScript is executed.
@@ -78,7 +94,7 @@ Both actions store the same standard Gutenberg block markup as `wp_block` posts 
 - Converts `h1`–`h6`, `p`, `img`, and standalone links into native Gutenberg blocks.
 - Converts semantic containers (`header`, `main`, `section`, `article`, `nav`, `footer`) and `div` into native Group blocks.
 - Converts simple `display: flex` or `display: grid` containers with 2–4 direct children into native Columns/Column blocks.
-- Supports a narrow CSS subset from inline styles and simple `<style>` selectors: text alignment, hexadecimal text color, and hexadecimal group background color.
+- Supports a narrow CSS subset from inline styles and simple `<style>` selectors: text alignment, hexadecimal text and background color, explicit spacing, text sizes, and column gaps/widths.
 - Accepts pasted HTML or a local HTML file (up to 2 MB).
 - Executes no imported scripts. No proprietary package, custom editor, or WPML dependency.
 - Does not preserve external CSS, complete layout fidelity, responsive media queries, pseudo-selectors, CSS variables, JavaScript-driven DOM, or imported media files.
