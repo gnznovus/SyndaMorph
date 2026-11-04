@@ -150,7 +150,7 @@
             const className = ( heading ? 'wp-block-heading ' : '' ) + appearance.className;
             const html = '<' + tag + htmlAttributes( className.trim(), appearance.inlineStyle ) + '>' + simpleInline( node, context ) + '</' + tag + '>';
             markup = block( heading ? 'heading' : 'paragraph', attributes, html );
-        } else if ( tag === 'button' || ( tag === 'a' && /(?:^|\\s)(?:btn|button|cta)(?:$|\\s)/i.test( node.className || '' ) ) ) {
+        } else if ( tag === 'button' || ( tag === 'a' && /(?:^|\s)(?:btn|button|cta)(?:$|\s)/i.test( node.className || '' ) ) ) {
             const value = node.textContent.trim();
             if ( value ) { markup = asButton( value, tag === 'a' ? safeUrl( node.getAttribute( 'href' ), context ) : '' ); }
         } else if ( tag === 'ul' || tag === 'ol' ) {
@@ -328,8 +328,25 @@
         html,
     ].join( '\n' );
 
-    const prepareImport = async ( source ) => {
-        const doc = new DOMParser().parseFromString( source, 'text/html' );
+    const renderInlineJs = async ( html ) => {
+        const response = await fetch( SyndaMorphImport.renderUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': SyndaMorphImport.nonce },
+            body: JSON.stringify( { html } ),
+        } );
+        const data = await response.json();
+        if ( ! response.ok || typeof data.html !== 'string' ) {
+            throw new Error( data.message || 'JavaScript rendering service failed (HTTP ' + response.status + ').' );
+        }
+        return data.html;
+    };
+
+    const prepareImport = async ( source, jsMode = false ) => {
+        // JS runs only in the separate Docker renderer; the WP admin never
+        // evaluates source scripts. Both modes use the same converter below.
+        const html = jsMode ? await renderInlineJs( source ) : source;
+        const doc = new DOMParser().parseFromString( html, 'text/html' );
         const stylesheets = await inspectStylesheets( doc );
         const rules = extractStyles( doc );
         // No source scripts or active embeds are allowed in the preview or block output.
@@ -392,6 +409,7 @@
         const file = $( '#syndamorph-html-file' );
         const input = $( '#syndamorph-html-input' );
         const title = $( '#syndamorph-page-title' );
+        const jsToggle = $( '#syndamorph-js-render' );
         const previewButton = $( '#syndamorph-convert' );
         const createButton = $( '#syndamorph-create-draft' );
         const patternButton = $( '#syndamorph-save-pattern' );
@@ -406,10 +424,11 @@
         const fixButton = $( '#syndamorph-quick-fix' );
         const fixStatus = $( '#syndamorph-css-fix-status' );
         const result = $( '#syndamorph-result' );
-        if ( ! file || ! input || ! title || ! previewButton || ! createButton || ! patternButton || ! card || ! frame || ! assetReport || ! cssReport || ! cssList || ! cssTitle || ! fixButton || ! fixStatus || ! result || ! closeButton || ! cancelButton ) { return; }
+        if ( ! file || ! input || ! title || ! jsToggle || ! previewButton || ! createButton || ! patternButton || ! card || ! frame || ! assetReport || ! cssReport || ! cssList || ! cssTitle || ! fixButton || ! fixStatus || ! result || ! closeButton || ! cancelButton ) { return; }
 
         let prepared = null;
         let preparedSource = '';
+        let preparedMode = false;
         let saving = false;
         let returnFocus = null;
         let previewGeneration = 0;
@@ -424,6 +443,7 @@
             closePreview();
             prepared = null;
             preparedSource = '';
+            preparedMode = false;
             frame.removeAttribute( 'srcdoc' );
             assetReport.hidden = true;
             assetReport.replaceChildren();
@@ -455,7 +475,7 @@
             }
         } );
         fixButton.addEventListener( 'click', async () => {
-            if ( ! prepared || ! prepared.stylesheets.missing.length || preparedSource !== input.value ) { return; }
+            if ( ! prepared || ! prepared.stylesheets.missing.length || preparedSource !== input.value || preparedMode !== jsToggle.checked ) { return; }
             // Open from the user's direct click so popup blockers do not discard the tab.
             const tab = window.open( 'https://chatgpt.com/', '_blank' );
             if ( tab ) { tab.opener = null; }
@@ -471,6 +491,11 @@
             }
         } );
         input.addEventListener( 'input', invalidatePreview );
+        jsToggle.addEventListener( 'change', invalidatePreview );
+        if ( ! SyndaMorphImport.rendererAvailable ) {
+            jsToggle.disabled = true;
+            jsToggle.title = 'Start the Docker renderer service to enable JavaScript rendering.';
+        }
 
         file.addEventListener( 'change', async () => {
             invalidatePreview();
@@ -500,13 +525,15 @@
                 return;
             }
             const version = previewGeneration;
+            const jsMode = jsToggle.checked;
             previewButton.disabled = true;
             try {
-                result.textContent = 'Checking image assets and preparing preview…';
-                const next = await prepareImport( source );
-                if ( version !== previewGeneration || source !== input.value ) { return; }
+                result.textContent = jsMode ? 'Rendering inline JavaScript in isolated browser…' : 'Checking image assets and preparing preview…';
+                const next = await prepareImport( source, jsMode );
+                if ( version !== previewGeneration || source !== input.value || jsMode !== jsToggle.checked ) { return; }
                 prepared = next;
                 preparedSource = source;
+                preparedMode = jsMode;
                 if ( prepared.missing.length ) {
                     const heading = document.createElement( 'strong' );
                     heading.textContent = prepared.missing.length + ' missing image(s) — replace these in Gutenberg after creating the draft.';
@@ -554,7 +581,7 @@
         } );
 
         patternButton.addEventListener( 'click', async () => {
-            if ( ! prepared || preparedSource !== input.value ) {
+            if ( ! prepared || preparedSource !== input.value || preparedMode !== jsToggle.checked ) {
                 invalidatePreview();
                 result.textContent = 'HTML changed. Preview it again before saving a pattern.';
                 return;
@@ -593,7 +620,7 @@
         } );
 
         createButton.addEventListener( 'click', async () => {
-            if ( ! prepared || preparedSource !== input.value ) {
+            if ( ! prepared || preparedSource !== input.value || preparedMode !== jsToggle.checked ) {
                 invalidatePreview();
                 result.textContent = 'HTML changed. Preview the import again before creating a draft.';
                 return;
