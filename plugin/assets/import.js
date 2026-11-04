@@ -86,6 +86,55 @@
         } catch ( error ) { return ''; }
     };
 
+    const simpleInline = ( node, context ) => Array.from( node.childNodes ).map( ( part ) => {
+        if ( part.nodeType === 3 ) { return escapeHtml( part.textContent ); }
+        if ( part.nodeType !== 1 ) { return ''; }
+        const tag = part.tagName.toLowerCase();
+        if ( tag === 'br' ) { return '<br>'; }
+        if ( [ 'strong', 'b', 'em', 'i', 'code', 'sup', 'sub' ].includes( tag ) ) {
+            return '<' + tag + '>' + simpleInline( part, context ) + '</' + tag + '>';
+        }
+        if ( tag === 'a' ) {
+            const href = safeUrl( part.getAttribute( 'href' ), context );
+            return href ? '<a href="' + escapeHtml( href ) + '">' + simpleInline( part, context ) + '</a>' : simpleInline( part, context );
+        }
+        return simpleInline( part, context );
+    } ).join( '' );
+
+    const asButton = ( label, href ) => {
+        const anchor = '<a class="wp-block-button__link wp-element-button"' +
+            ( href ? ' href="' + escapeHtml( href ) + '"' : '' ) + '>' + escapeHtml( label ) + '</a>';
+        const inner = block( 'button', {}, '<div class="wp-block-button">' + anchor + '</div>' );
+        return block( 'buttons', {}, '<div class="wp-block-buttons">' + inner + '</div>' );
+    };
+
+    const asList = ( node, context ) => {
+        const ordered = node.tagName.toLowerCase() === 'ol';
+        const tag = ordered ? 'ol' : 'ul';
+        const items = Array.from( node.children ).filter( ( child ) => child.tagName.toLowerCase() === 'li' )
+            .map( ( item ) => {
+                countBlock( context );
+                return block( 'list-item', {}, '<li>' + simpleInline( item, context ) + '</li>' );
+            } ).join( '' );
+        if ( ! items ) { return ''; }
+        return block( 'list', ordered ? { ordered: true } : {}, '<' + tag + ' class="wp-block-list">' + items + '</' + tag + '>' );
+    };
+
+    const asTable = ( node ) => {
+        const sections = Array.from( node.children ).filter( ( section ) => [ 'thead', 'tbody', 'tfoot', 'tr' ].includes( section.tagName.toLowerCase() ) );
+        const cells = ( row ) => '<tr>' + Array.from( row.children ).filter( ( c ) => [ 'td', 'th' ].includes( c.tagName.toLowerCase() ) )
+            .map( ( c ) => '<' + c.tagName.toLowerCase() + '>' + escapeHtml( c.textContent.trim() ) + '</' + c.tagName.toLowerCase() + '>' ).join( '' ) + '</tr>';
+        const html = sections.map( ( section ) => {
+            const tag = section.tagName.toLowerCase();
+            if ( tag === 'tr' ) { return cells( section ); }
+            return '<' + tag + '>' + Array.from( section.children ).filter( ( c ) => c.tagName.toLowerCase() === 'tr' )
+                .map( cells ).join( '' ) + '</' + tag + '>';
+        } ).join( '' );
+        if ( ! html ) { return ''; }
+        const normalized = sections.every( ( section ) => section.tagName.toLowerCase() === 'tr' ) ? '<tbody>' + html + '</tbody>' : html;
+        return block( 'table', {}, '<figure class="wp-block-table"><table>' + normalized + '</table></figure>' );
+    };
+
     const convert = ( node, context ) => {
         const tag = node.tagName.toLowerCase();
         const styles = readStyles( node, context );
@@ -99,8 +148,17 @@
             const attributes = { ...appearance.attrs };
             if ( heading ) { attributes.level = Number( tag[ 1 ] ); }
             const className = ( heading ? 'wp-block-heading ' : '' ) + appearance.className;
-            const html = '<' + tag + htmlAttributes( className.trim(), appearance.inlineStyle ) + '>' + escapeHtml( value ) + '</' + tag + '>';
+            const html = '<' + tag + htmlAttributes( className.trim(), appearance.inlineStyle ) + '>' + simpleInline( node, context ) + '</' + tag + '>';
             markup = block( heading ? 'heading' : 'paragraph', attributes, html );
+        } else if ( tag === 'button' || ( tag === 'a' && /(?:^|\\s)(?:btn|button|cta)(?:$|\\s)/i.test( node.className || '' ) ) ) {
+            const value = node.textContent.trim();
+            if ( value ) { markup = asButton( value, tag === 'a' ? safeUrl( node.getAttribute( 'href' ), context ) : '' ); }
+        } else if ( tag === 'ul' || tag === 'ol' ) {
+            markup = asList( node, context );
+        } else if ( tag === 'table' ) {
+            markup = asTable( node );
+        } else if ( tag === 'hr' ) {
+            markup = block( 'separator', {}, '<hr class="wp-block-separator has-alpha-channel-opacity"/>' );
         } else if ( tag === 'img' ) {
             const src = safeUrl( node.getAttribute( 'src' ), context );
             if ( ! src ) { return ''; }
@@ -309,6 +367,12 @@
             /* A figure's intrinsic image width must not expand beyond its column. */
             .wp-block-image { display: block; width: 100%; max-width: 100%; min-width: 0; margin: 0 0 1em; }
             .wp-block-image img { display: block; width: 100%; max-width: 100%; height: auto; }
+            .wp-block-buttons { display: flex; gap: .5em; margin-bottom: 1em; }
+            .wp-block-button__link { display: inline-block; padding: .65em 1.2em; border-radius: 4px; background: #32373c; color: #fff; text-decoration: none; }
+            .wp-block-table { width: 100%; overflow-x: auto; }
+            .wp-block-table table { width: 100%; border-collapse: collapse; }
+            .wp-block-table td, .wp-block-table th { padding: .55em; border: 1px solid #aab0b6; }
+            .wp-block-separator { border: 0; border-top: 1px solid #aab0b6; margin-block: 1.5em; }
             .has-text-align-left { text-align: left; }
             .has-text-align-center { text-align: center; }
             .has-text-align-right { text-align: right; }
