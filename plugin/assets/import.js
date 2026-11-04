@@ -235,8 +235,9 @@
                     const attrs = {};
                     let inline = '';
                     if ( styles.gap ) {
+                        // Columns serialize blockGap as a layout attribute only.
+                        // Gutenberg generates its layout CSS outside the saved HTML.
                         attrs.style = { spacing: { blockGap: styles.gap } };
-                        inline = 'gap:' + styles.gap;
                     }
                     inline = applySpacing( attrs, inline, styles );
                     markup = block( 'columns', attrs, '<div' + htmlAttributes( 'wp-block-columns', inline ) + '>' + cols + '</div>' );
@@ -423,7 +424,18 @@
 
         // Preview the same converted markup that will be saved to WordPress.
         // Strip Gutenberg block delimiters only for rendering in the sandboxed iframe.
-        const rendered = content.replace( /<!--\s*\/?wp:[\s\S]*?-->/g, '' );
+        // Gutenberg does not serialize Columns blockGap into inline markup.
+        // Reconstruct that style ONLY for the script-disabled preview.
+        const previewMarkup = content.replace(
+            /<!-- wp:columns (\{[^\n]*\}) -->\s*(<div class="wp-block-columns")/g,
+            ( match, json, opening ) => {
+                try {
+                    const gap = JSON.parse( json )?.style?.spacing?.blockGap;
+                    return opening + ( allowedLength( gap ) ? ' style="gap:' + escapeHtml( gap ) + '"' : '' );
+                } catch ( error ) { return opening; }
+            }
+        );
+        const rendered = previewMarkup.replace( /<!--\s*\/?wp:[\s\S]*?-->/g, '' );
         const previewStyles = `
             *, *::before, *::after { box-sizing: border-box; }
             body { margin: 0; padding: 20px; background: #fff; color: #1e1e1e; font-family: system-ui, sans-serif; line-height: 1.6; }
