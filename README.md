@@ -18,13 +18,46 @@ Go to **Tools → SyndaMorph** to paste HTML or select an `.html`/`.htm` file. S
 
 Stop the environment with `docker compose down`. To discard the local WordPress database and content, run `docker compose down -v` (**destructive**).
 
+## P1 — HTML Rendering & Conversion (experimental)
+
+**Static mode (default):** Parse HTML directly. No JavaScript is executed.
+
+**Render inline JavaScript (experimental):** When running the Docker stack, check the option on **Tools → SyndaMorph** before **Preview Import**. WordPress passes the HTML to a separate Playwright renderer. The disposable browser worker captures the DOM after scripts run and returns it to the **same converter, preview, missing-assets checks, and pattern/draft approval flow** as static HTML.
+
+- The renderer is an internal Docker service with **no published port**; the WordPress REST bridge requires `edit_pages` permission.
+- Browser HTTP requests are aborted; **external JS bundles, CSS files, fetch APIs, framework CDN imports, and authenticated web apps are not supported**. Inline vanilla JS and short `DOMContentLoaded` / `setTimeout` DOM updates are the intended first use cases.
+- A new browser process is started per render. The worker is terminated at 8 seconds if it hangs; input/output are capped at 2 MB. JavaScript is **never executed inside WordPress admin**, and scripts are removed before saving.
+- The Playwright container runs with a non-root account, reduced capabilities, a read-only filesystem, resource limits and a separate internal network. **The Chromium sandbox is disabled**, however, so this is a **development-only proof of concept** and **must not be exposed as a public production service or used with untrusted HTML at scale**. Additional isolation and security review are required before production use.
+
+P1-A additionally converts HTML **buttons / CTA links**, **ordered and unordered lists**, **tables**, **horizontal rules**, and basic inline formatting into editable native blocks. Complex nested lists, interactivity, advanced table styling, React/Vue bundling, network-backed components, and script-driven behavior after import are not covered.
+
+### Verify on Docker 8085
+
+```bash
+docker compose up -d --build
+docker compose logs -f renderer
+```
+
+Then test:
+
+- `tests/fixtures/p1-native-blocks.html` in **static mode**: inspect native Button, List, Table, Separator blocks in Gutenberg
+- `tests/fixtures/p1-js-dom.html` in **static mode**: dynamic room cards should not exist yet
+- Import the same JS fixture with **Render inline JavaScript** checked: dynamic rooms, JS-updated heading, CTA, and missing-image placeholder should appear as editable native blocks
+- `tests/fixtures/p1-render-timeout.html` **only in JS mode**: conversion should report a timeout instead of freezing WordPress; retry a valid fixture afterwards
+- Confirm **Save as Pattern** and **Create Draft** still work and do not persist executable scripts
+
+If the renderer is unavailable, JS mode reports a visible error; static mode remains usable.
+
 ## Missing CSS Quick Fix
 
 When a linked stylesheet is missing (e.g., a same-origin 404 or empty/invalid link), the preview shows a **Missing CSS** warning and a **Quick Fix** button. Clicking Quick Fix opens `https://chatgpt.com/` in a new browser tab and copies a repair prompt containing the entire imported HTML to the clipboard. The user must **paste it into ChatGPT**, review the suggested CSS, and paste the repaired HTML back into SyndaMorph for another preview. No HTML is automatically transmitted to ChatGPT by the plugin. Check the HTML for sensitive material before choosing Quick Fix.
 
 Cross-origin CSS that cannot be verified due to browser security restrictions is shown as **Unverified**, not assumed missing. External stylesheets are not otherwise imported into Gutenberg. Quick Fix is optional; users can still create a draft without it. This is a best-effort reconstruction, not guaranteed recovery of original design.
 
-Smoke test: `tests/fixtures/missing-css.html`.
+Smoke test: `tests/fixtures/missing-css.html
+tests/fixtures/p1-native-blocks.html
+tests/fixtures/p1-js-dom.html
+tests/fixtures/p1-render-timeout.html`.
 
 ## Scenario #2 — Save as Pattern
 
@@ -64,11 +97,17 @@ plugin/
   assets/pattern-dialog.js
   assets/admin.css
   assets/missing-image.svg
+  includes/render-endpoint.php
 tests/fixtures/basic.html
 tests/fixtures/layout.html
 tests/fixtures/missing-assets.html
 tests/fixtures/missing-css.html
 compose.yaml
+renderer/
+  Dockerfile
+  package.json
+  server.js
+  render-worker.js
 ```
 
 ## Origin
