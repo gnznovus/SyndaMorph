@@ -30,6 +30,10 @@ This initial P2 slice improves the editable conversion of explicit CSS values wi
 
 These are best-effort native settings, **not pixel-perfect CSS preservation**. Responsive behavior follows Gutenberg's built-in Columns block (the source CSS media-query breakpoints are not imported). CSS grid layouts with more than four direct children, nested complex grid placement, and absolute positioning remain future work. Static and JS-rendered DOM inputs share this conversion.
 
+### P2 serialization regression
+
+A P2 Gutenberg validation failure was traced to serializing Columns `blockGap` as a literal inline `gap:` declaration. Native Gutenberg stores the gap in the block attribute and generates the corresponding layout CSS separately. The saved Columns markup no longer includes the extra inline gap; the import preview adds it only to its temporary iframe markup. **Reimport the HTML and create a new draft after pulling the patch**: existing invalid draft block markup is not retroactively rewritten.
+
 ### P2 local acceptance
 
 Use `tests/fixtures/p2-layout-spacing.html` in **static mode** and verify the heading's font size, 40px/24px hero padding, 32px gap, and 65%/35% columns in Gutenberg. Change padding and column widths from block controls; ensure **Preview Import → Create Draft** and **Save as Pattern** still behave as in P1. Recheck at desktop and mobile editor widths. No runtime acceptance has been claimed yet.
