@@ -132,7 +132,7 @@
         } ).join( '' );
         if ( ! html ) { return ''; }
         const normalized = sections.every( ( section ) => section.tagName.toLowerCase() === 'tr' ) ? '<tbody>' + html + '</tbody>' : html;
-        return block( 'table', {}, '<figure class="wp-block-table"><table>' + normalized + '</table></figure>' );
+        return block( 'table', {}, '<figure class="wp-block-table"><table class="has-fixed-layout">' + normalized + '</table></figure>' );
     };
 
     const convert = ( node, context ) => {
@@ -140,7 +140,11 @@
         const styles = readStyles( node, context );
         let markup = '';
 
-        if ( /^h[1-6]$/.test( tag ) || tag === 'p' ) {
+        if ( tag === 'p' && node.children.length === 1 && node.firstElementChild.tagName.toLowerCase() === 'a' &&
+            /(?:^|\s)(?:btn|button|cta)(?:$|\s)/i.test( node.firstElementChild.className || '' ) ) {
+            const anchor = node.firstElementChild;
+            markup = asButton( anchor.textContent.trim(), safeUrl( anchor.getAttribute( 'href' ), context ) );
+        } else if ( /^h[1-6]$/.test( tag ) || tag === 'p' ) {
             const value = node.textContent.trim();
             if ( ! value ) { return ''; }
             const heading = tag !== 'p';
