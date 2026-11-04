@@ -47,7 +47,7 @@
     const allowedLength = ( value ) => {
         const raw = ( value || '' ).trim().toLowerCase();
         if ( raw === '0' ) { return '0px'; }
-        const match = raw.match( /^(\\d+(?:\\.\\d+)?)(px|rem|em|%)$/ );
+        const match = raw.match( /^(\d+(?:\.\d+)?)(px|rem|em|%)$/ );
         if ( ! match || Number( match[ 1 ] ) > 400 ) { return ''; }
         return raw;
     };
@@ -437,6 +437,7 @@
             .wp-block-group.has-background > p { margin-block: 0; }
             .wp-block-columns { display: flex; flex-wrap: nowrap; align-items: normal; gap: 2em; margin-bottom: 1.75em; }
             .wp-block-column { flex: 1 1 0; min-width: 0; overflow-wrap: break-word; }
+            .wp-block-column[style*="flex-basis"] { flex-grow: 0; flex-shrink: 1; }
             /* A figure's intrinsic image width must not expand beyond its column. */
             .wp-block-image { display: block; width: 100%; max-width: 100%; min-width: 0; margin: 0 0 1em; }
             .wp-block-image img { display: block; width: 100%; max-width: 100%; height: auto; }
