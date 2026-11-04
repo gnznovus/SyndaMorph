@@ -39,7 +39,7 @@ const render = (html) => new Promise((resolve, reject) => {
         if (size > MAX_BYTES + 4096) { finish(new Error('Rendered HTML exceeds 2 MB.')); return; }
         chunks.push(buf);
     });
-    child.on('exit', (code) => {
+    child.on('close', (code) => {
         if (settled) { return; }
         try {
             const result = JSON.parse(Buffer.concat(chunks).toString('utf8'));
