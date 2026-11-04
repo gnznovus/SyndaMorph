@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>P2 Native Layout and CSS</title>
+<style>
+  .hero { background-color:#eef4fa; padding:40px 24px; margin-bottom:32px; }
+  .hero-title { color:#17375e; font-size:36px; text-align:center; margin-bottom:12px; }
+  .intro { font-size:18px; margin-bottom:24px; }
+  .rooms { display:flex; gap:32px; margin-top:24px; margin-bottom:30px; }
+  .primary-room { width:65%; padding:16px; background-color:#f4f7fa; }
+  .secondary-room { width:35%; padding:16px; background-color:#fff5ea; }
+  .details { padding:24px; margin-top:16px; }
+</style>
+</head>
+<body>
+  <header class="hero">
+    <h1 class="hero-title">Your Next Getaway</h1>
+    <p class="intro">Welcome to the P2 spacing and typography test.</p>
+  </header>
+  <main>
+    <section class="rooms">
+      <article class="primary-room">
+        <h2>Ocean Suite — 65%</h2>
+        <p>Wide column with a pale background and padding.</p>
+      </article>
+      <article class="secondary-room">
+        <h2>Garden Room — 35%</h2>
+        <p>Narrow column with a warm background.</p>
+      </article>
+    </section>
+    <section class="details">
+      <h2>Included Benefits</h2>
+      <ul><li>Daily breakfast</li><li>Late checkout</li></ul>
+      <hr>
+      <p>All spacing should remain editable using Gutenberg block settings.</p>
+    </section>
+  </main>
+</body></html>
