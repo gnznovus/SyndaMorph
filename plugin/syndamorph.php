@@ -2,12 +2,13 @@
 /**
  * Plugin Name: SyndaMorph
  * Description: Transform static HTML into independently editable native Gutenberg blocks.
- * Version: 0.6.1
+ * Version: 0.7.0
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Text Domain: syndamorph
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
+require_once plugin_dir_path( __FILE__ ) . 'includes/render-endpoint.php';
 
 add_action( 'admin_menu', static function (): void {
     add_management_page(
@@ -30,6 +31,8 @@ function syndamorph_render_import_page(): void {
             <input id="syndamorph-html-file" type="file" accept=".html,.htm,text/html">
             <p><label for="syndamorph-html-input"><strong>Paste HTML</strong></label></p>
             <textarea id="syndamorph-html-input" rows="15" class="large-text code" placeholder="<section><h1>Welcome</h1><p>Edit me in Gutenberg.</p></section>"></textarea>
+            <p><label><input id="syndamorph-js-render" type="checkbox"> <strong>Render inline JavaScript (experimental)</strong></label></p>
+            <p class="description">Runs the imported document in an isolated Docker browser before conversion. Only inline JavaScript is supported; network requests and external scripts are blocked. Requires the local renderer service.</p>
             <p><label for="syndamorph-page-title"><strong>Draft title</strong></label></p>
             <input id="syndamorph-page-title" class="regular-text" type="text" value="Imported HTML" maxlength="200">
             <p><button id="syndamorph-convert" type="button" class="button button-primary">Preview Import</button></p>
@@ -64,7 +67,7 @@ function syndamorph_render_import_page(): void {
                     </div>
                 </div>
             </section>
-            <p class="description">POC scope: headings, paragraphs, images, semantic groups, and simple flex/grid columns. Basic inline and embedded CSS colors/alignment are translated to native block settings. Complex CSS and external stylesheets are not imported. Scripts are not executed.</p>
+            <p class="description">POC scope: native headings, paragraphs, images, buttons, lists, tables, dividers, semantic groups, and simple columns. Basic inline and embedded CSS colors/alignment are translated to native block settings. Complex CSS and external stylesheets are not imported. Scripts are not executed.</p>
         </div>
     </div>
     <?php
@@ -100,6 +103,8 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
             'restUrl' => rest_url( 'wp/v2/pages' ),
             'placeholderUrl' => plugin_dir_url( __FILE__ ) . 'assets/missing-image.svg',
             'patternUrl' => rest_url( 'syndamorph/v1/patterns' ),
+            'renderUrl' => rest_url( 'syndamorph/v1/render-dom' ),
+            'rendererAvailable' => 'http://renderer:3000/render' === getenv( 'SYNDAMORPH_RENDERER_URL' ),
         ) ) . ';',
         'before'
     );
