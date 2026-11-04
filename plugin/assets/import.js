@@ -434,8 +434,6 @@
             .wp-block-group > .wp-block-columns { margin-inline: auto; }
             /* Gutenberg does not inject padding into a Group merely because it has a background. */
             .wp-block-group.has-background { padding: 0; }
-            .wp-block-group.has-background[style*="padding-"] { padding: initial; }
-            .wp-block-columns[style*="gap:"] { column-gap: inherit; }
             .wp-block-group.has-background > p { margin-block: 0; }
             .wp-block-columns { display: flex; flex-wrap: nowrap; align-items: normal; gap: 2em; margin-bottom: 1.75em; }
             .wp-block-column { flex: 1 1 0; min-width: 0; overflow-wrap: break-word; }
