@@ -1,14 +1,29 @@
 #!/usr/bin/env python3
 """Create P4-A fixture: two pages, nested CSS background image, native typography."""
 from pathlib import Path
-import base64
+import struct
+import zlib
 import zipfile
 
 path = Path(__file__).parent / "fixtures" / "p4a-background-typography.zip"
 path.parent.mkdir(parents=True, exist_ok=True)
-png = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/OhoAAAAASUVORK5CYII="
-)
+def gradient_png(width=480, height=180):
+    """Generate a prominent blue/teal gradient with standard-library PNG encoding."""
+    raw = bytearray()
+    for y in range(height):
+        raw.append(0)  # No PNG row filter.
+        for x in range(width):
+            t = (x / (width - 1) + y / (height - 1)) / 2
+            raw.extend((int(16 + 30 * t), int(80 + 95 * t), int(155 - 20 * t), 255))
+    def chunk(kind, payload):
+        return (struct.pack(">I", len(payload)) + kind + payload +
+                struct.pack(">I", zlib.crc32(kind + payload) & 0xffffffff))
+    return (b"\x89PNG\r\n\x1a\n" +
+            chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)) +
+            chunk(b"IDAT", zlib.compress(raw, 8)) +
+            chunk(b"IEND", b""))
+
+png = gradient_png()
 with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
     z.writestr("hotel/pages/home.html", """<!doctype html><html><head>
     <link rel="stylesheet" href="../assets/css/site.css">
