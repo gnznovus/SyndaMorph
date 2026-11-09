@@ -63,10 +63,10 @@ function syndamorph_package_resolve( string $base, string $reference ): string {
     $resolved = implode( '/', $segments );
     return syndamorph_package_valid_entry( $resolved ) ? $resolved : '';
 }
-function syndamorph_package_open( string $token ) {
+function syndamorph_package_open( string $token, bool $require_owner = true ) {
     if ( ! preg_match( '/^[a-f0-9]{32}$/', $token ) ) { return syndamorph_package_error( 'Invalid package token.' ); }
     $meta = json_decode( (string) @file_get_contents( syndamorph_package_meta_path( $token ) ), true );
-    if ( ! is_array( $meta ) || (int) ( $meta['user'] ?? 0 ) !== get_current_user_id() ||
+    if ( ! is_array( $meta ) || ( $require_owner && (int) ( $meta['user'] ?? 0 ) !== get_current_user_id() ) ||
         (int) ( $meta['expires'] ?? 0 ) < time() ) {
         return syndamorph_package_error( 'Package expired or unavailable. Upload the ZIP again.', 404 );
     }
@@ -76,8 +76,13 @@ function syndamorph_package_open( string $token ) {
     }
     return array( 'meta' => $meta, 'zip' => $zip );
 }
+function syndamorph_package_asset_signature( string $token, string $path ): string {
+    return hash_hmac( 'sha256', $token . ':' . $path, wp_salt( 'auth' ) );
+}
 function syndamorph_package_asset_url( string $token, string $path ): string {
-    return rest_url( 'syndamorph/v1/package-asset/' . $token . '/' . rtrim( strtr( base64_encode( $path ), '+/', '-_' ), '=' ) );
+    $encoded = rtrim( strtr( base64_encode( $path ), '+/', '-_' ), '=' );
+    return add_query_arg( 'sig', syndamorph_package_asset_signature( $token, $path ),
+        rest_url( 'syndamorph/v1/package-asset/' . $token . '/' . $encoded ) );
 }
 function syndamorph_package_mime( string $path ): string {
     $ext = strtolower( pathinfo( $path, PATHINFO_EXTENSION ) );
@@ -223,12 +228,18 @@ add_action( 'rest_api_init', static function (): void {
         },
     ) );
     register_rest_route( 'syndamorph/v1', '/package-asset/(?P<token>[a-f0-9]{32})/(?P<encoded>[A-Za-z0-9_-]+)', array(
-        'methods' => 'GET', 'permission_callback' => $permission,
+        'methods' => 'GET', 'permission_callback' => '__return_true',
         'callback' => static function ( WP_REST_Request $request ) {
-            $package = syndamorph_package_open( (string) $request['token'] );
-            if ( is_wp_error( $package ) ) { return $package; }
+            // Signed expiring URL: iframe img requests cannot attach REST nonce
+            // headers. Nothing else in the package is exposed publicly.
             $path = base64_decode( strtr( (string) $request['encoded'], '-_', '+/' ), true );
-            if ( ! $path || ! in_array( $path, $package['meta']['images'], true ) ) {
+            if ( ! $path || ! hash_equals(
+                syndamorph_package_asset_signature( (string) $request['token'], $path ),
+                (string) $request->get_param( 'sig' )
+            ) ) { return syndamorph_package_error( 'Invalid image signature.', 403 ); }
+            $package = syndamorph_package_open( (string) $request['token'], false );
+            if ( is_wp_error( $package ) ) { return $package; }
+            if ( ! in_array( $path, $package['meta']['images'], true ) ) {
                 $package['zip']->close(); return syndamorph_package_error( 'Unknown image.', 404 );
             }
             $data = $package['zip']->getFromName( $path );
