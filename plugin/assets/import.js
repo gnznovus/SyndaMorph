@@ -466,29 +466,37 @@
                 } catch ( error ) { return opening; }
             }
         );
-        // Group background images are attribute-only in saved Gutenberg HTML.
-        // Render their CSS in the isolated preview without altering draft markup.
-        const withBackgrounds = previewMarkup.replace(
-            /<!-- wp:group (\{[^\n]*\}) -->(\s*<([a-z][a-z0-9]*)\b[^>]*>)/gi,
-            ( match, json, opening ) => {
-                try {
-                    const bg = JSON.parse( json )?.style?.background;
-                    const image = bg?.backgroundImage?.url;
-                    if ( ! image || ! safeUrl( image, { baseUrl: window.location.origin } ) ) { return match; }
-                    const css = 'background-image:url(' + JSON.stringify( image ) + ')' +
-                        ( [ 'cover', 'contain' ].includes( bg.backgroundSize ) ? ';background-size:' + bg.backgroundSize : '' );
-                    const safe = escapeHtml( css );
-                    const updated = /\bstyle="[^"]*"/.test( opening )
-                        ? opening.replace( /\bstyle="([^"]*)"/, ( all, value ) => 'style="' + value + ';' + safe + '"' )
-                        : opening.replace( />$/, ' style="' + safe + '">' );
-                    return '<!-- wp:group ' + json + ' -->' + updated;
-                } catch ( error ) { return match; }
-            }
-        );
-        const rendered = withBackgrounds.replace( /<!--\s*\/?wp:[\s\S]*?-->/g, '' );
+        // Reconstruct attribute-only Gutenberg backgrounds in the preview DOM.
+        // Parse block comments rather than matching nested HTML with regex:
+        // both <div> and semantic <section>/<main> Group wrappers are supported.
+        const previewDocument = new DOMParser().parseFromString( previewMarkup, 'text/html' );
+        const comments = previewDocument.createTreeWalker( previewDocument.body, NodeFilter.SHOW_COMMENT );
+        let comment;
+        while ( ( comment = comments.nextNode() ) ) {
+            const match = comment.data.match( /^\s*wp:group\s+(\{[\s\S]*\})\s*$/ );
+            if ( ! match ) { continue; }
+            try {
+                const bg = JSON.parse( match[ 1 ] )?.style?.background;
+                const imageUrl = bg?.backgroundImage?.url;
+                if ( ! imageUrl || ! safeUrl( imageUrl, { baseUrl: window.location.origin } ) ) { continue; }
+                let wrapper = comment.nextSibling;
+                while ( wrapper && wrapper.nodeType === Node.TEXT_NODE && ! wrapper.textContent.trim() ) {
+                    wrapper = wrapper.nextSibling;
+                }
+                if ( ! wrapper || wrapper.nodeType !== Node.ELEMENT_NODE ) { continue; }
+                wrapper.style.backgroundImage = 'url(' + JSON.stringify( imageUrl ) + ')';
+                if ( [ 'cover', 'contain' ].includes( bg.backgroundSize ) ) {
+                    wrapper.style.backgroundSize = bg.backgroundSize;
+                }
+            } catch ( error ) { /* Invalid block data must never break preview. */ }
+        }
+        const rendered = previewDocument.body.innerHTML.replace( /<!--\s*\/?wp:[\s\S]*?-->/g, '' );
+        const themeFont = typeof SyndaMorphImport.previewFontFamily === 'string'
+            ? SyndaMorphImport.previewFontFamily : '';
+        const safeThemeFont = /^[\w\s,"'-]{1,180}$/.test( themeFont ) ? themeFont : 'system-ui, sans-serif';
         const previewStyles = `
             *, *::before, *::after { box-sizing: border-box; }
-            body { margin: 0; padding: 20px; background: #fff; color: #1e1e1e; font-family: system-ui, sans-serif; line-height: 1.6; }
+            body { margin: 0; padding: 20px; background: #fff; color: #1e1e1e; font-family: ${ safeThemeFont }; line-height: 1.6; }
             /* Use the modal's available width; do not impose the editor's narrow content width. */
             .syndamorph-preview-content { width: 100%; margin-inline: auto; }
             .wp-block-group { min-width: 0; }
