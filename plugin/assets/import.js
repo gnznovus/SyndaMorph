@@ -42,6 +42,34 @@
         return rules;
     };
 
+    // Only explicit, non-negative CSS lengths can be mapped to native block
+    // settings. Unsupported units/functions remain intentionally unconverted.
+    const allowedLength = ( value ) => {
+        const raw = ( value || '' ).trim().toLowerCase();
+        if ( raw === '0' ) { return '0px'; }
+        const match = raw.match( /^(\d+(?:\.\d+)?)(px|rem|em|%)$/ );
+        if ( ! match || Number( match[ 1 ] ) > 400 ) { return ''; }
+        return raw;
+    };
+    const spacing = ( style, prefix ) => {
+        const keys = [ 'Top', 'Right', 'Bottom', 'Left' ];
+        return Object.fromEntries( keys.map( ( key ) => [ key.toLowerCase(), allowedLength( style[ prefix + key ] ) ] ).filter( ( pair ) => pair[ 1 ] ) );
+    };
+    const cssSpacing = ( kind, values ) => [ 'top', 'right', 'bottom', 'left' ]
+        .filter( ( side ) => values[ side ] )
+        .map( ( side ) => kind + '-' + side + ':' + values[ side ] ).join( ';' );
+    const applySpacing = ( attrs, inline, styles, includeMargin = true ) => {
+        const space = {};
+        if ( Object.keys( styles.padding ).length ) { space.padding = styles.padding; }
+        if ( includeMargin && Object.keys( styles.margin ).length ) { space.margin = styles.margin; }
+        if ( Object.keys( space ).length ) {
+            attrs.style = { ...( attrs.style || {} ), spacing: { ...( attrs.style?.spacing || {} ), ...space } };
+        }
+        const extra = [ cssSpacing( 'padding', styles.padding ) ];
+        if ( includeMargin ) { extra.push( cssSpacing( 'margin', styles.margin ) ); }
+        return [ inline, ...extra ].filter( Boolean ).join( ';' );
+    };
+
     const readStyles = ( node, context ) => {
         const style = document.createElement( 'div' ).style;
         context.rules.forEach( ( rule ) => {
@@ -57,6 +85,12 @@
             textAlign: acceptedAlign( style.textAlign ),
             color: allowedColor( style.color ),
             background: allowedColor( style.backgroundColor ),
+            padding: spacing( style, 'padding' ),
+            margin: spacing( style, 'margin' ),
+            gap: allowedLength( style.columnGap || style.gap ),
+            width: allowedLength( style.width ),
+            flexBasis: allowedLength( style.flexBasis ),
+            fontSize: allowedLength( style.fontSize ),
         };
     };
 
@@ -73,7 +107,11 @@
             classes.push( 'has-text-color' );
             inline.push( 'color:' + styles.color );
         }
-        return { attrs, className: classes.join( ' ' ), inlineStyle: inline.join( ';' ) };
+        if ( styles.fontSize ) {
+            attrs.style = { ...( attrs.style || {} ), typography: { fontSize: styles.fontSize } };
+            inline.push( 'font-size:' + styles.fontSize );
+        }
+        return { attrs, className: classes.join( ' ' ), inlineStyle: applySpacing( attrs, inline.join( ';' ), styles ) };
     };
     const htmlAttributes = ( className, inlineStyle ) => ( className ? ' class="' + escapeHtml( className ) + '"' : '' ) +
         ( inlineStyle ? ' style="' + escapeHtml( inlineStyle ) + '"' : '' );
@@ -184,11 +222,25 @@
                 const cols = children.map( ( child ) => {
                     const inner = convert( child, context );
                     if ( ! inner ) { return ''; }
+                    const childStyles = readStyles( child, context );
+                    const width = childStyles.flexBasis || childStyles.width;
+                    // Gutenberg Column width uses a percentage, not an arbitrary CSS length.
+                    const columnWidth = width.endsWith( '%' ) ? width : '';
+                    const columnAttrs = columnWidth ? { width: columnWidth } : {};
+                    const columnCss = columnWidth ? 'flex-basis:' + columnWidth : '';
                     countBlock( context );
-                    return block( 'column', {}, '<div class="wp-block-column">' + inner + '</div>' );
+                    return block( 'column', columnAttrs, '<div' + htmlAttributes( 'wp-block-column', columnCss ) + '>' + inner + '</div>' );
                 } ).filter( Boolean ).join( '\n\n' );
                 if ( cols ) {
-                    markup = block( 'columns', {}, '<div class="wp-block-columns">' + cols + '</div>' );
+                    const attrs = {};
+                    let inline = '';
+                    if ( styles.gap ) {
+                        // Columns serialize blockGap as a layout attribute only.
+                        // Gutenberg generates its layout CSS outside the saved HTML.
+                        attrs.style = { spacing: { blockGap: styles.gap } };
+                    }
+                    inline = applySpacing( attrs, inline, styles );
+                    markup = block( 'columns', attrs, '<div' + htmlAttributes( 'wp-block-columns', inline ) + '>' + cols + '</div>' );
                 }
             } else {
                 const inner = childBlocks( node, context );
@@ -203,6 +255,7 @@
                     classes.push( 'has-background' );
                     inline = 'background-color:' + styles.background;
                 }
+                inline = applySpacing( attrs, inline, styles );
                 markup = block( 'group', attrs, '<' + element + htmlAttributes( classes.join( ' ' ), inline ) + '>' + inner + '</' + element + '>' );
             }
         } else {
@@ -371,7 +424,18 @@
 
         // Preview the same converted markup that will be saved to WordPress.
         // Strip Gutenberg block delimiters only for rendering in the sandboxed iframe.
-        const rendered = content.replace( /<!--\s*\/?wp:[\s\S]*?-->/g, '' );
+        // Gutenberg does not serialize Columns blockGap into inline markup.
+        // Reconstruct that style ONLY for the script-disabled preview.
+        const previewMarkup = content.replace(
+            /<!-- wp:columns (\{[^\n]*\}) -->\s*(<div class="wp-block-columns")/g,
+            ( match, json, opening ) => {
+                try {
+                    const gap = JSON.parse( json )?.style?.spacing?.blockGap;
+                    return opening + ( allowedLength( gap ) ? ' style="gap:' + escapeHtml( gap ) + '"' : '' );
+                } catch ( error ) { return opening; }
+            }
+        );
+        const rendered = previewMarkup.replace( /<!--\s*\/?wp:[\s\S]*?-->/g, '' );
         const previewStyles = `
             *, *::before, *::after { box-sizing: border-box; }
             body { margin: 0; padding: 20px; background: #fff; color: #1e1e1e; font-family: system-ui, sans-serif; line-height: 1.6; }
@@ -385,6 +449,7 @@
             .wp-block-group.has-background > p { margin-block: 0; }
             .wp-block-columns { display: flex; flex-wrap: nowrap; align-items: normal; gap: 2em; margin-bottom: 1.75em; }
             .wp-block-column { flex: 1 1 0; min-width: 0; overflow-wrap: break-word; }
+            .wp-block-column[style*="flex-basis"] { flex-grow: 0; flex-shrink: 1; }
             /* A figure's intrinsic image width must not expand beyond its column. */
             .wp-block-image { display: block; width: 100%; max-width: 100%; min-width: 0; margin: 0 0 1em; }
             .wp-block-image img { display: block; width: 100%; max-width: 100%; height: auto; }
