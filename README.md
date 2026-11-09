@@ -18,6 +18,30 @@ Go to **Tools → SyndaMorph** to paste HTML or select an `.html`/`.htm` file. S
 
 Stop the environment with `docker compose down`. To discard the local WordPress database and content, run `docker compose down -v` (**destructive**).
 
+## P4-B — Smarter native layout conversion (acceptance pending)
+
+This iteration expands the existing native Gutenberg Columns conversion without adding a custom CSS renderer:
+
+- Simple `display:grid` containers with 2–6 direct children and explicit `grid-template-columns` tracks (for example `1fr 2fr 1fr` or `25% 50% 25%`) map to **Columns** with corresponding native percentage widths.
+- `display:flex` horizontal rows now support 2–6 direct child containers, rather than only 2–4.
+- `align-items:start|center|end` maps to native Column `verticalAlignment` where supported.
+- Nested grid/flex containers convert recursively into nested editable Gutenberg Columns and Groups.
+- Existing P2 spacing, gaps, percentages, P4-A backgrounds, and the same static/JS package pipeline remain supported.
+
+This is **not** CSS Grid parity. `repeat()`, `minmax()`, `auto`, mixed-unit tracks, CSS placement/spanning, `flex-wrap:wrap-reverse`, vertical flex, and responsive `@media` layout changes remain unsupported. Native Gutenberg Columns determine responsive stacking.
+
+### Local acceptance test
+
+Use `tests/fixtures/p4b-nested-layout.html` under **Tools → SyndaMorph → single HTML import**, leaving JavaScript mode off.
+
+1. Preview the **three-column** layout with approximately 25% / 50% / 25% proportions and nested **2:1** inner columns.
+2. Confirm the four-card flex row becomes four independently editable native Columns.
+3. Create a draft, inspect List View, edit column widths and padding, and verify no block validation/recovery warning.
+4. Refresh the editor and compare the saved layout against the preview; also retest `tests/fixtures/p2-layout-spacing.html
+tests/fixtures/p4b-nested-layout.html` for regression.
+
+P4-B is based on the **P4-A feature branch**, which is not yet merged into `main`. The P4-B PR targets P4-A, not `main`, until P4-A has completed acceptance.
+
 ## P4-A — Native background images & typography (experimental)
 
 The first **visual fidelity** slice preserves CSS background images on Group blocks and expands native typography. This is an iterative POC, not full Morpher/CSS reconstruction.
