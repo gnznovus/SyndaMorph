@@ -150,6 +150,13 @@ function syndamorph_package_prepare_html( ZipArchive $zip, array $meta, string $
         $missing[] = 'CSS: ' . $ref;
         $link->parentNode->removeChild( $link );
     }
+    // Embedded <style> URLs are relative to their containing HTML page.
+    // Already-rewritten absolute ZIP asset URLs are left untouched.
+    foreach ( iterator_to_array( $xpath->query( '//style' ) ) as $embedded ) {
+        $embedded->nodeValue = syndamorph_package_css_urls(
+            $embedded->textContent, $path, $meta, $token, $missing
+        );
+    }
     // Inline CSS url() declarations resolve relative to the HTML file.
     foreach ( iterator_to_array( $xpath->query( '//*[@style]' ) ) as $styled ) {
         $styled->setAttribute( 'style', syndamorph_package_css_urls(
