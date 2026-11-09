@@ -40,11 +40,11 @@ python tests/build-p4a-fixture.py
 
 Upload `tests/fixtures/p4a-background-typography.zip` in **Tools → SyndaMorph**.
 
-1. Scan: exactly **2 pages** should be detected. Preview both, verifying a background image is visible behind text; the image comes from a linked CSS file on Home and an embedded style on Dining.
+1. Scan: exactly **2 pages** should be detected. The fixture generates a **visibly blue/teal hero background**, not a 1px placeholder. Preview both, verifying a background image is visible behind text; the image comes from a linked CSS file on Home and an embedded style on Dining.
 2. Check heading weight and line height in the preview; each heading/paragraph stays independently editable.
 3. Approve both as drafts: exactly **two pages** should be created, and the shared CSS background should be uploaded **once** to Media Library (the unused image should not be imported).
 4. Open a draft in Gutenberg, select the hero Group, inspect its Background image setting, and confirm **no invalid-block recovery warning**. Refresh the draft to verify the image persists and no temporary package URL remains.
-5. Also test `native(4).zip` for real-world visuals. Its absolute-positioned elements will still diverge from the original export.
+5. Also test `native(4).zip` for real-world typography. Its three CSS files define 14 custom `@font-face` rules but **no CSS background-image declarations**, so this background feature is not expected to produce a major visual change in that particular package. Its absolute positioning will still diverge from the source design.
 
 CI syntax checks are not a substitute for browser/Gutenberg validation. Keep the PR in draft until local acceptance.
 
