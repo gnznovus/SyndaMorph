@@ -93,6 +93,34 @@ function syndamorph_package_mime( string $path ): string {
         'ttf' => 'font/ttf', 'otf' => 'font/otf',
     )[ $ext ] ?? 'application/octet-stream';
 }
+/**
+ * CSS urls are relative to their stylesheet, not the HTML page.
+ * Rewrite only known image assets; preserve non-image CSS declarations.
+ */
+function syndamorph_package_css_urls(
+    string $css, string $css_path, array $meta, string $token, array &$missing
+): string {
+    return preg_replace_callback(
+        '~url\(\s*(["\x27]?)(.*?)\1\s*\)~i',
+        static function ( array $matches ) use ( $css_path, $meta, $token, &$missing ): string {
+            $reference = trim( $matches[2] );
+            if ( '' === $reference || preg_match( '~^(?:data:|https?://|//|#)~i', $reference ) ) {
+                return $matches[0];
+            }
+            $resolved = syndamorph_package_resolve( $css_path, $reference );
+            if ( $resolved && in_array( $resolved, $meta['images'], true ) ) {
+                return 'url("' . syndamorph_package_asset_url( $token, $resolved ) . '")';
+            }
+            // Fonts are recognized, but loading font faces is not yet supported.
+            if ( $resolved && preg_match( '/\.(woff2?|ttf|otf|eot)$/i', $resolved ) ) {
+                return $matches[0];
+            }
+            $missing[] = 'CSS asset: ' . $reference;
+            return 'none';
+        },
+        $css
+    );
+}
 /** Prepare a single page with package CSS embedded and package image URLs remapped. */
 function syndamorph_package_prepare_html( ZipArchive $zip, array $meta, string $token, string $path, bool $with_js = false ): array {
     $html = $zip->getFromName( $path );
@@ -111,6 +139,7 @@ function syndamorph_package_prepare_html( ZipArchive $zip, array $meta, string $
         if ( $css_path && in_array( $css_path, $meta['files'], true ) && str_ends_with( strtolower( $css_path ), '.css' ) ) {
             $css = $zip->getFromName( $css_path );
             if ( false !== $css && strlen( $css ) <= 524288 ) {
+                $css = syndamorph_package_css_urls( $css, $css_path, $meta, $token, $missing );
                 $style = $doc->createElement( 'style' );
                 $style->appendChild( $doc->createTextNode( $css ) );
                 $link->parentNode->replaceChild( $style, $link );
@@ -120,6 +149,12 @@ function syndamorph_package_prepare_html( ZipArchive $zip, array $meta, string $
         }
         $missing[] = 'CSS: ' . $ref;
         $link->parentNode->removeChild( $link );
+    }
+    // Inline CSS url() declarations resolve relative to the HTML file.
+    foreach ( iterator_to_array( $xpath->query( '//*[@style]' ) ) as $styled ) {
+        $styled->setAttribute( 'style', syndamorph_package_css_urls(
+            $styled->getAttribute( 'style' ), $path, $meta, $token, $missing
+        ) );
     }
     foreach ( iterator_to_array( $xpath->query( '//img[@src]' ) ) as $img ) {
         $ref = $img->getAttribute( 'src' );
@@ -351,7 +386,7 @@ add_action( 'rest_api_init', static function (): void {
                 $contents[] = array( 'path' => $path, 'content' => $content, 'title' => $title );
             }
             // Find package image references in converted markup; no upload for
-            // unused assets, CSS-only backgrounds or unsupported font files.
+            // unused assets or unsupported font files.
             $references = array();
             foreach ( $meta['images'] as $path ) {
                 $url = syndamorph_package_asset_url( $token, $path );
