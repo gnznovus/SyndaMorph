@@ -172,7 +172,7 @@ add_action( 'rest_api_init', static function (): void {
                 return syndamorph_package_error( 'Invalid ZIP archive.' );
             }
             if ( $zip->numFiles > 600 ) { $zip->close(); return syndamorph_package_error( 'ZIP contains too many entries (600 max).' ); }
-            $files = array(); $pages = array(); $images = array(); $total = 0;
+            $files = array(); $pages = array(); $images = array(); $total = 0; $seen = array();
             for ( $i = 0; $i < $zip->numFiles; $i++ ) {
                 $entry = $zip->statIndex( $i );
                 $name = $entry['name'];
@@ -180,6 +180,15 @@ add_action( 'rest_api_init', static function (): void {
                     $zip->close(); return syndamorph_package_error( 'Unsafe ZIP entry path.' );
                 }
                 if ( str_ends_with( $name, '/' ) ) { continue; }
+                if ( isset( $seen[ $name ] ) ) {
+                    $zip->close(); return syndamorph_package_error( 'ZIP contains duplicate file paths.' );
+                }
+                $seen[ $name ] = true;
+                $attributes = 0; $opsys = 0;
+                if ( $zip->getExternalAttributesIndex( $i, $opsys, $attributes ) &&
+                    ( ( ( $attributes >> 16 ) & 0170000 ) === 0120000 ) ) {
+                    $zip->close(); return syndamorph_package_error( 'ZIP symlinks are not supported.' );
+                }
                 $total += (int) $entry['size'];
                 if ( $total > SYNDAMORPH_PACKAGE_UNPACKED_MAX || (int) $entry['size'] > 12582912 ) {
                     $zip->close(); return syndamorph_package_error( 'ZIP exceeds safe expanded size limits.' );
@@ -275,9 +284,9 @@ add_filter( 'rest_pre_serve_request', static function ( $served, $result, $reque
 /** On approval upload only images actually referenced by the selected block markup. */
 function syndamorph_package_media( ZipArchive $zip, string $path, array &$created ): int|WP_Error {
     $raw = $zip->getFromName( $path );
-    if ( false === $raw || strlen( $raw ) > 12582912 ||
-        ! @getimagesizefromstring( $raw ) ) {
-        return syndamorph_package_error( 'Invalid package image: ' . $path );
+    $info = false !== $raw && strlen( $raw ) <= 12582912 ? @getimagesizefromstring( $raw ) : false;
+    if ( ! is_array( $info ) || ( $info['mime'] ?? '' ) !== syndamorph_package_mime( $path ) ) {
+        return syndamorph_package_error( 'Invalid package image or MIME mismatch: ' . $path );
     }
     $hash = hash( 'sha256', $raw );
     $existing = get_posts( array( 'post_type' => 'attachment', 'post_status' => 'inherit',
