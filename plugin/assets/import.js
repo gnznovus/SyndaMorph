@@ -282,10 +282,9 @@
                             ...( styles.backgroundSize ? { backgroundSize: styles.backgroundSize } : {} ),
                         },
                     };
-                    // Group block background supports generated native background
-                    // CSS. Preview uses the same image URL before approval.
-                    inline = [ inline, 'background-image:url(' + JSON.stringify( styles.backgroundImage ) + ')',
-                        styles.backgroundSize ? 'background-size:' + styles.backgroundSize : '' ].filter( Boolean ).join( ';' );
+                    // Core Group backgrounds are stored in block attributes.
+                    // WordPress generates their CSS dynamically; do not put it
+                    // in serialized HTML or Gutenberg will invalidate the block.
                 }
                 inline = applySpacing( attrs, inline, styles );
                 markup = block( 'group', attrs, '<' + element + htmlAttributes( classes.join( ' ' ), inline ) + '>' + inner + '</' + element + '>' );
@@ -467,7 +466,26 @@
                 } catch ( error ) { return opening; }
             }
         );
-        const rendered = previewMarkup.replace( /<!--\s*\/?wp:[\s\S]*?-->/g, '' );
+        // Group background images are attribute-only in saved Gutenberg HTML.
+        // Render their CSS in the isolated preview without altering draft markup.
+        const withBackgrounds = previewMarkup.replace(
+            /<!-- wp:group (\{[^\n]*\}) -->(\s*<([a-z][a-z0-9]*)\b[^>]*>)/gi,
+            ( match, json, opening ) => {
+                try {
+                    const bg = JSON.parse( json )?.style?.background;
+                    const image = bg?.backgroundImage?.url;
+                    if ( ! image || ! safeUrl( image, { baseUrl: window.location.origin } ) ) { return match; }
+                    const css = 'background-image:url(' + JSON.stringify( image ) + ')' +
+                        ( [ 'cover', 'contain' ].includes( bg.backgroundSize ) ? ';background-size:' + bg.backgroundSize : '' );
+                    const safe = escapeHtml( css );
+                    const updated = /\bstyle="[^"]*"/.test( opening )
+                        ? opening.replace( /\bstyle="([^"]*)"/, ( all, value ) => 'style="' + value + ';' + safe + '"' )
+                        : opening.replace( />$/, ' style="' + safe + '">' );
+                    return '<!-- wp:group ' + json + ' -->' + updated;
+                } catch ( error ) { return match; }
+            }
+        );
+        const rendered = withBackgrounds.replace( /<!--\s*\/?wp:[\s\S]*?-->/g, '' );
         const previewStyles = `
             *, *::before, *::after { box-sizing: border-box; }
             body { margin: 0; padding: 20px; background: #fff; color: #1e1e1e; font-family: system-ui, sans-serif; line-height: 1.6; }
