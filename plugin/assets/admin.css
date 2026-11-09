@@ -148,3 +148,30 @@ body.syndamorph-modal-open { overflow: hidden; }
 .syndamorph-name-error[hidden] { display: none; }
 .syndamorph-name-actions { justify-content: flex-end; border-top: 1px solid #e1e3e6; background: #f9fafb; }
 .syndamorph-name-actions .button { min-height: 34px; }
+
+/* P3: multi-page ZIP package scanner and approval preview. */
+.syndamorph-package-section {
+    max-width: 900px;
+    padding: 18px 20px;
+    margin: 18px 0;
+    border: 1px solid #dcdcde;
+    border-radius: 8px;
+    background: #fff;
+}
+.syndamorph-package-section h2 { margin: 0 0 8px; }
+.syndamorph-package-upload { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.syndamorph-package-pages { border: 1px solid #dcdcde; border-radius: 6px; max-height: 280px; overflow: auto; }
+.syndamorph-package-page { display: flex; gap: 12px; align-items: center; padding: 12px; border-bottom: 1px solid #f0f0f1; }
+.syndamorph-package-page:last-child { border-bottom: 0; }
+.syndamorph-package-page span { overflow-wrap: anywhere; }
+.syndamorph-section-rule { max-width: 900px; margin: 24px 0; border: 0; border-top: 1px solid #dcdcde; }
+#syndamorph-package-modal[hidden], #syndamorph-package-results[hidden],
+#syndamorph-package-warnings[hidden] { display: none; }
+#syndamorph-package-frame { width: 100%; border: 0; height: min(65vh, 680px); min-height: 200px; flex: 1 1 auto; background: #fff; }
+.syndamorph-package-navigation { display: flex; gap: 8px; }
+#syndamorph-package-mode { min-width: 145px; }
+@media (max-width: 782px) {
+    .syndamorph-package-section { padding: 14px; }
+    #syndamorph-package-modal .syndamorph-preview-footer { flex-wrap: wrap; }
+    #syndamorph-package-modal .syndamorph-preview-actions { flex-wrap: wrap; }
+}

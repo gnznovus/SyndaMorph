@@ -18,7 +18,46 @@ Go to **Tools → SyndaMorph** to paste HTML or select an `.html`/`.htm` file. S
 
 Stop the environment with `docker compose down`. To discard the local WordPress database and content, run `docker compose down -v` (**destructive**).
 
-## P2 — Native Layout & CSS (acceptance pending)
+## P3 — Multi-page ZIP package import (development acceptance pending)
+
+This adds a separate ZIP workflow under **Tools → SyndaMorph**, without replacing the existing single-HTML importer.
+
+1. Select a **ZIP package** (32 MB compressed maximum) and click **Scan Package**.
+2. The plugin discovers all `.html` and `.htm` pages (up to 30), shows their relative paths and lets you select any subset.
+3. Click **Preview Selected Pages** and review every selected page. CSS linked by each HTML file is read from the ZIP and embedded for conversion; image `src` references are resolved relative to that HTML file and served through short-lived signed preview URLs. No images are uploaded to the Media Library at this stage.
+4. Switch between pages with **Previous / Next**. **Approve & Import All** stays disabled until every selected page has a valid converted preview.
+5. Choose **Draft pages** (separate Gutenberg page drafts) or **Unsynced patterns** (categorized under SyndaMorph). On approval, only images referenced by the approved Gutenberg content are uploaded to WordPress; identical image content reuses the same attachment using SHA-256. The importer rewrites package preview URLs to permanent Media Library URLs.
+6. When successful, private staged ZIP data is deleted. On a failed batch, newly created pages and imported attachments are rolled back where possible. A canceled preview leaves no Media Library uploads. Staging expires after one hour and is cleaned on subsequent uploads.
+
+**Designed for real Morpher ZIP exports:** HTML and matching CSS side by side, nested `assets/` folders, shared media, and separate pages. Use the provided `native(4).zip` package with its three HTML pages for local acceptance; the package itself is not committed to the repository.
+
+### Security and scope
+
+- ZIPs are stored in a private temporary directory outside the web root, with path validation and total/individual decompressed-size limits. Temporary image-preview URLs use short-lived HMAC signatures because image loads cannot attach REST nonce headers; signatures are bearer credentials, so do not share their URLs. All administrative endpoints require WordPress `edit_pages` permission.
+- Relative linked CSS is **loaded**, but only SyndaMorph's supported native Gutenberg CSS subset is **converted**. Complex Morpher positioning, fixed pixel layout, backgrounds expressed as CSS `url()`, media queries and custom fonts are **not** reproduced automatically.
+- Font files are detected within packages but are **not uploaded or registered as theme font families** in this first slice. Fonts and unused images are left untouched. Images referenced solely in CSS are not uploaded. External linked CSS is not fetched.
+- Optional package-local `.js` scripts can be inlined only when the experimental **Render inline JavaScript** mode is explicitly enabled with the existing Docker renderer. Production-grade sandboxing remains outstanding.
+- Assets are uploaded only upon approval, but WordPress Media Library attachment creation is not a database transaction. Unexpected server termination can leave partial uploads; the rollback is best-effort, not crash-safe journaling.
+
+### Local testing
+
+```bash
+git fetch origin
+git switch --track origin/feat/p3-package-import
+docker compose up -d --build
+```
+
+Use **Tools → SyndaMorph → Import a ZIP package**. The Docker local PHP configuration permits uploads up to 40 MB; ZIP packages are limited by SyndaMorph to 32 MB.
+
+For a small reproducible fixture, run `python tests/build-p3-fixture.py` to generate `tests/fixtures/p3-sample.zip`; scan it, preview both pages, and verify **one** image is uploaded even though two image filenames reference identical bytes. The third image is unused and must not be uploaded.
+
+With `native(4).zip`, verify: **3 HTML pages** detected; each page's linked CSS and image references resolve; all three previews can be reviewed; batch draft import creates **3 separate editable pages**, or batch pattern import creates **3 unsynced SyndaMorph patterns**. Confirm no old temporary preview URL remains in saved image src attributes.
+
+### P3 limits
+
+No automatic import of fonts, CSS background images, absolute/fixed-position layouts, or browser/runtime behaviors. Package processing is synchronous in this prototype and can be slow on large image batches. A dedicated asset-index UI and production-grade resumable imports remain future work.
+
+## P2 — Native Layout & CSS (accepted)
 
 This initial P2 slice improves the editable conversion of explicit CSS values without introducing a rendering engine:
 
@@ -118,6 +157,10 @@ plugin/
   assets/admin.css
   assets/missing-image.svg
   includes/render-endpoint.php
+  includes/package-import.php
+  assets/package.js
+config/syndamorph-upload.ini
+tests/build-p3-fixture.py
 tests/fixtures/basic.html
 tests/fixtures/layout.html
 tests/fixtures/missing-assets.html

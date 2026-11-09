@@ -2,13 +2,14 @@
 /**
  * Plugin Name: SyndaMorph
  * Description: Transform static HTML into independently editable native Gutenberg blocks.
- * Version: 0.8.0
+ * Version: 0.9.0
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Text Domain: syndamorph
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 require_once plugin_dir_path( __FILE__ ) . 'includes/render-endpoint.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/package-import.php';
 
 add_action( 'admin_menu', static function (): void {
     add_management_page(
@@ -26,6 +27,45 @@ function syndamorph_render_import_page(): void {
     <div class="wrap" id="syndamorph-html-import">
         <h1>SyndaMorph <span style="font-weight:normal;font-size:13px;">POC</span></h1>
         <p>Paste static HTML or choose an .html file. Review the preview, then approve draft creation.</p>
+        <div class="syndamorph-package-section">
+            <h2>Import a ZIP package</h2>
+            <p>Upload a package with one or more HTML pages and relative CSS/images. Select the pages, review each converted preview, then approve drafts or patterns.</p>
+            <div class="syndamorph-package-upload">
+                <input id="syndamorph-package-file" type="file" accept=".zip,application/zip">
+                <button type="button" class="button button-secondary" id="syndamorph-package-scan">Scan Package</button>
+            </div>
+            <p id="syndamorph-package-status" role="status" aria-live="polite"></p>
+            <div id="syndamorph-package-results" hidden>
+                <p id="syndamorph-package-summary"></p>
+                <div id="syndamorph-package-pages" class="syndamorph-package-pages"></div>
+                <p><button type="button" class="button button-primary" id="syndamorph-package-preview">Preview Selected Pages</button></p>
+            </div>
+            <section id="syndamorph-package-modal" class="syndamorph-preview-modal" hidden role="dialog" aria-modal="true" aria-labelledby="syndamorph-package-modal-title">
+                <div class="syndamorph-preview-card">
+                    <div class="syndamorph-preview-heading">
+                        <div><strong id="syndamorph-package-modal-title">Package Preview</strong><p id="syndamorph-package-progress"></p></div>
+                        <button type="button" id="syndamorph-package-close" class="button-link syndamorph-preview-close" aria-label="Close package preview">&times;</button>
+                    </div>
+                    <div id="syndamorph-package-warnings" class="syndamorph-asset-report" hidden></div>
+                    <iframe id="syndamorph-package-frame" title="Converted package page preview" sandbox="" referrerpolicy="no-referrer"></iframe>
+                    <div class="syndamorph-preview-footer">
+                        <div class="syndamorph-package-navigation">
+                            <button type="button" class="button" id="syndamorph-package-prev">Previous</button>
+                            <button type="button" class="button" id="syndamorph-package-next">Next</button>
+                        </div>
+                        <div class="syndamorph-preview-actions">
+                            <select id="syndamorph-package-mode" aria-label="Save selected pages as">
+                                <option value="draft">Draft pages</option>
+                                <option value="pattern">Unsynced patterns</option>
+                            </select>
+                            <button type="button" class="button button-primary" id="syndamorph-package-approve" disabled>Approve &amp; Import All</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+        <hr class="syndamorph-section-rule">
+        <h2>Import a single HTML file</h2>
         <div style="max-width:900px;">
             <p><label for="syndamorph-html-file"><strong>HTML file (optional)</strong></label></p>
             <input id="syndamorph-html-file" type="file" accept=".html,.htm,text/html">
@@ -105,6 +145,23 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
             'patternUrl' => rest_url( 'syndamorph/v1/patterns' ),
             'renderUrl' => rest_url( 'syndamorph/v1/render-dom' ),
             'rendererAvailable' => 'http://renderer:3000/render' === getenv( 'SYNDAMORPH_RENDERER_URL' ),
+        ) ) . ';',
+        'before'
+    );
+    wp_enqueue_script(
+        'syndamorph-package',
+        plugin_dir_url( __FILE__ ) . 'assets/package.js',
+        array( 'syndamorph-import' ),
+        (string) filemtime( plugin_dir_path( __FILE__ ) . 'assets/package.js' ),
+        true
+    );
+    wp_add_inline_script(
+        'syndamorph-package',
+        'window.SyndaMorphPackage=' . wp_json_encode( array(
+            'nonce' => wp_create_nonce( 'wp_rest' ),
+            'scan' => rest_url( 'syndamorph/v1/package-scan' ),
+            'page' => rest_url( 'syndamorph/v1/package-page' ),
+            'commit' => rest_url( 'syndamorph/v1/package-commit' ),
         ) ) . ';',
         'before'
     );

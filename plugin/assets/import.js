@@ -474,6 +474,8 @@
         return { content, preview, missing, stylesheets };
     };
 
+    window.SyndaMorphConverter = Object.freeze( { prepareImport } );
+
     document.addEventListener( 'DOMContentLoaded', () => {
         const file = $( '#syndamorph-html-file' );
         const input = $( '#syndamorph-html-input' );
