@@ -246,8 +246,9 @@ add_action( 'rest_api_init', static function (): void {
     ) );
 } );
 add_filter( 'rest_pre_serve_request', static function ( $served, $result, $request ) {
+    $headers = $result instanceof WP_REST_Response ? $result->get_headers() : array();
     if ( $served || ! $result instanceof WP_REST_Response ||
-        '1' !== $result->get_headers()['X-SyndaMorph-Package-Asset'] ?? '' ) {
+        '1' !== ( $headers['X-SyndaMorph-Package-Asset'] ?? '' ) ) {
         return $served;
     }
     $data = $result->get_data();
@@ -258,3 +259,149 @@ add_filter( 'rest_pre_serve_request', static function ( $served, $result, $reque
     echo base64_decode( $data['binary'] );
     return true;
 }, 10, 3 );
+
+
+/** On approval upload only images actually referenced by the selected block markup. */
+function syndamorph_package_media( ZipArchive $zip, string $path, array &$created ): int|WP_Error {
+    $raw = $zip->getFromName( $path );
+    if ( false === $raw || strlen( $raw ) > 12582912 ||
+        ! @getimagesizefromstring( $raw ) ) {
+        return syndamorph_package_error( 'Invalid package image: ' . $path );
+    }
+    $hash = hash( 'sha256', $raw );
+    $existing = get_posts( array( 'post_type' => 'attachment', 'post_status' => 'inherit',
+        'fields' => 'ids', 'numberposts' => 1, 'meta_key' => '_syndamorph_sha256',
+        'meta_value' => $hash ) );
+    if ( $existing ) { return (int) $existing[0]; }
+    require_once ABSPATH . 'wp-admin/includes/image.php';
+    $mime = syndamorph_package_mime( $path );
+    $name = sanitize_file_name( basename( $path ) );
+    $checked = wp_check_filetype( $name );
+    if ( $checked['type'] !== $mime ) {
+        return syndamorph_package_error( 'Unsupported image type: ' . $path );
+    }
+    $saved = wp_upload_bits( $name, null, $raw );
+    if ( ! empty( $saved['error'] ) ) { return syndamorph_package_error( 'Media upload failed: ' . $saved['error'], 500 ); }
+    $attachment = wp_insert_attachment( array(
+        'post_mime_type' => $mime,
+        'post_title' => sanitize_text_field( pathinfo( $name, PATHINFO_FILENAME ) ),
+        'post_status' => 'inherit',
+    ), $saved['file'], 0, true );
+    if ( is_wp_error( $attachment ) ) {
+        @unlink( $saved['file'] );
+        return $attachment;
+    }
+    $created[] = $attachment;
+    update_post_meta( $attachment, '_syndamorph_sha256', $hash );
+    $metadata = wp_generate_attachment_metadata( $attachment, $saved['file'] );
+    if ( is_array( $metadata ) ) { wp_update_attachment_metadata( $attachment, $metadata ); }
+    return $attachment;
+}
+function syndamorph_package_abort( array $posts, array $attachments ): void {
+    foreach ( $posts as $id ) { wp_delete_post( $id, true ); }
+    foreach ( $attachments as $id ) { wp_delete_attachment( $id, true ); }
+}
+add_action( 'rest_api_init', static function (): void {
+    register_rest_route( 'syndamorph/v1', '/package-commit', array(
+        'methods' => 'POST',
+        'permission_callback' => static function (): bool { return current_user_can( 'edit_pages' ); },
+        'callback' => static function ( WP_REST_Request $request ) {
+            $token = (string) $request->get_param( 'token' );
+            $items = $request->get_param( 'pages' );
+            $mode = (string) $request->get_param( 'mode' );
+            if ( ! in_array( $mode, array( 'draft', 'pattern' ), true ) ||
+                ! is_array( $items ) || ! $items || count( $items ) > 30 ) {
+                return syndamorph_package_error( 'Select pages and choose drafts or patterns.' );
+            }
+            $package = syndamorph_package_open( $token );
+            if ( is_wp_error( $package ) ) { return $package; }
+            $zip = $package['zip'];
+            $meta = $package['meta'];
+            $seen_pages = array(); $contents = array();
+            foreach ( $items as $item ) {
+                if ( ! is_array( $item ) ) { $zip->close(); return syndamorph_package_error( 'Invalid page selection.' ); }
+                $path = (string) ( $item['path'] ?? '' );
+                $content = (string) ( $item['content'] ?? '' );
+                $title = sanitize_text_field( (string) ( $item['title'] ?? basename( $path, '.html' ) ) );
+                if ( ! in_array( $path, $meta['pages'], true ) || isset( $seen_pages[$path] ) ||
+                    ! has_blocks( $content ) || '' === $title || strlen( $content ) > 2097152 ) {
+                    $zip->close(); return syndamorph_package_error( 'Invalid or duplicated page content.' );
+                }
+                $seen_pages[$path] = true;
+                $contents[] = array( 'path' => $path, 'content' => $content, 'title' => $title );
+            }
+            // Find package image references in converted markup; no upload for
+            // unused assets, CSS-only backgrounds or unsupported font files.
+            $references = array();
+            foreach ( $meta['images'] as $path ) {
+                $url = syndamorph_package_asset_url( $token, $path );
+                foreach ( $contents as $item ) {
+                    if ( str_contains( $item['content'], $url ) ||
+                        str_contains( $item['content'], esc_url( $url ) ) ||
+                        str_contains( $item['content'], htmlspecialchars( $url, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) ) ) {
+                        $references[$path] = true;
+                        break;
+                    }
+                }
+            }
+            $created_media = array(); $created_posts = array(); $image_urls = array();
+            // Content hashes dedupe assets both across package paths and from
+            // previously imported SyndaMorph media.
+            foreach ( array_keys( $references ) as $path ) {
+                $attachment = syndamorph_package_media( $zip, $path, $created_media );
+                if ( is_wp_error( $attachment ) ) {
+                    syndamorph_package_abort( array(), $created_media );
+                    $zip->close(); return $attachment;
+                }
+                $image_urls[$path] = wp_get_attachment_url( $attachment );
+            }
+            if ( 'pattern' === $mode ) {
+                $term = term_exists( 'syndamorph', 'wp_pattern_category' );
+                if ( ! $term ) { $term = wp_insert_term( 'SyndaMorph', 'wp_pattern_category', array( 'slug' => 'syndamorph' ) ); }
+                if ( is_wp_error( $term ) ) {
+                    syndamorph_package_abort( array(), $created_media );
+                    $zip->close(); return $term;
+                }
+                $term_id = (int) ( is_array( $term ) ? $term['term_id'] : $term );
+            }
+            $created = array();
+            foreach ( $contents as $item ) {
+                $content = $item['content'];
+                foreach ( $image_urls as $path => $url ) {
+                    $source = syndamorph_package_asset_url( $token, $path );
+                    $content = str_replace(
+                        array( $source, htmlspecialchars( $source, ENT_QUOTES | ENT_HTML5, 'UTF-8' ), esc_url( $source ) ),
+                        esc_url( $url ), $content
+                    );
+                }
+                $id = wp_insert_post( wp_slash( array(
+                    'post_type' => 'pattern' === $mode ? 'wp_block' : 'page',
+                    'post_status' => 'pattern' === $mode ? 'publish' : 'draft',
+                    'post_title' => $item['title'],
+                    'post_content' => $content,
+                ) ), true );
+                if ( is_wp_error( $id ) || ! $id ) {
+                    syndamorph_package_abort( $created_posts, $created_media );
+                    $zip->close();
+                    return is_wp_error( $id ) ? $id : syndamorph_package_error( 'Could not create the page.', 500 );
+                }
+                $created_posts[] = $id;
+                if ( 'pattern' === $mode ) {
+                    update_post_meta( $id, 'wp_pattern_sync_status', 'unsynced' );
+                    $assigned = wp_set_object_terms( $id, array( $term_id ), 'wp_pattern_category', false );
+                    if ( is_wp_error( $assigned ) ) {
+                        syndamorph_package_abort( $created_posts, $created_media );
+                        $zip->close(); return $assigned;
+                    }
+                }
+                $created[] = array( 'id' => $id, 'title' => $item['title'], 'source' => $item['path'] );
+            }
+            $zip->close();
+            @unlink( syndamorph_package_path( $token ) );
+            @unlink( syndamorph_package_meta_path( $token ) );
+            return rest_ensure_response( array( 'created' => $created,
+                'uploaded_images' => count( $created_media ), 'reused_images' => count( $image_urls ) - count( $created_media ),
+                'mode' => $mode ) );
+        },
+    ) );
+} );
