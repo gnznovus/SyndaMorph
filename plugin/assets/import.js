@@ -70,6 +70,18 @@
         return [ inline, ...extra ].filter( Boolean ).join( ';' );
     };
 
+    const cssImageUrl = ( raw, context ) => {
+        const match = ( raw || '' ).trim().match( /^url\(\s*(?:"([^"]+)"|'([^']+)'|([^)'"]+))\s*\)$/i );
+        if ( ! match ) { return ''; }
+        return safeUrl( match[1] || match[2] || match[3], context );
+    };
+    const validFontWeight = ( value ) => /^(?:normal|bold|[1-9]00)$/.test( value || '' ) ? value : '';
+    const validLineHeight = ( value ) => {
+        const v = ( value || '' ).trim().toLowerCase();
+        if ( /^\d+(?:\.\d+)?$/.test( v ) && Number( v ) <= 4 ) { return v; }
+        return allowedLength( v );
+    };
+
     const readStyles = ( node, context ) => {
         const style = document.createElement( 'div' ).style;
         context.rules.forEach( ( rule ) => {
@@ -85,6 +97,10 @@
             textAlign: acceptedAlign( style.textAlign ),
             color: allowedColor( style.color ),
             background: allowedColor( style.backgroundColor ),
+            backgroundImage: cssImageUrl( style.backgroundImage, context ),
+            backgroundSize: [ 'cover', 'contain' ].includes( style.backgroundSize ) ? style.backgroundSize : '',
+            fontWeight: validFontWeight( style.fontWeight ),
+            lineHeight: validLineHeight( style.lineHeight ),
             padding: spacing( style, 'padding' ),
             margin: spacing( style, 'margin' ),
             gap: allowedLength( style.columnGap || style.gap ),
@@ -107,9 +123,12 @@
             classes.push( 'has-text-color' );
             inline.push( 'color:' + styles.color );
         }
-        if ( styles.fontSize ) {
-            attrs.style = { ...( attrs.style || {} ), typography: { fontSize: styles.fontSize } };
-            inline.push( 'font-size:' + styles.fontSize );
+        const typography = {};
+        if ( styles.fontSize ) { typography.fontSize = styles.fontSize; inline.push( 'font-size:' + styles.fontSize ); }
+        if ( styles.fontWeight ) { typography.fontWeight = styles.fontWeight; inline.push( 'font-weight:' + styles.fontWeight ); }
+        if ( styles.lineHeight ) { typography.lineHeight = styles.lineHeight; inline.push( 'line-height:' + styles.lineHeight ); }
+        if ( Object.keys( typography ).length ) {
+            attrs.style = { ...( attrs.style || {} ), typography: { ...( attrs.style?.typography || {} ), ...typography } };
         }
         return { attrs, className: classes.join( ' ' ), inlineStyle: applySpacing( attrs, inline.join( ';' ), styles ) };
     };
@@ -254,6 +273,19 @@
                     attrs.style = { color: { background: styles.background } };
                     classes.push( 'has-background' );
                     inline = 'background-color:' + styles.background;
+                }
+                if ( styles.backgroundImage ) {
+                    attrs.style = {
+                        ...( attrs.style || {} ),
+                        background: {
+                            backgroundImage: { url: styles.backgroundImage },
+                            ...( styles.backgroundSize ? { backgroundSize: styles.backgroundSize } : {} ),
+                        },
+                    };
+                    // Group block background supports generated native background
+                    // CSS. Preview uses the same image URL before approval.
+                    inline = [ inline, 'background-image:url(' + JSON.stringify( styles.backgroundImage ) + ')',
+                        styles.backgroundSize ? 'background-size:' + styles.backgroundSize : '' ].filter( Boolean ).join( ';' );
                 }
                 inline = applySpacing( attrs, inline, styles );
                 markup = block( 'group', attrs, '<' + element + htmlAttributes( classes.join( ' ' ), inline ) + '>' + inner + '</' + element + '>' );
