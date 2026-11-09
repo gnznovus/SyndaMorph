@@ -82,6 +82,23 @@
         return allowedLength( v );
     };
 
+    // Map simple grid track fractions to native percentage Column widths.
+    // No layout engine: minmax(), auto, repeat(), subgrid and responsive queries
+    // remain unsupported instead of producing misleading proportions.
+    const gridTrackWidths = ( value, count ) => {
+        const tracks = ( value || '' ).trim().split( /\s+/ ).filter( Boolean );
+        if ( tracks.length !== count || tracks.length < 2 || tracks.length > 6 ) { return []; }
+        const parsed = tracks.map( ( track ) => {
+            const match = track.match( /^(\d+(?:\.\d+)?)(fr|%)$/ );
+            return match && Number( match[1] ) > 0 ? { amount: Number( match[1] ), unit: match[2] } : null;
+        } );
+        if ( parsed.some( ( track ) => ! track ) ||
+            parsed.some( ( track ) => track.unit !== parsed[0].unit ) ) { return []; }
+        const total = parsed.reduce( ( sum, track ) => sum + track.amount, 0 );
+        return parsed.map( ( track ) => ( Math.round( track.amount / total * 10000 ) / 100 ) + '%' );
+    };
+    const verticalAlign = ( value ) => ( { start: 'top', center: 'center', end: 'bottom' }[ value ] || '' );
+
     const readStyles = ( node, context ) => {
         const style = document.createElement( 'div' ).style;
         context.rules.forEach( ( rule ) => {
@@ -94,6 +111,11 @@
         style.cssText += ';' + ( node.getAttribute( 'style' ) || '' );
         return {
             display: style.display,
+            flexDirection: style.flexDirection,
+            flexWrap: style.flexWrap,
+            gridTemplateColumns: style.gridTemplateColumns,
+            alignItems: style.alignItems,
+            justifyContent: style.justifyContent,
             textAlign: acceptedAlign( style.textAlign ),
             color: allowedColor( style.color ),
             background: allowedColor( style.backgroundColor ),
@@ -235,20 +257,30 @@
             }
         } else if ( [ 'header', 'footer', 'nav', 'main', 'section', 'article', 'div' ].includes( tag ) ) {
             const children = Array.from( node.children );
-            const isColumns = ( styles.display === 'flex' || styles.display === 'grid' ) &&
-                children.length >= 2 && children.length <= 4;
+            const isHorizontalFlex = styles.display === 'flex' &&
+                ( ! styles.flexDirection || styles.flexDirection === 'row' ) &&
+                styles.flexWrap !== 'wrap-reverse';
+            const isGrid = styles.display === 'grid';
+            const tracks = isGrid ? gridTrackWidths( styles.gridTemplateColumns, children.length ) : [];
+            const isColumns = ( isHorizontalFlex || isGrid ) &&
+                children.length >= 2 && children.length <= 6 &&
+                ( ! isGrid || tracks.length > 0 || ! styles.gridTemplateColumns );
             if ( isColumns ) {
-                const cols = children.map( ( child ) => {
+                const cols = children.map( ( child, index ) => {
                     const inner = convert( child, context );
                     if ( ! inner ) { return ''; }
                     const childStyles = readStyles( child, context );
                     const width = childStyles.flexBasis || childStyles.width;
                     // Gutenberg Column width uses a percentage, not an arbitrary CSS length.
-                    const columnWidth = width.endsWith( '%' ) ? width : '';
-                    const columnAttrs = columnWidth ? { width: columnWidth } : {};
+                    const columnWidth = width.endsWith( '%' ) ? width : ( tracks[index] || '' );
+                    const alignment = verticalAlign( styles.alignItems );
+                    const columnAttrs = { ...( columnWidth ? { width: columnWidth } : {} ),
+                        ...( alignment ? { verticalAlignment: alignment } : {} ) };
                     const columnCss = columnWidth ? 'flex-basis:' + columnWidth : '';
+                    const columnClasses = 'wp-block-column' +
+                        ( alignment ? ' is-vertically-aligned-' + alignment : '' );
                     countBlock( context );
-                    return block( 'column', columnAttrs, '<div' + htmlAttributes( 'wp-block-column', columnCss ) + '>' + inner + '</div>' );
+                    return block( 'column', columnAttrs, '<div' + htmlAttributes( columnClasses, columnCss ) + '>' + inner + '</div>' );
                 } ).filter( Boolean ).join( '\n\n' );
                 if ( cols ) {
                     const attrs = {};
@@ -508,6 +540,9 @@
             .wp-block-columns { display: flex; flex-wrap: nowrap; align-items: normal; gap: 2em; margin-bottom: 1.75em; }
             .wp-block-column { flex: 1 1 0; min-width: 0; overflow-wrap: break-word; }
             .wp-block-column[style*="flex-basis"] { flex-grow: 0; flex-shrink: 1; }
+            .wp-block-column.is-vertically-aligned-top { align-self: flex-start; }
+            .wp-block-column.is-vertically-aligned-center { align-self: center; }
+            .wp-block-column.is-vertically-aligned-bottom { align-self: flex-end; }
             /* A figure's intrinsic image width must not expand beyond its column. */
             .wp-block-image { display: block; width: 100%; max-width: 100%; min-width: 0; margin: 0 0 1em; }
             .wp-block-image img { display: block; width: 100%; max-width: 100%; height: auto; }
