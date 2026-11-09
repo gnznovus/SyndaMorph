@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SyndaMorph
  * Description: Transform static HTML into independently editable native Gutenberg blocks.
- * Version: 0.10.0
+ * Version: 0.11.0
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Text Domain: syndamorph
@@ -107,7 +107,7 @@ function syndamorph_render_import_page(): void {
                     </div>
                 </div>
             </section>
-            <p class="description">POC scope: native headings, paragraphs, images, buttons, lists, tables, dividers, semantic groups, and simple columns. Supported CSS colors, background images, font size/weight/line height, spacing, column gaps and proportional widths become native block settings. Complex CSS and external stylesheets are not imported. Scripts are not executed.</p>
+            <p class="description">POC scope: native headings, paragraphs, images, buttons, lists, tables, dividers, semantic groups, and simple columns. Supported CSS colors, background images, font size/weight/line height, spacing, column gaps, fractional grid tracks, vertical alignment, and proportional widths become native block settings. Complex CSS and external stylesheets are not imported. Scripts are not executed.</p>
         </div>
     </div>
     <?php
