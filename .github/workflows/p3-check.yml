@@ -1,0 +1,33 @@
+name: P3 Package Import Checks
+
+on:
+  pull_request:
+  push:
+    branches: [feat/p3-package-import]
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PHP syntax
+        run: |
+          php -l plugin/syndamorph.php
+          php -l plugin/includes/package-import.php
+          php -l plugin/includes/render-endpoint.php
+      - name: JavaScript syntax
+        run: |
+          node --check plugin/assets/import.js
+          node --check plugin/assets/package.js
+      - name: Docker Compose syntax
+        run: docker compose config --quiet
+      - name: Package test fixture generation
+        run: |
+          python3 tests/build-p3-fixture.py
+          python3 - <<'PY'
+          import zipfile
+          with zipfile.ZipFile("tests/fixtures/p3-sample.zip") as z:
+              names = z.namelist()
+              assert len([p for p in names if p.endswith(".html")]) == 2
+              assert len([p for p in names if p.endswith(".png")]) == 3
+          PY
