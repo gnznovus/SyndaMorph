@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Direct text-node regression</title></head>
+<body>
+  <!-- Regression: browser-exported hero headline was previously dropped by childBlocks(). -->
+  <div data-dc-tpl="157" style="font-size:56px;line-height:1.05;text-align:center">
+    Live Thonglor's rhythm<br>from sunrise to skyline.
+  </div>
+
+  <!-- Must keep direct text and nested blocks in their original order, without duplicates. -->
+  <section id="mixed">
+    Before <strong>the nested card</strong>.
+    <div><p>Inside the card.</p></div>
+    After <em>the nested card</em>.
+  </section>
+
+  <!-- Inline wrappers alone must become editable text, not disappear. -->
+  <div><span>Wrapped</span> <span>inline text</span> and <a href="https://example.com/">a link</a>.</div>
+
+  <!-- Preserve ordinary layout conversion while importing mixed text elsewhere. -->
+  <div style="display:grid;grid-template-columns:1fr 2fr 1fr">
+    <div><p>Left</p></div>
+    <div><p>Middle</p></div>
+    <div><p>Right</p></div>
+  </div>
+
+  <!-- Empty/whitespace containers must not create ghost paragraphs. -->
+  <div>   <span> </span>   </div>
+</body></html>
