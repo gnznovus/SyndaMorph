@@ -14,13 +14,9 @@ GitHub's automatic *Source code (zip)* archive is never an update package.
 WordPress handles installation, version comparison and site-controlled automatic
 updates. Keep the updater-enabled plugin active so its hooks can run.
 
-**Release-test prerequisite:** this token-free updater requires public,
-anonymous access to both the API and ZIP download. On 2026-11-20 the repository
-was verified private and the anonymous repository API returned 404. A real
-remote-update test cannot succeed until public access is explicitly approved
-and verified, or a separately scoped private-distribution design is approved.
-Do not embed a GitHub token in the plugin or ZIP. No repository visibility or
-WordPress installation settings are changed by local validation.
+The repository is public. After publication, verify that the latest release
+API and ZIP download work without GitHub credentials. WordPress uses those
+public endpoints for update checks and installation.
 
 ### Local validation and packaging
 
@@ -37,8 +33,8 @@ artifacts and produces `syndamorph.zip`, `syndamorph.zip.sha256`, and
 `release-notes.md`. It verifies the exact `syndamorph/` root, forward-slash paths,
 all source file bytes, bundled `CHANGELOG.md`, unique current-version changelog
 entry, version header and Update URI. The notes include the matching version
-heading and entry only. Local candidates may say `Unreleased`; publishing adds
-`--require-release-date` and requires `## [X.Y.Z] - YYYY-MM-DD`.
+heading and entry only. Local candidates may say `Unreleased`. The draft
+workflow uses `--require-release-date` and requires `## [X.Y.Z] - YYYY-MM-DD`.
 
 `.github/workflows/updater-check.yml` runs offline checks on PRs and branch
 pushes and has no release-publishing permissions. Existing P1/P3/P4 checks
@@ -49,50 +45,68 @@ Gutenberg browser acceptance.
 
 ### Release workflow
 
-`.github/workflows/release-plugin.yml` runs only after an explicitly published
-stable release. Pushes and development commits never trigger publication.
-GitHub's [release event uses the tagged commit](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#release).
-Our workflow additionally requires that exact commit to be on the default
-branch (`main`), verifies the tag still resolves to it, and requires matching
-version and dated changelog. This is our release policy, not a GitHub requirement
-that the event workflow exist on the default branch.
+Run **Prepare SyndaMorph Release Draft** (`.github/workflows/release-plugin.yml`)
+manually from `main`, with an existing `vX.Y.Z` tag in its history. GitHub
+requires the workflow to be present on the default branch before it can be
+dispatched. The job checks out the exact tagged commit and runs PHP lint,
+JavaScript syntax checks, updater tests, package tests, changelog generation,
+and checksum verification before it creates the draft. It saves the files in
+the Actions run and attaches the ZIP and checksum to the draft with notes taken
+from the bundled changelog. The job downloads the draft attachments to verify
+them and links to the verified draft in its summary.
 
-The workflow runs lint/tests and the same local builder, preserves an Actions
-artifact, replaces release notes with the matching changelog entry, uploads the
-checksum, then attaches the ZIP last. Only this job has `contents: write`.
-It never creates a release or tag. Existing release assets are never overwritten;
-a rerun with existing assets stops for inspection. If an upload partially fails,
-inspect the preserved build artifact and existing checksums before a maintainer
-completes the missing attachment manually. Do not replace a ZIP already offered
-to WordPress; correct it in a new version.
+The draft remains private until a maintainer reviews the successful run and
+explicitly approves and publishes the stable release in GitHub. This order is
+compatible with [GitHub immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases),
+which lock the tag and assets at publication when enabled.
 
-This published-event uploader requires releases that permit adding assets after
-publication. With [immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases),
-assets must instead be attached to a draft before publishing; this workflow
-fails explicitly for immutable releases. Check that setting before the first
-release, and obtain approval for a draft-first workflow if immutability is
-required. No repository settings are changed automatically.
+An existing draft or release for the tag stops the build before it uploads.
+If a failed run leaves a partial draft, inspect the failed step and Actions
+artifact, delete only the incomplete draft while keeping the tag, then rerun.
+Publish only from a successful run with the tag and attachments it verified.
 
 ### First v0.11.1 bootstrap release (future, explicit approval required)
 
-1. Resolve anonymous API and asset access, confirm the release settings above,
-   and finish P4-A/P4-B runtime acceptance. Obtain explicit approval before
-   merging PR #4, then preserve/retarget PR #5's dependency and merge it only
-   with approval. This validation task does not merge either PR.
-2. On the approved release commit, keep `Version: 0.11.1`, replace the top
-   changelog entry's `Unreleased` with the actual release date, and rerun all
-   checks. Run `python scripts/release_plugin.py --tag v0.11.1 --output
-   release-build-0.11.1 --require-release-date` from a clean checkout of that
-   commit. Review `release-notes.md`; do not use GitHub-generated source ZIPs.
-3. After approval, tag that exact commit on `main` as `v0.11.1` and explicitly
-   publish a stable GitHub Release, selecting it as latest. Wait for the release
-   workflow to pass. Confirm the attached ZIP/checksum and release notes match
-   the dated `0.11.1` changelog entry and anonymous download works.
-4. On a disposable WordPress test site, back up any existing plugin/content and
+1. Finish P4-A/P4-B runtime acceptance. With separate merge approval, land PR #4
+   first, then retarget PR #5 to `main` and land it with approval after validating
+   its diff and checks. The draft workflow must be on `main` before dispatch.
+2. Keep `Version: 0.11.1` and change the top changelog heading to
+   `## [0.11.1] - YYYY-MM-DD` with the planned release date. Land that change on
+   `main` through the normal review process. From the repository root, tag and
+   push the approved release commit, then dispatch the draft workflow. Replace
+   `APPROVED_MAIN_SHA` with the release commit's full SHA.
+
+   ```bash
+   git fetch origin main --tags
+   git merge-base --is-ancestor APPROVED_MAIN_SHA origin/main &&
+     git tag -a v0.11.1 APPROVED_MAIN_SHA -m "SyndaMorph v0.11.1" &&
+     git push origin refs/tags/v0.11.1 &&
+     gh workflow run release-plugin.yml --repo gnznovus/SyndaMorph --ref main -f tag=v0.11.1
+   ```
+
+3. In **Actions → Prepare SyndaMorph Release Draft**, wait for the `v0.11.1`
+   run to pass. Use the draft link in its summary. Verify the tag still points
+   to the approved commit, the release notes match `release-notes.md`, and the
+   draft contains `syndamorph.zip` and `syndamorph.zip.sha256` from that run.
+4. After explicit publication approval, open the draft in **Releases**, mark
+   it as latest, leave **Set as a pre-release** unchecked, and click
+   **Publish release**. Check the anonymous API and download, then verify the
+   downloaded checksum from a fresh directory on a system with `curl`, `jq`,
+   and `sha256sum`.
+
+   ```bash
+   curl -fsSL https://api.github.com/repos/gnznovus/SyndaMorph/releases/latest |
+     jq -e '.tag_name == "v0.11.1" and (.draft == false) and (.prerelease == false)'
+   curl -fsSLO https://github.com/gnznovus/SyndaMorph/releases/download/v0.11.1/syndamorph.zip
+   curl -fsSLO https://github.com/gnznovus/SyndaMorph/releases/download/v0.11.1/syndamorph.zip.sha256
+   sha256sum --check syndamorph.zip.sha256
+   ```
+
+5. On a disposable WordPress test site, back up any existing plugin/content and
    manually install the attached ZIP under `wp-content/plugins/syndamorph/`.
    Activate it and confirm version `0.11.1`. An older installation without the
    updater must receive this bootstrap manually.
-5. Verify direct-div text/line breaks/mixed text ordering with
+6. Verify direct-div text/line breaks/mixed text ordering with
    `tests/fixtures/direct-div-text.html`; retest P4-A backgrounds, P4-B nested
    widths and P2 spacing. Inspect Gutenberg after save/refresh for recovery
    warnings. With `0.11.1` latest, no update should be offered; native
@@ -104,8 +118,8 @@ required. No repository settings are changed automatically.
 1. Make the intended small change, set `Version: 0.11.2`, add a dated top
    `## [0.11.2]` entry, and repeat validation/approval on the exact release
    commit. Preserve the `syndamorph` directory, main filename and Update URI.
-   Explicitly publish `v0.11.2` as the latest stable release only after approval
-   and wait for matching notes/checksum/ZIP to be attached.
+   Run the draft workflow with `tag=v0.11.2`, verify its attachments and notes,
+   then explicitly publish it as the latest stable release after approval.
 2. Keep the disposable site's installed version at `0.11.1`. Successful metadata
    is cached for six hours, failures/missing assets for fifteen minutes. A new
    HTTP request occurs on the next WordPress check after cache expiry; core's
