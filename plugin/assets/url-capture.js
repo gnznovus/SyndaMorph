@@ -30,7 +30,8 @@
             } );
             const payload = await response.json();
             if ( ! response.ok ) { throw new Error( payload.message || payload.error || 'Capture failed.' ); }
-            sections = payload.sections || [];
+            sections = ( payload.sections || [] ).filter( ( section ) => section && section.html && section.bounds && section.bounds.height > 0 );
+            const rejected = ( payload.sections || [] ).length - sections.length;
             select.replaceChildren();
             sections.forEach( ( section, index ) => {
                 const option = document.createElement( 'option' );
@@ -39,7 +40,7 @@
                 select.append( option );
             } );
             warning.textContent = ( payload.warnings || [] ).join( ' ' );
-            status.textContent = sections.length + ' candidate section(s) detected using ' + payload.mode + ' capture.';
+            status.textContent = sections.length + ' usable section(s) detected using ' + payload.mode + ' capture.' + ( rejected ? ' ' + rejected + ' oversized or empty section(s) omitted.' : '' );
             results.hidden = ! sections.length;
         } catch ( error ) {
             status.textContent = error.message || 'Unable to extract the page.';
