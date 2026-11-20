@@ -18,6 +18,8 @@ This changelog describes implemented work, not acceptance or production readines
 ### Fixed
 - Preserve meaningful text nodes and line breaks inside `div` containers instead of silently dropping them.
 - Preserve direct text appearing before, between, or after nested blocks.
+- Show a background image in the import preview when it belongs to the first Group.
+- Preserve Columns margins in the import preview when a gap is also set.
 - Reject malformed release metadata and unrelated/incomplete release assets without PHP warnings.
 - Supply equal/older release metadata for WordPress's native no-update and auto-update controls without offering a downgrade ZIP.
 - Validate release tag ancestry, dated changelog notes, and exact packaged files before attaching the update ZIP.

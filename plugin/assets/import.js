@@ -514,37 +514,29 @@
         const content = childBlocks( doc.body, context );
         if ( ! content ) { throw new Error( 'No supported editable blocks found.' ); }
 
-        // Preview the same converted markup that will be saved to WordPress.
-        // Strip Gutenberg block delimiters only for rendering in the sandboxed iframe.
-        // Gutenberg does not serialize Columns blockGap into inline markup.
-        // Reconstruct that style ONLY for the script-disabled preview.
-        const previewMarkup = content.replace(
-            /<!-- wp:columns (\{[^\n]*\}) -->\s*(<div class="wp-block-columns")/g,
-            ( match, json, opening ) => {
-                try {
-                    const gap = JSON.parse( json )?.style?.spacing?.blockGap;
-                    return opening + ( allowedLength( gap ) ? ' style="gap:' + escapeHtml( gap ) + '"' : '' );
-                } catch ( error ) { return opening; }
-            }
-        );
-        // Reconstruct attribute-only Gutenberg backgrounds in the preview DOM.
-        // Parse block comments rather than matching nested HTML with regex:
-        // both <div> and semantic <section>/<main> Group wrappers are supported.
-        const previewDocument = new DOMParser().parseFromString( previewMarkup, 'text/html' );
+        // Reconstruct attribute-only styles in the preview DOM without changing saved markup.
+        // An explicit body keeps the first block comment inside the tree we walk.
+        const previewDocument = new DOMParser().parseFromString( '<body>' + content, 'text/html' );
         const comments = previewDocument.createTreeWalker( previewDocument.body, NodeFilter.SHOW_COMMENT );
         let comment;
         while ( ( comment = comments.nextNode() ) ) {
-            const match = comment.data.match( /^\s*wp:group\s+(\{[\s\S]*\})\s*$/ );
+            const match = comment.data.match( /^\s*wp:(columns|group)\s+(\{[\s\S]*\})\s*$/ );
             if ( ! match ) { continue; }
             try {
-                const bg = JSON.parse( match[ 1 ] )?.style?.background;
-                const imageUrl = bg?.backgroundImage?.url;
-                if ( ! imageUrl || ! safeUrl( imageUrl, { baseUrl: window.location.origin } ) ) { continue; }
+                const styles = JSON.parse( match[ 2 ] )?.style;
                 let wrapper = comment.nextSibling;
                 while ( wrapper && wrapper.nodeType === Node.TEXT_NODE && ! wrapper.textContent.trim() ) {
                     wrapper = wrapper.nextSibling;
                 }
                 if ( ! wrapper || wrapper.nodeType !== Node.ELEMENT_NODE ) { continue; }
+                if ( match[ 1 ] === 'columns' ) {
+                    const gap = allowedLength( styles?.spacing?.blockGap );
+                    if ( gap ) { wrapper.style.gap = gap; }
+                    continue;
+                }
+                const bg = styles?.background;
+                const imageUrl = bg?.backgroundImage?.url;
+                if ( ! imageUrl || ! safeUrl( imageUrl, { baseUrl: window.location.origin } ) ) { continue; }
                 wrapper.style.backgroundImage = 'url(' + JSON.stringify( imageUrl ) + ')';
                 if ( [ 'cover', 'contain' ].includes( bg.backgroundSize ) ) {
                     wrapper.style.backgroundSize = bg.backgroundSize;
