@@ -1,0 +1,35 @@
+name: Hybrid engine POC checks
+on:
+  push:
+    branches: [poc/hybrid-engine]
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'plugin/includes/capture-endpoint.php'
+      - 'plugin/assets/url-capture.js'
+      - 'plugin/syndamorph.php'
+      - 'compose.yaml'
+      - '.github/workflows/hybrid-poc-check.yml'
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install backend dependencies
+        run: npm install --prefix backend --ignore-scripts --no-audit --no-fund
+      - name: Backend tests
+        run: npm test --prefix backend
+      - name: JavaScript syntax
+        run: |
+          node --check backend/server.js
+          node --check backend/capture.js
+          node --check plugin/assets/url-capture.js
+      - name: PHP syntax
+        run: |
+          php -l plugin/includes/capture-endpoint.php
+          php -l plugin/syndamorph.php
+      - name: Compose validation
+        run: docker compose config --quiet
