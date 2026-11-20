@@ -70,6 +70,18 @@
         return [ inline, ...extra ].filter( Boolean ).join( ';' );
     };
 
+    const cssImageUrl = ( raw, context ) => {
+        const match = ( raw || '' ).trim().match( /^url\(\s*(?:"([^"]+)"|'([^']+)'|([^)'"]+))\s*\)$/i );
+        if ( ! match ) { return ''; }
+        return safeUrl( match[1] || match[2] || match[3], context );
+    };
+    const validFontWeight = ( value ) => /^(?:normal|bold|[1-9]00)$/.test( value || '' ) ? value : '';
+    const validLineHeight = ( value ) => {
+        const v = ( value || '' ).trim().toLowerCase();
+        if ( /^\d+(?:\.\d+)?$/.test( v ) && Number( v ) <= 4 ) { return v; }
+        return allowedLength( v );
+    };
+
     const readStyles = ( node, context ) => {
         const style = document.createElement( 'div' ).style;
         context.rules.forEach( ( rule ) => {
@@ -85,6 +97,10 @@
             textAlign: acceptedAlign( style.textAlign ),
             color: allowedColor( style.color ),
             background: allowedColor( style.backgroundColor ),
+            backgroundImage: cssImageUrl( style.backgroundImage, context ),
+            backgroundSize: [ 'cover', 'contain' ].includes( style.backgroundSize ) ? style.backgroundSize : '',
+            fontWeight: validFontWeight( style.fontWeight ),
+            lineHeight: validLineHeight( style.lineHeight ),
             padding: spacing( style, 'padding' ),
             margin: spacing( style, 'margin' ),
             gap: allowedLength( style.columnGap || style.gap ),
@@ -107,9 +123,12 @@
             classes.push( 'has-text-color' );
             inline.push( 'color:' + styles.color );
         }
-        if ( styles.fontSize ) {
-            attrs.style = { ...( attrs.style || {} ), typography: { fontSize: styles.fontSize } };
-            inline.push( 'font-size:' + styles.fontSize );
+        const typography = {};
+        if ( styles.fontSize ) { typography.fontSize = styles.fontSize; inline.push( 'font-size:' + styles.fontSize ); }
+        if ( styles.fontWeight ) { typography.fontWeight = styles.fontWeight; inline.push( 'font-weight:' + styles.fontWeight ); }
+        if ( styles.lineHeight ) { typography.lineHeight = styles.lineHeight; inline.push( 'line-height:' + styles.lineHeight ); }
+        if ( Object.keys( typography ).length ) {
+            attrs.style = { ...( attrs.style || {} ), typography: { ...( attrs.style?.typography || {} ), ...typography } };
         }
         return { attrs, className: classes.join( ' ' ), inlineStyle: applySpacing( attrs, inline.join( ';' ), styles ) };
     };
@@ -254,6 +273,18 @@
                     attrs.style = { color: { background: styles.background } };
                     classes.push( 'has-background' );
                     inline = 'background-color:' + styles.background;
+                }
+                if ( styles.backgroundImage ) {
+                    attrs.style = {
+                        ...( attrs.style || {} ),
+                        background: {
+                            backgroundImage: { url: styles.backgroundImage },
+                            ...( styles.backgroundSize ? { backgroundSize: styles.backgroundSize } : {} ),
+                        },
+                    };
+                    // Core Group backgrounds are stored in block attributes.
+                    // WordPress generates their CSS dynamically; do not put it
+                    // in serialized HTML or Gutenberg will invalidate the block.
                 }
                 inline = applySpacing( attrs, inline, styles );
                 markup = block( 'group', attrs, '<' + element + htmlAttributes( classes.join( ' ' ), inline ) + '>' + inner + '</' + element + '>' );
@@ -435,10 +466,37 @@
                 } catch ( error ) { return opening; }
             }
         );
-        const rendered = previewMarkup.replace( /<!--\s*\/?wp:[\s\S]*?-->/g, '' );
+        // Reconstruct attribute-only Gutenberg backgrounds in the preview DOM.
+        // Parse block comments rather than matching nested HTML with regex:
+        // both <div> and semantic <section>/<main> Group wrappers are supported.
+        const previewDocument = new DOMParser().parseFromString( previewMarkup, 'text/html' );
+        const comments = previewDocument.createTreeWalker( previewDocument.body, NodeFilter.SHOW_COMMENT );
+        let comment;
+        while ( ( comment = comments.nextNode() ) ) {
+            const match = comment.data.match( /^\s*wp:group\s+(\{[\s\S]*\})\s*$/ );
+            if ( ! match ) { continue; }
+            try {
+                const bg = JSON.parse( match[ 1 ] )?.style?.background;
+                const imageUrl = bg?.backgroundImage?.url;
+                if ( ! imageUrl || ! safeUrl( imageUrl, { baseUrl: window.location.origin } ) ) { continue; }
+                let wrapper = comment.nextSibling;
+                while ( wrapper && wrapper.nodeType === Node.TEXT_NODE && ! wrapper.textContent.trim() ) {
+                    wrapper = wrapper.nextSibling;
+                }
+                if ( ! wrapper || wrapper.nodeType !== Node.ELEMENT_NODE ) { continue; }
+                wrapper.style.backgroundImage = 'url(' + JSON.stringify( imageUrl ) + ')';
+                if ( [ 'cover', 'contain' ].includes( bg.backgroundSize ) ) {
+                    wrapper.style.backgroundSize = bg.backgroundSize;
+                }
+            } catch ( error ) { /* Invalid block data must never break preview. */ }
+        }
+        const rendered = previewDocument.body.innerHTML.replace( /<!--\s*\/?wp:[\s\S]*?-->/g, '' );
+        const themeFont = typeof SyndaMorphImport.previewFontFamily === 'string'
+            ? SyndaMorphImport.previewFontFamily : '';
+        const safeThemeFont = /^[\w\s,"'-]{1,180}$/.test( themeFont ) ? themeFont : 'system-ui, sans-serif';
         const previewStyles = `
             *, *::before, *::after { box-sizing: border-box; }
-            body { margin: 0; padding: 20px; background: #fff; color: #1e1e1e; font-family: system-ui, sans-serif; line-height: 1.6; }
+            body { margin: 0; padding: 20px; background: #fff; color: #1e1e1e; font-family: ${ safeThemeFont }; line-height: 1.6; }
             /* Use the modal's available width; do not impose the editor's narrow content width. */
             .syndamorph-preview-content { width: 100%; margin-inline: auto; }
             .wp-block-group { min-width: 0; }

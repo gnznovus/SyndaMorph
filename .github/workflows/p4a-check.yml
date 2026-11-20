@@ -1,0 +1,33 @@
+name: P4-A Background and Typography Checks
+
+on:
+  push:
+    branches: [feat/p4a-backgrounds-fonts]
+  pull_request:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PHP syntax
+        run: |
+          php -l plugin/syndamorph.php
+          php -l plugin/includes/package-import.php
+      - name: JavaScript syntax
+        run: |
+          node --check plugin/assets/import.js
+          node --check plugin/assets/package.js
+      - name: Compose config
+        run: docker compose config --quiet
+      - name: Build P4-A test package
+        run: |
+          python3 tests/build-p4a-fixture.py
+          python3 - <<'PY'
+          import zipfile
+          with zipfile.ZipFile('tests/fixtures/p4a-background-typography.zip') as archive:
+              names=archive.namelist()
+              assert len([name for name in names if name.endswith('.html')])==2
+              assert 'hotel/assets/css/site.css' in names
+              assert 'hotel/assets/images/hero.png' in names
+          PY

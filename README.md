@@ -18,6 +18,36 @@ Go to **Tools → SyndaMorph** to paste HTML or select an `.html`/`.htm` file. S
 
 Stop the environment with `docker compose down`. To discard the local WordPress database and content, run `docker compose down -v` (**destructive**).
 
+## P4-A — Native background images & typography (experimental)
+
+The first **visual fidelity** slice preserves CSS background images on Group blocks and expands native typography. This is an iterative POC, not full Morpher/CSS reconstruction.
+
+- ZIP-linked CSS `url('../images/hero.webp')` is resolved **relative to the CSS file**; inline and embedded HTML styles resolve relative to their HTML page.
+- Only image assets present inside the staged package are rewritten to short-lived signed preview URLs; on batch approval they are uploaded/reused in Media Library and rewritten to **permanent URLs**. CSS-only background images now count as referenced assets. Unused files still stay out of Media Library.
+- A simple `background-image:url(...)` declaration on a semantic `Group` container becomes native `style.background.backgroundImage.url`. Optional `background-size:cover|contain` maps to the corresponding Group setting. The actual Gutenberg saved markup stores background images in **block attributes, not extra inline CSS**, avoiding invalid-block recovery; the preview applies the background CSS temporarily.
+- Heading and Paragraph blocks additionally preserve supported `font-weight` and `line-height` alongside existing font-size and colors.
+
+**Current limits:** Custom `@font-face` files are **not imported or registered as WordPress font families yet**; font-weight and line-height improve typography without claiming font-face fidelity. Only one plain CSS URL background is supported; gradients, layered images, `image-set()`, pseudo-elements, CSS transforms/absolute positioning and complex font variants remain unsupported. Group background controls and rendering depend on WordPress/theme background support.
+
+### Test P4-A locally
+
+```bash
+git fetch origin
+git switch --track origin/feat/p4a-backgrounds-fonts
+docker compose up -d --build
+python tests/build-p4a-fixture.py
+```
+
+Upload `tests/fixtures/p4a-background-typography.zip` in **Tools → SyndaMorph**.
+
+1. Scan: exactly **2 pages** should be detected. The fixture generates a **visibly blue/teal hero background**, not a 1px placeholder. Preview both, verifying a background image is visible behind text; the image comes from a linked CSS file on Home and an embedded style on Dining.
+2. Check heading weight and line height in the preview; each heading/paragraph stays independently editable.
+3. Approve both as drafts: exactly **two pages** should be created, and the shared CSS background should be uploaded **once** to Media Library (the unused image should not be imported).
+4. Open a draft in Gutenberg, select the hero Group, inspect its Background image setting, and confirm **no invalid-block recovery warning**. Refresh the draft to verify the image persists and no temporary package URL remains.
+5. Also test `native(4).zip` for real-world typography. Its three CSS files define 14 custom `@font-face` rules but **no CSS background-image declarations**, so this background feature is not expected to produce a major visual change in that particular package. Its absolute positioning will still diverge from the source design.
+
+CI syntax checks are not a substitute for browser/Gutenberg validation. Keep the PR in draft until local acceptance.
+
 ## P3 — Multi-page ZIP package import (development acceptance pending)
 
 This adds a separate ZIP workflow under **Tools → SyndaMorph**, without replacing the existing single-HTML importer.
