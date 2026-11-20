@@ -1,0 +1,82 @@
+name: Publish SyndaMorph Plugin Package
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    if: github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the exact released tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Validate tag, version and changelog
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          tag = os.environ["RELEASE_TAG"]
+          match = re.fullmatch(r"v?(\d+\.\d+\.\d+)", tag)
+          if not match:
+              raise SystemExit("Release tag must be vMAJOR.MINOR.PATCH")
+          version = match.group(1)
+          plugin = Path("plugin/syndamorph.php").read_text()
+          current = re.search(r"^\s*\* Version: (.+)$", plugin, re.M)
+          if not current or current.group(1).strip() != version:
+              raise SystemExit(f"Plugin header version must match release {version}")
+          if "Update URI: https://github.com/gnznovus/SyndaMorph" not in plugin:
+              raise SystemExit("Missing native update URI")
+          changelog = Path("plugin/CHANGELOG.md").read_text()
+          entry = re.search(
+              rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)",
+              changelog, re.M | re.S,
+          )
+          if not entry or not entry.group(1).strip():
+              raise SystemExit(f"CHANGELOG.md requires a nonempty [{version}] entry")
+          Path("release-notes.md").write_text(entry.group(1).strip() + "\n")
+          PY
+
+      - name: Validate PHP and JavaScript
+        run: |
+          find plugin -name '*.php' -print0 | xargs -0 -n1 php -l
+          find plugin/assets -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: Package installable WordPress plugin
+        run: |
+          mkdir -p dist/syndamorph
+          cp -a plugin/. dist/syndamorph/
+          cd dist
+          zip -q -r ../syndamorph.zip syndamorph
+          cd ..
+          python3 - <<'PY'
+          from zipfile import ZipFile
+          with ZipFile("syndamorph.zip") as package:
+              names = package.namelist()
+              assert "syndamorph/syndamorph.php" in names
+              assert "syndamorph/CHANGELOG.md" in names
+              assert "syndamorph/includes/updater.php" in names
+              assert all(name.startswith("syndamorph/") for name in names)
+              assert all("\\" not in name for name in names)
+              assert len(names) == len(set(names))
+          PY
+          sha256sum syndamorph.zip | tee syndamorph.zip.sha256
+
+      - name: Attach artifact and publish matching changelog
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release upload "$RELEASE_TAG" syndamorph.zip syndamorph.zip.sha256 --clobber
+          gh release edit "$RELEASE_TAG" --notes-file release-notes.md
