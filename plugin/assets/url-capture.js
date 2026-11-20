@@ -72,7 +72,11 @@
             warning.textContent = ( payload.warnings || [] ).join( ' ' ) + ( sections.some( ( section ) => section.geometryAvailable === false ) ? ' Some sections were identified from document structure because rendered geometry was unavailable; visual fidelity may be reduced.' : '' );
             status.textContent = sections.length + ' usable section(s) detected using ' + payload.mode + ' capture.' + ( rejected ? ' ' + rejected + ' oversized or empty section(s) omitted.' : '' );
             results.hidden = ! sections.length;
-            if ( ! sections.length ) { status.textContent += ' Review the capture diagnostics for the cause.'; }
+            if ( payload.diagnostics?.contentReady === false ) {
+                status.textContent = 'Page failed to render visible content. Check the Capture diagnostics for blocked dependencies or JavaScript errors.';
+            } else if ( ! sections.length ) {
+                status.textContent += ' Review the capture diagnostics for the cause.';
+            }
         } catch ( error ) {
             status.textContent = error.message || 'Unable to extract the page.';
         } finally { capture.disabled = false; }
