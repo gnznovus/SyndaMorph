@@ -60,3 +60,21 @@ No live browser/Gutenberg integration check is claimed until manually verified.
 
 Run unit tests with `npm install --prefix backend && npm test --prefix backend`.
 The automated tests exercise layoutless wrappers and serializer cleanup; real-page fidelity still needs browser acceptance.
+
+## Render diagnostics checkpoint
+
+Click **Detect Sections** and expand **Capture diagnostics**. The report contains
+bounded HTML structure summaries, headings, body/main geometry, stylesheet
+availability, blocked-resource counts and browser JS errors. It deliberately
+does not include the full page HTML or any form values.
+
+For the Hotel Indigo prototype, use **Copy Diagnostic JSON** and inspect:
+
+- `visibleElements`, `body/main` dimensions: can the browser measure layout?
+- `network.denied` and `network.samples`: did capture block styles/scripts?
+- `stylesheets`: were CSS rules attached/readable?
+- `headings` and `bodyChildren/mainChildren`: do actual section boundaries exist?
+- `semanticSections` compared to `sectionCount`: are we losing groups in section detection?
+
+Only after diagnosis should we alter segmentation. The previous 3-section
+structure-only output is **not accepted as fidelity evidence**.
