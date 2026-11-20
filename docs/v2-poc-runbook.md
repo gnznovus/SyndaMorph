@@ -24,8 +24,9 @@ remains unchanged and network-denied for inline-JavaScript conversion.
   both WordPress and backend environment settings. Never expose the service directly to the internet.
 - Browser capture is used by default for accurate rendered DOM; static mode disables JavaScript.
   This is not yet a static-first detector, despite the planned V2 direction.
-- Sections are initially grouped by direct children of `main` and top-level header/footer.
-  Complex nested sections may need manual adjustments.
+- Sections are identified using semantic section containers and geometry-aware fallback through layoutless wrappers. Unsupported complex structures may still need manual adjustments.
+- Document metadata, linked stylesheet tags, script/iframe elements and event-handler attributes are excluded from converted sections. Large or zero-height sections are omitted from the selector rather than handed to the converter.
+- The existing 500-block conversion limit remains unchanged; hitting it after this patch indicates an oversized detected section that needs further segmentation.
 - Captured inline computed styles are best-effort. External assets are still referenced remotely.
 - Capture is a synchronous request in this first POC; asynchronous job IDs, polling, cancellation,
   persistent progress and long-running workers are future work.
@@ -47,3 +48,15 @@ docker compose config --quiet
 ```
 
 No live browser/Gutenberg integration check is claimed until manually verified.
+
+## Regression: Hotel Indigo sections (2026-11-20)
+
+1. Rebuild the capture container and reload the WordPress dashboard.
+2. Paste the Hotel Indigo prototype URL and click **Detect Sections**.
+3. Confirm multiple non-zero-height sections; there should be no 0px catch-all `x-dc` wrapper.
+4. Select a smaller section. The HTML textarea should **not** contain `<helmet>`, document `<link>`, `<style>` or `<script>` tags.
+5. Click **Preview Import** and confirm no 500-block-limit failure for that section.
+6. Save as a Pattern and check editor save/reload. Record any remaining fidelity differences.
+
+Run unit tests with `npm install --prefix backend && npm test --prefix backend`.
+The automated tests exercise layoutless wrappers and serializer cleanup; real-page fidelity still needs browser acceptance.
