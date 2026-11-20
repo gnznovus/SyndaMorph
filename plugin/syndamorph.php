@@ -5,11 +5,13 @@
  * Version: 0.11.1
  * Requires at least: 6.5
  * Requires PHP: 8.1
+ * Update URI: https://github.com/gnznovus/SyndaMorph
  * Text Domain: syndamorph
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 require_once plugin_dir_path( __FILE__ ) . 'includes/render-endpoint.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/package-import.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/updater.php';
 
 add_action( 'admin_menu', static function (): void {
     add_management_page(
