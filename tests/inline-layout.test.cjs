@@ -57,4 +57,13 @@ test( 'direct text, Flex and Grid labels stay readable and ordered in the previe
     assert.match( grid.content, /Lead[\s\S]*First side[\s\S]*Second lead[\s\S]*Second side/ );
     assert.match( grid.content, /"fontFamily":"\\u0022Local Heading\\u0022, serif"/ );
     assert.match( grid.preview, /gap: 20px 30\.43%/ );
+    const details = await page.evaluate( () => window.SyndaMorphConverter.prepareImport( [
+        '<div data-syndamorph-capture="browser" data-syndamorph-notices="[&quot;One answer available.&quot;]">',
+        '<div data-syndamorph-disclosure="open"><div role="button" data-syndamorph-summary>Question?</div>',
+        '<p>Available answer.</p></div><p>Question without its answer?</p></div>',
+    ].join( '' ), false ) );
+    assert.deepEqual( details.captureNotices, [ 'One answer available.' ] );
+    assert.match( details.content, /<!-- wp:details {"showContent":true} --><details class="wp-block-details" open><summary>Question\?<\/summary>/ );
+    assert.equal( [ ...details.content.matchAll( /<details/g ) ].length, 1 );
+    assert.match( details.content, /<\/details>[\s\S]*Question without its answer\?/ );
 } );

@@ -204,6 +204,13 @@
         const lineHeight = validLineHeight( style.lineHeight );
         const largeText = captured && pixels( fontSize ) > 30;
         const padding = spacing( style, 'padding' );
+        const margin = spacing( style, 'margin' );
+        if ( captured ) {
+            for ( const side of [ 'top', 'bottom' ] ) {
+                const measured = pixels( margin[ side ] );
+                if ( measured >= 32 ) { margin[ side ] = fluid( measured, Math.round( measured / 3 ), context.viewport ); }
+            }
+        }
         if ( captured && node === context.captureRoot ) {
             for ( const [ side, value ] of Object.entries( padding ) ) {
                 const measured = pixels( value );
@@ -238,7 +245,7 @@
             textTransform: captured && [ 'uppercase', 'lowercase', 'capitalize' ].includes( style.textTransform ) ? style.textTransform : '',
             lineHeight: largeText && pixels( lineHeight ) ? ( pixels( lineHeight ) / pixels( fontSize ) ).toFixed( 3 ) : lineHeight,
             padding,
-            margin: spacing( style, 'margin' ),
+            margin,
             gap: allowedLength( style.columnGap || style.gap ),
             rowGap: allowedLength( style.rowGap || style.gap ),
             width: allowedLength( style.width ),
@@ -248,6 +255,8 @@
             contentWidth: captureWidth ? captureWidth + 'px' : '',
             minHeight: measuredHeight >= 56 && measuredHeight <= 1400
                 ? fluid( Math.round( measuredHeight ), Math.round( measuredHeight * 0.48 ), context.viewport ) : '',
+            borderBottom: captured && pixels( style.borderBottomWidth ) && style.borderBottomStyle === 'solid' && allowedColor( style.borderBottomColor )
+                ? { color: allowedColor( style.borderBottomColor ), style: 'solid', width: style.borderBottomWidth } : null,
         };
     };
 
@@ -401,6 +410,11 @@
         countBlock( context );
         return block( 'columns', attrs, '<div' + htmlAttributes( 'wp-block-columns', inline ) + '>' + cols + '</div>' );
     };
+    const applyBottomBorder = ( attrs, border ) => {
+        if ( ! border ) { return ''; }
+        attrs.style = { ...attrs.style, border: { bottom: border } };
+        return Object.entries( border ).map( ( [ name, value ] ) => 'border-bottom-' + name + ':' + value ).join( ';' );
+    };
 
     const groupMarkup = ( node, tag, styles, context, inner ) => {
         if ( ! inner ) { return ''; }
@@ -442,9 +456,45 @@
             };
         }
         if ( styles.minHeight ) { inline.push( 'min-height:' + styles.minHeight ); }
-        const css = applySpacing( attrs, inline.join( ';' ), styles );
+        inline.push( applyBottomBorder( attrs, styles.borderBottom ) );
+        // A captured full-width Group uses the theme's horizontal breakout
+        // margins. Writing the source's 0px margins would cancel that layout.
+        const spacingStyles = context.captured
+            ? { ...styles, margin: Object.fromEntries( Object.entries( styles.margin ).filter( ( [ side ] ) => side === 'top' || side === 'bottom' ) ) }
+            : styles;
+        const css = applySpacing( attrs, inline.filter( Boolean ).join( ';' ), spacingStyles );
         countBlock( context );
         return block( 'group', attrs, '<' + tag + htmlAttributes( classes.join( ' ' ), css ) + '>' + inner + '</' + tag + '>' );
+    };
+
+    const detailsMarkup = ( attrs, appearance, summary, body ) => block( 'details', attrs,
+        '<details' + appearance + '><summary>' + summary + '</summary>' + body + '</details>' );
+    const asDetails = ( node, styles, context ) => {
+        const summary = node.querySelector( ':scope > summary, :scope > [data-syndamorph-summary]' );
+        if ( ! summary || ! summary.textContent.trim() ) { return childBlocks( node, context ); }
+        const clone = node.cloneNode( true );
+        clone.children[ Array.from( node.children ).indexOf( summary ) ].remove();
+        const body = childBlocks( clone, context );
+        const open = node.open || node.dataset.syndamorphDisclosure === 'open';
+        const summaryStyles = { ...readStyles( summary, context ), textAlign: '' };
+        const { attrs, className, inlineStyle } = textAppearance( summaryStyles );
+        if ( open ) { attrs.showContent = true; }
+        const name = node.getAttribute( 'name' );
+        const nameAttr = name && node.tagName === 'DETAILS' ? ' name="' + escapeHtml( name ) + '"' : '';
+        const css = [ applyBottomBorder( attrs, styles.borderBottom ), inlineStyle ].filter( Boolean ).join( ';' );
+        const classes = ( 'wp-block-details ' + className ).trim();
+        return detailsMarkup( attrs, htmlAttributes( classes, css ) + nameAttr + ( open ? ' open' : '' ), simpleInline( summary, context ), body );
+    };
+    const asStaticSlides = ( node, styles, context ) => {
+        const index = Number( node.dataset.syndamorphSlide );
+        const slides = Array.from( node.children );
+        if ( ! slides[ index ] ) { return childBlocks( node, context ); }
+        const active = convert( slides[ index ], context );
+        const additional = slides.filter( ( _, position ) => position !== index ).map( ( slide ) => convert( slide, context ) ).join( '\n\n' );
+        if ( ! additional ) { return active; }
+        countBlock( context );
+        return groupMarkup( node, 'div', styles, context, active +
+            detailsMarkup( {}, ' class="wp-block-details"', 'Additional captured slides', additional ) );
     };
 
     const convert = ( node, context ) => {
@@ -453,7 +503,11 @@
         const isTextBlock = /^h[1-6]$/.test( tag ) || tag === 'p';
         let markup = '';
 
-        if ( isTextBlock && ( node.querySelector( 'a img' ) || ( node.closest( 'a' ) && node.querySelector( 'img' ) ) ) ) {
+        if ( context.captured && node.hasAttribute( 'data-syndamorph-slide' ) ) {
+            return asStaticSlides( node, styles, context );
+        } else if ( context.captured && ( tag === 'details' || node.hasAttribute( 'data-syndamorph-disclosure' ) ) ) {
+            markup = asDetails( node, styles, context );
+        } else if ( isTextBlock && ( node.querySelector( 'a img' ) || ( node.closest( 'a' ) && node.querySelector( 'img' ) ) ) ) {
             // A native Image is its own block, so split it from the surrounding text.
             return childBlocks( node, context, tag );
         } else if ( tag === 'p' && node.children.length === 1 && node.firstElementChild.tagName.toLowerCase() === 'a' &&
@@ -657,11 +711,19 @@
         const captured = Boolean( captureRoot );
         const captureViewport = Number( captureRoot?.dataset.syndamorphViewport );
         const viewport = captureViewport >= 320 && captureViewport <= 2400 ? captureViewport : 1440;
+        let captureNotices = [];
+        if ( captureRoot?.dataset.syndamorphNotices ) {
+            try {
+                const notices = JSON.parse( captureRoot.dataset.syndamorphNotices );
+                if ( Array.isArray( notices ) ) { captureNotices = notices.filter( ( value ) => typeof value === 'string' && value.length <= 400 ).slice( 0, 20 ); }
+            } catch ( error ) { /* Captured markup may have been edited. */ }
+        }
         const stylesheets = await inspectStylesheets( doc );
         const rules = extractStyles( doc );
         // No source scripts or active embeds are allowed in the preview or block output.
-        doc.querySelectorAll( 'script, iframe, object, embed, form, template, svg, link, base' ).forEach( ( node ) => node.remove() );
-        if ( captured ) { captureRoot.querySelectorAll( '[data-syndamorph-hidden]' ).forEach( ( node ) => node.remove() ); }
+        doc.querySelectorAll( 'script, iframe, object, embed, template, svg, link, base' ).forEach( ( node ) => node.remove() );
+        if ( ! captured ) { doc.querySelectorAll( 'form' ).forEach( ( node ) => node.remove() ); }
+        if ( captured ) { captureRoot.querySelectorAll( '[data-syndamorph-hidden],[data-syndamorph-static-control]' ).forEach( ( node ) => node.remove() ); }
         doc.querySelectorAll( '*' ).forEach( ( node ) => {
             Array.from( node.attributes ).forEach( ( attribute ) => {
                 if ( /^on/i.test( attribute.name ) ||
@@ -781,7 +843,7 @@
             '<meta name="viewport" content="width=device-width, initial-scale=1">' +
             '<style>' + previewStyles + '</style></head><body' + ( captured ? ' class="syndamorph-preview-capture"' : '' ) +
             '><div class="syndamorph-preview-content">' + rendered + '</div></body></html>';
-        return { content, preview, missing, stylesheets };
+        return { content, preview, missing, stylesheets, captureNotices };
     };
 
     window.SyndaMorphConverter = Object.freeze( { prepareImport } );
@@ -798,6 +860,8 @@
         const closeButton = $( '#syndamorph-close-preview' );
         const cancelButton = $( '#syndamorph-cancel-preview' );
         const frame = $( '#syndamorph-preview-frame' );
+        const captureReport = $( '#syndamorph-capture-report' );
+        const captureList = $( '#syndamorph-capture-notices' );
         const assetReport = $( '#syndamorph-asset-report' );
         const cssReport = $( '#syndamorph-css-report' );
         const cssList = $( '#syndamorph-css-list' );
@@ -828,6 +892,10 @@
             frame.removeAttribute( 'srcdoc' );
             assetReport.hidden = true;
             assetReport.replaceChildren();
+            if ( captureReport && captureList ) {
+                captureReport.hidden = true;
+                captureList.replaceChildren();
+            }
             cssReport.hidden = true;
             cssList.replaceChildren();
             fixStatus.textContent = '';
@@ -915,6 +983,14 @@
                 prepared = next;
                 preparedSource = source;
                 preparedMode = jsMode;
+                if ( captureReport && captureList && prepared.captureNotices.length ) {
+                    captureList.replaceChildren( ...prepared.captureNotices.map( ( notice ) => {
+                        const item = document.createElement( 'li' );
+                        item.textContent = notice;
+                        return item;
+                    } ) );
+                    captureReport.hidden = false;
+                }
                 if ( prepared.missing.length ) {
                     const heading = document.createElement( 'strong' );
                     heading.textContent = prepared.missing.length + ' missing image(s) — replace these in Gutenberg after creating the draft.';

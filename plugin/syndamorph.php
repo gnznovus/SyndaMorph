@@ -117,6 +117,10 @@ function syndamorph_render_import_page(): void {
                         </div>
                         <button id="syndamorph-close-preview" type="button" class="button-link syndamorph-preview-close" aria-label="Close preview">&times;</button>
                     </div>
+                    <div id="syndamorph-capture-report" class="syndamorph-asset-report" hidden role="status">
+                        <strong>Review captured functionality and visual differences</strong>
+                        <ul id="syndamorph-capture-notices"></ul>
+                    </div>
                     <div id="syndamorph-asset-report" class="syndamorph-asset-report" hidden role="status"></div>
                     <div id="syndamorph-css-report" class="syndamorph-asset-report syndamorph-css-report" hidden role="status">
                         <div class="syndamorph-css-report-details">

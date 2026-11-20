@@ -121,3 +121,15 @@ test('structure-only fallback segments an all-zero-geometry custom element page'
         } finally { doc.defaultView.Element.prototype.getBoundingClientRect = original; }
     });
 });
+
+test('marks only available FAQ answers for native Details and reports the missing state', () => {
+    withDocument('<main><section><h2>FAQs</h2><div><button>First question?</button><p>Available answer.</p></div>' +
+        '<div><button>Second question?</button></div></section>' +
+        '<section><h2>Booking</h2><button>Rooms &amp; guests</button> <button>Check Availability</button></section></main>', () => {
+        const [faq, booking] = extractSections();
+        assert.match(faq.html, /data-syndamorph-disclosure="open"/);
+        assert.match(faq.notices.join(' '), /1 FAQ answer.+1 additional FAQ question/);
+        assert.match(booking.notices.join(' '), /Booking controls become editable static content/);
+        assert.doesNotMatch(booking.html, /data-syndamorph-disclosure/);
+    });
+});

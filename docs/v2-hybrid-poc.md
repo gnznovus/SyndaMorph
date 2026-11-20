@@ -49,3 +49,13 @@ Production deployment, AI assistance, multi-page crawl, portable ZIP distributio
 2. External job API and WordPress dashboard integration.
 3. Section identification/selection and a single native Pattern conversion.
 4. Real Gutenberg browser acceptance and fidelity report.
+
+## Fidelity recovery
+
+The URL capture dashboard offers content roots first and lists interactive components for review. It records header, footer and overlay roots in a separate disclosure. Each captured root carries a source selector and its bounds. Positioned elements extending beyond a section are reported before preview.
+
+Browser captures convert supported grid placements and growing Flex children to native Columns. Captured typography and image sizing use native block settings. Columns stack on small viewports. The dashboard shows source font dependencies and the actions that need a separate integration. FAQ rows with an available answer become native Details blocks. A recognizable carousel keeps the visible slide in the layout and stores the other captured slides in a closed Details block.
+
+Acceptance for this iteration uses the live Hotel Indigo wireframe at 1440px and 390px. Check Hero, Hotel intro, Our Story, Rooms and FAQs. Preview and save each as an unsynced Pattern. Insert the saved blocks into a disposable page, edit text, save and reload. Confirm that the edits persist and Gutenberg reports zero invalid blocks. Inspect the saved column widths and toggle native Details on both viewports. Compare the original mobile markup with the responsive Pattern since the wireframe has separate desktop and mobile DOM trees.
+
+The remaining fidelity work is to carry device-specific composition across to a single editable Pattern, close differences caused by theme styling and font availability, and handle richer grid placements. Booking, form submissions, room switching and missing FAQ states require separate source content or integrations. Production capture isolation and asset portability remain separate milestones.

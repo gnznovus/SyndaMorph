@@ -164,6 +164,94 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
             };
         });
     };
+    const inspectCapture = (root, kind, overhangs) => {
+        const notices = [];
+        const disclosures = new Map();
+        const text = textOf(root);
+        const controls = [...root.querySelectorAll('button,[role="button"],input,select,textarea,[role="tab"]')].filter(visible);
+        const controlName = (node) => normalize(node.getAttribute('aria-label') || textOf(node));
+        const booking = /\bcheck (?:availability|rates?)\b/i.test(text) &&
+            controls.some((node) => /\b(?:nights?|guests?|rate preference)\b/i.test(controlName(node)));
+        const slideButtons = controls.filter((node) => /^(?:previous|next|go to) (?:photo|slide)\b/i.test(controlName(node)));
+        const carousel = new Map();
+        const staticControls = new Set();
+        for (const button of slideButtons) {
+            let viewport = button.parentElement;
+            while (viewport && root.contains(viewport) && !['hidden', 'clip'].includes(getComputedStyle(viewport).overflowX)) {
+                viewport = viewport.parentElement;
+            }
+            if (!viewport || !root.contains(viewport)) continue;
+            const bounds = rectFor(viewport);
+            const strip = [...viewport.children].find((child) => getComputedStyle(child).display === 'flex' &&
+                child.children.length >= 2 && rectFor(child).width > bounds.width * 1.5);
+            if (!strip) continue;
+            if (carousel.has(strip)) {
+                staticControls.add(button);
+                continue;
+            }
+            const slides = [...strip.children];
+            const active = slides
+                .map((slide, index) => ({ index, area: overlap(bounds, rectFor(slide)) }))
+                .sort((a, b) => b.area - a.area)[0];
+            if (active.area > 0 && slides.length <= 12) {
+                carousel.set(strip, active.index);
+                staticControls.add(button);
+            }
+        }
+        const newsletter = kind === 'interactive' && /\bsubscribe\b/i.test(text);
+        const map = /\b(?:interactive|static) map\b/i.test(text) ||
+            !!root.querySelector('[role="application"][aria-label*="map" i],iframe[title*="map" i]');
+        if (booking) notices.push('Booking controls become editable static content. Date, guest, rate and availability actions require a booking integration.');
+        if (slideButtons.length) notices.push('The carousel and room selector become static content. Slide navigation and room switching require a separate implementation.');
+        if (carousel.size) notices.push('The visible slide stays in the layout. Other captured slides are editable under Additional captured slides.');
+        if (newsletter) notices.push('Newsletter fields and subscribe actions are a static mock-up. Connect a form and subscription service separately.');
+        if (map) notices.push('Map content is a static snapshot. Interactive maps require a separate embed or integration.');
+
+        const nativeDetails = root.querySelectorAll('details > summary').length;
+        if (nativeDetails) notices.push('Source Details controls use native editable Gutenberg Details blocks.');
+        const faqLabel = /\b(?:frequently asked questions|faqs?)\b/i;
+        const faq = faqLabel.test(text) || [...root.querySelectorAll('h1,h2,h3,[role="heading"]')].some((heading) => faqLabel.test(textOf(heading)));
+        const questions = controls.filter((node) => /\?$/.test(controlName(node)));
+        if (faq && questions.length) {
+            for (const trigger of questions) {
+                const row = trigger.parentElement;
+                const answer = trigger.nextElementSibling;
+                if (row && row !== root && row.firstElementChild === trigger && answer &&
+                    !answer.nextElementSibling && visible(answer) && textOf(answer)) {
+                    disclosures.set(row, trigger);
+                }
+            }
+            if (disclosures.size) {
+                notices.push(disclosures.size + ' FAQ answer(s) present in the captured DOM use native Gutenberg Details blocks.');
+            }
+            if (questions.length > disclosures.size) {
+                notices.push((questions.length - disclosures.size) + ' additional FAQ question(s) are editable text. Their answers were unavailable in the captured state.');
+            }
+        }
+        const covered = booking || slideButtons.length || newsletter || map || (faq && questions.length);
+        if (!covered && (controls.length || root.matches('form,[role="form"]') || root.querySelector('form'))) {
+            notices.push('Source form, tab and button actions require review. The Pattern preserves static content and ordinary links.');
+        }
+        if (overhangs.length) notices.push('Elements that extend past the source boundary are placed in the native layout flow.');
+
+        const fontFaces = new Set([...(document.fonts || [])].map((font) => font.family.replace(/^["']|["']$/g, '')));
+        const sourceFonts = new Set();
+        const unsupported = new Set();
+        for (const node of [root, ...root.querySelectorAll('*')]) {
+            if (!visible(node)) continue;
+            const style = getComputedStyle(node);
+            const font = style.fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, '');
+            if (fontFaces.has(font)) sourceFonts.add(font);
+            if (style.fontFeatureSettings && style.fontFeatureSettings !== 'normal') unsupported.add('OpenType feature settings');
+            if (style.fontVariationSettings && style.fontVariationSettings !== 'normal') unsupported.add('font variation axes');
+            if (style.fontVariantCaps && style.fontVariantCaps !== 'normal') unsupported.add('font-variant capitalization');
+            if (node.tagName === 'IMG' && (style.filter !== 'none' || style.mixBlendMode !== 'normal')) unsupported.add('image filters or blending');
+        }
+        if (sourceFonts.size) notices.push('Source font dependencies: ' + [...sourceFonts].sort().join(', ') +
+            '. Family names stay in the Pattern. The preview and WordPress use fallbacks where those fonts are unavailable.');
+        if (unsupported.size) notices.push('Visual differences can include ' + [...unsupported].join(', ') + '.');
+        return { notices, disclosures, carousel, staticControls };
+    };
 
     const properties = [
         'display', 'color', 'background-color', 'background-image', 'background-size',
@@ -173,6 +261,7 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
         'grid-column-end', 'flex-direction', 'flex-grow', 'flex-shrink', 'flex-basis',
         'flex-wrap', 'align-items', 'justify-content', 'width', 'max-width',
         'min-height', 'aspect-ratio', 'box-sizing', 'position', 'opacity',
+        'border-bottom-color', 'border-bottom-style', 'border-bottom-width',
         'transform', 'visibility', 'overflow',
     ];
     const typography = new Set(['color', 'font-family', 'font-size', 'font-weight', 'line-height',
@@ -209,7 +298,7 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
             copy.style.setProperty(prop, value);
         }
     };
-    const copyContent = (root) => {
+    const copyContent = (root, coverage) => {
         // Walk original and clone in parallel; removing nodes during the walk
         // must not misalign style mapping.
         const clone = root.cloneNode(true);
@@ -220,6 +309,13 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
             }
             if (original.tagName === 'FORM') copied.removeAttribute('action');
             computedStyles(original, copied);
+            const trigger = coverage.disclosures.get(original);
+            if (trigger) {
+                copied.dataset.syndamorphDisclosure = 'open';
+                copied.children[[...original.children].indexOf(trigger)].dataset.syndamorphSummary = '';
+            }
+            if (coverage.carousel.has(original)) copied.dataset.syndamorphSlide = coverage.carousel.get(original);
+            if (coverage.staticControls.has(original)) copied.dataset.syndamorphStaticControl = '';
             if (original.tagName === 'IMG' && original.currentSrc) copied.setAttribute('src', original.currentSrc);
             for (const name of ['src', 'href']) {
                 const value = copied.getAttribute(name);
@@ -237,6 +333,7 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
         walk(root, clone);
         clone.dataset.syndamorphCapture = 'browser';
         clone.dataset.syndamorphViewport = document.defaultView.innerWidth;
+        if (coverage.notices.length) clone.dataset.syndamorphNotices = JSON.stringify(coverage.notices);
         const bounds = root.getBoundingClientRect();
         // Preserve a positioned banner's vertical whitespace without carrying
         // absolute coordinates into the editable block tree.
@@ -343,12 +440,14 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
     if (kinds[last] === 'footer' && kinds[last - 1] === 'content' && !textOf(brands) &&
         /\bbrands\b/i.test(brands.querySelector('img[alt]')?.alt || '')) kinds[last - 1] = 'footer';
     for (const [index, el] of ordered.slice(0, maxSections).entries()) {
-        const html = copyContent(el);
         const rect = rectFor(el);
         const kind = kinds[index];
+        const overhangs = overhangsFor(el, rect);
+        const coverage = inspectCapture(el, kind, overhangs);
+        const html = copyContent(el, coverage);
         sections.push({
             id: 'section-' + (sections.length + 1), label: rootLabel(el, kind),
-            sourceRef: sourceRef(el), kind, overhangs: overhangsFor(el, rect),
+            sourceRef: sourceRef(el), kind, overhangs, notices: coverage.notices,
             tag: el.tagName.toLowerCase(), geometryAvailable: true,
             bounds: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
             html,
