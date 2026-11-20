@@ -25,7 +25,7 @@ test('diagnostics report layoutless wrappers, headings and stylesheets without d
             'Hotel Indigo Bangkok Thonglor', 'Our Story',
         ]);
         assert.ok(report.customElements.includes('x-dc'));
-        assert.equal(report.body.children, undefined);
+        assert.equal(report.body.children, 1);
         assert.ok(report.totalElements > 0);
         assert.ok(report.stylesheets.length >= 1);
         assert.equal(JSON.stringify(report).includes('Neighborhood content'), false);
