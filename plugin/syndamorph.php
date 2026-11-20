@@ -10,6 +10,7 @@
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 require_once plugin_dir_path( __FILE__ ) . 'includes/render-endpoint.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/capture-endpoint.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/package-import.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/updater.php';
 
@@ -29,6 +30,23 @@ function syndamorph_render_import_page(): void {
     <div class="wrap" id="syndamorph-html-import">
         <h1>SyndaMorph <span style="font-weight:normal;font-size:13px;">POC</span></h1>
         <p>Paste static HTML or choose an .html file. Review the preview, then approve draft creation.</p>
+        <section class="syndamorph-package-section" aria-labelledby="syndamorph-url-heading">
+            <h2 id="syndamorph-url-heading">Capture a wireframe URL (V2 POC)</h2>
+            <p>Captures one page only. Choose a detected section to preview using the existing Gutenberg converter. External assets remain URL references.</p>
+            <p><label for="syndamorph-url-input"><strong>Exact page URL</strong></label></p>
+            <input id="syndamorph-url-input" type="url" class="large-text" style="max-width:800px" placeholder="https://www.syndacast.com/2026/BKKGOPrototype1/index.html">
+            <p><label for="syndamorph-url-mode"><strong>Rendering</strong></label>
+                <select id="syndamorph-url-mode"><option value="auto">Automatic browser capture</option><option value="static">Static HTML only</option><option value="browser">Force Playwright</option></select>
+                <button type="button" class="button button-primary" id="syndamorph-url-capture">Detect Sections</button>
+            </p>
+            <p role="status" aria-live="polite" id="syndamorph-url-status"></p>
+            <div id="syndamorph-url-results" hidden>
+                <p><label for="syndamorph-url-sections"><strong>Detected section</strong></label></p>
+                <select id="syndamorph-url-sections" style="min-width:320px;max-width:100%"></select>
+                <button type="button" class="button button-secondary" id="syndamorph-url-load">Load into HTML Preview</button>
+                <p class="description" id="syndamorph-url-warning"></p>
+            </div>
+        </section>
         <div class="syndamorph-package-section">
             <h2>Import a ZIP package</h2>
             <p>Upload a package with one or more HTML pages and relative CSS/images. Select the pages, review each converted preview, then approve drafts or patterns.</p>
@@ -149,6 +167,21 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
             'patternUrl' => rest_url( 'syndamorph/v1/patterns' ),
             'renderUrl' => rest_url( 'syndamorph/v1/render-dom' ),
             'rendererAvailable' => 'http://renderer:3000/render' === getenv( 'SYNDAMORPH_RENDERER_URL' ),
+        ) ) . ';',
+        'before'
+    );
+    wp_enqueue_script(
+        'syndamorph-url-capture',
+        plugin_dir_url( __FILE__ ) . 'assets/url-capture.js',
+        array( 'syndamorph-import' ),
+        (string) filemtime( plugin_dir_path( __FILE__ ) . 'assets/url-capture.js' ),
+        true
+    );
+    wp_add_inline_script(
+        'syndamorph-url-capture',
+        'window.SyndaMorphCapture=' . wp_json_encode( array(
+            'nonce' => wp_create_nonce( 'wp_rest' ),
+            'endpoint' => rest_url( 'syndamorph/v1/capture-url' ),
         ) ) . ';',
         'before'
     );
