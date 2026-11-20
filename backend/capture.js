@@ -72,7 +72,10 @@ async function capture(urlValue, mode = 'auto') {
         await context.route('**/*', async (route) => {
             try {
                 if (++count > MAX_REQUESTS) { responses.denied++; addFailure('request_limit', route.request().resourceType()); return route.abort('blockedbyclient'); }
-                // Navigation stays on explicitly approved source hosts. Third-party\n                // dependencies are separate and cannot become crawl targets.\n                const request = route.request();\n                const target = request.isNavigationRequest() ? validateURL(request.url()) : validateResourceURL(request.url());
+                // Navigation stays on explicitly approved source hosts.
+                // Third-party dependencies are separate and cannot become crawl targets.
+                const request = route.request();
+                const target = request.isNavigationRequest() ? validateURL(request.url()) : validateResourceURL(request.url());
                 await assertPublicHost(target);
                 // Prevent active operations from the captured site.
                 if (!['GET', 'HEAD'].includes(request.method())) return route.abort('blockedbyclient');
