@@ -100,7 +100,7 @@ async function capture(urlValue, mode = 'auto') {
                 const box = candidate.getBoundingClientRect();
                 return box.width > 20 && box.height > 20 &&
                     (body.innerText || '').trim().length > 30;
-            }, { timeout: 8000 }).catch(() => {});
+            }, undefined, { timeout: 8000 }).catch(() => {});
             await page.waitForTimeout(350);
         }
         const diagnostics = await page.evaluate(inspectDocument);
@@ -109,9 +109,9 @@ async function capture(urlValue, mode = 'auto') {
         diagnostics.browserErrors = browserErrors;
         diagnostics.sectionCount = result.length;
         diagnostics.structureOnlySections = result.filter((section) => section.geometryAvailable === false).length;
-        diagnostics.contentReady = diagnostics.visibleElements > 0 &&
-            diagnostics.body && diagnostics.body.height > 0 &&
-            diagnostics.bodyChildren.some((child) => child.display !== 'none' && child.height > 0);
+        diagnostics.contentReady = diagnostics.visibleElements > 4 &&
+            (diagnostics.headings.some((heading) => heading.bounds.width > 2 && heading.bounds.height > 2) ||
+             diagnostics.bodyChildren.some((child) => child.display !== 'none' && child.height > 2));
         if (!diagnostics.contentReady) {
             result.length = 0;
             diagnostics.sectionCount = 0;
