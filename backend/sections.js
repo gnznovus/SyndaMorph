@@ -141,6 +141,86 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
         if (new TextEncoder().encode(html).length > maxHtml) return null;
         return html;
     };
+    // Some prototypes use layoutless custom elements or reveal content only
+    // after browser effects. DOM content may exist even when no node has a
+    // measurable box. In that case avoid claiming visual geometry: partition
+    // the document by its headings and preserve the relevant HTML fragments.
+    if (!ordered.length) {
+        const headings = [...contentRoot.querySelectorAll('h1,h2')]
+            .filter((heading) => !heading.closest('script,style,template,head,helmet'));
+        const cleanFragment = (fragment) => {
+            for (const node of [...fragment.querySelectorAll('*')]) {
+                if (ignored.has(node.tagName)) {
+                    node.remove();
+                    continue;
+                }
+                for (const attr of [...node.attributes]) {
+                    if (/^on/i.test(attr.name) || ['srcdoc','integrity','nonce'].includes(attr.name)) node.removeAttribute(attr.name);
+                }
+                if (node.tagName === 'FORM') node.removeAttribute('action');
+                for (const name of ['src','href']) {
+                    const value = node.getAttribute(name);
+                    if (!value) continue;
+                    try {
+                        const resolved = new URL(value, document.baseURI);
+                        if (!['http:','https:'].includes(resolved.protocol)) node.removeAttribute(name);
+                        else node.setAttribute(name, resolved.href);
+                    } catch (_) { node.removeAttribute(name); }
+                }
+            }
+        };
+        const makeSection = (start, end, index, label) => {
+            const range = document.createRange();
+            range.setStartBefore(start);
+            if (end) range.setEndBefore(end);
+            else range.setEnd(contentRoot, contentRoot.childNodes.length);
+            const fragment = range.cloneContents();
+            cleanFragment(fragment);
+            const wrapper = document.createElement('section');
+            wrapper.appendChild(fragment);
+            const html = wrapper.outerHTML;
+            const withinLimit = new TextEncoder().encode(html).length <= maxHtml;
+            return {
+                id: 'section-' + (index + 1),
+                label: label.slice(0, 100),
+                tag: 'section',
+                geometryAvailable: false,
+                bounds: { x: null, y: null, width: null, height: null },
+                html: withinLimit ? html : null,
+                error: withinLimit ? null : 'Section HTML exceeds capture limit; select a smaller section.',
+            };
+        };
+        if (headings.length >= 2) {
+            return headings.slice(0, maxSections).map((heading, index) =>
+                makeSection(heading, headings[index + 1] || null, index,
+                    (heading.innerText || heading.textContent || 'Untitled section').trim()));
+        }
+        // No headings: retain bounded, meaningful child groups under the
+        // single layoutless document wrapper. Never return entire <body>.
+        let holder = contentRoot;
+        for (let depth = 0; depth < 12; depth++) {
+            const children = [...holder.children].filter((child) =>
+                !ignored.has(child.tagName) && (child.textContent || '').trim().length > 10);
+            if (children.length > 1) {
+                return children.slice(0, maxSections).map((node, index) => {
+                    const clone = node.cloneNode(true);
+                    cleanFragment(clone);
+                    const html = clone.outerHTML;
+                    const withinLimit = new TextEncoder().encode(html).length <= maxHtml;
+                    return {
+                        id: 'section-' + (index + 1), label: (node.getAttribute('aria-label') || node.id || node.tagName.toLowerCase()).slice(0,100),
+                        tag: node.tagName.toLowerCase(), geometryAvailable: false,
+                        bounds: { x: null, y: null, width: null, height: null },
+                        html: withinLimit ? html : null,
+                        error: withinLimit ? null : 'Section HTML exceeds capture limit; select a smaller section.',
+                    };
+                });
+            }
+            if (children.length !== 1) break;
+            holder = children[0];
+        }
+    }
+
     const sections = [];
     for (const el of ordered) {
         if (sections.length >= maxSections) break;
@@ -150,7 +230,7 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
         const label = (heading?.innerText || heading?.textContent || el.getAttribute('aria-label') || el.id || el.tagName.toLowerCase()).trim();
         sections.push({
             id: 'section-' + (sections.length + 1), label: label.slice(0, 100),
-            tag: el.tagName.toLowerCase(),
+            tag: el.tagName.toLowerCase(), geometryAvailable: true,
             bounds: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
             html,
             error: html === null ? 'Section HTML exceeds capture limit; select a smaller section.' : null,
