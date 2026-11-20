@@ -9,7 +9,10 @@ const { inspectDocument } = require('./diagnostics');
 const MAX_SECTIONS = 60;
 const MAX_HTML = 2 * 1024 * 1024;
 const MAX_REQUESTS = 250;
-const ALLOWED_HOSTS = new Set((process.env.SYNDAMORPH_CAPTURE_HOSTS || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean));
+const hosts = (value) => new Set((value || '').split(',').map((item) => item.trim().toLowerCase()).filter(Boolean));
+const ALLOWED_HOSTS = hosts(process.env.SYNDAMORPH_CAPTURE_HOSTS);
+const RESOURCE_HOSTS = hosts(process.env.SYNDAMORPH_RESOURCE_HOSTS);
+
 
 function publicIPv4(ip) {
     if (net.isIP(ip) !== 4) return false;
@@ -22,15 +25,23 @@ function publicIPv4(ip) {
         a === 203 && b === 0 && c === 113);
 }
 
-function validateURL(value) {
+function validateAgainstHosts(value, allowedHosts) {
     let url;
     try { url = new URL(value); } catch (_) { throw new Error('Invalid absolute URL.'); }
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password ||
-        net.isIP(url.hostname) || !ALLOWED_HOSTS.has(url.hostname.toLowerCase()) ||
+        net.isIP(url.hostname) || !allowedHosts.has(url.hostname.toLowerCase()) ||
         (url.port && !['80', '443'].includes(url.port))) {
         throw new Error('URL host is not approved for this POC.');
     }
     return url;
+}
+
+function validateURL(value) {
+    return validateAgainstHosts(value, ALLOWED_HOSTS);
+}
+
+function validateResourceURL(value) {
+    return validateAgainstHosts(value, new Set([...ALLOWED_HOSTS, ...RESOURCE_HOSTS]));
 }
 
 async function assertPublicHost(url) {
@@ -61,10 +72,10 @@ async function capture(urlValue, mode = 'auto') {
         await context.route('**/*', async (route) => {
             try {
                 if (++count > MAX_REQUESTS) { responses.denied++; addFailure('request_limit', route.request().resourceType()); return route.abort('blockedbyclient'); }
-                const target = validateURL(route.request().url());
+                // Navigation stays on explicitly approved source hosts. Third-party\n                // dependencies are separate and cannot become crawl targets.\n                const request = route.request();\n                const target = request.isNavigationRequest() ? validateURL(request.url()) : validateResourceURL(request.url());
                 await assertPublicHost(target);
                 // Prevent active operations from the captured site.
-                if (!['GET', 'HEAD'].includes(route.request().method())) return route.abort('blockedbyclient');
+                if (!['GET', 'HEAD'].includes(request.method())) return route.abort('blockedbyclient');
                 return route.continue();
             } catch (error) { responses.denied++; addFailure('blocked_resource', route.request().resourceType() + ': ' + error.message); return route.abort('blockedbyclient'); }
         });
@@ -80,7 +91,16 @@ async function capture(urlValue, mode = 'auto') {
         const response = await page.goto(url.toString(), { waitUntil: 'domcontentloaded', timeout: 15000 });
         if (!response || response.status() >= 400) throw new Error('Page request failed (HTTP ' + (response?.status() || 'unknown') + ').');
         if (mode !== 'static') {
-            await page.waitForLoadState('networkidle', { timeout: 2500 }).catch(() => {});
+            // Async app bootstraps may need React and other CDN scripts before
+            // the temporary display:none root is removed.
+            await page.waitForFunction(() => {
+                const body = document.body;
+                if (!body) return false;
+                const candidate = body.querySelector('main,section,[role="main"]') || body;
+                const box = candidate.getBoundingClientRect();
+                return box.width > 20 && box.height > 20 &&
+                    (body.innerText || '').trim().length > 30;
+            }, { timeout: 8000 }).catch(() => {});
             await page.waitForTimeout(350);
         }
         const diagnostics = await page.evaluate(inspectDocument);
@@ -89,12 +109,20 @@ async function capture(urlValue, mode = 'auto') {
         diagnostics.browserErrors = browserErrors;
         diagnostics.sectionCount = result.length;
         diagnostics.structureOnlySections = result.filter((section) => section.geometryAvailable === false).length;
-        diagnostics.contentReady = diagnostics.visibleElements > 0 && diagnostics.headings.length > 1;
+        diagnostics.contentReady = diagnostics.visibleElements > 0 &&
+            diagnostics.body && diagnostics.body.height > 0 &&
+            diagnostics.bodyChildren.some((child) => child.display !== 'none' && child.height > 0);
+        if (!diagnostics.contentReady) {
+            result.length = 0;
+            diagnostics.sectionCount = 0;
+            diagnostics.structureOnlySections = 0;
+        }
         return { url: page.url(), mode: mode === 'static' ? 'static' : 'browser', diagnostics, sections: result, warnings: [
             'Captured DOM and computed styles are an approximation; scripts and interactive behavior are not converted.',
             'Images remain remote for this POC; asset portability is not implemented.',
+            ...(!diagnostics.contentReady ? ['Page did not render visible content. Inspect blocked CDN dependencies and browser errors; unrendered DOM cannot be converted faithfully.'] : []),
         ] };
     } finally { await browser?.close().catch(() => {}); }
 }
 
-module.exports = { capture, validateURL, publicIPv4 };
+module.exports = { capture, validateURL, validateResourceURL, publicIPv4 };
