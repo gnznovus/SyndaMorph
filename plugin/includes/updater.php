@@ -35,7 +35,7 @@ function syndamorph_release_metadata() {
         return array();
     }
     $tag = $release['tag_name'] ?? '';
-    if ( ! is_string( $tag ) || ! preg_match( '/^v?(\\d+\\.\\d+\\.\\d+)$/', $tag, $match ) ) {
+    if ( ! is_string( $tag ) || ! preg_match( '/^v?(\d+\.\d+\.\d+)$/', $tag, $match ) ) {
         set_transient( $cache_key, array(), 15 * MINUTE_IN_SECONDS );
         return array();
     }
