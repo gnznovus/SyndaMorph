@@ -6,7 +6,7 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
-## [0.11.1] - Unreleased
+## [0.11.1] - 2026-11-20
 
 ### Added
 - Native WordPress plugin update integration using published GitHub Releases and a verified `syndamorph.zip` asset.
