@@ -4,9 +4,10 @@
 
     const $ = ( selector ) => document.querySelector( selector );
     const escapeHtml = ( value ) => String( value ).replace( /&/g, '&amp;' ).replace( /</g, '&lt;' ).replace( />/g, '&gt;' ).replace( /"/g, '&quot;' );
+    // Escape comment delimiters and quoted font names. Package import identifies
+    // signed URLs in serialized attributes, so keep their query spelling intact.
     const encodeAttributes = ( attributes ) => Object.keys( attributes ).length ? ' ' + JSON.stringify( attributes )
-        .replace( /--/g, '\\u002d\\u002d' ).replace( /</g, '\\u003c' ).replace( />/g, '\\u003e' )
-        .replace( /&/g, '\\u0026' ).replace( /\\"/g, '\\u0022' ) : '';
+        .replace( /</g, '\\u003c' ).replace( />/g, '\\u003e' ).replace( /\\"/g, '\\u0022' ) : '';
     const block = ( name, attributes, html ) => '<!-- wp:' + name + encodeAttributes( attributes ) + ' -->' + html + '<!-- /wp:' + name + ' -->';
     const allowedColor = ( value ) => {
         const color = ( value || '' ).trim().toLowerCase();

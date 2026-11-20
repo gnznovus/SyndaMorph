@@ -66,4 +66,8 @@ test( 'direct text, Flex and Grid labels stay readable and ordered in the previe
     assert.match( details.content, /<!-- wp:details {"showContent":true} --><details class="wp-block-details" open><summary>Question\?<\/summary>/ );
     assert.equal( [ ...details.content.matchAll( /<details/g ) ].length, 1 );
     assert.match( details.content, /<\/details>[\s\S]*Question without its answer\?/ );
+    const url = origin + '/?rest_route=%2Fpackage-asset%2Fimage--name&sig=test';
+    const background = await page.evaluate( ( image ) => window.SyndaMorphConverter.prepareImport(
+        '<div style="background-image:url(&quot;' + image + '&quot;)"><p>Keep the package image reference.</p></div>', false ), url );
+    assert( background.content.includes( '"backgroundImage":{"url":"' + url + '"}' ) );
 } );
