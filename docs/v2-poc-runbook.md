@@ -78,3 +78,23 @@ For the Hotel Indigo prototype, use **Copy Diagnostic JSON** and inspect:
 
 Only after diagnosis should we alter segmentation. The previous 3-section
 structure-only output is **not accepted as fidelity evidence**.
+
+## Rendering root cause — blocked runtime dependencies
+
+The Hotel Indigo diagnostic capture found `<x-dc style=display:none>`, zero
+visible elements, no main landmark, and failed React loading from `unpkg.com`.
+This is an **unrendered template**, not proof that the page has three sections.
+
+The capture backend now distinguishes permitted page navigation hosts from a
+small, explicit third-party resource-host allowlist. Local Compose approves
+`unpkg.com`, `cdn.jsdelivr.net`, `fonts.googleapis.com`, and
+`fonts.gstatic.com` for assets only. Additional missing dependencies must be
+identified from a new diagnostic report before approving them. Browser readiness
+is bounded; when visible content still does not render, no candidate sections
+are offered and the dashboard reports the missing rendering prerequisite.
+Do not return structure-only heading fragments from a known-hidden template.
+
+This is a **development-only** allowlist, not a complete production network
+sandbox. Before public URL input, enforce destination IP policies at network
+egress and block DNS rebinding, IPv6 private ranges and redirects. Never expose
+the capture service publicly.
