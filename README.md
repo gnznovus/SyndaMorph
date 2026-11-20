@@ -4,6 +4,39 @@
 
 SyndaMorph is a standalone WordPress plugin that imports static HTML into editable native Gutenberg blocks.
 
+## GitHub Releases updater (implementation; first release pending)
+
+SyndaMorph uses the WordPress 5.8+ `Update URI` header and
+`update_plugins_github.com` to check **published stable** releases of
+`gnznovus/SyndaMorph`. Only an attached `syndamorph.zip` qualifies.
+WordPress continues to handle installation and optional automatic updates.
+
+- This workflow lives at `.github/workflows/release-plugin.yml` and must
+  reach the repository's **default branch** before GitHub's `release.published`
+  event can start it. Do not publish a release from an unmerged feature branch.
+- First install the updater-enabled SyndaMorph version normally, using the
+  correct plugin directory `wp-content/plugins/syndamorph/`.
+- For each future release, update `plugin/syndamorph.php` version and add a
+  matching `## [X.Y.Z]` entry to `plugin/CHANGELOG.md`.
+- Merge and validate the release commit, then explicitly publish a GitHub
+  Release with tag `vX.Y.Z` pointing to that exact commit (not a prerelease).
+- GitHub Actions validates PHP/JS, matching version and changelog, packages
+  `plugin/` as `syndamorph/`, checks ZIP paths, and attaches
+  `syndamorph.zip` and `syndamorph.zip.sha256`. The changelog entry becomes
+  the release description and is also packaged in the ZIP.
+- WordPress checks the GitHub Releases API (cached for six hours; failures
+  retried after fifteen minutes). Check **Dashboard → Updates** or run
+  `wp transient delete update_plugins` followed by
+  `wp plugin update syndamorph --dry-run` to inspect availability.
+- Manual **Update now** and site-controlled **Enable auto-updates** remain
+  separate choices. Test on Playground before opting into automatic upgrades
+  across multiple live sites.
+
+GitHub's automatic *Source code (zip)* download is **not** the WordPress
+plugin package. Only the verified attached `syndamorph.zip` is eligible.
+Publishing a GitHub release does not automatically deploy it to every site;
+each WordPress installation follows its own update settings and schedule.
+
 ## Local development
 
 Requirements: Docker Desktop with Compose.
