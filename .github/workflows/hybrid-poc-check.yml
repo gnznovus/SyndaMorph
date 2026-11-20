@@ -27,6 +27,7 @@ jobs:
           node --check backend/server.js
           node --check backend/capture.js
           node --check backend/sections.js
+          node --check backend/diagnostics.js
           node --check plugin/assets/url-capture.js
       - name: PHP syntax
         run: |
@@ -39,4 +40,4 @@ jobs:
       - name: Verify packaged runtime dependencies
         run: |
           docker run --rm --entrypoint node syndamorph-hybrid-poc \
-            -e "require('./capture'); require('./sections'); console.log('Backend image modules loaded')"
+            -e "require('./capture'); require('./sections'); require('./diagnostics'); console.log('Backend image modules loaded')"
