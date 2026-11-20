@@ -30,16 +30,16 @@
             } );
             const payload = await response.json();
             if ( ! response.ok ) { throw new Error( payload.message || payload.error || 'Capture failed.' ); }
-            sections = ( payload.sections || [] ).filter( ( section ) => section && section.html && section.bounds && section.bounds.height > 0 );
+            sections = ( payload.sections || [] ).filter( ( section ) => section && section.html && section.bounds && ( section.geometryAvailable === false || section.bounds.height > 0 ) );
             const rejected = ( payload.sections || [] ).length - sections.length;
             select.replaceChildren();
             sections.forEach( ( section, index ) => {
                 const option = document.createElement( 'option' );
                 option.value = String( index );
-                option.textContent = section.id + ': ' + section.label + ' (' + Math.round( section.bounds.height ) + 'px)';
+                option.textContent = section.id + ': ' + section.label + ( section.geometryAvailable === false ? ' (structure only)' : ' (' + Math.round( section.bounds.height ) + 'px)' );
                 select.append( option );
             } );
-            warning.textContent = ( payload.warnings || [] ).join( ' ' );
+            warning.textContent = ( payload.warnings || [] ).join( ' ' ) + ( sections.some( ( section ) => section.geometryAvailable === false ) ? ' Some sections were identified from document structure because rendered geometry was unavailable; visual fidelity may be reduced.' : '' );
             status.textContent = sections.length + ' usable section(s) detected using ' + payload.mode + ' capture.' + ( rejected ? ' ' + rejected + ' oversized or empty section(s) omitted.' : '' );
             results.hidden = ! sections.length;
         } catch ( error ) {
