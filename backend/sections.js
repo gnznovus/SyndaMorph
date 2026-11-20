@@ -86,6 +86,85 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
         return ar.y - br.y || ar.x - br.x;
     });
 
+    const normalize = (text) => (text || '').replace(/\s+/g, ' ').trim();
+    const textOf = (el) => normalize(el.innerText || el.textContent);
+    const sourceRef = (el) => {
+        const parts = [];
+        const literal = (value) => '"' + value.replace(/[^\w-]/gu, (char) => '\\' + char.codePointAt(0).toString(16) + ' ') + '"';
+        for (let node = el; node && node !== document.documentElement; node = node.parentElement) {
+            const id = node.id && '[id=' + literal(node.id) + ']';
+            const key = node.getAttribute('data-dc-tpl');
+            const selector = key && node.localName + '[data-dc-tpl=' + literal(key) + ']';
+            const unique = [id, selector].find((value) => value && document.querySelectorAll(value).length === 1);
+            if (unique) {
+                parts.unshift(unique);
+                break;
+            }
+            const siblings = [...(node.parentElement?.children || [])].filter((other) => other.localName === node.localName);
+            parts.unshift(node.localName + ':nth-of-type(' + (siblings.indexOf(node) + 1) + ')');
+        }
+        return parts.join(' > ');
+    };
+    const isPositioned = (el) => ['absolute', 'fixed'].includes(getComputedStyle(el).position);
+    const overlap = (a, b) => Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)) *
+        Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+    const rootKind = (el, index, geometry) => {
+        const text = textOf(el);
+        if (el.matches('dialog,[role="dialog"],[role="alertdialog"],[aria-modal="true"]')) return 'overlay';
+        if (geometry && isPositioned(el) && Number(getComputedStyle(el).zIndex) > 0 &&
+            /\b(?:continue to (?:the )?(?:site|website)|close (?:dialog|popup|offer)|dismiss)\b/i.test(text)) {
+            const bounds = rectFor(el);
+            if (ordered.some((other) => other !== el && !isPositioned(other) && overlap(bounds, rectFor(other)) >= bounds.width * bounds.height * 0.5)) {
+                return 'overlay';
+            }
+        }
+        if (el.matches('header,[role="banner"]') && !el.closest('article,section')) return 'header';
+        if (el.matches('footer,[role="contentinfo"]') && !el.closest('article,section')) return 'footer';
+        if (index === ordered.length - 1 && el.querySelectorAll('a[href]').length >= 3 &&
+            /\bprivacy policy\b/i.test(text) && /\b(?:all rights reserved|terms of use|cookie preferences)\b/i.test(text)) return 'footer';
+        if (el.matches('form,[role="form"],[role="tablist"],[aria-roledescription="carousel"]') ||
+            /\b(?:email address|e-mail address)\b/i.test(text) && /\bsubscribe\b/i.test(text) && text.length < 240) return 'interactive';
+        return 'content';
+    };
+    const rootLabel = (el, kind, geometry = true) => {
+        if (kind === 'header') return 'Site header';
+        const image = el.querySelector('img[alt]');
+        if (kind === 'footer') return !textOf(el) && image?.alt ? normalize(image.alt) : 'Site footer';
+        if (kind === 'interactive' && /\bsubscribe\b/i.test(textOf(el))) return 'Newsletter signup';
+        const labelled = normalize((el.getAttribute('aria-labelledby') || '').split(/\s+/)
+            .map((id) => document.getElementById(id)?.textContent || '').join(' '));
+        const heading = [...el.querySelectorAll('h1,h2,h3,h4,[role="heading"]')].find((node) => !geometry || visible(node));
+        const headingLabel = heading && textOf(heading);
+        const directText = [...el.querySelectorAll('div,p,span')].find((node) => {
+            const ownText = normalize([...node.childNodes].filter((part) => part.nodeType === 3).map((part) => part.textContent).join(' '));
+            return (!geometry || visible(node)) && ownText.length >= 3 && ownText.length <= 85 &&
+                /[\p{L}]/u.test(ownText) && !node.closest('a,button,[role="button"]');
+        });
+        const idLabel = normalize(el.id.replace(/[-_]+/g, ' ')).replace(/^./, (char) => char.toUpperCase());
+        const name = normalize(el.getAttribute('aria-label')) || labelled || headingLabel || idLabel ||
+            (directText && textOf(directText)) || normalize(image?.alt) || textOf(el) || 'Untitled content';
+        return (kind === 'overlay' ? 'Overlay · ' + name : name).slice(0, 100);
+    };
+    const overhangsFor = (el, root) => {
+        const nodes = [...el.querySelectorAll('*')].filter((node) => {
+            if (!visible(node) || !isPositioned(node)) return false;
+            const b = node.getBoundingClientRect();
+            return b.left < root.x - 2 || b.top < root.y - 2 ||
+                b.right > root.x + root.width + 2 || b.bottom > root.y + root.height + 2;
+        });
+        return noOverlap(nodes).slice(0, 12).map((node) => {
+            const b = node.getBoundingClientRect();
+            return {
+                sourceRef: sourceRef(node), label: textOf(node).slice(0, 100), position: getComputedStyle(node).position,
+                bounds: { x: b.x, y: b.y, width: b.width, height: b.height },
+                edges: {
+                    top: Math.max(0, root.y - b.top), right: Math.max(0, b.right - root.x - root.width),
+                    bottom: Math.max(0, b.bottom - root.y - root.height), left: Math.max(0, root.x - b.left),
+                },
+            };
+        });
+    };
+
     const properties = [
         'display', 'color', 'background-color', 'background-image', 'background-size',
         'background-position', 'font-family', 'font-size', 'font-weight', 'line-height',
@@ -183,6 +262,8 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
             return {
                 id: 'section-' + (index + 1),
                 label: label.slice(0, 100),
+                sourceRef: sourceRef(start),
+                kind: 'content', overhangs: [],
                 tag: 'section',
                 geometryAvailable: false,
                 bounds: { x: null, y: null, width: null, height: null },
@@ -207,8 +288,10 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
                     cleanFragment(clone);
                     const html = clone.outerHTML;
                     const withinLimit = new TextEncoder().encode(html).length <= maxHtml;
+                    const kind = rootKind(node, index, false);
                     return {
-                        id: 'section-' + (index + 1), label: (node.getAttribute('aria-label') || node.id || node.tagName.toLowerCase()).slice(0,100),
+                        id: 'section-' + (index + 1), label: rootLabel(node, kind, false),
+                        sourceRef: sourceRef(node), kind, overhangs: [],
                         tag: node.tagName.toLowerCase(), geometryAvailable: false,
                         bounds: { x: null, y: null, width: null, height: null },
                         html: withinLimit ? html : null,
@@ -222,14 +305,19 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
     }
 
     const sections = [];
-    for (const el of ordered) {
-        if (sections.length >= maxSections) break;
+    const kinds = ordered.map((el, index) => rootKind(el, index, true));
+    // Some sites render a standalone brand strip immediately above the footer.
+    const last = ordered.length - 1;
+    const brands = ordered[last - 1];
+    if (kinds[last] === 'footer' && kinds[last - 1] === 'content' && !textOf(brands) &&
+        /\bbrands\b/i.test(brands.querySelector('img[alt]')?.alt || '')) kinds[last - 1] = 'footer';
+    for (const [index, el] of ordered.slice(0, maxSections).entries()) {
         const html = copyContent(el);
         const rect = rectFor(el);
-        const heading = el.querySelector('h1,h2,h3,h4');
-        const label = (heading?.innerText || heading?.textContent || el.getAttribute('aria-label') || el.id || el.tagName.toLowerCase()).trim();
+        const kind = kinds[index];
         sections.push({
-            id: 'section-' + (sections.length + 1), label: label.slice(0, 100),
+            id: 'section-' + (sections.length + 1), label: rootLabel(el, kind),
+            sourceRef: sourceRef(el), kind, overhangs: overhangsFor(el, rect),
             tag: el.tagName.toLowerCase(), geometryAvailable: true,
             bounds: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
             html,

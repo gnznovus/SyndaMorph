@@ -50,6 +50,11 @@ function syndamorph_render_import_page(): void {
                 <p><label for="syndamorph-url-sections"><strong>Detected section</strong></label></p>
                 <select id="syndamorph-url-sections" style="min-width:320px;max-width:100%"></select>
                 <button type="button" class="button button-secondary" id="syndamorph-url-load">Load into HTML Preview</button>
+                <p id="syndamorph-url-section-notes" class="description" role="status"></p>
+                <details id="syndamorph-url-excluded" hidden>
+                    <summary>Header, footer and overlay roots</summary>
+                    <ul id="syndamorph-url-excluded-list"></ul>
+                </details>
                 <p class="description" id="syndamorph-url-warning"></p>
             </div>
         </section>

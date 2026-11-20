@@ -62,6 +62,40 @@ test('excessive section markup is reported rather than truncated', () => {
     });
 });
 
+test('classifies chrome, overlapping promotions and newsletter without dropping positioned content', () => {
+    withDocument(`<main>
+        <div role="banner" id="masthead"><p>Hotel site navigation</p></div>
+        <div id="hero" data-top="100"><h1>Hotel Indigo</h1><div data-dc-tpl="strip" data-top="435"
+            style="position:absolute"><p>Check availability</p></div></div>
+        <div data-dc-tpl="offer" data-top="180" style="position:absolute;z-index:4">
+            <p>Stay more, save more</p> <button>Continue to website</button></div>
+        <div data-dc-tpl="story" style="position:absolute" data-top="550"><div>Our Story</div><p>Stories from our neighbourhood.</p></div>
+        <div id="signup" data-top="950"><p>Stay in touch</p> <label>Email address</label> <button>Subscribe</button></div>
+        <div role="contentinfo" id="legal" data-top="1350"><p>Hotel legal information</p></div>
+    </main>`, (doc) => {
+        const original = doc.defaultView.Element.prototype.getBoundingClientRect;
+        doc.defaultView.Element.prototype.getBoundingClientRect = function () {
+            const top = Number(this.dataset.top || 0);
+            const width = this.dataset.dcTpl === 'offer' ? 300 : 1000;
+            const height = this.dataset.dcTpl === 'offer' ? 200 : this.dataset.dcTpl === 'strip' ? 70 : 360;
+            return { x: 0, y: top, left: 0, top, right: width, bottom: top + height, width, height };
+        };
+        try {
+            const sections = extractSections();
+            assert.deepEqual(sections.map(({ kind }) => kind), ['header', 'content', 'overlay', 'content', 'interactive', 'footer']);
+            assert.deepEqual(sections.map(({ label }) => label), ['Site header', 'Hotel Indigo', 'Overlay · Stay more, save more',
+                'Our Story', 'Newsletter signup', 'Site footer']);
+            const [strip] = sections[1].overhangs;
+            assert.equal(strip.edges.bottom, 45);
+            assert.equal(doc.querySelector(strip.sourceRef).dataset.dcTpl, 'strip');
+            assert.equal(new Set(sections.map(({ sourceRef }) => doc.querySelector(sourceRef))).size, 6);
+            doc.querySelector('#masthead').remove();
+            const hero = extractSections().find(({ label }) => label === 'Hotel Indigo');
+            assert.equal(hero.sourceRef, sections[1].sourceRef);
+        } finally { doc.defaultView.Element.prototype.getBoundingClientRect = original; }
+    });
+});
+
 test('structure-only fallback segments an all-zero-geometry custom element page', () => {
     withDocument(`<body><x-dc><helmet><link rel="stylesheet" href="/styles.css"></helmet>
       <div class="site"><main>
