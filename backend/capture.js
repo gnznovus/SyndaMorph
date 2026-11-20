@@ -69,7 +69,7 @@ async function capture(urlValue, mode = 'auto') {
             await page.waitForTimeout(350);
         }
         const result = await page.evaluate(({ maxSections, maxHtml }) => {
-            const candidates = Array.from(document.querySelectorAll('main > section, main > article, body > section, body > header, body > footer, main > div, body > main'));
+            const candidates = Array.from(document.querySelectorAll('main > *, body > section, body > header, body > footer')).filter((el) => !['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(el.tagName));
             const selected = candidates.filter((el) => !candidates.some((other) => other !== el && other.contains(el)));
             const roots = selected.length ? selected : Array.from(document.body.children).filter((el) => !['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(el.tagName));
             const styleKeys = ['display', 'color', 'backgroundColor', 'backgroundImage', 'backgroundSize', 'backgroundPosition', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textAlign', 'padding', 'margin', 'gap', 'columnGap', 'rowGap', 'gridTemplateColumns', 'flexDirection', 'alignItems', 'justifyContent', 'borderRadius', 'width', 'maxWidth'];
