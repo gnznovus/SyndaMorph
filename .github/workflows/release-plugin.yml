@@ -5,78 +5,66 @@ on:
     types: [published]
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-plugin-${{ github.event.release.id }}
+  cancel-in-progress: false
 
 jobs:
   package:
-    if: github.event.release.prerelease == false
+    if: github.repository == 'gnznovus/SyndaMorph' && github.event.release.draft == false && github.event.release.prerelease == false
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
     steps:
-      - name: Checkout the exact released tag
+      - name: Checkout the exact release event commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
 
-      - name: Validate tag, version and changelog
+      - name: Require a stable tag on the approved default branch
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_IMMUTABLE: ${{ github.event.release.immutable }}
         run: |
-          python3 - <<'PY'
-          import os
-          import re
-          from pathlib import Path
+          if [[ "$RELEASE_IMMUTABLE" == "true" ]]; then
+            echo 'Immutable releases require assets on the draft before publication; this published-event uploader cannot attach them.' >&2
+            exit 1
+          fi
+          [[ "$RELEASE_TAG" =~ ^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")" = "$GITHUB_SHA"
+          git merge-base --is-ancestor "$GITHUB_SHA" "refs/remotes/origin/$DEFAULT_BRANCH"
 
-          tag = os.environ["RELEASE_TAG"]
-          match = re.fullmatch(r"v?(\d+\.\d+\.\d+)", tag)
-          if not match:
-              raise SystemExit("Release tag must be vMAJOR.MINOR.PATCH")
-          version = match.group(1)
-          plugin = Path("plugin/syndamorph.php").read_text()
-          current = re.search(r"^\s*\* Version: (.+)$", plugin, re.M)
-          if not current or current.group(1).strip() != version:
-              raise SystemExit(f"Plugin header version must match release {version}")
-          if "Update URI: https://github.com/gnznovus/SyndaMorph" not in plugin:
-              raise SystemExit("Missing native update URI")
-          changelog = Path("plugin/CHANGELOG.md").read_text()
-          entry = re.search(
-              rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)",
-              changelog, re.M | re.S,
-          )
-          if not entry or not entry.group(1).strip():
-              raise SystemExit(f"CHANGELOG.md requires a nonempty [{version}] entry")
-          Path("release-notes.md").write_text(entry.group(1).strip() + "\n")
-          PY
-
-      - name: Validate PHP and JavaScript
+      - name: Validate PHP, JavaScript and updater behavior
         run: |
           find plugin -name '*.php' -print0 | xargs -0 -n1 php -l
-          find plugin/assets -name '*.js' -print0 | xargs -0 -n1 node --check
+          find plugin/assets renderer -name '*.js' -not -path '*/node_modules/*' -print0 | xargs -0 -n1 node --check
+          php tests/updater-test.php
+          python3 -m unittest discover -s tests -p 'test_release_plugin.py' -v
 
-      - name: Package installable WordPress plugin
-        run: |
-          mkdir -p dist/syndamorph
-          cp -a plugin/. dist/syndamorph/
-          cd dist
-          zip -q -r ../syndamorph.zip syndamorph
-          cd ..
-          python3 - <<'PY'
-          from zipfile import ZipFile
-          with ZipFile("syndamorph.zip") as package:
-              names = package.namelist()
-              assert "syndamorph/syndamorph.php" in names
-              assert "syndamorph/CHANGELOG.md" in names
-              assert "syndamorph/includes/updater.php" in names
-              assert all(name.startswith("syndamorph/") for name in names)
-              assert all("\\" not in name for name in names)
-              assert len(names) == len(set(names))
-          PY
-          sha256sum syndamorph.zip | tee syndamorph.zip.sha256
+      - name: Package and verify installable WordPress plugin and notes
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: python3 scripts/release_plugin.py --tag "$RELEASE_TAG" --output release-build --require-release-date
 
-      - name: Attach artifact and publish matching changelog
+      - name: Preserve validated build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: syndamorph-${{ github.event.release.tag_name }}
+          path: release-build/*
+          if-no-files-found: error
+
+      - name: Publish matching changelog and attach artifacts
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          gh release upload "$RELEASE_TAG" syndamorph.zip syndamorph.zip.sha256 --clobber
-          gh release edit "$RELEASE_TAG" --notes-file release-notes.md
+          gh release edit "$RELEASE_TAG" --notes-file release-build/release-notes.md
+          gh release upload "$RELEASE_TAG" release-build/syndamorph.zip.sha256
+          gh release upload "$RELEASE_TAG" release-build/syndamorph.zip

@@ -4,38 +4,130 @@
 
 SyndaMorph is a standalone WordPress plugin that imports static HTML into editable native Gutenberg blocks.
 
-## GitHub Releases updater (implementation; first release pending)
+## GitHub Releases updater (validated locally; first release pending)
 
-SyndaMorph uses the WordPress 5.8+ `Update URI` header and
-`update_plugins_github.com` to check **published stable** releases of
-`gnznovus/SyndaMorph`. Only an attached `syndamorph.zip` qualifies.
-WordPress continues to handle installation and optional automatic updates.
+SyndaMorph uses WordPress's native `Update URI` and `update_plugins_github.com`
+integration to check **published stable** releases of `gnznovus/SyndaMorph`.
+The plugin requires WordPress 6.5+ and PHP 8.1+. Only an uploaded, nonempty
+`syndamorph.zip` asset whose download URL matches that release tag qualifies.
+GitHub's automatic *Source code (zip)* archive is never an update package.
+WordPress handles installation, version comparison and site-controlled automatic
+updates. Keep the updater-enabled plugin active so its hooks can run.
 
-- This workflow lives at `.github/workflows/release-plugin.yml` and must
-  reach the repository's **default branch** before GitHub's `release.published`
-  event can start it. Do not publish a release from an unmerged feature branch.
-- First install the updater-enabled SyndaMorph version normally, using the
-  correct plugin directory `wp-content/plugins/syndamorph/`.
-- For each future release, update `plugin/syndamorph.php` version and add a
-  matching `## [X.Y.Z]` entry to `plugin/CHANGELOG.md`.
-- Merge and validate the release commit, then explicitly publish a GitHub
-  Release with tag `vX.Y.Z` pointing to that exact commit (not a prerelease).
-- GitHub Actions validates PHP/JS, matching version and changelog, packages
-  `plugin/` as `syndamorph/`, checks ZIP paths, and attaches
-  `syndamorph.zip` and `syndamorph.zip.sha256`. The changelog entry becomes
-  the release description and is also packaged in the ZIP.
-- WordPress checks the GitHub Releases API (cached for six hours; failures
-  retried after fifteen minutes). Check **Dashboard → Updates** or run
-  `wp transient delete update_plugins` followed by
-  `wp plugin update syndamorph --dry-run` to inspect availability.
-- Manual **Update now** and site-controlled **Enable auto-updates** remain
-  separate choices. Test on Playground before opting into automatic upgrades
-  across multiple live sites.
+**Release-test prerequisite:** this token-free updater requires public,
+anonymous access to both the API and ZIP download. On 2026-11-20 the repository
+was verified private and the anonymous repository API returned 404. A real
+remote-update test cannot succeed until public access is explicitly approved
+and verified, or a separately scoped private-distribution design is approved.
+Do not embed a GitHub token in the plugin or ZIP. No repository visibility or
+WordPress installation settings are changed by local validation.
 
-GitHub's automatic *Source code (zip)* download is **not** the WordPress
-plugin package. Only the verified attached `syndamorph.zip` is eligible.
-Publishing a GitHub release does not automatically deploy it to every site;
-each WordPress installation follows its own update settings and schedule.
+### Local validation and packaging
+
+From the repository root, with PHP, Node.js and Python 3.10+ available:
+
+```bash
+php tests/updater-test.php
+python -m unittest discover -s tests -p 'test_release_plugin.py' -v
+python scripts/release_plugin.py --tag v0.11.1 --output release-build-local
+```
+
+Use a fresh output directory on each build. The builder refuses to overwrite
+artifacts and produces `syndamorph.zip`, `syndamorph.zip.sha256`, and
+`release-notes.md`. It verifies the exact `syndamorph/` root, forward-slash paths,
+all source file bytes, bundled `CHANGELOG.md`, unique current-version changelog
+entry, version header and Update URI. The notes include the matching version
+heading and entry only. Local candidates may say `Unreleased`; publishing adds
+`--require-release-date` and requires `## [X.Y.Z] - YYYY-MM-DD`.
+
+`.github/workflows/updater-check.yml` runs offline checks on PRs and branch
+pushes and has no release-publishing permissions. Existing P1/P3/P4 checks
+remain in place. PHP lint and `node --check` cover plugin/renderer source;
+updater tests turn PHP warnings into failures and mock the WordPress hooks and
+HTTP API. These checks do not establish a live WordPress download/install or
+Gutenberg browser acceptance.
+
+### Release workflow
+
+`.github/workflows/release-plugin.yml` runs only after an explicitly published
+stable release. Pushes and development commits never trigger publication.
+GitHub's [release event uses the tagged commit](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#release).
+Our workflow additionally requires that exact commit to be on the default
+branch (`main`), verifies the tag still resolves to it, and requires matching
+version and dated changelog. This is our release policy, not a GitHub requirement
+that the event workflow exist on the default branch.
+
+The workflow runs lint/tests and the same local builder, preserves an Actions
+artifact, replaces release notes with the matching changelog entry, uploads the
+checksum, then attaches the ZIP last. Only this job has `contents: write`.
+It never creates a release or tag. Existing release assets are never overwritten;
+a rerun with existing assets stops for inspection. If an upload partially fails,
+inspect the preserved build artifact and existing checksums before a maintainer
+completes the missing attachment manually. Do not replace a ZIP already offered
+to WordPress; correct it in a new version.
+
+This published-event uploader requires releases that permit adding assets after
+publication. With [immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases),
+assets must instead be attached to a draft before publishing; this workflow
+fails explicitly for immutable releases. Check that setting before the first
+release, and obtain approval for a draft-first workflow if immutability is
+required. No repository settings are changed automatically.
+
+### First v0.11.1 bootstrap release (future, explicit approval required)
+
+1. Resolve anonymous API and asset access, confirm the release settings above,
+   and finish P4-A/P4-B runtime acceptance. Obtain explicit approval before
+   merging PR #4, then preserve/retarget PR #5's dependency and merge it only
+   with approval. This validation task does not merge either PR.
+2. On the approved release commit, keep `Version: 0.11.1`, replace the top
+   changelog entry's `Unreleased` with the actual release date, and rerun all
+   checks. Run `python scripts/release_plugin.py --tag v0.11.1 --output
+   release-build-0.11.1 --require-release-date` from a clean checkout of that
+   commit. Review `release-notes.md`; do not use GitHub-generated source ZIPs.
+3. After approval, tag that exact commit on `main` as `v0.11.1` and explicitly
+   publish a stable GitHub Release, selecting it as latest. Wait for the release
+   workflow to pass. Confirm the attached ZIP/checksum and release notes match
+   the dated `0.11.1` changelog entry and anonymous download works.
+4. On a disposable WordPress test site, back up any existing plugin/content and
+   manually install the attached ZIP under `wp-content/plugins/syndamorph/`.
+   Activate it and confirm version `0.11.1`. An older installation without the
+   updater must receive this bootstrap manually.
+5. Verify direct-div text/line breaks/mixed text ordering with
+   `tests/fixtures/direct-div-text.html`; retest P4-A backgrounds, P4-B nested
+   widths and P2 spacing. Inspect Gutenberg after save/refresh for recovery
+   warnings. With `0.11.1` latest, no update should be offered; native
+   auto-update controls should remain available. Leave automatic updates off
+   during the initial manual update test.
+
+### Subsequent v0.11.2 remote-update test (future)
+
+1. Make the intended small change, set `Version: 0.11.2`, add a dated top
+   `## [0.11.2]` entry, and repeat validation/approval on the exact release
+   commit. Preserve the `syndamorph` directory, main filename and Update URI.
+   Explicitly publish `v0.11.2` as the latest stable release only after approval
+   and wait for matching notes/checksum/ZIP to be attached.
+2. Keep the disposable site's installed version at `0.11.1`. Successful metadata
+   is cached for six hours, failures/missing assets for fifteen minutes. A new
+   HTTP request occurs on the next WordPress check after cache expiry; core's
+   own update schedule can delay it further. To force both caches on that test
+   site only (not executed by this task):
+
+   ```bash
+   wp transient delete syndamorph_github_release_v2
+   wp eval 'delete_site_transient("update_plugins"); wp_update_plugins();'
+   wp plugin update syndamorph --dry-run
+   ```
+
+3. In **Dashboard → Updates / Plugins**, confirm `0.11.2` is offered and **View
+   details** shows its changelog. Use **Update now** once. Confirm installed
+   version `0.11.2`, the same plugin directory/activation state, the bundled
+   changelog, and no duplicate plugin. Verify saved pages/patterns and the
+   direct-text/P4 fixtures still work; inspect PHP logs and other plugin updates.
+4. Repeat the check: no further update should be offered. Confirm a failed
+   GitHub check on the disposable site leaves unrelated updates usable, then
+   restore connectivity and retry after clearing the caches. Automatic updates
+   remain a separate, explicitly chosen site setting; no production test is
+   part of this procedure.
 
 ## Local development
 

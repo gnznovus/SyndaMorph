@@ -10,3 +10,7 @@ vendor/
 # Do not commit WordPress uploads or database dumps
 *.sql
 *.sql.gz
+
+# Local validation artifacts
+release-build*/
+__pycache__/

@@ -13,10 +13,14 @@ This changelog describes implemented work, not acceptance or production readines
 - Automated release packaging with a stable `syndamorph/` root directory and forward-slash archive paths.
 - This bundled changelog and release-note validation.
 - A direct-`div`-text regression fixture, including mixed inline/nested content.
+- Offline updater failure/isolation tests and local release-package validation.
 
 ### Fixed
 - Preserve meaningful text nodes and line breaks inside `div` containers instead of silently dropping them.
 - Preserve direct text appearing before, between, or after nested blocks.
+- Reject malformed release metadata and unrelated/incomplete release assets without PHP warnings.
+- Supply equal/older release metadata for WordPress's native no-update and auto-update controls without offering a downgrade ZIP.
+- Validate release tag ancestry, dated changelog notes, and exact packaged files before attaching the update ZIP.
 
 ## [0.11.0] - Unreleased
 
