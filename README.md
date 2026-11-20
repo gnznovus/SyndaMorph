@@ -4,6 +4,145 @@
 
 SyndaMorph is a standalone WordPress plugin that imports static HTML into editable native Gutenberg blocks.
 
+## GitHub Releases updater (validated locally; first release pending)
+
+SyndaMorph uses WordPress's native `Update URI` and `update_plugins_github.com`
+integration to check **published stable** releases of `gnznovus/SyndaMorph`.
+The plugin requires WordPress 6.5+ and PHP 8.1+. Only an uploaded, nonempty
+`syndamorph.zip` asset whose download URL matches that release tag qualifies.
+GitHub's automatic *Source code (zip)* archive is never an update package.
+WordPress handles installation, version comparison and site-controlled automatic
+updates. Keep the updater-enabled plugin active so its hooks can run.
+
+The repository is public. After publication, verify that the latest release
+API and ZIP download work without GitHub credentials. WordPress uses those
+public endpoints for update checks and installation.
+
+### Local validation and packaging
+
+From the repository root, with PHP, Node.js and Python 3.10+ available:
+
+```bash
+php tests/updater-test.php
+python -m unittest discover -s tests -p 'test_release_plugin.py' -v
+python scripts/release_plugin.py --tag v0.11.1 --output release-build-local
+```
+
+Use a fresh output directory on each build. The builder refuses to overwrite
+artifacts and produces `syndamorph.zip`, `syndamorph.zip.sha256`, and
+`release-notes.md`. It verifies the exact `syndamorph/` root, forward-slash paths,
+all source file bytes, bundled `CHANGELOG.md`, unique current-version changelog
+entry, version header and Update URI. The notes include the matching version
+heading and entry only. Local candidates may say `Unreleased`. The draft
+workflow uses `--require-release-date` and requires `## [X.Y.Z] - YYYY-MM-DD`.
+
+`.github/workflows/updater-check.yml` runs offline checks on PRs and branch
+pushes and has no release-publishing permissions. Existing P1/P3/P4 checks
+remain in place. PHP lint and `node --check` cover plugin/renderer source;
+updater tests turn PHP warnings into failures and mock the WordPress hooks and
+HTTP API. These checks do not establish a live WordPress download/install or
+Gutenberg browser acceptance.
+
+### Release workflow
+
+Run **Prepare SyndaMorph Release Draft** (`.github/workflows/release-plugin.yml`)
+manually from `main`, with an existing `vX.Y.Z` tag in its history. GitHub
+requires the workflow to be present on the default branch before it can be
+dispatched. The job checks out the exact tagged commit and runs PHP lint,
+JavaScript syntax checks, updater tests, package tests, changelog generation,
+and checksum verification before it creates the draft. It saves the files in
+the Actions run and attaches the ZIP and checksum to the draft with notes taken
+from the bundled changelog. The job downloads the draft attachments to verify
+them and links to the verified draft in its summary.
+
+The draft remains private until a maintainer reviews the successful run and
+explicitly approves and publishes the stable release in GitHub. This order is
+compatible with [GitHub immutable releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases),
+which lock the tag and assets at publication when enabled.
+
+An existing draft or release for the tag stops the build before it uploads.
+If a failed run leaves a partial draft, inspect the failed step and Actions
+artifact, delete only the incomplete draft while keeping the tag, then rerun.
+Publish only from a successful run with the tag and attachments it verified.
+
+### First v0.11.1 bootstrap release (future, explicit approval required)
+
+1. Finish P4-A/P4-B runtime acceptance. With separate merge approval, land PR #4
+   first, then retarget PR #5 to `main` and land it with approval after validating
+   its diff and checks. The draft workflow must be on `main` before dispatch.
+2. Keep `Version: 0.11.1` and change the top changelog heading to
+   `## [0.11.1] - YYYY-MM-DD` with the planned release date. Land that change on
+   `main` through the normal review process. From the repository root, tag and
+   push the approved release commit, then dispatch the draft workflow. Replace
+   `APPROVED_MAIN_SHA` with the release commit's full SHA.
+
+   ```bash
+   git fetch origin main --tags
+   git merge-base --is-ancestor APPROVED_MAIN_SHA origin/main &&
+     git tag -a v0.11.1 APPROVED_MAIN_SHA -m "SyndaMorph v0.11.1" &&
+     git push origin refs/tags/v0.11.1 &&
+     gh workflow run release-plugin.yml --repo gnznovus/SyndaMorph --ref main -f tag=v0.11.1
+   ```
+
+3. In **Actions → Prepare SyndaMorph Release Draft**, wait for the `v0.11.1`
+   run to pass. Use the draft link in its summary. Verify the tag still points
+   to the approved commit, the release notes match `release-notes.md`, and the
+   draft contains `syndamorph.zip` and `syndamorph.zip.sha256` from that run.
+4. After explicit publication approval, open the draft in **Releases**, mark
+   it as latest, leave **Set as a pre-release** unchecked, and click
+   **Publish release**. Check the anonymous API and download, then verify the
+   downloaded checksum from a fresh directory on a system with `curl`, `jq`,
+   and `sha256sum`.
+
+   ```bash
+   curl -fsSL https://api.github.com/repos/gnznovus/SyndaMorph/releases/latest |
+     jq -e '.tag_name == "v0.11.1" and (.draft == false) and (.prerelease == false)'
+   curl -fsSLO https://github.com/gnznovus/SyndaMorph/releases/download/v0.11.1/syndamorph.zip
+   curl -fsSLO https://github.com/gnznovus/SyndaMorph/releases/download/v0.11.1/syndamorph.zip.sha256
+   sha256sum --check syndamorph.zip.sha256
+   ```
+
+5. On a disposable WordPress test site, back up any existing plugin/content and
+   manually install the attached ZIP under `wp-content/plugins/syndamorph/`.
+   Activate it and confirm version `0.11.1`. An older installation without the
+   updater must receive this bootstrap manually.
+6. Verify direct-div text/line breaks/mixed text ordering with
+   `tests/fixtures/direct-div-text.html`; retest P4-A backgrounds, P4-B nested
+   widths and P2 spacing. Inspect Gutenberg after save/refresh for recovery
+   warnings. With `0.11.1` latest, no update should be offered; native
+   auto-update controls should remain available. Leave automatic updates off
+   during the initial manual update test.
+
+### Subsequent v0.11.2 remote-update test (future)
+
+1. Make the intended small change, set `Version: 0.11.2`, add a dated top
+   `## [0.11.2]` entry, and repeat validation/approval on the exact release
+   commit. Preserve the `syndamorph` directory, main filename and Update URI.
+   Run the draft workflow with `tag=v0.11.2`, verify its attachments and notes,
+   then explicitly publish it as the latest stable release after approval.
+2. Keep the disposable site's installed version at `0.11.1`. Successful metadata
+   is cached for six hours, failures/missing assets for fifteen minutes. A new
+   HTTP request occurs on the next WordPress check after cache expiry; core's
+   own update schedule can delay it further. To force both caches on that test
+   site only (not executed by this task):
+
+   ```bash
+   wp transient delete syndamorph_github_release_v2
+   wp eval 'delete_site_transient("update_plugins"); wp_update_plugins();'
+   wp plugin update syndamorph --dry-run
+   ```
+
+3. In **Dashboard → Updates / Plugins**, confirm `0.11.2` is offered and **View
+   details** shows its changelog. Use **Update now** once. Confirm installed
+   version `0.11.2`, the same plugin directory/activation state, the bundled
+   changelog, and no duplicate plugin. Verify saved pages/patterns and the
+   direct-text/P4 fixtures still work; inspect PHP logs and other plugin updates.
+4. Repeat the check: no further update should be offered. Confirm a failed
+   GitHub check on the disposable site leaves unrelated updates usable, then
+   restore connectivity and retry after clearing the caches. Automatic updates
+   remain a separate, explicitly chosen site setting; no production test is
+   part of this procedure.
+
 ## Local development
 
 Requirements: Docker Desktop with Compose.
@@ -17,6 +156,30 @@ Open **http://localhost:8085**, complete the WordPress installation, then activa
 Go to **Tools → SyndaMorph** to paste HTML or select an `.html`/`.htm` file. Select **Preview Import** to inspect the HTML in a sandboxed preview card. Only after reviewing it, select **Create Draft** in the modal footer to save a new page and open Gutenberg.
 
 Stop the environment with `docker compose down`. To discard the local WordPress database and content, run `docker compose down -v` (**destructive**).
+
+## P4-B — Smarter native layout conversion (acceptance pending)
+
+This iteration expands the existing native Gutenberg Columns conversion without adding a custom CSS renderer:
+
+- Simple `display:grid` containers with 2–6 direct children and explicit `grid-template-columns` tracks (for example `1fr 2fr 1fr` or `25% 50% 25%`) map to **Columns** with corresponding native percentage widths.
+- `display:flex` horizontal rows now support 2–6 direct child containers, rather than only 2–4.
+- `align-items:start|center|end` maps to native Column `verticalAlignment` where supported.
+- Nested grid/flex containers convert recursively into nested editable Gutenberg Columns and Groups.
+- Existing P2 spacing, gaps, percentages, P4-A backgrounds, and the same static/JS package pipeline remain supported.
+
+This is **not** CSS Grid parity. `repeat()`, `minmax()`, `auto`, mixed-unit tracks, CSS placement/spanning, `flex-wrap:wrap-reverse`, vertical flex, and responsive `@media` layout changes remain unsupported. Native Gutenberg Columns determine responsive stacking.
+
+### Local acceptance test
+
+Use `tests/fixtures/p4b-nested-layout.html` under **Tools → SyndaMorph → single HTML import**, leaving JavaScript mode off.
+
+1. Preview the **three-column** layout with approximately 25% / 50% / 25% proportions and nested **2:1** inner columns.
+2. Confirm the four-card flex row becomes four independently editable native Columns.
+3. Create a draft, inspect List View, edit column widths and padding, and verify no block validation/recovery warning.
+4. Refresh the editor and compare the saved layout against the preview; also retest `tests/fixtures/p2-layout-spacing.html
+tests/fixtures/p4b-nested-layout.html` for regression.
+
+P4-B is based on the **P4-A feature branch**, which is not yet merged into `main`. The P4-B PR targets P4-A, not `main`, until P4-A has completed acceptance.
 
 ## P4-A — Native background images & typography (experimental)
 

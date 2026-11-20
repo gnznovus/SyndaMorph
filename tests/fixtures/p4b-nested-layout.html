@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>P4-B Native Layout</title>
+<style>
+.grid-three { display:grid; grid-template-columns:1fr 2fr 1fr; column-gap:18px; align-items:center; }
+.card { background-color:#eef4fa; padding:20px; }
+.nested { display:grid; grid-template-columns:2fr 1fr; gap:12px; }
+.flex-four { display:flex; gap:10px; align-items:center; }
+.flex-four > div { background-color:#f5efe5; padding:12px; }
+</style></head><body>
+<main><h1>Smarter Native Layout</h1>
+<section class="grid-three">
+  <article class="card"><h2>25%</h2><p>Left card</p></article>
+  <article class="card"><h2>50%</h2><p>Middle card</p>
+    <div class="nested">
+      <div><h3>Nested wide</h3><p>Two thirds</p></div>
+      <div><h3>Nested narrow</h3><p>One third</p></div>
+    </div>
+  </article>
+  <article class="card"><h2>25%</h2><p>Right card</p></article>
+</section>
+<section class="flex-four">
+  <div><p>One</p></div><div><p>Two</p></div><div><p>Three</p></div><div><p>Four</p></div>
+</section>
+</main></body></html>

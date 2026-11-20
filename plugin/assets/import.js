@@ -17,7 +17,39 @@
         return '#' + channels.map( ( channel ) => channel.toString( 16 ).padStart( 2, '0' ) ).join( '' );
     };
     const acceptedAlign = ( value ) => [ 'left', 'center', 'right', 'justify' ].includes( value ) ? value : '';
-    const childBlocks = ( node, context ) => Array.from( node.children ).map( ( child ) => convert( child, context ) ).filter( Boolean ).join( '\n\n' );
+    // A div can contain meaningful text directly (including <br> and inline
+    // markup). Element-only traversal silently discarded that content.
+    const inlineTags = new Set( [ 'br', 'span', 'strong', 'b', 'em', 'i', 'code', 'sup', 'sub', 'a', 'small', 'mark', 'u', 's' ] );
+    const isInlineNode = ( part ) => part.nodeType === 3 ||
+        ( part.nodeType === 1 && inlineTags.has( part.tagName.toLowerCase() ) &&
+            ! part.querySelector( 'p,h1,h2,h3,h4,h5,h6,div,section,article,img,ul,ol,table' ) );
+    const childBlocks = ( node, context, textTag = 'p' ) => {
+        const output = [];
+        let inline = [];
+        const flushInline = () => {
+            if ( ! inline.some( ( part ) => part.textContent.trim() ) ) { inline = []; return; }
+            const styles = readStyles( node, context );
+            let markup = simpleInline( { childNodes: inline }, context, styles.display );
+            const imageLink = node.closest( 'a[href]' );
+            const href = imageLink?.querySelector( 'img' ) && safeUrl( imageLink.getAttribute( 'href' ), context );
+            if ( href && ! /<a(?:\s|>)/i.test( markup ) ) {
+                markup = '<a href="' + escapeHtml( href ) + '">' + markup + '</a>';
+            }
+            output.push( textBlock( textTag, styles, markup ) );
+            countBlock( context );
+            inline = [];
+        };
+        Array.from( node.childNodes ).forEach( ( part ) => {
+            if ( isInlineNode( part ) ) { inline.push( part ); return; }
+            flushInline();
+            if ( part.nodeType === 1 ) {
+                const converted = convert( part, context );
+                if ( converted ) { output.push( converted ); }
+            }
+        } );
+        flushInline();
+        return output.join( '\n\n' );
+    };
     const countBlock = ( context ) => {
         context.count++;
         if ( context.count > 500 ) { throw new Error( 'POC limit: maximum 500 Gutenberg blocks.' ); }
@@ -82,6 +114,23 @@
         return allowedLength( v );
     };
 
+    // Map simple grid track fractions to native percentage Column widths.
+    // No layout engine: minmax(), auto, repeat(), subgrid and responsive queries
+    // remain unsupported instead of producing misleading proportions.
+    const gridTrackWidths = ( value, count ) => {
+        const tracks = ( value || '' ).trim().split( /\s+/ ).filter( Boolean );
+        if ( tracks.length !== count || tracks.length < 2 || tracks.length > 6 ) { return []; }
+        const parsed = tracks.map( ( track ) => {
+            const match = track.match( /^(\d+(?:\.\d+)?)(fr|%)$/ );
+            return match && Number( match[1] ) > 0 ? { amount: Number( match[1] ), unit: match[2] } : null;
+        } );
+        if ( parsed.some( ( track ) => ! track ) ||
+            parsed.some( ( track ) => track.unit !== parsed[0].unit ) ) { return []; }
+        const total = parsed.reduce( ( sum, track ) => sum + track.amount, 0 );
+        return parsed.map( ( track ) => ( Math.round( track.amount / total * 10000 ) / 100 ) + '%' );
+    };
+    const verticalAlign = ( value ) => ( { start: 'top', center: 'center', end: 'bottom' }[ value ] || '' );
+
     const readStyles = ( node, context ) => {
         const style = document.createElement( 'div' ).style;
         context.rules.forEach( ( rule ) => {
@@ -94,6 +143,11 @@
         style.cssText += ';' + ( node.getAttribute( 'style' ) || '' );
         return {
             display: style.display,
+            flexDirection: style.flexDirection,
+            flexWrap: style.flexWrap,
+            gridTemplateColumns: style.gridTemplateColumns,
+            alignItems: style.alignItems,
+            justifyContent: style.justifyContent,
             textAlign: acceptedAlign( style.textAlign ),
             color: allowedColor( style.color ),
             background: allowedColor( style.backgroundColor ),
@@ -135,15 +189,48 @@
     const htmlAttributes = ( className, inlineStyle ) => ( className ? ' class="' + escapeHtml( className ) + '"' : '' ) +
         ( inlineStyle ? ' style="' + escapeHtml( inlineStyle ) + '"' : '' );
 
-    const safeUrl = ( raw, context ) => {
+    const textBlock = ( tag, styles, content ) => {
+        const { attrs, className, inlineStyle } = textAppearance( styles );
+        const heading = tag !== 'p';
+        if ( heading ) { attrs.level = Number( tag[1] ); }
+        const classes = ( ( heading ? 'wp-block-heading ' : '' ) + className ).trim();
+        return block( heading ? 'heading' : 'paragraph', attrs,
+            '<' + tag + htmlAttributes( classes, inlineStyle ) + '>' + content + '</' + tag + '>' );
+    };
+
+    const safeUrl = ( raw, context, protocols = [ 'https:', 'http:' ] ) => {
         if ( ! raw || ! raw.trim() ) { return ''; }
         try {
             const url = new URL( raw.trim(), context.baseUrl );
-            return [ 'https:', 'http:' ].includes( url.protocol ) ? url.href : '';
+            return protocols.includes( url.protocol ) ? url.href : '';
         } catch ( error ) { return ''; }
     };
 
-    const simpleInline = ( node, context ) => Array.from( node.childNodes ).map( ( part ) => {
+    const imageBlock = ( node, context ) => {
+        const src = safeUrl( node.getAttribute( 'src' ), context );
+        if ( ! src ) { return ''; }
+        const anchor = node.closest( 'a[href]' );
+        const href = anchor?.getAttribute( 'href' ).trim();
+        const linked = Boolean( safeUrl( href, context, [ 'https:', 'http:', 'mailto:', 'tel:' ] ) );
+        const alt = node.getAttribute( 'alt' ) || ( linked ? anchor.getAttribute( 'aria-label' ) : '' ) || '';
+        let image = '<img src="' + escapeHtml( src ) + '" alt="' + escapeHtml( alt ) + '"/>';
+        if ( linked ) {
+            const target = anchor.getAttribute( 'target' )?.trim();
+            let rel = ( anchor.getAttribute( 'rel' ) || '' ).trim().split( /\s+/ ).filter( Boolean );
+            if ( target?.toLowerCase() === '_blank' ) {
+                rel = rel.filter( ( token ) => token.toLowerCase() !== 'opener' );
+                if ( ! rel.some( ( token ) => token.toLowerCase() === 'noopener' ) ) { rel.push( 'noopener' ); }
+            }
+            // Core Image reads these attributes from the figure's direct anchor.
+            image = '<a href="' + escapeHtml( href ) + '"' +
+                ( target ? ' target="' + escapeHtml( target ) + '"' : '' ) +
+                ( rel.length ? ' rel="' + escapeHtml( rel.join( ' ' ) ) + '"' : '' ) + '>' + image + '</a>';
+        }
+        return block( 'image', { sizeSlug: 'full', linkDestination: linked ? 'custom' : 'none' },
+            '<figure class="wp-block-image size-full">' + image + '</figure>' );
+    };
+
+    const inlinePart = ( part, context ) => {
         if ( part.nodeType === 3 ) { return escapeHtml( part.textContent ); }
         if ( part.nodeType !== 1 ) { return ''; }
         const tag = part.tagName.toLowerCase();
@@ -156,7 +243,18 @@
             return href ? '<a href="' + escapeHtml( href ) + '">' + simpleInline( part, context ) + '</a>' : simpleInline( part, context );
         }
         return simpleInline( part, context );
-    } ).join( '' );
+    };
+
+    const simpleInline = ( node, context, display ) => {
+        const parts = Array.from( node.childNodes, ( part ) => inlinePart( part, context ) );
+        const items = parts.filter( ( part ) => part.trim() );
+        // Flex and Grid separate sibling items visually even when the HTML has
+        // no whitespace between them. Preserve that boundary in native text.
+        if ( items.length > 1 && /^(?:inline-)?(?:flex|grid)$/.test( display ?? readStyles( node, context ).display ) ) {
+            return items.join( ' ' );
+        }
+        return parts.join( '' );
+    };
 
     const asButton = ( label, href ) => {
         const anchor = '<a class="wp-block-button__link wp-element-button"' +
@@ -195,23 +293,21 @@
     const convert = ( node, context ) => {
         const tag = node.tagName.toLowerCase();
         const styles = readStyles( node, context );
+        const isTextBlock = /^h[1-6]$/.test( tag ) || tag === 'p';
         let markup = '';
 
-        if ( tag === 'p' && node.children.length === 1 && node.firstElementChild.tagName.toLowerCase() === 'a' &&
+        if ( isTextBlock && ( node.querySelector( 'a img' ) || ( node.closest( 'a' ) && node.querySelector( 'img' ) ) ) ) {
+            // A native Image is its own block, so split it from the surrounding text.
+            return childBlocks( node, context, tag );
+        } else if ( tag === 'p' && node.children.length === 1 && node.firstElementChild.tagName.toLowerCase() === 'a' &&
             /(?:^|\s)(?:btn|button|cta)(?:$|\s)/i.test( node.firstElementChild.className || '' ) ) {
             const anchor = node.firstElementChild;
             markup = asButton( anchor.textContent.trim(), safeUrl( anchor.getAttribute( 'href' ), context ) );
-        } else if ( /^h[1-6]$/.test( tag ) || tag === 'p' ) {
-            const value = node.textContent.trim();
-            if ( ! value ) { return ''; }
-            const heading = tag !== 'p';
-            const appearance = textAppearance( styles );
-            const attributes = { ...appearance.attrs };
-            if ( heading ) { attributes.level = Number( tag[ 1 ] ); }
-            const className = ( heading ? 'wp-block-heading ' : '' ) + appearance.className;
-            const html = '<' + tag + htmlAttributes( className.trim(), appearance.inlineStyle ) + '>' + simpleInline( node, context ) + '</' + tag + '>';
-            markup = block( heading ? 'heading' : 'paragraph', attributes, html );
-        } else if ( tag === 'button' || ( tag === 'a' && /(?:^|\s)(?:btn|button|cta)(?:$|\s)/i.test( node.className || '' ) ) ) {
+        } else if ( isTextBlock ) {
+            if ( ! node.textContent.trim() ) { return ''; }
+            markup = textBlock( tag, styles, simpleInline( node, context, styles.display ) );
+        } else if ( tag === 'button' || ( tag === 'a' && ! node.querySelector( 'img' ) &&
+            /(?:^|\s)(?:btn|button|cta)(?:$|\s)/i.test( node.className || '' ) ) ) {
             const value = node.textContent.trim();
             if ( value ) { markup = asButton( value, tag === 'a' ? safeUrl( node.getAttribute( 'href' ), context ) : '' ); }
         } else if ( tag === 'ul' || tag === 'ol' ) {
@@ -221,11 +317,7 @@
         } else if ( tag === 'hr' ) {
             markup = block( 'separator', {}, '<hr class="wp-block-separator has-alpha-channel-opacity"/>' );
         } else if ( tag === 'img' ) {
-            const src = safeUrl( node.getAttribute( 'src' ), context );
-            if ( ! src ) { return ''; }
-            const alt = escapeHtml( node.getAttribute( 'alt' ) || '' );
-            markup = block( 'image', { sizeSlug: 'full', linkDestination: 'none' },
-                '<figure class="wp-block-image size-full"><img src="' + escapeHtml( src ) + '" alt="' + alt + '"/></figure>' );
+            markup = imageBlock( node, context );
         } else if ( tag === 'a' && ! node.querySelector( 'h1,h2,h3,h4,h5,h6,p,img' ) ) {
             const url = safeUrl( node.getAttribute( 'href' ), context );
             const value = node.textContent.trim();
@@ -235,20 +327,31 @@
             }
         } else if ( [ 'header', 'footer', 'nav', 'main', 'section', 'article', 'div' ].includes( tag ) ) {
             const children = Array.from( node.children );
-            const isColumns = ( styles.display === 'flex' || styles.display === 'grid' ) &&
-                children.length >= 2 && children.length <= 4;
+            const isHorizontalFlex = styles.display === 'flex' &&
+                ( ! styles.flexDirection || styles.flexDirection === 'row' ) &&
+                styles.flexWrap !== 'wrap-reverse';
+            const isGrid = styles.display === 'grid';
+            const tracks = isGrid ? gridTrackWidths( styles.gridTemplateColumns, children.length ) : [];
+            const isColumns = ( isHorizontalFlex || isGrid ) &&
+                !Array.from( node.childNodes ).some( ( part ) => isInlineNode( part ) && part.textContent.trim() ) &&
+                children.length >= 2 && children.length <= 6 &&
+                ( ! isGrid || tracks.length > 0 || ! styles.gridTemplateColumns );
             if ( isColumns ) {
-                const cols = children.map( ( child ) => {
+                const cols = children.map( ( child, index ) => {
                     const inner = convert( child, context );
                     if ( ! inner ) { return ''; }
                     const childStyles = readStyles( child, context );
                     const width = childStyles.flexBasis || childStyles.width;
                     // Gutenberg Column width uses a percentage, not an arbitrary CSS length.
-                    const columnWidth = width.endsWith( '%' ) ? width : '';
-                    const columnAttrs = columnWidth ? { width: columnWidth } : {};
+                    const columnWidth = width.endsWith( '%' ) ? width : ( tracks[index] || '' );
+                    const alignment = verticalAlign( styles.alignItems );
+                    const columnAttrs = { ...( columnWidth ? { width: columnWidth } : {} ),
+                        ...( alignment ? { verticalAlignment: alignment } : {} ) };
                     const columnCss = columnWidth ? 'flex-basis:' + columnWidth : '';
+                    const columnClasses = 'wp-block-column' +
+                        ( alignment ? ' is-vertically-aligned-' + alignment : '' );
                     countBlock( context );
-                    return block( 'column', columnAttrs, '<div' + htmlAttributes( 'wp-block-column', columnCss ) + '>' + inner + '</div>' );
+                    return block( 'column', columnAttrs, '<div' + htmlAttributes( columnClasses, columnCss ) + '>' + inner + '</div>' );
                 } ).filter( Boolean ).join( '\n\n' );
                 if ( cols ) {
                     const attrs = {};
@@ -453,37 +556,29 @@
         const content = childBlocks( doc.body, context );
         if ( ! content ) { throw new Error( 'No supported editable blocks found.' ); }
 
-        // Preview the same converted markup that will be saved to WordPress.
-        // Strip Gutenberg block delimiters only for rendering in the sandboxed iframe.
-        // Gutenberg does not serialize Columns blockGap into inline markup.
-        // Reconstruct that style ONLY for the script-disabled preview.
-        const previewMarkup = content.replace(
-            /<!-- wp:columns (\{[^\n]*\}) -->\s*(<div class="wp-block-columns")/g,
-            ( match, json, opening ) => {
-                try {
-                    const gap = JSON.parse( json )?.style?.spacing?.blockGap;
-                    return opening + ( allowedLength( gap ) ? ' style="gap:' + escapeHtml( gap ) + '"' : '' );
-                } catch ( error ) { return opening; }
-            }
-        );
-        // Reconstruct attribute-only Gutenberg backgrounds in the preview DOM.
-        // Parse block comments rather than matching nested HTML with regex:
-        // both <div> and semantic <section>/<main> Group wrappers are supported.
-        const previewDocument = new DOMParser().parseFromString( previewMarkup, 'text/html' );
+        // Reconstruct attribute-only styles in the preview DOM without changing saved markup.
+        // An explicit body keeps the first block comment inside the tree we walk.
+        const previewDocument = new DOMParser().parseFromString( '<body>' + content, 'text/html' );
         const comments = previewDocument.createTreeWalker( previewDocument.body, NodeFilter.SHOW_COMMENT );
         let comment;
         while ( ( comment = comments.nextNode() ) ) {
-            const match = comment.data.match( /^\s*wp:group\s+(\{[\s\S]*\})\s*$/ );
+            const match = comment.data.match( /^\s*wp:(columns|group)\s+(\{[\s\S]*\})\s*$/ );
             if ( ! match ) { continue; }
             try {
-                const bg = JSON.parse( match[ 1 ] )?.style?.background;
-                const imageUrl = bg?.backgroundImage?.url;
-                if ( ! imageUrl || ! safeUrl( imageUrl, { baseUrl: window.location.origin } ) ) { continue; }
+                const styles = JSON.parse( match[ 2 ] )?.style;
                 let wrapper = comment.nextSibling;
                 while ( wrapper && wrapper.nodeType === Node.TEXT_NODE && ! wrapper.textContent.trim() ) {
                     wrapper = wrapper.nextSibling;
                 }
                 if ( ! wrapper || wrapper.nodeType !== Node.ELEMENT_NODE ) { continue; }
+                if ( match[ 1 ] === 'columns' ) {
+                    const gap = allowedLength( styles?.spacing?.blockGap );
+                    if ( gap ) { wrapper.style.gap = gap; }
+                    continue;
+                }
+                const bg = styles?.background;
+                const imageUrl = bg?.backgroundImage?.url;
+                if ( ! imageUrl || ! safeUrl( imageUrl, { baseUrl: window.location.origin } ) ) { continue; }
                 wrapper.style.backgroundImage = 'url(' + JSON.stringify( imageUrl ) + ')';
                 if ( [ 'cover', 'contain' ].includes( bg.backgroundSize ) ) {
                     wrapper.style.backgroundSize = bg.backgroundSize;
@@ -508,6 +603,9 @@
             .wp-block-columns { display: flex; flex-wrap: nowrap; align-items: normal; gap: 2em; margin-bottom: 1.75em; }
             .wp-block-column { flex: 1 1 0; min-width: 0; overflow-wrap: break-word; }
             .wp-block-column[style*="flex-basis"] { flex-grow: 0; flex-shrink: 1; }
+            .wp-block-column.is-vertically-aligned-top { align-self: flex-start; }
+            .wp-block-column.is-vertically-aligned-center { align-self: center; }
+            .wp-block-column.is-vertically-aligned-bottom { align-self: flex-end; }
             /* A figure's intrinsic image width must not expand beyond its column. */
             .wp-block-image { display: block; width: 100%; max-width: 100%; min-width: 0; margin: 0 0 1em; }
             .wp-block-image img { display: block; width: 100%; max-width: 100%; height: auto; }

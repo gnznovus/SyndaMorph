@@ -1,0 +1,31 @@
+name: P4-B Layout Conversion Checks
+
+on:
+  push:
+    branches: [feat/p4b-layout-conversion]
+  pull_request:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate PHP
+        run: |
+          php -l plugin/syndamorph.php
+          php -l plugin/includes/package-import.php
+      - name: Validate JavaScript
+        run: |
+          node --check plugin/assets/import.js
+          node --check plugin/assets/package.js
+      - name: Validate Compose
+        run: docker compose config --quiet
+      - name: Validate P4-B fixture
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          page = Path('tests/fixtures/p4b-nested-layout.html').read_text()
+          assert 'grid-template-columns:1fr 2fr 1fr' in page
+          assert 'grid-template-columns:2fr 1fr' in page
+          assert 'class="flex-four"' in page
+          PY

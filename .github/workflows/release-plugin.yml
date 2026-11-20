@@ -1,0 +1,109 @@
+name: Prepare SyndaMorph Release Draft
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing stable tag on the default branch, for example v0.11.1
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-plugin-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  draft:
+    if: github.repository == 'gnznovus/SyndaMorph' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout the dispatched default branch commit and fetch tags
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out the stable tag from the default branch history
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo 'Expected an existing stable tag in vMAJOR.MINOR.PATCH format.' >&2
+            exit 1
+          fi
+          release_commit=$(git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}")
+          if ! git merge-base --is-ancestor "$release_commit" "$GITHUB_SHA"; then
+            echo 'The tagged commit must be in the dispatched default branch history.' >&2
+            exit 1
+          fi
+          git checkout --detach "$release_commit"
+
+      - name: Validate PHP, JavaScript and updater behavior
+        run: |
+          find plugin tests -name '*.php' -print0 | xargs -0 -n1 php -l
+          find plugin/assets renderer -name '*.js' -not -path '*/node_modules/*' -print0 | xargs -0 -n1 node --check
+          php tests/updater-test.php
+          python3 -m unittest discover -s tests -p 'test_release_plugin.py' -v
+
+      - name: Package and verify installable WordPress plugin and notes
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          python3 scripts/release_plugin.py --tag "$RELEASE_TAG" --output release-build --require-release-date
+          (cd release-build && sha256sum --check syndamorph.zip.sha256)
+
+      - name: Preserve validated build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: syndamorph-${{ inputs.tag }}
+          overwrite: true
+          path: release-build/*
+          if-no-files-found: error
+
+      - name: Create and verify the unpublished release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          tag_ref="refs/tags/$RELEASE_TAG"
+          remote_tag=$(git ls-remote --exit-code --tags origin "$tag_ref" | cut -f1)
+          if [[ "$remote_tag" != "$(git rev-parse "$tag_ref")" ]]; then
+            echo 'The remote tag changed during validation.' >&2
+            exit 1
+          fi
+          if ! gh api --paginate "repos/$GH_REPO/releases?per_page=100" \
+              | jq -es --arg tag "$RELEASE_TAG" 'length > 0 and all(.[]; type == "array") and all(.[][]; .tag_name != $tag)'; then
+            echo 'Unable to confirm that this tag has no existing release or draft.' >&2
+            exit 1
+          fi
+
+          gh release create "$RELEASE_TAG" release-build/syndamorph.zip release-build/syndamorph.zip.sha256 \
+            --verify-tag --draft --title "SyndaMorph $RELEASE_TAG" --notes-file release-build/release-notes.md
+
+          release=$(gh release view "$RELEASE_TAG" --json isDraft,isPrerelease,tagName,body,assets,url)
+          jq -e --arg tag "$RELEASE_TAG" --rawfile notes release-build/release-notes.md '
+            .isDraft and (.isPrerelease | not) and (.tagName == $tag)
+            and ((.body | rtrimstr("\n")) == ($notes | rtrimstr("\n")))
+            and (([.assets[].name] | sort) == ["syndamorph.zip", "syndamorph.zip.sha256"])
+          ' <<< "$release"
+          gh release download "$RELEASE_TAG" --dir draft-assets \
+            --pattern syndamorph.zip --pattern syndamorph.zip.sha256
+          cmp release-build/syndamorph.zip.sha256 draft-assets/syndamorph.zip.sha256
+          (cd draft-assets && sha256sum --check syndamorph.zip.sha256)
+
+          {
+            printf 'Verified draft: %s\n\n' "$(jq -r '.url' <<< "$release")"
+            printf 'Tag: `%s` at `%s`\n\n' "$RELEASE_TAG" "$(git rev-parse HEAD)"
+            printf 'Publish the draft manually after explicit approval.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
