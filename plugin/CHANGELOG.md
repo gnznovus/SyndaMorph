@@ -18,6 +18,7 @@ This changelog describes implemented work, not acceptance or production readines
 ### Fixed
 - Preserve meaningful text nodes and line breaks inside `div` containers instead of silently dropping them.
 - Preserve direct text appearing before, between, or after nested blocks.
+- Keep adjacent Flex and Grid labels separated when converting them to editable paragraph text.
 - Show a background image in the import preview when it belongs to the first Group.
 - Preserve Columns margins in the import preview when a gap is also set.
 - Reject malformed release metadata and unrelated/incomplete release assets without PHP warnings.

@@ -16,6 +16,13 @@
   <!-- Inline wrappers alone must become editable text, not disappear. -->
   <div><span>Wrapped</span> <span>inline text</span> and <a href="https://example.com/">a link</a>.</div>
 
+  <!-- Adjoining Flex/Grid items are visually separate even without whitespace in the HTML. -->
+  <div style="display:flex;flex-direction:column"><span>2 Nights</span><span style="display:inline-flex"><strong>Fri</strong><em>04 Dec</em></span></div>
+  <div style="display:grid;grid-template-columns:1fr 2fr">Room facts: <span>Room Size</span><span>23 sq. m.</span><section><p>Inside the room card.</p></section><span>Beds</span><span>2 twins</span></div>
+
+  <!-- Normal inline markup must keep punctuation and deliberate adjacency intact. -->
+  <div><span>Reserve</span><strong>,</strong> please. <span>Room</span><span>42</span></div>
+
   <!-- Preserve ordinary layout conversion while importing mixed text elsewhere. -->
   <div style="display:grid;grid-template-columns:1fr 2fr 1fr">
     <div><p>Left</p></div>

@@ -28,10 +28,11 @@
         let inline = [];
         const flushInline = () => {
             if ( ! inline.some( ( part ) => part.textContent.trim() ) ) { inline = []; return; }
-            const appearance = textAppearance( readStyles( node, context ) );
-            const content = simpleInline( { childNodes: inline }, context );
+            const styles = readStyles( node, context );
+            const appearance = textAppearance( styles );
+            const markup = simpleInline( { childNodes: inline }, context, styles.display );
             output.push( block( 'paragraph', appearance.attrs,
-                '<p' + htmlAttributes( appearance.className, appearance.inlineStyle ) + '>' + content + '</p>' ) );
+                '<p' + htmlAttributes( appearance.className, appearance.inlineStyle ) + '>' + markup + '</p>' ) );
             countBlock( context );
             inline = [];
         };
@@ -193,7 +194,7 @@
         } catch ( error ) { return ''; }
     };
 
-    const simpleInline = ( node, context ) => Array.from( node.childNodes ).map( ( part ) => {
+    const inlinePart = ( part, context ) => {
         if ( part.nodeType === 3 ) { return escapeHtml( part.textContent ); }
         if ( part.nodeType !== 1 ) { return ''; }
         const tag = part.tagName.toLowerCase();
@@ -206,7 +207,18 @@
             return href ? '<a href="' + escapeHtml( href ) + '">' + simpleInline( part, context ) + '</a>' : simpleInline( part, context );
         }
         return simpleInline( part, context );
-    } ).join( '' );
+    };
+
+    const simpleInline = ( node, context, display ) => {
+        const parts = Array.from( node.childNodes, ( part ) => inlinePart( part, context ) );
+        const items = parts.filter( ( part ) => part.trim() );
+        // Flex and Grid separate sibling items visually even when the HTML has
+        // no whitespace between them. Preserve that boundary in native text.
+        if ( items.length > 1 && /^(?:inline-)?(?:flex|grid)$/.test( display ?? readStyles( node, context ).display ) ) {
+            return items.join( ' ' );
+        }
+        return parts.join( '' );
+    };
 
     const asButton = ( label, href ) => {
         const anchor = '<a class="wp-block-button__link wp-element-button"' +
@@ -259,7 +271,7 @@
             const attributes = { ...appearance.attrs };
             if ( heading ) { attributes.level = Number( tag[ 1 ] ); }
             const className = ( heading ? 'wp-block-heading ' : '' ) + appearance.className;
-            const html = '<' + tag + htmlAttributes( className.trim(), appearance.inlineStyle ) + '>' + simpleInline( node, context ) + '</' + tag + '>';
+            const html = '<' + tag + htmlAttributes( className.trim(), appearance.inlineStyle ) + '>' + simpleInline( node, context, styles.display ) + '</' + tag + '>';
             markup = block( heading ? 'heading' : 'paragraph', attributes, html );
         } else if ( tag === 'button' || ( tag === 'a' && /(?:^|\s)(?:btn|button|cta)(?:$|\s)/i.test( node.className || '' ) ) ) {
             const value = node.textContent.trim();
