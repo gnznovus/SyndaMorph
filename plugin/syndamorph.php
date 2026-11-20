@@ -40,6 +40,12 @@ function syndamorph_render_import_page(): void {
                 <button type="button" class="button button-primary" id="syndamorph-url-capture">Detect Sections</button>
             </p>
             <p role="status" aria-live="polite" id="syndamorph-url-status"></p>
+            <details id="syndamorph-url-diagnostics" hidden style="margin:12px 0;max-width:860px">
+                <summary><strong>Capture diagnostics</strong> — rendering and section-detection evidence</summary>
+                <p id="syndamorph-url-diagnostics-summary"></p>
+                <p><button type="button" class="button" id="syndamorph-url-copy-diagnostics">Copy Diagnostic JSON</button></p>
+                <pre id="syndamorph-url-diagnostics-json" style="max-height:320px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#fff;border:1px solid #ddd;padding:12px"></pre>
+            </details>
             <div id="syndamorph-url-results" hidden>
                 <p><label for="syndamorph-url-sections"><strong>Detected section</strong></label></p>
                 <select id="syndamorph-url-sections" style="min-width:320px;max-width:100%"></select>
