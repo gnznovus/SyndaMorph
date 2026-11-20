@@ -77,7 +77,15 @@ async function capture(urlValue, mode = 'auto') {
                 // Prevent active operations from the captured site.
                 if (!['GET', 'HEAD'].includes(request.method())) return route.abort('blockedbyclient');
                 return route.continue();
-            } catch (error) { responses.denied++; addFailure('blocked_resource', route.request().resourceType() + ': ' + error.message); return route.abort('blockedbyclient'); }
+            } catch (error) {
+                responses.denied++;
+                let host = 'unknown';
+                try { host = new URL(route.request().url()).hostname; } catch (_) {}
+                // Hostnames are sufficient for diagnosing missing approved CDN
+                // dependencies. Never log URL paths, queries or headers.
+                addFailure('blocked_resource', route.request().resourceType() + ' host=' + host + ': ' + error.message);
+                return route.abort('blockedbyclient');
+            }
         });
         const page = await context.newPage();
         page.on('popup', (popup) => popup.close().catch(() => {}));
