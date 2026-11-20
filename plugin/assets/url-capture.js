@@ -1,0 +1,62 @@
+/* global SyndaMorphCapture */
+( function () {
+    'use strict';
+    const $ = ( id ) => document.getElementById( id );
+    const capture = $( 'syndamorph-url-capture' );
+    if ( ! capture ) { return; }
+    const input = $( 'syndamorph-url-input' );
+    const mode = $( 'syndamorph-url-mode' );
+    const status = $( 'syndamorph-url-status' );
+    const results = $( 'syndamorph-url-results' );
+    const select = $( 'syndamorph-url-sections' );
+    const warning = $( 'syndamorph-url-warning' );
+    const load = $( 'syndamorph-url-load' );
+    let sections = [];
+
+    capture.addEventListener( 'click', async () => {
+        results.hidden = true;
+        sections = [];
+        capture.disabled = true;
+        status.textContent = 'Capturing the requested page…';
+        try {
+            const response = await fetch( SyndaMorphCapture.endpoint, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': SyndaMorphCapture.nonce,
+                },
+                body: JSON.stringify( { url: input.value.trim(), mode: mode.value } ),
+            } );
+            const payload = await response.json();
+            if ( ! response.ok ) { throw new Error( payload.message || payload.error || 'Capture failed.' ); }
+            sections = payload.sections || [];
+            select.replaceChildren();
+            sections.forEach( ( section, index ) => {
+                const option = document.createElement( 'option' );
+                option.value = String( index );
+                option.textContent = section.id + ': ' + section.label + ' (' + Math.round( section.bounds.height ) + 'px)';
+                select.append( option );
+            } );
+            warning.textContent = ( payload.warnings || [] ).join( ' ' );
+            status.textContent = sections.length + ' candidate section(s) detected using ' + payload.mode + ' capture.';
+            results.hidden = ! sections.length;
+        } catch ( error ) {
+            status.textContent = error.message || 'Unable to extract the page.';
+        } finally { capture.disabled = false; }
+    } );
+
+    load.addEventListener( 'click', () => {
+        const section = sections[ Number( select.value ) ];
+        if ( ! section ) { return; }
+        const textarea = $( 'syndamorph-html-input' );
+        const title = $( 'syndamorph-page-title' );
+        const preview = $( 'syndamorph-convert' );
+        if ( ! textarea || ! preview ) { status.textContent = 'Existing HTML importer is unavailable.'; return; }
+        textarea.value = section.html;
+        if ( title ) { title.value = section.label || section.id; }
+        $( 'syndamorph-js-render' ).checked = false;
+        preview.click();
+        status.textContent = 'Loaded ' + section.id + ' into the existing Gutenberg preview.';
+    } );
+}() );
