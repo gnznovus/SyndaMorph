@@ -3,6 +3,7 @@
 const dns = require('node:dns').promises;
 const net = require('node:net');
 const { chromium } = require('playwright');
+const { extractSections } = require('./sections');
 
 const MAX_SECTIONS = 60;
 const MAX_HTML = 2 * 1024 * 1024;
@@ -68,47 +69,8 @@ async function capture(urlValue, mode = 'auto') {
             await page.waitForLoadState('networkidle', { timeout: 2500 }).catch(() => {});
             await page.waitForTimeout(350);
         }
-        const result = await page.evaluate(({ maxSections, maxHtml }) => {
-            const candidates = Array.from(document.querySelectorAll('main > *, body > section, body > header, body > footer')).filter((el) => !['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(el.tagName));
-            const selected = candidates.filter((el) => !candidates.some((other) => other !== el && other.contains(el)));
-            const roots = selected.length ? selected : Array.from(document.body.children).filter((el) => !['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(el.tagName));
-            const styleKeys = ['display', 'color', 'backgroundColor', 'backgroundImage', 'backgroundSize', 'backgroundPosition', 'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textAlign', 'padding', 'margin', 'gap', 'columnGap', 'rowGap', 'gridTemplateColumns', 'flexDirection', 'alignItems', 'justifyContent', 'borderRadius', 'width', 'maxWidth'];
-            const styleNames = ['display', 'color', 'background-color', 'background-image', 'background-size', 'background-position', 'font-family', 'font-size', 'font-weight', 'line-height', 'letter-spacing', 'text-align', 'padding', 'margin', 'gap', 'column-gap', 'row-gap', 'grid-template-columns', 'flex-direction', 'align-items', 'justify-content', 'border-radius', 'width', 'max-width'];
-            const convert = (root) => {
-                const clone = root.cloneNode(true);
-                const oldNodes = [root, ...root.querySelectorAll('*')];
-                const newNodes = [clone, ...clone.querySelectorAll('*')];
-                oldNodes.forEach((original, i) => {
-                    const copy = newNodes[i];
-                    if (!copy) return;
-                    for (const attr of [...copy.attributes]) {
-                        if (/^on/i.test(attr.name)) copy.removeAttribute(attr.name);
-                    }
-                    if (['SCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'FORM'].includes(copy.tagName)) {
-                        if (copy.tagName === 'FORM') { copy.removeAttribute('action'); }
-                        else { copy.remove(); return; }
-                    }
-                    const computed = getComputedStyle(original);
-                    styleKeys.forEach((key, k) => {
-                        const val = computed[key];
-                        if (val && val !== 'none' && val !== 'normal' && val !== 'auto' && val !== 'initial') {
-                            copy.style.setProperty(styleNames[k], val);
-                        }
-                    });
-                    if (copy.tagName === 'IMG' && original.currentSrc) copy.setAttribute('src', original.currentSrc);
-                    if (copy.hasAttribute('src')) copy.setAttribute('src', new URL(copy.getAttribute('src'), document.baseURI).href);
-                    if (copy.hasAttribute('href')) copy.setAttribute('href', new URL(copy.getAttribute('href'), document.baseURI).href);
-                });
-                return clone.outerHTML;
-            };
-            return roots.slice(0, maxSections).map((node, index) => {
-                const bounds = node.getBoundingClientRect();
-                const label = node.querySelector('h1,h2,h3,h4')?.textContent?.trim() || node.getAttribute('aria-label') || node.id || node.tagName.toLowerCase();
-                return { id: 'section-' + (index + 1), label: label.slice(0, 100),
-                    tag: node.tagName.toLowerCase(), bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
-                    html: convert(node).slice(0, maxHtml) };
-            });
-        }, { maxSections: MAX_SECTIONS, maxHtml: MAX_HTML });
+        const result = await page.evaluate(extractSections, { maxSections: MAX_SECTIONS, maxHtml: MAX_HTML });
+        if (!result.length) throw new Error('No visible content sections found in the rendered document.');
         return { url: page.url(), mode: mode === 'static' ? 'static' : 'browser', sections: result, warnings: [
             'Captured DOM and computed styles are an approximation; scripts and interactive behavior are not converted.',
             'Images remain remote for this POC; asset portability is not implemented.',
