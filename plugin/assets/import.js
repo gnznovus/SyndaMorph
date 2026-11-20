@@ -17,7 +17,35 @@
         return '#' + channels.map( ( channel ) => channel.toString( 16 ).padStart( 2, '0' ) ).join( '' );
     };
     const acceptedAlign = ( value ) => [ 'left', 'center', 'right', 'justify' ].includes( value ) ? value : '';
-    const childBlocks = ( node, context ) => Array.from( node.children ).map( ( child ) => convert( child, context ) ).filter( Boolean ).join( '\n\n' );
+    // A div can contain meaningful text directly (including <br> and inline
+    // markup). Element-only traversal silently discarded that content.
+    const inlineTags = new Set( [ 'br', 'span', 'strong', 'b', 'em', 'i', 'code', 'sup', 'sub', 'a', 'small', 'mark', 'u', 's' ] );
+    const isInlineNode = ( part ) => part.nodeType === 3 ||
+        ( part.nodeType === 1 && inlineTags.has( part.tagName.toLowerCase() ) &&
+            ! part.querySelector( 'p,h1,h2,h3,h4,h5,h6,div,section,article,img,ul,ol,table' ) );
+    const childBlocks = ( node, context ) => {
+        const output = [];
+        let inline = [];
+        const flushInline = () => {
+            if ( ! inline.some( ( part ) => part.textContent.trim() ) ) { inline = []; return; }
+            const appearance = textAppearance( readStyles( node, context ) );
+            const content = simpleInline( { childNodes: inline }, context );
+            output.push( block( 'paragraph', appearance.attrs,
+                '<p' + htmlAttributes( appearance.className, appearance.inlineStyle ) + '>' + content + '</p>' ) );
+            countBlock( context );
+            inline = [];
+        };
+        Array.from( node.childNodes ).forEach( ( part ) => {
+            if ( isInlineNode( part ) ) { inline.push( part ); return; }
+            flushInline();
+            if ( part.nodeType === 1 ) {
+                const converted = convert( part, context );
+                if ( converted ) { output.push( converted ); }
+            }
+        } );
+        flushInline();
+        return output.join( '\n\n' );
+    };
     const countBlock = ( context ) => {
         context.count++;
         if ( context.count > 500 ) { throw new Error( 'POC limit: maximum 500 Gutenberg blocks.' ); }
@@ -263,6 +291,7 @@
             const isGrid = styles.display === 'grid';
             const tracks = isGrid ? gridTrackWidths( styles.gridTemplateColumns, children.length ) : [];
             const isColumns = ( isHorizontalFlex || isGrid ) &&
+                !Array.from( node.childNodes ).some( ( part ) => isInlineNode( part ) && part.textContent.trim() ) &&
                 children.length >= 2 && children.length <= 6 &&
                 ( ! isGrid || tracks.length > 0 || ! styles.gridTemplateColumns );
             if ( isColumns ) {
