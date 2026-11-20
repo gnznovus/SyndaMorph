@@ -51,6 +51,7 @@ services:
     environment:
       SYNDAMORPH_BACKEND_TOKEN: "local-poc-token-change-before-deployment"
       SYNDAMORPH_CAPTURE_HOSTS: "www.syndacast.com"
+      SYNDAMORPH_RESOURCE_HOSTS: "unpkg.com,cdn.jsdelivr.net,fonts.googleapis.com,fonts.gstatic.com"
     networks:
       - default
     read_only: true
