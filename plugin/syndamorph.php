@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SyndaMorph
  * Description: Transform static HTML into independently editable native Gutenberg blocks.
- * Version: 0.11.0
+ * Version: 0.11.1
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Text Domain: syndamorph
