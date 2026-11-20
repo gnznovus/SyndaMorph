@@ -61,3 +61,29 @@ test('excessive section markup is reported rather than truncated', () => {
         assert.match(sections[0].error, /exceeds capture limit/);
     });
 });
+
+test('structure-only fallback segments an all-zero-geometry custom element page', () => {
+    withDocument(`<body><x-dc><helmet><link rel="stylesheet" href="/styles.css"></helmet>
+      <div class="site"><main>
+        <div class="hero"><h1>Hotel Indigo Bangkok Thonglor</h1><p>Welcome to our neighborhood.</p></div>
+        <div class="story"><h2>Our Story</h2><p>Discover stories of Thonglor.</p></div>
+        <div class="stay"><h2>Stay</h2><p>Explore our rooms and suites.</p></div>
+      </main></div></x-dc></body>`, (doc) => {
+        const original = doc.defaultView.Element.prototype.getBoundingClientRect;
+        doc.defaultView.Element.prototype.getBoundingClientRect = () => ({
+            x: 0, y: 0, left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0,
+        });
+        try {
+            const sections = extractSections();
+            assert.equal(sections.length, 3);
+            assert.deepEqual(sections.map((s) => s.label), [
+                'Hotel Indigo Bangkok Thonglor', 'Our Story', 'Stay',
+            ]);
+            assert.ok(sections.every((s) => s.geometryAvailable === false));
+            assert.ok(sections.every((s) => s.bounds.height === null));
+            assert.ok(sections.every((s) => s.html && !/<helmet|<link/i.test(s.html)));
+            assert.match(sections[0].html, /Welcome to our neighborhood/);
+            assert.doesNotMatch(sections[0].html, /Explore our rooms/);
+        } finally { doc.defaultView.Element.prototype.getBoundingClientRect = original; }
+    });
+});
