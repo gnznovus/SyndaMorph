@@ -34,7 +34,16 @@ jobs:
           php -l plugin/includes/capture-endpoint.php
           php -l plugin/syndamorph.php
       - name: Compose validation
-        run: docker compose config --quiet
+        run: |
+          docker compose config --quiet
+          docker compose config --format json | node -e "
+            const fs=require('fs');
+            const conf=JSON.parse(fs.readFileSync(0,'utf8'));
+            const env=conf.services.backend.environment;
+            if (!env.SYNDAMORPH_RESOURCE_HOSTS || !env.SYNDAMORPH_RESOURCE_HOSTS.includes('unpkg.com')) {
+              throw Error('Playwright backend missing CDN allowlist');
+            }
+          "
       - name: Build production POC backend image
         run: docker build -t syndamorph-hybrid-poc ./backend
       - name: Verify packaged runtime dependencies
