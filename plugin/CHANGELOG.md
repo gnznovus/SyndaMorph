@@ -19,6 +19,7 @@ This changelog describes implemented work, not acceptance or production readines
 - Preserve meaningful text nodes and line breaks inside `div` containers instead of silently dropping them.
 - Preserve direct text appearing before, between, or after nested blocks.
 - Keep adjacent Flex and Grid labels separated when converting them to editable paragraph text.
+- Preserve links on imported images and logos using native Gutenberg Image blocks.
 - Show a background image in the import preview when it belongs to the first Group.
 - Preserve Columns margins in the import preview when a gap is also set.
 - Reject malformed release metadata and unrelated/incomplete release assets without PHP warnings.

@@ -23,16 +23,19 @@
     const isInlineNode = ( part ) => part.nodeType === 3 ||
         ( part.nodeType === 1 && inlineTags.has( part.tagName.toLowerCase() ) &&
             ! part.querySelector( 'p,h1,h2,h3,h4,h5,h6,div,section,article,img,ul,ol,table' ) );
-    const childBlocks = ( node, context ) => {
+    const childBlocks = ( node, context, textTag = 'p' ) => {
         const output = [];
         let inline = [];
         const flushInline = () => {
             if ( ! inline.some( ( part ) => part.textContent.trim() ) ) { inline = []; return; }
             const styles = readStyles( node, context );
-            const appearance = textAppearance( styles );
-            const markup = simpleInline( { childNodes: inline }, context, styles.display );
-            output.push( block( 'paragraph', appearance.attrs,
-                '<p' + htmlAttributes( appearance.className, appearance.inlineStyle ) + '>' + markup + '</p>' ) );
+            let markup = simpleInline( { childNodes: inline }, context, styles.display );
+            const imageLink = node.closest( 'a[href]' );
+            const href = imageLink?.querySelector( 'img' ) && safeUrl( imageLink.getAttribute( 'href' ), context );
+            if ( href && ! /<a(?:\s|>)/i.test( markup ) ) {
+                markup = '<a href="' + escapeHtml( href ) + '">' + markup + '</a>';
+            }
+            output.push( textBlock( textTag, styles, markup ) );
             countBlock( context );
             inline = [];
         };
@@ -186,12 +189,45 @@
     const htmlAttributes = ( className, inlineStyle ) => ( className ? ' class="' + escapeHtml( className ) + '"' : '' ) +
         ( inlineStyle ? ' style="' + escapeHtml( inlineStyle ) + '"' : '' );
 
-    const safeUrl = ( raw, context ) => {
+    const textBlock = ( tag, styles, content ) => {
+        const { attrs, className, inlineStyle } = textAppearance( styles );
+        const heading = tag !== 'p';
+        if ( heading ) { attrs.level = Number( tag[1] ); }
+        const classes = ( ( heading ? 'wp-block-heading ' : '' ) + className ).trim();
+        return block( heading ? 'heading' : 'paragraph', attrs,
+            '<' + tag + htmlAttributes( classes, inlineStyle ) + '>' + content + '</' + tag + '>' );
+    };
+
+    const safeUrl = ( raw, context, protocols = [ 'https:', 'http:' ] ) => {
         if ( ! raw || ! raw.trim() ) { return ''; }
         try {
             const url = new URL( raw.trim(), context.baseUrl );
-            return [ 'https:', 'http:' ].includes( url.protocol ) ? url.href : '';
+            return protocols.includes( url.protocol ) ? url.href : '';
         } catch ( error ) { return ''; }
+    };
+
+    const imageBlock = ( node, context ) => {
+        const src = safeUrl( node.getAttribute( 'src' ), context );
+        if ( ! src ) { return ''; }
+        const anchor = node.closest( 'a[href]' );
+        const href = anchor?.getAttribute( 'href' ).trim();
+        const linked = Boolean( safeUrl( href, context, [ 'https:', 'http:', 'mailto:', 'tel:' ] ) );
+        const alt = node.getAttribute( 'alt' ) || ( linked ? anchor.getAttribute( 'aria-label' ) : '' ) || '';
+        let image = '<img src="' + escapeHtml( src ) + '" alt="' + escapeHtml( alt ) + '"/>';
+        if ( linked ) {
+            const target = anchor.getAttribute( 'target' )?.trim();
+            let rel = ( anchor.getAttribute( 'rel' ) || '' ).trim().split( /\s+/ ).filter( Boolean );
+            if ( target?.toLowerCase() === '_blank' ) {
+                rel = rel.filter( ( token ) => token.toLowerCase() !== 'opener' );
+                if ( ! rel.some( ( token ) => token.toLowerCase() === 'noopener' ) ) { rel.push( 'noopener' ); }
+            }
+            // Core Image reads these attributes from the figure's direct anchor.
+            image = '<a href="' + escapeHtml( href ) + '"' +
+                ( target ? ' target="' + escapeHtml( target ) + '"' : '' ) +
+                ( rel.length ? ' rel="' + escapeHtml( rel.join( ' ' ) ) + '"' : '' ) + '>' + image + '</a>';
+        }
+        return block( 'image', { sizeSlug: 'full', linkDestination: linked ? 'custom' : 'none' },
+            '<figure class="wp-block-image size-full">' + image + '</figure>' );
     };
 
     const inlinePart = ( part, context ) => {
@@ -257,23 +293,21 @@
     const convert = ( node, context ) => {
         const tag = node.tagName.toLowerCase();
         const styles = readStyles( node, context );
+        const isTextBlock = /^h[1-6]$/.test( tag ) || tag === 'p';
         let markup = '';
 
-        if ( tag === 'p' && node.children.length === 1 && node.firstElementChild.tagName.toLowerCase() === 'a' &&
+        if ( isTextBlock && ( node.querySelector( 'a img' ) || ( node.closest( 'a' ) && node.querySelector( 'img' ) ) ) ) {
+            // A native Image is its own block, so split it from the surrounding text.
+            return childBlocks( node, context, tag );
+        } else if ( tag === 'p' && node.children.length === 1 && node.firstElementChild.tagName.toLowerCase() === 'a' &&
             /(?:^|\s)(?:btn|button|cta)(?:$|\s)/i.test( node.firstElementChild.className || '' ) ) {
             const anchor = node.firstElementChild;
             markup = asButton( anchor.textContent.trim(), safeUrl( anchor.getAttribute( 'href' ), context ) );
-        } else if ( /^h[1-6]$/.test( tag ) || tag === 'p' ) {
-            const value = node.textContent.trim();
-            if ( ! value ) { return ''; }
-            const heading = tag !== 'p';
-            const appearance = textAppearance( styles );
-            const attributes = { ...appearance.attrs };
-            if ( heading ) { attributes.level = Number( tag[ 1 ] ); }
-            const className = ( heading ? 'wp-block-heading ' : '' ) + appearance.className;
-            const html = '<' + tag + htmlAttributes( className.trim(), appearance.inlineStyle ) + '>' + simpleInline( node, context, styles.display ) + '</' + tag + '>';
-            markup = block( heading ? 'heading' : 'paragraph', attributes, html );
-        } else if ( tag === 'button' || ( tag === 'a' && /(?:^|\s)(?:btn|button|cta)(?:$|\s)/i.test( node.className || '' ) ) ) {
+        } else if ( isTextBlock ) {
+            if ( ! node.textContent.trim() ) { return ''; }
+            markup = textBlock( tag, styles, simpleInline( node, context, styles.display ) );
+        } else if ( tag === 'button' || ( tag === 'a' && ! node.querySelector( 'img' ) &&
+            /(?:^|\s)(?:btn|button|cta)(?:$|\s)/i.test( node.className || '' ) ) ) {
             const value = node.textContent.trim();
             if ( value ) { markup = asButton( value, tag === 'a' ? safeUrl( node.getAttribute( 'href' ), context ) : '' ); }
         } else if ( tag === 'ul' || tag === 'ol' ) {
@@ -283,11 +317,7 @@
         } else if ( tag === 'hr' ) {
             markup = block( 'separator', {}, '<hr class="wp-block-separator has-alpha-channel-opacity"/>' );
         } else if ( tag === 'img' ) {
-            const src = safeUrl( node.getAttribute( 'src' ), context );
-            if ( ! src ) { return ''; }
-            const alt = escapeHtml( node.getAttribute( 'alt' ) || '' );
-            markup = block( 'image', { sizeSlug: 'full', linkDestination: 'none' },
-                '<figure class="wp-block-image size-full"><img src="' + escapeHtml( src ) + '" alt="' + alt + '"/></figure>' );
+            markup = imageBlock( node, context );
         } else if ( tag === 'a' && ! node.querySelector( 'h1,h2,h3,h4,h5,h6,p,img' ) ) {
             const url = safeUrl( node.getAttribute( 'href' ), context );
             const value = node.textContent.trim();
