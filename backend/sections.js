@@ -168,24 +168,43 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
     const properties = [
         'display', 'color', 'background-color', 'background-image', 'background-size',
         'background-position', 'font-family', 'font-size', 'font-weight', 'line-height',
-        'letter-spacing', 'text-align', 'padding', 'margin', 'gap', 'column-gap',
-        'row-gap', 'grid-template-columns', 'flex-direction', 'align-items',
-        'justify-content', 'border-radius', 'width', 'max-width',
+        'letter-spacing', 'text-align', 'text-transform', 'padding', 'margin', 'gap',
+        'column-gap', 'row-gap', 'grid-template-columns', 'grid-column-start',
+        'grid-column-end', 'flex-direction', 'flex-grow', 'flex-shrink', 'flex-basis',
+        'flex-wrap', 'align-items', 'justify-content', 'width', 'max-width',
+        'min-height', 'aspect-ratio', 'box-sizing', 'position', 'opacity',
+        'transform', 'visibility', 'overflow',
     ];
+    const typography = new Set(['color', 'font-family', 'font-size', 'font-weight', 'line-height',
+        'letter-spacing', 'text-align', 'text-transform']);
     const computedStyles = (original, copy) => {
         const style = getComputedStyle(original);
-        // Avoid flooding the converter with inherited/default declarations.
-        // Preserve authored inline styles and the properties needed for layout.
-        const important = new Set([
-            'display', 'background-color', 'background-image', 'background-size',
-            'background-position', 'padding', 'margin', 'gap', 'column-gap',
-            'row-gap', 'grid-template-columns', 'flex-direction', 'align-items',
-            'justify-content', 'border-radius', 'width', 'max-width',
-        ]);
+        const hasText = /^(?:H[1-6]|P|A|BUTTON|SPAN)$/.test(original.tagName) ||
+            [...original.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim());
+        const authoredTracks = original.computedStyleMap?.().get('grid-template-columns')?.toString() ||
+            original.style?.gridTemplateColumns;
+        if (style.display === 'grid' && authoredTracks && authoredTracks !== 'none') {
+            copy.dataset.syndamorphTracks = authoredTracks;
+        }
+        if (original.tagName === 'IMG' && /^\d+(?:\.\d+)?px$/.test(style.maxWidth)) {
+            copy.dataset.syndamorphImageWidth = style.maxWidth;
+        }
+        if (/^\d+(?:\.\d+)?px$/.test(original.style?.width) && !isPositioned(original)) {
+            copy.dataset.syndamorphContentWidth = original.style.width;
+        }
+        if (style.display === 'none' || ['hidden', 'collapse'].includes(style.visibility)) {
+            copy.dataset.syndamorphHidden = '';
+        }
+        // Freeze a visible snapshot as it appeared in the capture. Animation
+        // start values on the original inline styles may hide the current DOM.
+        copy.style.removeProperty('animation');
+        copy.style.removeProperty('transition');
         for (const prop of properties) {
-            if (!important.has(prop) && !['H1','H2','H3','H4','H5','H6','P','A','BUTTON','SPAN'].includes(original.tagName)) continue;
+            if (typography.has(prop) && !hasText && prop !== 'text-align') continue;
             const value = style.getPropertyValue(prop);
-            if (!value || ['none', 'normal', 'auto', 'initial', '0px', 'rgba(0, 0, 0, 0)'].includes(value)) continue;
+            if (!value) continue;
+            if (['none', 'normal', 'auto', 'initial', '0px', 'rgba(0, 0, 0, 0)'].includes(value) &&
+                !['display', 'transform', 'margin', 'gap', 'column-gap', 'row-gap', 'overflow'].includes(prop)) continue;
             if (prop === 'width' && (original.tagName === 'BODY' || original.tagName === 'MAIN')) continue;
             copy.style.setProperty(prop, value);
         }
@@ -216,6 +235,18 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
             sourceElements.forEach((child, i) => walk(child, copiedElements[i]));
         };
         walk(root, clone);
+        clone.dataset.syndamorphCapture = 'browser';
+        clone.dataset.syndamorphViewport = document.defaultView.innerWidth;
+        const bounds = root.getBoundingClientRect();
+        // Preserve a positioned banner's vertical whitespace without carrying
+        // absolute coordinates into the editable block tree.
+        if (/^\d+(?:\.\d+)?px$/.test(root.style.height)) {
+            const lead = [...root.children].find((child) => visible(child) && isPositioned(child));
+            if (lead) {
+                clone.dataset.syndamorphLeadTop = Math.max(0, Math.round(lead.getBoundingClientRect().top - bounds.top));
+                clone.dataset.syndamorphLeadInset = Math.max(0, Math.round(lead.getBoundingClientRect().left - bounds.left));
+            }
+        }
         const html = clone.outerHTML;
         if (new TextEncoder().encode(html).length > maxHtml) return null;
         return html;

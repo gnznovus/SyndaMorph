@@ -4,7 +4,9 @@
 
     const $ = ( selector ) => document.querySelector( selector );
     const escapeHtml = ( value ) => String( value ).replace( /&/g, '&amp;' ).replace( /</g, '&lt;' ).replace( />/g, '&gt;' ).replace( /"/g, '&quot;' );
-    const encodeAttributes = ( attributes ) => Object.keys( attributes ).length ? ' ' + JSON.stringify( attributes ) : '';
+    const encodeAttributes = ( attributes ) => Object.keys( attributes ).length ? ' ' + JSON.stringify( attributes )
+        .replace( /--/g, '\\u002d\\u002d' ).replace( /</g, '\\u003c' ).replace( />/g, '\\u003e' )
+        .replace( /&/g, '\\u0026' ).replace( /\\"/g, '\\u0022' ) : '';
     const block = ( name, attributes, html ) => '<!-- wp:' + name + encodeAttributes( attributes ) + ' -->' + html + '<!-- /wp:' + name + ' -->';
     const allowedColor = ( value ) => {
         const color = ( value || '' ).trim().toLowerCase();
@@ -77,7 +79,7 @@
     // Only explicit, non-negative CSS lengths can be mapped to native block
     // settings. Unsupported units/functions remain intentionally unconverted.
     const allowedLength = ( value ) => {
-        const raw = ( value || '' ).trim().toLowerCase();
+        const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
         if ( raw === '0' ) { return '0px'; }
         const match = raw.match( /^(\d+(?:\.\d+)?)(px|rem|em|%)$/ );
         if ( ! match || Number( match[ 1 ] ) > 400 ) { return ''; }
@@ -129,7 +131,63 @@
         const total = parsed.reduce( ( sum, track ) => sum + track.amount, 0 );
         return parsed.map( ( track ) => ( Math.round( track.amount / total * 10000 ) / 100 ) + '%' );
     };
-    const verticalAlign = ( value ) => ( { start: 'top', center: 'center', end: 'bottom' }[ value ] || '' );
+    const verticalAlign = ( value ) => ( { 'flex-start': 'top', start: 'top', center: 'center', end: 'bottom', 'flex-end': 'bottom' }[ value ] || '' );
+    const percent = ( value ) => ( Math.round( value * 10000 ) / 100 ) + '%';
+    const positivePercentage = ( value ) => value.endsWith( '%' ) && parseFloat( value ) > 0 ? value : '';
+    const zeroBasis = ( styles ) => styles.flexGrow > 0 && styles.flexBasis && parseFloat( styles.flexBasis ) === 0;
+    const flexWidths = ( children ) => {
+        if ( children.every( zeroBasis ) ) {
+            const total = children.reduce( ( sum, child ) => sum + child.flexGrow, 0 );
+            return children.map( ( child ) => total === child.flexGrow * children.length ? '' : percent( child.flexGrow / total ) );
+        }
+        return children.map( ( child ) => zeroBasis( child ) ? '' : positivePercentage( child.flexBasis || child.width ) );
+    };
+    const pixels = ( value ) => /^\d+(?:\.\d+)?px$/.test( value || '' ) && parseFloat( value ) <= 2400 ? parseFloat( value ) : 0;
+    const fluid = ( value, minimum, viewport ) => value > minimum
+        ? 'clamp(' + minimum + 'px, ' + ( 100 * value / viewport ).toFixed( 3 ) + 'vw, ' + value + 'px)'
+        : value + 'px';
+    const capturedRows = ( node, styles, children ) => {
+        const measured = styles.gridTemplateColumns.trim().split( /\s+/ ).map( pixels );
+        if ( measured.length < 2 || measured.length > 16 || measured.some( ( value ) => ! value ) ||
+            ! node.dataset.syndamorphTracks || children.length > 30 || node.style.gridAutoFlow.includes( 'dense' ) ) { return []; }
+        const gap = pixels( styles.gap );
+        const trackWidth = ( start, end ) => measured.slice( start - 1, end - 1 ).reduce( ( sum, width ) => sum + width, 0 ) + gap * ( end - start - 1 );
+        const totalWidth = trackWidth( 1, measured.length + 1 );
+        const rows = [];
+        let cursor = 1;
+        let row = [];
+        for ( const child of children ) {
+            const { gridColumnStart, gridColumnEnd, gridRowStart, gridRowEnd, order } = child.style;
+            if ( [ gridRowStart, gridRowEnd ].some( ( value ) => value && value !== 'auto' ) || Number( order ) ) { return []; }
+            const start = /^\d+$/.test( gridColumnStart ) ? Number( gridColumnStart ) : null;
+            const span = gridColumnEnd.match( /^span (\d+)$/ );
+            const size = span ? Number( span[ 1 ] ) : start && /^\d+$/.test( gridColumnEnd ) ? Number( gridColumnEnd ) - start : 1;
+            if ( size < 1 || size > measured.length ||
+                ( ! start && gridColumnStart && gridColumnStart !== 'auto' ) ||
+                ( ! span && gridColumnEnd && gridColumnEnd !== 'auto' && !( start && /^\d+$/.test( gridColumnEnd ) ) ) ) { return []; }
+            if ( ( start !== null && start < cursor ) || ( start || cursor ) + size > measured.length + 1 ) {
+                if ( row.length ) { rows.push( row ); }
+                row = [];
+                cursor = 1;
+            }
+            const first = start || cursor;
+            const end = first + size;
+            if ( end > measured.length + 1 ) { return []; }
+            row.push( { child, first, end, width: trackWidth( first, end ) } );
+            cursor = end;
+        }
+        if ( row.length ) { rows.push( row ); }
+        if ( ! rows.some( ( items ) => items.length > 1 ) || rows.some( ( items ) => items.length > 6 ) ) { return []; }
+        return rows.map( ( items ) => {
+            const distances = items.slice( 1 ).map( ( item, i ) => gap + ( item.first > items[ i ].end ? trackWidth( items[ i ].end, item.first ) + gap : 0 ) );
+            const meanGap = distances.length ? distances.reduce( ( sum, distance ) => sum + distance, 0 ) / distances.length : 0;
+            return {
+                children: items.map( ( item ) => item.child ),
+                widths: items.map( ( item ) => percent( item.width / totalWidth ) ),
+                gap: { top: styles.rowGap || '0px', left: percent( meanGap / totalWidth ) },
+            };
+        } );
+    };
 
     const readStyles = ( node, context ) => {
         const style = document.createElement( 'div' ).style;
@@ -141,6 +199,27 @@
             } catch ( error ) { /* Ignore invalid CSS selectors. */ }
         } );
         style.cssText += ';' + ( node.getAttribute( 'style' ) || '' );
+        const captured = context.captured;
+        const fontSize = allowedLength( style.fontSize );
+        const lineHeight = validLineHeight( style.lineHeight );
+        const largeText = captured && pixels( fontSize ) > 30;
+        const padding = spacing( style, 'padding' );
+        if ( captured && node === context.captureRoot ) {
+            for ( const [ side, value ] of Object.entries( padding ) ) {
+                const measured = pixels( value );
+                if ( measured >= 32 ) { padding[ side ] = fluid( measured, Math.round( measured / 3 ), context.viewport ); }
+            }
+            const top = Number( node.dataset.syndamorphLeadTop );
+            const left = Number( node.dataset.syndamorphLeadInset );
+            if ( top > 0 && top <= 900 ) { padding.top = fluid( top, Math.round( top / 3 ), context.viewport ); }
+            if ( left > 0 && left <= 200 ) {
+                padding.left = padding.right = fluid( left, Math.round( left / 3 ), context.viewport );
+            }
+        }
+        const captureWidth = captured ? pixels( node.dataset.syndamorphContentWidth ) : 0;
+        const ratio = captured && style.aspectRatio.match( /^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/ );
+        const aspectHeight = ratio && Number( ratio[ 1 ] ) > 0 ? pixels( style.width ) * Number( ratio[ 2 ] ) / Number( ratio[ 1 ] ) : 0;
+        const measuredHeight = captured && ( node === context.captureRoot ? pixels( style.height ) : 0 ) || aspectHeight;
         return {
             display: style.display,
             flexDirection: style.flexDirection,
@@ -153,14 +232,22 @@
             background: allowedColor( style.backgroundColor ),
             backgroundImage: cssImageUrl( style.backgroundImage, context ),
             backgroundSize: [ 'cover', 'contain' ].includes( style.backgroundSize ) ? style.backgroundSize : '',
+            fontFamily: captured && /^[\p{L}\p{N}\s,'"-]{1,160}$/u.test( style.fontFamily ) ? style.fontFamily : '',
             fontWeight: validFontWeight( style.fontWeight ),
-            lineHeight: validLineHeight( style.lineHeight ),
-            padding: spacing( style, 'padding' ),
+            letterSpacing: captured && /^-?\d+(?:\.\d+)?(?:px|em|rem)$/.test( style.letterSpacing ) ? style.letterSpacing : '',
+            textTransform: captured && [ 'uppercase', 'lowercase', 'capitalize' ].includes( style.textTransform ) ? style.textTransform : '',
+            lineHeight: largeText && pixels( lineHeight ) ? ( pixels( lineHeight ) / pixels( fontSize ) ).toFixed( 3 ) : lineHeight,
+            padding,
             margin: spacing( style, 'margin' ),
             gap: allowedLength( style.columnGap || style.gap ),
+            rowGap: allowedLength( style.rowGap || style.gap ),
             width: allowedLength( style.width ),
             flexBasis: allowedLength( style.flexBasis ),
-            fontSize: allowedLength( style.fontSize ),
+            flexGrow: Number( style.flexGrow ),
+            fontSize: largeText ? fluid( pixels( fontSize ), Math.max( 26, Math.round( pixels( fontSize ) * 0.55 ) ), context.viewport ) : fontSize,
+            contentWidth: captureWidth ? captureWidth + 'px' : '',
+            minHeight: measuredHeight >= 56 && measuredHeight <= 1400
+                ? fluid( Math.round( measuredHeight ), Math.round( measuredHeight * 0.48 ), context.viewport ) : '',
         };
     };
 
@@ -178,9 +265,10 @@
             inline.push( 'color:' + styles.color );
         }
         const typography = {};
-        if ( styles.fontSize ) { typography.fontSize = styles.fontSize; inline.push( 'font-size:' + styles.fontSize ); }
-        if ( styles.fontWeight ) { typography.fontWeight = styles.fontWeight; inline.push( 'font-weight:' + styles.fontWeight ); }
-        if ( styles.lineHeight ) { typography.lineHeight = styles.lineHeight; inline.push( 'line-height:' + styles.lineHeight ); }
+        for ( const [ key, css ] of Object.entries( { fontFamily: 'font-family', fontSize: 'font-size', fontWeight: 'font-weight',
+            letterSpacing: 'letter-spacing', lineHeight: 'line-height', textTransform: 'text-transform' } ) ) {
+            if ( styles[ key ] ) { typography[ key ] = styles[ key ]; inline.push( css + ':' + styles[ key ] ); }
+        }
         if ( Object.keys( typography ).length ) {
             attrs.style = { ...( attrs.style || {} ), typography: { ...( attrs.style?.typography || {} ), ...typography } };
         }
@@ -213,7 +301,10 @@
         const href = anchor?.getAttribute( 'href' ).trim();
         const linked = Boolean( safeUrl( href, context, [ 'https:', 'http:', 'mailto:', 'tel:' ] ) );
         const alt = node.getAttribute( 'alt' ) || ( linked ? anchor.getAttribute( 'aria-label' ) : '' ) || '';
-        let image = '<img src="' + escapeHtml( src ) + '" alt="' + escapeHtml( alt ) + '"/>';
+        const capturedWidth = context.captured && pixels( node.dataset.syndamorphImageWidth );
+        const width = capturedWidth ? capturedWidth + 'px' : '';
+        let image = '<img src="' + escapeHtml( src ) + '" alt="' + escapeHtml( alt ) + '"' +
+            ( width ? ' style="width:' + width + ';height:auto"' : '' ) + '/>';
         if ( linked ) {
             const target = anchor.getAttribute( 'target' )?.trim();
             let rel = ( anchor.getAttribute( 'rel' ) || '' ).trim().split( /\s+/ ).filter( Boolean );
@@ -226,8 +317,8 @@
                 ( target ? ' target="' + escapeHtml( target ) + '"' : '' ) +
                 ( rel.length ? ' rel="' + escapeHtml( rel.join( ' ' ) ) + '"' : '' ) + '>' + image + '</a>';
         }
-        return block( 'image', { sizeSlug: 'full', linkDestination: linked ? 'custom' : 'none' },
-            '<figure class="wp-block-image size-full">' + image + '</figure>' );
+        return block( 'image', { ...( width ? { width } : {} ), sizeSlug: 'full', linkDestination: linked ? 'custom' : 'none' },
+            '<figure class="wp-block-image size-full' + ( width ? ' is-resized' : '' ) + '">' + image + '</figure>' );
     };
 
     const inlinePart = ( part, context ) => {
@@ -290,6 +381,72 @@
         return block( 'table', {}, '<figure class="wp-block-table"><table class="has-fixed-layout">' + normalized + '</table></figure>' );
     };
 
+    const columnsMarkup = ( row, styles, context, preserveWrapper ) => {
+        const cols = row.children.map( ( child, index ) => {
+            const inner = convert( child, context );
+            if ( ! inner ) { return ''; }
+            const columnWidth = row.widths[ index ] || '';
+            const bottom = context.captured && child.style.flexDirection === 'column' && child.style.justifyContent === 'flex-end';
+            const alignment = bottom ? 'bottom' : verticalAlign( styles.alignItems );
+            const attrs = { ...( columnWidth ? { width: columnWidth } : {} ),
+                ...( alignment ? { verticalAlignment: alignment } : {} ) };
+            const css = columnWidth ? 'flex-basis:' + columnWidth : '';
+            const classes = 'wp-block-column' + ( alignment ? ' is-vertically-aligned-' + alignment : '' );
+            countBlock( context );
+            return block( 'column', attrs, '<div' + htmlAttributes( classes, css ) + '>' + inner + '</div>' );
+        } ).filter( Boolean ).join( '\n\n' );
+        if ( ! cols ) { return ''; }
+        const attrs = row.gap ? { style: { spacing: { blockGap: row.gap } } } : {};
+        const inline = preserveWrapper ? applySpacing( attrs, '', styles ) : '';
+        countBlock( context );
+        return block( 'columns', attrs, '<div' + htmlAttributes( 'wp-block-columns', inline ) + '>' + cols + '</div>' );
+    };
+
+    const groupMarkup = ( node, tag, styles, context, inner ) => {
+        if ( ! inner ) { return ''; }
+        const attrs = { layout: { type: 'default' } };
+        if ( tag !== 'div' ) { attrs.tagName = tag; }
+        const classes = [ 'wp-block-group' ];
+        const inline = [];
+        if ( context.captured ) {
+            if ( node === context.captureRoot ) {
+                attrs.align = 'full';
+                classes.push( 'alignfull' );
+            }
+            if ( styles.contentWidth ) {
+                attrs.layout = { type: 'constrained', contentSize: styles.contentWidth };
+            } else if ( styles.display === 'flex' && ( styles.alignItems === 'center' || styles.minHeight ) &&
+                [ '', 'row', 'column' ].includes( styles.flexDirection ) ) {
+                const vertical = styles.flexDirection === 'column';
+                const justify = { 'flex-start': 'left', 'flex-end': 'right', center: 'center', 'space-between': 'space-between' };
+                const horizontal = vertical ? styles.alignItems : styles.justifyContent;
+                attrs.layout = { type: 'flex', orientation: vertical ? 'vertical' : 'horizontal',
+                    ...(!vertical && verticalAlign( styles.alignItems ) ? { verticalAlignment: verticalAlign( styles.alignItems ) } : {}),
+                    ...(justify[ horizontal ] ? { justifyContent: justify[ horizontal ] } : {}) };
+            }
+            attrs.style = { spacing: { blockGap: ( styles.flexDirection === 'column' ? styles.rowGap : styles.gap ) || '0px' } };
+            if ( styles.minHeight ) { attrs.style.dimensions = { minHeight: styles.minHeight }; }
+        }
+        if ( styles.background ) {
+            attrs.style = { ...( attrs.style || {} ), color: { background: styles.background } };
+            classes.push( 'has-background' );
+            inline.push( 'background-color:' + styles.background );
+        }
+        if ( styles.backgroundImage ) {
+            attrs.style = {
+                ...( attrs.style || {} ),
+                background: {
+                    backgroundImage: { url: styles.backgroundImage },
+                    ...( styles.backgroundSize ? { backgroundSize: styles.backgroundSize } : {} ),
+                },
+            };
+        }
+        if ( styles.minHeight ) { inline.push( 'min-height:' + styles.minHeight ); }
+        const css = applySpacing( attrs, inline.join( ';' ), styles );
+        countBlock( context );
+        return block( 'group', attrs, '<' + tag + htmlAttributes( classes.join( ' ' ), css ) + '>' + inner + '</' + tag + '>' );
+    };
+
     const convert = ( node, context ) => {
         const tag = node.tagName.toLowerCase();
         const styles = readStyles( node, context );
@@ -331,67 +488,24 @@
                 ( ! styles.flexDirection || styles.flexDirection === 'row' ) &&
                 styles.flexWrap !== 'wrap-reverse';
             const isGrid = styles.display === 'grid';
+            const hasInlineText = Array.from( node.childNodes ).some( ( part ) => isInlineNode( part ) && part.textContent.trim() );
+            const rows = context.captured && isGrid && ! hasInlineText ? capturedRows( node, styles, children ) : [];
+            if ( rows.length ) {
+                const inner = rows.map( ( row ) => row.children.length === 1 ? convert( row.children[ 0 ], context )
+                    : columnsMarkup( row, styles, context, false ) ).join( '\n\n' );
+                return groupMarkup( node, tag, { ...styles, gap: styles.rowGap }, context, inner );
+            }
             const tracks = isGrid ? gridTrackWidths( styles.gridTemplateColumns, children.length ) : [];
             const isColumns = ( isHorizontalFlex || isGrid ) &&
-                !Array.from( node.childNodes ).some( ( part ) => isInlineNode( part ) && part.textContent.trim() ) &&
-                children.length >= 2 && children.length <= 6 &&
+                ! hasInlineText && children.length >= 2 && children.length <= 6 &&
                 ( ! isGrid || tracks.length > 0 || ! styles.gridTemplateColumns );
             if ( isColumns ) {
-                const cols = children.map( ( child, index ) => {
-                    const inner = convert( child, context );
-                    if ( ! inner ) { return ''; }
-                    const childStyles = readStyles( child, context );
-                    const width = childStyles.flexBasis || childStyles.width;
-                    // Gutenberg Column width uses a percentage, not an arbitrary CSS length.
-                    const columnWidth = width.endsWith( '%' ) ? width : ( tracks[index] || '' );
-                    const alignment = verticalAlign( styles.alignItems );
-                    const columnAttrs = { ...( columnWidth ? { width: columnWidth } : {} ),
-                        ...( alignment ? { verticalAlignment: alignment } : {} ) };
-                    const columnCss = columnWidth ? 'flex-basis:' + columnWidth : '';
-                    const columnClasses = 'wp-block-column' +
-                        ( alignment ? ' is-vertically-aligned-' + alignment : '' );
-                    countBlock( context );
-                    return block( 'column', columnAttrs, '<div' + htmlAttributes( columnClasses, columnCss ) + '>' + inner + '</div>' );
-                } ).filter( Boolean ).join( '\n\n' );
-                if ( cols ) {
-                    const attrs = {};
-                    let inline = '';
-                    if ( styles.gap ) {
-                        // Columns serialize blockGap as a layout attribute only.
-                        // Gutenberg generates its layout CSS outside the saved HTML.
-                        attrs.style = { spacing: { blockGap: styles.gap } };
-                    }
-                    inline = applySpacing( attrs, inline, styles );
-                    markup = block( 'columns', attrs, '<div' + htmlAttributes( 'wp-block-columns', inline ) + '>' + cols + '</div>' );
-                }
-            } else {
-                const inner = childBlocks( node, context );
-                if ( ! inner ) { return ''; }
-                const attrs = { layout: { type: 'default' } };
-                if ( tag !== 'div' ) { attrs.tagName = tag; }
-                const element = tag === 'div' ? 'div' : tag;
-                const classes = [ 'wp-block-group' ];
-                let inline = '';
-                if ( styles.background ) {
-                    attrs.style = { color: { background: styles.background } };
-                    classes.push( 'has-background' );
-                    inline = 'background-color:' + styles.background;
-                }
-                if ( styles.backgroundImage ) {
-                    attrs.style = {
-                        ...( attrs.style || {} ),
-                        background: {
-                            backgroundImage: { url: styles.backgroundImage },
-                            ...( styles.backgroundSize ? { backgroundSize: styles.backgroundSize } : {} ),
-                        },
-                    };
-                    // Core Group backgrounds are stored in block attributes.
-                    // WordPress generates their CSS dynamically; do not put it
-                    // in serialized HTML or Gutenberg will invalidate the block.
-                }
-                inline = applySpacing( attrs, inline, styles );
-                markup = block( 'group', attrs, '<' + element + htmlAttributes( classes.join( ' ' ), inline ) + '>' + inner + '</' + element + '>' );
+                const widths = isGrid ? tracks : flexWidths( children.map( ( child ) => readStyles( child, context ) ) );
+                const preserveWrapper = ! context.captured;
+                const row = columnsMarkup( { children, widths, gap: styles.gap }, styles, context, preserveWrapper );
+                return preserveWrapper ? row : groupMarkup( node, tag, styles, context, row );
             }
+            return groupMarkup( node, tag, styles, context, childBlocks( node, context ) );
         } else {
             // Unknown containers are transparent, not Custom HTML blocks.
             return childBlocks( node, context );
@@ -538,10 +652,16 @@
         // evaluates source scripts. Both modes use the same converter below.
         const html = jsMode ? await renderInlineJs( source ) : source;
         const doc = new DOMParser().parseFromString( html, 'text/html' );
+        const captureRoot = doc.body.children.length === 1 && doc.body.firstElementChild?.matches( '[data-syndamorph-capture="browser"]' )
+            ? doc.body.firstElementChild : null;
+        const captured = Boolean( captureRoot );
+        const captureViewport = Number( captureRoot?.dataset.syndamorphViewport );
+        const viewport = captureViewport >= 320 && captureViewport <= 2400 ? captureViewport : 1440;
         const stylesheets = await inspectStylesheets( doc );
         const rules = extractStyles( doc );
         // No source scripts or active embeds are allowed in the preview or block output.
         doc.querySelectorAll( 'script, iframe, object, embed, form, template, svg, link, base' ).forEach( ( node ) => node.remove() );
+        if ( captured ) { captureRoot.querySelectorAll( '[data-syndamorph-hidden]' ).forEach( ( node ) => node.remove() ); }
         doc.querySelectorAll( '*' ).forEach( ( node ) => {
             Array.from( node.attributes ).forEach( ( attribute ) => {
                 if ( /^on/i.test( attribute.name ) ||
@@ -552,7 +672,7 @@
             } );
         } );
         const missing = await resolveImages( doc );
-        const context = { count: 0, rules, baseUrl: window.location.origin };
+        const context = { count: 0, rules, baseUrl: window.location.origin, captureRoot, captured, viewport };
         const content = childBlocks( doc.body, context );
         if ( ! content ) { throw new Error( 'No supported editable blocks found.' ); }
 
@@ -565,16 +685,38 @@
             const match = comment.data.match( /^\s*wp:(columns|group)\s+(\{[\s\S]*\})\s*$/ );
             if ( ! match ) { continue; }
             try {
-                const styles = JSON.parse( match[ 2 ] )?.style;
+                const attrs = JSON.parse( match[ 2 ] );
+                const styles = attrs.style;
                 let wrapper = comment.nextSibling;
                 while ( wrapper && wrapper.nodeType === Node.TEXT_NODE && ! wrapper.textContent.trim() ) {
                     wrapper = wrapper.nextSibling;
                 }
                 if ( ! wrapper || wrapper.nodeType !== Node.ELEMENT_NODE ) { continue; }
+                const gap = styles?.spacing?.blockGap;
                 if ( match[ 1 ] === 'columns' ) {
-                    const gap = allowedLength( styles?.spacing?.blockGap );
-                    if ( gap ) { wrapper.style.gap = gap; }
+                    if ( allowedLength( gap ) ) { wrapper.style.gap = gap; }
+                    if ( allowedLength( gap?.top ) ) { wrapper.style.rowGap = gap.top; }
+                    if ( allowedLength( gap?.left ) ) { wrapper.style.columnGap = gap.left; }
                     continue;
+                }
+                if ( captured ) {
+                    const layout = attrs.layout;
+                    if ( allowedLength( gap ) ) { wrapper.style.setProperty( '--syndamorph-preview-gap', gap ); }
+                    if ( layout?.type === 'constrained' && pixels( layout.contentSize ) ) {
+                        wrapper.classList.add( 'syndamorph-preview-constrained' );
+                        wrapper.style.setProperty( '--syndamorph-preview-max-width', layout.contentSize );
+                    } else if ( layout?.type === 'flex' ) {
+                        const vertical = layout.orientation === 'vertical';
+                        const axis = { left: 'flex-start', right: 'flex-end', center: 'center', 'space-between': 'space-between' };
+                        wrapper.style.display = 'flex';
+                        wrapper.style.flexDirection = vertical ? 'column' : 'row';
+                        wrapper.style.gap = allowedLength( gap );
+                        if ( vertical ) { wrapper.style.alignItems = axis[ layout.justifyContent ] || 'stretch'; }
+                        else {
+                            wrapper.style.alignItems = { top: 'flex-start', bottom: 'flex-end', center: 'center' }[ layout.verticalAlignment ] || 'stretch';
+                            wrapper.style.justifyContent = axis[ layout.justifyContent ] || 'flex-start';
+                        }
+                    }
                 }
                 const bg = styles?.background;
                 const imageUrl = bg?.backgroundImage?.url;
@@ -619,14 +761,26 @@
             .has-text-align-center { text-align: center; }
             .has-text-align-right { text-align: right; }
             .has-text-align-justify { text-align: justify; }
+            .syndamorph-preview-capture { padding: 0; }
+            .syndamorph-preview-capture .wp-block-group > :where(*) { margin-block: 0; }
+            .syndamorph-preview-capture .wp-block-group > :where(:not(:first-child)) { margin-block-start: var(--syndamorph-preview-gap, 0px); }
+            .syndamorph-preview-capture .wp-block-group[style*="display: flex"] > :where(*) { margin-block-start: 0; }
+            .syndamorph-preview-constrained > :where(*) { max-width: var(--syndamorph-preview-max-width); margin-inline: auto; }
+            .syndamorph-preview-capture .wp-block-columns, .syndamorph-preview-capture .wp-block-image { margin-block: 0; }
+            .syndamorph-preview-capture .wp-block-image img { width: auto; }
             @media (max-width: 600px) {
                 .wp-block-columns { flex-wrap: wrap; }
                 .wp-block-column { flex-basis: 100%; }
             }
+            @media (max-width: 781px) {
+                .syndamorph-preview-capture .wp-block-columns { flex-wrap: wrap; }
+                .syndamorph-preview-capture .wp-block-column { flex-basis: 100% !important; }
+            }
         `;
         const preview = '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
             '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-            '<style>' + previewStyles + '</style></head><body><div class="syndamorph-preview-content">' + rendered + '</div></body></html>';
+            '<style>' + previewStyles + '</style></head><body' + ( captured ? ' class="syndamorph-preview-capture"' : '' ) +
+            '><div class="syndamorph-preview-content">' + rendered + '</div></body></html>';
         return { content, preview, missing, stylesheets };
     };
 
