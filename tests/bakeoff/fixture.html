@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Conversion bake-off</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font:16px Arial,sans-serif}
+.hero{min-height:680px;background:#163843;color:white;padding:80px 8%}
+.intro{padding:80px 10%;text-align:center}
+.story{display:grid;grid-template-columns:55% 45%;gap:24px;padding:70px 6%}
+.story img{width:440px;max-width:100%;height:auto}
+.rooms{display:flex;gap:16px;padding:40px}
+.rooms article{flex:1 1 0%;min-width:0;background:#eee;padding:20px}
+details{padding:10px;border-bottom:1px solid #aaa}
+@media(max-width:600px){.story{display:block}.rooms{display:block}.rooms article{margin:12px 0}}
+</style></head><body>
+<header><nav><a href="#rooms">Rooms</a> <a href="#faq">FAQs</a></nav></header>
+<main>
+<section class="hero"><h1>Hotel Indigo Bangkok Thonglor</h1><p>Stay in the heart of Thonglor.</p><a href="/book">Book your stay</a></section>
+<section class="intro"><h2>Stay inspired</h2><p>A neighborhood with a story to tell.</p></section>
+<section class="story"><div><h2>Our Story</h2><p>Explore the local neighborhood through art, food and culture.</p></div><figure><img src="https://example.com/story.jpg" alt="Hotel illustration"></figure></section>
+<section id="rooms" class="rooms"><article><h2>Standard Room</h2><p>Quiet comfort.</p></article><article><h2>Premium Room</h2><p>More space.</p></article><article><h2>Suite</h2><p>Panoramic views.</p></article></section>
+<section id="faq"><h2>Frequently asked questions</h2><details><summary>What time is check-in?</summary><p>Check-in begins at 3 PM.</p></details><details><summary>Is breakfast available?</summary><p>Yes, daily.</p></details></section>
+</main><aside role="dialog" aria-modal="true"><h2>Limited time offer</h2><p>Stay longer and save.</p></aside>
+<footer><p>© Example Hotel</p></footer>
+</body></html>
