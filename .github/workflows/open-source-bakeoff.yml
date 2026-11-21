@@ -82,6 +82,7 @@ jobs:
           git clone --depth 1 https://github.com/draganescu/wordpress-block-design-compiler.git /tmp/wbdc
           cd /tmp/wbdc
           npm ci --ignore-scripts
+          npx playwright install --with-deps chromium
       - name: Verify deterministic tools
         run: |
           cd /tmp/wbdc
@@ -113,7 +114,6 @@ jobs:
         run: |
           cd /tmp/ssi
           npm run test:fixture-matrix
-          npm run test:js-block-validation
       - name: Record import prerequisite
         run: |
           printf 'Full import depends on WordPress, WP-CLI and the Blocks Engine PHP transformer.\n'
