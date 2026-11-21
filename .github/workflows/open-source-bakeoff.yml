@@ -70,7 +70,7 @@ jobs:
           path: /tmp/blocks-engine-result.json
           if-no-files-found: ignore
   block-design-compiler:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
