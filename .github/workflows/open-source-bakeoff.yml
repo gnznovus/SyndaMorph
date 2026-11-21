@@ -1,0 +1,115 @@
+name: Open-source converter bake-off
+on:
+  push:
+    branches: [experiment/open-source-bakeoff]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  block-runner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install candidate
+        run: npm install --no-save --ignore-scripts block-runner
+      - name: Convert shared fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./node_modules/.bin/block-runner convert tests/bakeoff/fixture.html --out /tmp/runner.blocks.html
+          ./node_modules/.bin/block-runner validate /tmp/runner.blocks.html
+          test -s /tmp/runner.blocks.html
+          printf 'block_bytes='; wc -c </tmp/runner.blocks.html
+          printf 'native_block_delimiters='; grep -c '<!-- wp:' /tmp/runner.blocks.html || true
+          printf 'html_fallbacks='; grep -c '<!-- wp:html' /tmp/runner.blocks.html || true
+          printf 'rooms_label_count='; grep -o 'Premium Room' /tmp/runner.blocks.html | wc -l
+      - name: Capture result
+        if: always()
+        run: mkdir -p bakeoff-artifact && cp /tmp/runner.blocks.html bakeoff-artifact/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: block-runner-output
+          path: bakeoff-artifact/
+          if-no-files-found: ignore
+  blocks-engine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+      - name: Install PHP transformer
+        run: |
+          mkdir -p /tmp/be && cd /tmp/be
+          composer require automattic/blocks-engine-php-transformer --no-interaction --no-progress --prefer-dist
+      - name: Convert shared fixture
+        run: |
+          cat >/tmp/be/convert.php <<'PHP'
+          <?php
+          require '/tmp/be/vendor/autoload.php';
+          $html = file_get_contents(getenv('GITHUB_WORKSPACE') . '/tests/bakeoff/fixture.html');
+          $result = (new Automattic\BlocksEngine\PhpTransformer\HtmlToBlocks\HtmlTransformer())->transform($html, array('source'=>'fixture:syndamorph-bakeoff','scope'=>'import-preview'))->toArray();
+          file_put_contents('/tmp/blocks-engine-result.json', json_encode($result, JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE));
+          echo 'status=' . ($result['status'] ?? 'unknown') . PHP_EOL;
+          echo 'metrics=' . json_encode($result['metrics'] ?? []) . PHP_EOL;
+          echo 'fallbacks=' . count($result['fallbacks'] ?? []) . PHP_EOL;
+          if (($result['status'] ?? '') === 'failed') exit(1);
+          PHP
+          php /tmp/be/convert.php
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blocks-engine-output
+          path: /tmp/blocks-engine-result.json
+          if-no-files-found: ignore
+  block-design-compiler:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Clone and install
+        run: |
+          git clone --depth 1 https://github.com/draganescu/wordpress-block-design-compiler.git /tmp/wbdc
+          cd /tmp/wbdc
+          npm ci --ignore-scripts
+      - name: Verify deterministic tools
+        run: |
+          cd /tmp/wbdc
+          npm run check
+          npm test
+      - name: Record full pipeline prerequisites
+        run: |
+          printf 'Agent CLI: '; command -v claude || echo 'NOT INSTALLED (full agent-driven conversion unavailable)'
+          printf 'Full visual WordPress pipeline requires agent CLI and Playground. Fixture conversion not executed.\n'
+  static-site-importer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Clone and install
+        run: |
+          git clone --depth 1 https://github.com/Automattic/static-site-importer.git /tmp/ssi
+          cd /tmp/ssi
+          npm ci --ignore-scripts
+      - name: Verify fixture contracts
+        run: |
+          cd /tmp/ssi
+          npm run test:fixture-matrix
+          npm run test:js-block-validation
+      - name: Record import prerequisite
+        run: |
+          printf 'Full import depends on WordPress, WP-CLI and the Blocks Engine PHP transformer.\n'
+          printf 'This job does not install a WordPress runtime or import the shared fixture.\n'
