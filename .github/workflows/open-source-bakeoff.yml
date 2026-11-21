@@ -96,6 +96,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -104,6 +108,7 @@ jobs:
           git clone --depth 1 https://github.com/Automattic/static-site-importer.git /tmp/ssi
           cd /tmp/ssi
           npm ci --ignore-scripts
+          composer install --no-interaction --no-progress --prefer-dist
       - name: Verify fixture contracts
         run: |
           cd /tmp/ssi
