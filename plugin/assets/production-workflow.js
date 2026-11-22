@@ -14,6 +14,7 @@
     const diagnostics = $( 'syndamorph-team-source-diagnostics' );
     const diagnosticsJson = $( 'syndamorph-team-source-diagnostics-json' );
     const convertButton = $( 'syndamorph-team-convert' );
+    const jsToggle = $( 'syndamorph-team-js-mode' );
     const operationFeed = $( 'syndamorph-team-operation-feed' );
     const artifacts = $( 'syndamorph-team-artifacts' );
     const frame = $( 'syndamorph-team-preview-frame' );
@@ -229,6 +230,7 @@
         const chosen = inspected;
         const generation = sourceGeneration;
         const kind = chosen.kind;
+        const jsMode = Boolean( jsToggle.checked );
         busy = true;
         convertButton.disabled = true;
         saveButton.disabled = true;
@@ -263,12 +265,12 @@
                 let css = [];
                 if ( kind === 'package' ) {
                     const result = await request( SyndaMorphTeam.packagePageUrl,
-                        { token: chosen.token, page: page.path, js_mode: false } );
+                        { token: chosen.token, page: page.path, js_mode: jsMode } );
                     source = result.html;
                     missing = result.missing || [];
                     css = result.css || [];
                 }
-                const converted = await SyndaMorphConverter.prepareImport( source, false );
+                const converted = await SyndaMorphConverter.prepareImport( source, jsMode );
                 next.push( { ...page, content: converted.content, preview: converted.preview,
                     missing: [ ...missing, ...converted.missing ], css, stylesheets: converted.stylesheets } );
                 eventLine( page.title + ' converted', 'Preview prepared. Validation warnings will appear in Results.' );
