@@ -534,3 +534,64 @@
 #syndamorph-production-team .sm-team-preview-controls .sm-team-secondary {
     min-height:32px;padding-inline:12px;
 }
+
+/* AI Production Team Setup: consistent field rhythm and source-owned actions. */
+#syndamorph-production-team #sm-team-panel-setup .sm-card-body > .sm-field,
+#syndamorph-production-team #sm-team-panel-setup .sm-team-source-input {
+    margin-bottom: 20px;
+}
+#syndamorph-production-team #sm-team-panel-setup .sm-team-source-input > .sm-field-label {
+    margin-bottom: 9px;
+}
+#syndamorph-production-team #sm-team-panel-setup .sm-team-capture-options {
+    margin: 20px 0 0;
+}
+#syndamorph-production-team #sm-team-panel-setup .sm-team-capture-options .sm-field-label {
+    margin-bottom: 9px;
+}
+#syndamorph-production-team #sm-team-panel-setup .sm-team-source-input > .sm-hint {
+    margin-top: 9px;
+}
+#syndamorph-production-team #sm-team-panel-setup .sm-team-source-option {
+    margin-top: 20px;
+    border-top: 1px solid var(--sm-border);
+    padding-top: 17px;
+}
+#syndamorph-production-team #sm-team-panel-setup .sm-team-source-option label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 650;
+    color: var(--sm-ink);
+    cursor: pointer;
+}
+#syndamorph-production-team #sm-team-panel-setup .sm-team-source-option input[type="checkbox"] {
+    margin: 0;
+}
+#syndamorph-production-team #sm-team-panel-setup .sm-team-source-option .sm-hint {
+    margin: 7px 0 0 24px;
+}
+#syndamorph-production-team #sm-team-panel-setup .sm-team-source-actions {
+    margin: 16px 0 18px;
+}
+#syndamorph-production-team #sm-team-panel-setup .sm-team-source-footer {
+    margin-top: 20px;
+    display: grid;
+    gap: 15px;
+}
+#syndamorph-production-team #sm-team-panel-setup .sm-team-source-footer .sm-team-note {
+    margin: 0;
+}
+#syndamorph-production-team #sm-team-panel-setup .sm-team-source-footer .sm-primary {
+    justify-self: stretch;
+}
+#syndamorph-production-team #sm-team-panel-setup .sm-team-source-footer .sm-team-action-feedback {
+    margin: 0;
+}
+#syndamorph-production-team #sm-team-panel-setup .sm-team-brief {
+    margin-bottom: 0;
+}
+#syndamorph-production-team #sm-team-panel-setup .sm-team-actions {
+    margin-top: 18px;
+}
