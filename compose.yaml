@@ -57,6 +57,8 @@ services:
       SYNDAMORPH_MVP_AI_ENABLED: ${SYNDAMORPH_MVP_AI_ENABLED:-0}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       SYNDAMORPH_CLAUDE_MODEL: ${SYNDAMORPH_CLAUDE_MODEL:-claude-sonnet-5-5}
+      PURR_GATEWAY_URL: ${PURR_GATEWAY_URL:-}
+      PURR_CLIENT_TOKEN: ${PURR_CLIENT_TOKEN:-}
     networks:
       - default
     read_only: true
