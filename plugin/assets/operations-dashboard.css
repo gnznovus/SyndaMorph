@@ -196,3 +196,33 @@
     #syndamorph-html-import .sm-capture-actions label { flex-basis: 100%; }
     #syndamorph-html-import .sm-capture-actions select { max-width: none; }
 }
+
+/* Importer form actions: fill remaining space with the input, keep button inline. */
+#syndamorph-html-import .syndamorph-package-upload,
+#syndamorph-html-import .sm-inline-action {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 12px;
+    width: 100%;
+}
+#syndamorph-html-import .syndamorph-package-upload > input[type="file"],
+#syndamorph-html-import .sm-inline-action > input[type="text"] {
+    flex: 1 1 0;
+    min-width: 0;
+    width: 100%;
+    max-width: none;
+}
+#syndamorph-html-import .syndamorph-package-upload > button,
+#syndamorph-html-import .sm-inline-action > button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    min-height: 41px;
+    padding-inline: 16px;
+}
+@media (max-width: 600px) {
+    #syndamorph-html-import .syndamorph-package-upload,
+    #syndamorph-html-import .sm-inline-action { flex-wrap: wrap; }
+    #syndamorph-html-import .syndamorph-package-upload > input[type="file"],
+    #syndamorph-html-import .sm-inline-action > input[type="text"] { flex-basis: 100%; }
+}
