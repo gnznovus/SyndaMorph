@@ -95,13 +95,12 @@
         if ( !selected || !config.pattern.test( selected.name ) ) {
             return 'Rejected: only ' + config.type + ' files are accepted here.';
         }
-        if ( kind === 'html' && selected.size > 2 * 1024 * 1024 ) {
-            return 'Rejected: HTML files must be 2 MB or smaller.';
-        }
         return '';
     }
     let htmlReadToken = 0;
     async function acceptFile( kind, selected, fromDrop = false ) {
+        // Cancel previous HTML preview reads when any new HTML selection occurs.
+        const readToken = kind === 'html' ? ++htmlReadToken : 0;
         const error = checkFile( kind, selected );
         if ( error ) {
             uploadFeedback( kind, error, true );
@@ -109,28 +108,31 @@
             if ( !fromDrop ) restorePicker( kind );
             return;
         }
-        if ( kind === 'html' ) {
-            const readToken = ++htmlReadToken;
-            let markup;
+
+        // Large HTML files are still valid source references. Only populate the
+        // textarea for small files to avoid freezing the WordPress admin UI.
+        const previewLimitBytes = 2 * 1024 * 1024;
+        let previewed = false;
+        if ( kind === 'html' && selected.size <= previewLimitBytes ) {
             try {
-                markup = await selected.text();
+                const markup = await selected.text();
+                if ( readToken !== htmlReadToken ) return;
+                html.value = markup;
+                previewed = true;
             } catch ( _error ) {
-                uploadFeedback( kind, 'Rejected: could not read the HTML file.', true );
-                if ( !fromDrop ) restorePicker( kind );
-                return;
+                if ( readToken !== htmlReadToken ) return;
+                // File selection is valid even if optional textarea preview fails.
             }
-            if ( readToken !== htmlReadToken ) return;
-            if ( markup.length > html.maxLength ) {
-                uploadFeedback( kind, 'Rejected: HTML exceeds the 50,000-character editor limit.', true );
-                if ( !fromDrop ) restorePicker( kind );
-                return;
-            }
-            html.value = markup;
         }
         accepted[ kind ] = selected;
         if ( fromDrop ) restorePicker( kind );
         updateFileLabel( kind );
-        uploadFeedback( kind, kind === 'html' ? 'Accepted · HTML loaded locally into the editor.' : 'Accepted · ZIP selected locally.' );
+        const message = kind === 'package'
+            ? 'Accepted · ZIP selected locally.'
+            : previewed
+                ? 'Accepted · HTML loaded locally into the editor.'
+                : 'Accepted · HTML selected. Preview skipped to keep the editor responsive.';
+        uploadFeedback( kind, message );
         setText( notice, 'File accepted locally. No upload or conversion was performed.' );
     }
     for ( const kind of Object.keys( uploadConfig ) ) {
@@ -199,7 +201,7 @@
                 if ( ![ 'http:', 'https:' ].includes( parsed.protocol ) || !parsed.hostname ) throw new Error( 'Invalid' );
             } catch ( _error ) { return 'Source must be a valid HTTP(S) URL.'; }
         } else if ( kind === 'html' ) {
-            if ( !html.value.trim() ) return 'Paste HTML or choose an HTML file to start the demonstration.';
+            if ( !accepted.html && !html.value.trim() ) return 'Paste HTML or choose an HTML file to start the demonstration.';
         } else if ( kind === 'package' ) {
             if ( !accepted.package ) return 'Select a ZIP package.';
         }
