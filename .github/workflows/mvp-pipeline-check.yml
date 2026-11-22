@@ -22,6 +22,8 @@ jobs:
       - name: Syntax
         run: |
           node --check backend/server.js
+          node --check backend/purr-poc.js
+          node --check plugin/assets/ai-integration.js
           node --check backend/mvp/plan.js
           node --check backend/mvp/registry.js
           node --check backend/mvp/loop.js
@@ -36,4 +38,4 @@ jobs:
       - name: Backend runtime packaging
         run: |
           docker build -t syndamorph-mvp ./backend
-          docker run --rm --entrypoint node syndamorph-mvp -e "require('./mvp/endpoint'); require('./mvp/claude'); console.log('MVP modules available')"
+          docker run --rm --entrypoint node syndamorph-mvp -e "require('./mvp/endpoint'); require('./mvp/claude'); require('./purr-poc'); console.log('MVP and Purr modules available')"
