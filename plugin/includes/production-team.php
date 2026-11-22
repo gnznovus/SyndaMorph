@@ -72,11 +72,12 @@ function syndamorph_team_render_tab(): void {
                                 </div>
                                 <div class="sm-field sm-team-source-input" data-source="html" hidden>
                                     <label class="sm-field-label" for="syndamorph-team-html-file">HTML file</label>
-                                    <div class="sm-team-upload">
+                                    <div class="sm-team-upload" data-drop-kind="html" tabindex="0" aria-label="HTML upload drop zone. Drop an HTML or HTM file, or press Enter to browse.">
                                         <input type="file" id="syndamorph-team-html-file" class="sm-team-native-file" accept=".html,.htm,text/html" aria-describedby="syndamorph-team-html-file-name">
                                         <label class="sm-team-file-button" for="syndamorph-team-html-file">Choose HTML file</label>
-                                        <span class="sm-team-file-name" id="syndamorph-team-html-file-name" aria-live="polite">No file selected</span>
+                                        <span class="sm-team-file-name" id="syndamorph-team-html-file-name" aria-live="polite">Drop HTML / HTM here or browse</span>
                                     </div>
+                                    <p class="sm-team-upload-feedback" data-upload-feedback="html" role="status" aria-live="polite"></p>
                                     <p class="sm-team-source-divider">OR PASTE HTML</p>
                                     <label class="sm-field-label" for="syndamorph-team-html">HTML source</label>
                                     <textarea class="sm-control" id="syndamorph-team-html" rows="7" maxlength="50000" placeholder="Paste HTML markup here"></textarea>
@@ -84,11 +85,12 @@ function syndamorph_team_render_tab(): void {
                                 </div>
                                 <div class="sm-field sm-team-source-input" data-source="package" hidden>
                                     <label class="sm-field-label" for="syndamorph-team-package">ZIP package</label>
-                                    <div class="sm-team-upload">
+                                    <div class="sm-team-upload" data-drop-kind="package" tabindex="0" aria-label="ZIP upload drop zone. Drop a ZIP file, or press Enter to browse.">
                                         <input type="file" id="syndamorph-team-package" class="sm-team-native-file" accept=".zip,application/zip" aria-describedby="syndamorph-team-package-name">
                                         <label class="sm-team-file-button" for="syndamorph-team-package">Choose ZIP package</label>
-                                        <span class="sm-team-file-name" id="syndamorph-team-package-name" aria-live="polite">No file selected</span>
+                                        <span class="sm-team-file-name" id="syndamorph-team-package-name" aria-live="polite">Drop ZIP here or browse</span>
                                     </div>
+                                    <p class="sm-team-upload-feedback" data-upload-feedback="package" role="status" aria-live="polite"></p>
                                     <p class="sm-hint">Selected filename only; the package is not uploaded in simulation mode.</p>
                                 </div>
                                 <div class="sm-team-note">In the final pipeline, the PM will assign the job title during classification. There is intentionally no manual title field or separate title-generation call.</div>
