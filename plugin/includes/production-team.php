@@ -93,7 +93,7 @@ function syndamorph_team_render_tab(): void {
                         <div class="sm-card-body">
                             <div class="sm-team-agent" data-agent="boss"><span class="sm-team-avatar">B</span><div><strong>Boss Agent</strong><p>Classification, delegation, approval</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
                             <div class="sm-team-agent" data-agent="designer"><span class="sm-team-avatar">D</span><div><strong>Designer Agent</strong><p>Design planning and section structure</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
-                            <div class="sm-team-agent" data-agent="developer"><span class="sm-team-avatar">D</span><div><strong>Developer Agent</strong><p>Block and interaction implementation</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
+                            <div class="sm-team-agent" data-agent="developer"><span class="sm-team-avatar">C</span><div><strong>Developer Agent</strong><p>Block and interaction implementation</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
                             <div class="sm-team-note">Freelancer allocation, real model calls, and automated repair are reserved for a later phase.</div>
                         </div>
                     </section>
