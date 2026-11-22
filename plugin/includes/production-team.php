@@ -195,7 +195,10 @@ function syndamorph_team_render_tab(): void {
                             <section class="sm-team-artifacts" id="syndamorph-team-artifacts" hidden aria-label="Converted Gutenberg preview">
                                 <div class="sm-team-preview-toolbar">
                                     <strong id="syndamorph-team-preview-heading">Gutenberg preview</strong>
-                                    <span class="sm-status-pill" id="syndamorph-team-preview-state" data-state="idle">Not reviewed</span>
+                                    <div class="sm-team-preview-controls">
+                                        <button type="button" class="sm-team-secondary" id="syndamorph-team-reload-preview">Reload preview</button>
+                                        <span class="sm-status-pill" id="syndamorph-team-preview-state" data-state="idle">Not reviewed</span>
+                                    </div>
                                 </div>
                                 <div id="syndamorph-team-preview-warnings" class="sm-team-preview-warnings" role="status" aria-live="polite"></div>
                                 <iframe id="syndamorph-team-preview-frame" title="Converted Gutenberg preview" sandbox="" referrerpolicy="no-referrer"></iframe>
