@@ -23,6 +23,7 @@
     const artifacts = $( 'syndamorph-team-artifacts' );
     const frame = $( 'syndamorph-team-preview-frame' );
     const reloadPreview = $( 'syndamorph-team-reload-preview' );
+    const returnSetup = $( 'syndamorph-team-return-setup' );
     const previewHeading = $( 'syndamorph-team-preview-heading' );
     const previewState = $( 'syndamorph-team-preview-state' );
     const warnings = $( 'syndamorph-team-preview-warnings' );
@@ -69,6 +70,11 @@
             panel.hidden = panel.dataset.panel !== name;
         } );
     };
+    returnSetup.addEventListener( 'click', () => {
+        stage( 'setup' );
+        const tab = $( 'sm-team-tab-setup' );
+        tab.scrollIntoView( { behavior: 'smooth', block: 'start' } );
+    } );
     const editorUrl = id => SyndaMorphImport.editUrl + '?post=' + encodeURIComponent( id ) + '&action=edit';
     const refreshSaveAction = () => {
         const mode = saveKind.value;
