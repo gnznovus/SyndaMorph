@@ -181,7 +181,7 @@
         previewHeading.textContent = item.title + ' · ' + ( cursor + 1 ) + '/' + prepared.length;
         const issues = [
             ...( item.missing || [] ).map( issue => typeof issue === 'string' ? issue : 'Image: ' + ( issue.source || 'unknown' ) ),
-            ...( item.css || [] ).map( issue => 'CSS: ' + ( typeof issue === 'string' ? issue : JSON.stringify( issue ) ) ),
+            ...( Array.isArray( item.css ) ? item.css : [] ).map( issue => 'CSS: ' + ( typeof issue === 'string' ? issue : JSON.stringify( issue ) ) ),
             ...( item.stylesheets?.missing || [] ).map( issue => 'Missing stylesheet: ' + issue ),
         ];
         warnings.replaceChildren();
@@ -196,6 +196,11 @@
             } );
             warnings.append( heading, list );
         } else warnings.textContent = 'No missing asset issues reported by the converter.';
+        if ( typeof item.css === 'number' && item.css > 0 ) {
+            const p = document.createElement( 'p' );
+            p.textContent = item.css + ' package stylesheet(s) embedded in the converted source.';
+            warnings.append( p );
+        }
         previewState.textContent = 'Review required';
         previewState.dataset.state = 'running';
         if ( prepared.length > 1 ) {
