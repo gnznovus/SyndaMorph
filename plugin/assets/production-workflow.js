@@ -14,7 +14,10 @@
     const diagnostics = $( 'syndamorph-team-source-diagnostics' );
     const diagnosticsJson = $( 'syndamorph-team-source-diagnostics-json' );
     const convertButton = $( 'syndamorph-team-convert' );
-    const jsToggle = $( 'syndamorph-team-js-mode' );
+    const jsOptions = {
+        html: $( 'syndamorph-team-js-html' ),
+        package: $( 'syndamorph-team-js-package' ),
+    };
     const convertError = $( 'syndamorph-team-convert-error' );
     const inspectActions = $( 'syndamorph-team-source-actions' );
     const artifacts = $( 'syndamorph-team-artifacts' );
@@ -96,6 +99,7 @@
         sourceSummary.textContent = '';
     };
     kindInput.addEventListener( 'change', () => { resetInspection(); sourceMode(); } );
+    Object.values( jsOptions ).forEach( input => input.addEventListener( 'change', resetInspection ) );
     sourceMode();
     root.querySelectorAll( '#syndamorph-team-source, #syndamorph-team-render-mode, #syndamorph-team-html' )
         .forEach( control => control.addEventListener( 'change', resetInspection ) );
@@ -287,7 +291,7 @@
         const chosen = inspected;
         const generation = sourceGeneration;
         const kind = chosen.kind;
-        const jsMode = Boolean( jsToggle.checked );
+        const jsMode = Boolean( jsOptions[ kind ]?.checked );
         busy = true;
         showError( convertError, '' );
         convertButton.disabled = true;
