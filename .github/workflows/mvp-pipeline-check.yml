@@ -1,0 +1,26 @@
+name: MVP autonomous pipeline checks
+on:
+  push:
+    branches: [feat/mvp-autonomous-pipeline]
+    paths:
+      - 'backend/mvp/**'
+      - '.github/workflows/mvp-pipeline-check.yml'
+  pull_request:
+    paths:
+      - 'backend/mvp/**'
+      - '.github/workflows/mvp-pipeline-check.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax
+        run: |
+          node --check backend/mvp/plan.js
+          node --check backend/mvp/registry.js
+          node --check backend/mvp/loop.js
+      - name: MVP contract and loop tests
+        run: node --test backend/mvp/*.test.js
