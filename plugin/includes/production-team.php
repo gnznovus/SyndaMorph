@@ -80,8 +80,8 @@ function syndamorph_team_render_tab(): void {
                                     <p class="sm-team-upload-feedback" data-upload-feedback="html" role="status" aria-live="polite"></p>
                                     <p class="sm-team-source-divider">OR PASTE HTML</p>
                                     <label class="sm-field-label" for="syndamorph-team-html">HTML source</label>
-                                    <textarea class="sm-control" id="syndamorph-team-html" rows="7" maxlength="50000" placeholder="Paste HTML markup here"></textarea>
-                                    <p class="sm-hint">Selecting a file loads its text locally into the editor. This simulation does not upload or convert it.</p>
+                                    <textarea class="sm-control" id="syndamorph-team-html" rows="7" placeholder="Paste HTML markup here"></textarea>
+                                    <p class="sm-hint">Smaller files are shown in the editor; larger files remain selected without rendering them in the textarea. No upload or conversion occurs in simulation mode.</p>
                                 </div>
                                 <div class="sm-field sm-team-source-input" data-source="package" hidden>
                                     <label class="sm-field-label" for="syndamorph-team-package">ZIP package</label>
