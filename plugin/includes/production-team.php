@@ -68,7 +68,9 @@ function syndamorph_team_render_tab(): void {
                                 <div class="sm-field sm-team-source-input" data-source="url">
                                     <label class="sm-field-label" for="syndamorph-team-source">Page URL</label>
                                     <input class="sm-control" type="url" id="syndamorph-team-source" placeholder="https://example.com/landing-page" maxlength="2048" autocomplete="off">
-                                    <p class="sm-hint">Reference only. The simulation will not fetch this URL.</p>
+                                    <div class="sm-field sm-team-capture-options"><label class="sm-field-label" for="syndamorph-team-render-mode">Rendering mode</label>
+                                        <select class="sm-control" id="syndamorph-team-render-mode"><option value="auto">Automatic browser capture</option><option value="static">Static HTML only</option><option value="browser">Force Playwright</option></select></div>
+                                    <p class="sm-hint">The actual capture runs through the existing SyndaMorph service.</p>
                                 </div>
                                 <div class="sm-field sm-team-source-input" data-source="html" hidden>
                                     <label class="sm-field-label" for="syndamorph-team-html-file">HTML file</label>
@@ -93,6 +95,16 @@ function syndamorph_team_render_tab(): void {
                                     <p class="sm-team-upload-feedback" data-upload-feedback="package" role="status" aria-live="polite"></p>
                                     <p class="sm-hint">Selected filename only; the package is not uploaded in simulation mode.</p>
                                 </div>
+                                <div class="sm-team-source-actions">
+                                    <button type="button" class="sm-team-secondary" id="syndamorph-team-inspect">Inspect source</button>
+                                    <span id="syndamorph-team-inspect-status" role="status" aria-live="polite">Ready for inspection</span>
+                                </div>
+                                <div id="syndamorph-team-source-inspection" class="sm-team-inspection" hidden>
+                                    <label class="sm-field-label" for="syndamorph-team-section">Detected page / section</label>
+                                    <select class="sm-control" id="syndamorph-team-section"></select>
+                                    <p class="sm-hint" id="syndamorph-team-source-summary"></p>
+                                    <details id="syndamorph-team-source-diagnostics" hidden><summary>Capture diagnostics</summary><pre id="syndamorph-team-source-diagnostics-json"></pre></details>
+                                </div>
                                 <div class="sm-team-note">In the final pipeline, the PM will assign the job title during classification. There is intentionally no manual title field or separate title-generation call.</div>
                             </div>
                         </section>
@@ -107,9 +119,11 @@ function syndamorph_team_render_tab(): void {
                                     <textarea class="sm-control sm-team-brief" id="syndamorph-team-brief" rows="7" maxlength="1200">Convert the supplied source into independently editable Gutenberg sections, preserving layout fidelity.</textarea>
                                 </div>
                                 <div class="sm-team-actions">
-                                    <button type="button" class="sm-primary" id="syndamorph-team-run">Start simulation <span aria-hidden="true">→</span></button>
+                                    <button type="button" class="sm-primary" id="syndamorph-team-convert">Convert with existing engine <span aria-hidden="true">→</span></button>
+                                    <button type="button" class="sm-team-secondary" id="syndamorph-team-run">Start simulation <span aria-hidden="true">→</span></button>
                                     <button type="button" class="sm-team-secondary" id="syndamorph-team-reset">Reset</button>
                                 </div>
+                                <p class="sm-hint">Conversion uses the existing deterministic Gutenberg engine. The simulation remains a separate demo.</p>
                                 <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">UI simulation only · no production job, source capture, or AI inference.</p>
                             </div>
                         </section>
@@ -122,6 +136,13 @@ function syndamorph_team_render_tab(): void {
                         <div class="sm-stat"><span class="sm-stat-label">Team handoffs</span><span class="sm-stat-value" id="syndamorph-team-handoffs">00 / 04</span></div>
                         <div class="sm-stat"><span class="sm-stat-label">Output readiness</span><span class="sm-stat-value sm-stat-small" id="syndamorph-team-output-state">Not generated</span></div>
                     </div>
+                    <section class="sm-card sm-team-real-work" aria-labelledby="sm-team-real-work-title">
+                        <div class="sm-card-header"><h2 class="sm-card-title" id="sm-team-real-work-title">Actual conversion activity</h2>
+                            <p class="sm-card-caption">Real operations through the existing Source Importer endpoints; not simulated agent reasoning.</p></div>
+                        <div class="sm-card-body"><ol class="sm-team-timeline" id="syndamorph-team-operation-feed" aria-live="polite">
+                            <li class="sm-team-empty">Inspect a source or start a conversion from Setup to see real operation events.</li>
+                        </ol></div>
+                    </section>
                     <div class="sm-team-layout sm-team-production-grid">
                         <section class="sm-card" aria-labelledby="sm-team-timeline-title">
                             <div class="sm-card-header sm-team-feed-heading">
@@ -173,6 +194,19 @@ function syndamorph_team_render_tab(): void {
                                 <strong>No output available</strong>
                                 <p>Start a simulation from Setup. In the real pipeline, this page will contain generated sections, evidence and review controls.</p>
                             </div>
+                            <section class="sm-team-artifacts" id="syndamorph-team-artifacts" hidden aria-label="Converted Gutenberg preview">
+                                <div class="sm-team-preview-toolbar">
+                                    <strong id="syndamorph-team-preview-heading">Gutenberg preview</strong>
+                                    <span class="sm-status-pill" id="syndamorph-team-preview-state" data-state="idle">Not reviewed</span>
+                                </div>
+                                <div id="syndamorph-team-preview-warnings" class="sm-team-preview-warnings" role="status" aria-live="polite"></div>
+                                <iframe id="syndamorph-team-preview-frame" title="Converted Gutenberg preview" sandbox="" referrerpolicy="no-referrer"></iframe>
+                                <div class="sm-team-export-actions">
+                                    <select id="syndamorph-team-output-kind" class="sm-control" aria-label="Save as"><option value="draft">Draft pages</option><option value="pattern">Unsynced patterns</option></select>
+                                    <button type="button" class="sm-primary" id="syndamorph-team-save" disabled>Approve &amp; Save</button>
+                                </div>
+                                <p class="sm-hint" id="syndamorph-team-save-status" role="status" aria-live="polite">Review the converted preview before saving.</p>
+                            </section>
                             <a class="sm-team-link" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph' ) ); ?>">Open manual Source Importer <span aria-hidden="true">→</span></a>
                         </div>
                     </section>
@@ -188,9 +222,30 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
          ! isset( $_GET['tab'] ) || 'team' !== sanitize_key( wp_unslash( $_GET['tab'] ) ) ) { return; }
 
     wp_enqueue_style( 'syndamorph-operations', plugin_dir_url( __DIR__ ) . 'assets/operations-dashboard.css', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/operations-dashboard.css' ) );
-    wp_enqueue_script( 'syndamorph-team', plugin_dir_url( __DIR__ ) . 'assets/production-team.js', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-team.js' ), true );
+    wp_enqueue_style( 'syndamorph-admin', plugin_dir_url( __DIR__ ) . 'assets/admin.css', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/admin.css' ) );
+    wp_enqueue_script( 'syndamorph-pattern-dialog', plugin_dir_url( __DIR__ ) . 'assets/pattern-dialog.js', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/pattern-dialog.js' ), true );
+    wp_enqueue_script( 'syndamorph-import', plugin_dir_url( __DIR__ ) . 'assets/import.js', array( 'syndamorph-pattern-dialog' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/import.js' ), true );
+    $preview_font_family = wp_get_global_styles( array( 'typography', 'fontFamily' ), array( 'transforms' => array( 'resolve-variables' ) ) );
+    wp_add_inline_script( 'syndamorph-import', 'window.SyndaMorphImport=' . wp_json_encode( array(
+        'nonce' => wp_create_nonce( 'wp_rest' ),
+        'editUrl' => admin_url( 'post.php' ),
+        'restUrl' => rest_url( 'wp/v2/pages' ),
+        'placeholderUrl' => plugin_dir_url( __DIR__ ) . 'assets/missing-image.svg',
+        'previewFontFamily' => is_string( $preview_font_family ) ? $preview_font_family : '',
+        'patternUrl' => rest_url( 'syndamorph/v1/patterns' ),
+        'renderUrl' => rest_url( 'syndamorph/v1/render-dom' ),
+        'rendererAvailable' => 'http://renderer:3000/render' === getenv( 'SYNDAMORPH_RENDERER_URL' ),
+    ) ) . ';', 'before' );
+    wp_enqueue_script( 'syndamorph-team', plugin_dir_url( __DIR__ ) . 'assets/production-team.js', array( 'syndamorph-import' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-team.js' ), true );
     wp_add_inline_script( 'syndamorph-team', 'window.SyndaMorphTeam=' . wp_json_encode( array(
         'nonce' => wp_create_nonce( 'wp_rest' ),
         'purrPocUrl' => rest_url( 'syndamorph/v1/purr/communication-poc' ),
+        'captureUrl' => rest_url( 'syndamorph/v1/capture-url' ),
+        'packageScanUrl' => rest_url( 'syndamorph/v1/package-scan' ),
+        'packagePageUrl' => rest_url( 'syndamorph/v1/package-page' ),
+        'packageCommitUrl' => rest_url( 'syndamorph/v1/package-commit' ),
     ) ) . ';', 'before' );
+    wp_enqueue_script( 'syndamorph-team-migration', plugin_dir_url( __DIR__ ) . 'assets/production-workflow.js',
+        array( 'syndamorph-team', 'syndamorph-import' ),
+        (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-workflow.js' ), true );
 } );
