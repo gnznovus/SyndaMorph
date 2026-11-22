@@ -198,6 +198,7 @@ function syndamorph_team_render_tab(): void {
                                 <div class="sm-team-preview-toolbar">
                                     <strong id="syndamorph-team-preview-heading">Gutenberg preview</strong>
                                     <div class="sm-team-preview-controls">
+                                        <button type="button" class="sm-team-secondary" id="syndamorph-team-return-setup">Return to Setup</button>
                                         <button type="button" class="sm-team-secondary" id="syndamorph-team-reload-preview">Reload preview</button>
                                         <span class="sm-status-pill" id="syndamorph-team-preview-state" data-state="idle">Not reviewed</span>
                                     </div>
