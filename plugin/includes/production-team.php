@@ -209,7 +209,8 @@ function syndamorph_team_render_tab(): void {
                                 <iframe id="syndamorph-team-preview-frame" title="Converted Gutenberg preview" sandbox="" referrerpolicy="no-referrer"></iframe>
                                 <div class="sm-team-export-actions">
                                     <select id="syndamorph-team-output-kind" class="sm-control" aria-label="Save as"><option value="draft">Draft pages</option><option value="pattern">Unsynced patterns</option></select>
-                                    <button type="button" class="sm-primary" id="syndamorph-team-save" disabled>Approve &amp; Save</button>
+                                    <button type="button" class="sm-team-secondary" id="syndamorph-team-save" disabled>Save</button>
+                                    <button type="button" class="sm-primary" id="syndamorph-team-save-open" disabled>Save &amp; Open Editor</button>
                                 </div>
                                 <p class="sm-hint" id="syndamorph-team-save-status" role="status" aria-live="polite">Review the converted preview before saving.</p>
                             </section>
