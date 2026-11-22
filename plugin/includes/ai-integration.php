@@ -111,9 +111,10 @@ add_action( 'rest_api_init', static function (): void {
             $started = microtime( true );
             $request_args = array( 'timeout' => 20, 'redirection' => 0, 'headers' => array(), 'body' => '' );
             if ( 'anthropic' === $provider ) {
-                $url = 'https://api.anthropic.com/v1/messages';
-                $request_args['headers'] = array( 'x-api-key' => $key, 'anthropic-version' => '2023-06-01', 'content-type' => 'application/json' );
-                $request_args['body'] = wp_json_encode( array( 'model' => 'claude-sonnet-4-5', 'max_tokens' => 8, 'messages' => array( array( 'role' => 'user', 'content' => 'Reply OK.' ) ) ) );
+                $url = 'https://api.anthropic.com/v1/models';
+                $request_args['method'] = 'GET';
+                $request_args['headers'] = array( 'x-api-key' => $key, 'anthropic-version' => '2023-06-01' );
+                unset( $request_args['body'] );
             } elseif ( 'openai' === $provider ) {
                 $url = 'https://api.openai.com/v1/models';
                 $request_args['method'] = 'GET';
