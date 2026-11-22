@@ -141,7 +141,7 @@ function syndamorph_ai_render_tab(): void {
                             <div class="sm-field">
                                 <label for="syndamorph-ai-key" class="sm-field-label">Secret API key</label>
                                 <div class="sm-key-row">
-                                    <input class="sm-control" type="password" id="syndamorph-ai-key" autocomplete="new-password" spellcheck="false" placeholder="Paste a new API key">
+                                    <input class="sm-control sm-masked-key" type="text" id="syndamorph-ai-key" name="syndamorph-provider-token" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" aria-describedby="syndamorph-ai-key-hint" placeholder="Paste a new API key">
                                     <button type="button" class="sm-icon-button" id="syndamorph-ai-toggle-key" aria-label="Show API key" aria-pressed="false">
                                         <span class="dashicons dashicons-visibility" aria-hidden="true"></span>
                                     </button>
