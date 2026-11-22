@@ -436,3 +436,29 @@
     #syndamorph-production-team .sm-team-upload {flex-wrap:wrap;}
     #syndamorph-production-team .sm-team-file-name {flex-basis:100%;white-space:normal;overflow-wrap:anywhere;}
 }
+
+/* Drag-and-drop feedback for source uploads. The existing chooser remains available. */
+#syndamorph-production-team .sm-team-upload {
+    min-height:64px;
+    border:1px dashed #b6c2d2;
+    background:#f9fbfe;
+    transition:border-color .15s,background .15s,box-shadow .15s;
+}
+#syndamorph-production-team .sm-team-upload.is-dragging {
+    border-color:var(--sm-accent);
+    background:#fff2f0;
+    box-shadow:0 0 0 3px rgba(237,56,50,.12);
+}
+#syndamorph-production-team .sm-team-upload:focus-visible {
+    outline:2px solid var(--sm-accent);
+    outline-offset:2px;
+}
+#syndamorph-production-team .sm-team-upload-feedback {
+    min-height:0;
+    margin:7px 0 0;
+    font-size:11px;
+    line-height:1.5;
+    color:#2b7851;
+}
+#syndamorph-production-team .sm-team-upload-feedback:empty { display:none; }
+#syndamorph-production-team .sm-team-upload-feedback[data-state="error"] { color:#ba302c; }
