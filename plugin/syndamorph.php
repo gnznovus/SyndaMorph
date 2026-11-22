@@ -70,10 +70,11 @@ function syndamorph_render_import_page(): void {
             <p>Captures one page only. Choose a detected section to preview using the existing Gutenberg converter. External assets remain URL references.</p>
             <p><label for="syndamorph-url-input"><strong>Exact page URL</strong></label></p>
             <input id="syndamorph-url-input" type="url" class="large-text" style="max-width:800px" placeholder="https://www.syndacast.com/2026/BKKGOPrototype1/index.html">
-            <p><label for="syndamorph-url-mode"><strong>Rendering</strong></label>
+            <div class="sm-capture-actions">
+                <label for="syndamorph-url-mode"><strong>Rendering</strong></label>
                 <select id="syndamorph-url-mode"><option value="auto">Automatic browser capture</option><option value="static">Static HTML only</option><option value="browser">Force Playwright</option></select>
                 <button type="button" class="button button-primary" id="syndamorph-url-capture">Detect Sections</button>
-            </p>
+            </div>
             <p role="status" aria-live="polite" id="syndamorph-url-status"></p>
             <details id="syndamorph-url-diagnostics" hidden style="margin:12px 0;max-width:860px">
                 <summary><strong>Capture diagnostics</strong> — rendering and section-detection evidence</summary>
