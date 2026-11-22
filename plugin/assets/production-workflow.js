@@ -168,7 +168,13 @@
             } else {
                 sectionSelect.append( new Option( 'HTML document', 'html' ) );
             }
-            if ( inspected.kind !== 'package' ) { sectionSelect.multiple = false; sectionSelect.size = 1; }
+            if ( inspected.kind !== 'package' ) {
+                // Use a genuine single-line select. Explicit size=1 can retain
+                // listbox behavior after a hidden tab becomes visible in Chromium.
+                sectionSelect.multiple = false;
+                sectionSelect.removeAttribute( 'size' );
+            }
+            sectionSelect.blur();
             inspection.hidden = false;
             setStatus( 'Source inspected', sourceSummary.textContent );
         } catch ( error ) {
@@ -181,16 +187,43 @@
     } );
 
     let previewGeneration = 0;
+    const previewScrollLock = (() => {
+        // Keep the WordPress page stationary only while the pointer is inside
+        // the iframe; the iframe itself remains independently scrollable.
+        let locked = false;
+        let previousOverflow = '';
+        const lock = () => {
+            if ( locked ) return;
+            locked = true;
+            previousOverflow = document.documentElement.style.overflow;
+            document.documentElement.style.overflow = 'hidden';
+        };
+        const unlock = () => {
+            if ( !locked ) return;
+            locked = false;
+            document.documentElement.style.overflow = previousOverflow;
+        };
+        frame.addEventListener( 'pointerenter', lock );
+        frame.addEventListener( 'pointerleave', unlock );
+        // Moving to another top-level stage or leaving the page also releases it.
+        root.querySelectorAll( '.sm-team-tabs [role="tab"]' ).forEach( tab => tab.addEventListener( 'click', unlock ) );
+        window.addEventListener( 'pagehide', unlock );
+        document.addEventListener( 'visibilitychange', () => { if ( document.hidden ) unlock(); } );
+        return { unlock };
+    })();
     const paintPreview = () => {
         const item = prepared[ cursor ];
         if ( !item ) return;
         const token = ++previewGeneration;
+        // Ensure scroll chain never escapes the iframe at its top/bottom edges.
+        const scrollStyle = '<style>html,body{overscroll-behavior:contain}</style>';
+        const previewDocument = item.preview.replace( /<\\/head>/i, scrollStyle + '</head>' );
         frame.removeAttribute( 'srcdoc' );
         // Only mount srcdoc after the Results panel has become visible.
         // A hidden sandboxed iframe can otherwise initialize as a blank document.
         requestAnimationFrame( () => {
             if ( token !== previewGeneration || artifacts.hidden ) return;
-            frame.srcdoc = item.preview;
+            frame.srcdoc = previewDocument;
         } );
     };
     reloadPreview.addEventListener( 'click', paintPreview );
@@ -260,6 +293,7 @@
         convertButton.disabled = true;
         saveButton.disabled = true;
         artifacts.hidden = true;
+        previewScrollLock.unlock();
         prepared = [];
         approved = false;
         stage( 'production' );
