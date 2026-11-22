@@ -15,6 +15,7 @@
     const state = byId( 'syndamorph-ai-state' );
     const toggle = byId( 'syndamorph-ai-toggle-key' );
     const copyButton = byId( 'syndamorph-ai-copy' );
+    const deleteButton = byId( 'syndamorph-ai-delete-key' );
     if ( !provider || !input || !button || !preview || !output ) return;
 
     let statuses = {};
@@ -35,7 +36,8 @@
     const showStatus = () => {
         const saved = statuses[ provider.value ];
         const isMock = provider.value === 'mock';
-        preview.textContent = isMock ? 'Local mock · test keys are never stored' : saved && saved.configured ? 'Saved key  ·  ' + saved.preview : 'No saved credential for this provider';
+        preview.textContent = saved && saved.configured ? 'Saved key  ·  ' + saved.preview : 'No saved credential for this provider';
+        if ( deleteButton ) deleteButton.hidden = !( saved && saved.configured );
         if ( mockHint ) mockHint.hidden = !isMock;
         if ( keyHint ) keyHint.hidden = isMock;
         input.value = '';
@@ -55,6 +57,41 @@
             input.classList.toggle( 'sm-masked-key', !showing );
             toggle.setAttribute( 'aria-pressed', String( showing ) );
             toggle.setAttribute( 'aria-label', showing ? 'Hide API key' : 'Show API key' );
+        } );
+    }
+    if ( deleteButton ) {
+        deleteButton.addEventListener( 'click', async () => {
+            if ( isRunning || !statuses[ provider.value ]?.configured ) return;
+            const selected = provider.value;
+            if ( !window.confirm( 'Permanently delete the saved ' + selected + ' API key from this WordPress site?' ) ) return;
+            isRunning = true;
+            deleteButton.disabled = true;
+            button.disabled = true;
+            provider.disabled = true;
+            setState( 'Deleting', 'running' );
+            try {
+                const response = await fetch( SyndaMorphAI.deleteBaseUrl + encodeURIComponent( selected ), {
+                    method: 'DELETE', credentials: 'same-origin',
+                    headers: { 'X-WP-Nonce': SyndaMorphAI.nonce },
+                } );
+                const data = await response.json();
+                if ( !response.ok || !data.deleted || data.key?.configured ) {
+                    throw new Error( 'Unable to confirm server-side credential deletion.' );
+                }
+                statuses[ selected ] = data.key;
+                showStatus();
+                setState( 'Deleted', 'idle' );
+                output.textContent = '[deleted] Saved ' + selected + ' credential removed from WordPress storage.\n[verified] Provider status reports no saved key.';
+                if ( lastTest ) lastTest.textContent = 'Not tested';
+            } catch ( _error ) {
+                setState( 'Error', 'error' );
+                output.textContent = '[error] Could not verify credential deletion. Check the server before retrying.';
+            } finally {
+                isRunning = false;
+                deleteButton.disabled = false;
+                button.disabled = false;
+                provider.disabled = false;
+            }
         } );
     }
     if ( copyButton ) {
