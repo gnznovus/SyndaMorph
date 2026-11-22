@@ -516,3 +516,21 @@
     width:auto;min-width:175px;flex:1 1 175px;
 }
 #syndamorph-production-team .sm-team-export-actions button {flex:0 0 auto;}
+
+/* Scoped source controls and contextual operation feedback. */
+#syndamorph-production-team .sm-team-source-actions[hidden] {display:none !important;}
+#syndamorph-production-team .sm-team-source-actions [data-state="error"],
+#syndamorph-production-team .sm-team-action-feedback {
+    color:#b8302b;font-size:12px;line-height:1.6;
+}
+#syndamorph-production-team .sm-team-action-feedback {
+    background:#fff5f3;border:1px solid #ffd8d3;border-radius:8px;
+    padding:10px 12px;margin:12px 0 0;
+}
+#syndamorph-production-team .sm-team-action-feedback[hidden] {display:none !important;}
+#syndamorph-production-team .sm-team-preview-controls {
+    display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+}
+#syndamorph-production-team .sm-team-preview-controls .sm-team-secondary {
+    min-height:32px;padding-inline:12px;
+}
