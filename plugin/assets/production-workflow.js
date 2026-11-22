@@ -41,7 +41,7 @@
     let cursor = 0;
     let busy = false;
     let sourceGeneration = 0;
-    let approved = false;
+    const savedModes = new Map();
     let activeJob = null;
     const titleFor = path => ( path.split( '/' ).pop() || 'Untitled' ).replace( /\.html?$/i, '' ).replace( /[-_]+/g, ' ' );
     const request = async ( url, body, form = false ) => {
@@ -67,6 +67,18 @@
             panel.hidden = panel.dataset.panel !== name;
         } );
     };
+    const refreshSaveAction = () => {
+        const mode = saveKind.value;
+        const saved = savedModes.get( mode );
+        saveButton.disabled = busy || !prepared.length || !activeJob || Boolean( saved );
+        saveButton.textContent = saved ? ( mode === 'draft' ? 'Draft saved' : 'Pattern saved' ) : 'Approve & Save';
+        if ( saved ) {
+            saveStatus.textContent = saved;
+        } else if ( prepared.length ) {
+            saveStatus.textContent = 'Ready to save as ' + ( mode === 'draft' ? 'draft pages' : 'unsynced patterns' ) + '.';
+        }
+    };
+    saveKind.addEventListener( 'change', refreshSaveAction );
     const showError = ( node, message ) => {
         if ( !node ) return;
         node.textContent = message;
@@ -86,7 +98,7 @@
         sourceGeneration++;
         inspected = null;
         prepared = [];
-        approved = false;
+        savedModes.clear();
         inspection.hidden = true;
         diagnostics.hidden = true;
         saveButton.disabled = true;
@@ -299,7 +311,7 @@
         artifacts.hidden = true;
         previewScrollLock.unlock();
         prepared = [];
-        approved = false;
+        savedModes.clear();
         stage( 'production' );
         jobState.textContent = 'Converting';
         try {
@@ -340,7 +352,7 @@
             }
             if ( generation !== sourceGeneration ) return;
             prepared = next;
-            activeJob = { id: 'LOCAL-' + Date.now().toString( 36 ).toUpperCase(), kind, token: chosen.token };
+            activeJob = { id: 'LOCAL-' + Date.now().toString( 36 ).toUpperCase(), kind, token: chosen.token, jsMode };
             const jobTitle = pages.length === 1 ? pages[ 0 ].title + ' — Gutenberg Conversion' :
                 pages.length + ' pages — Gutenberg Package Conversion';
             const label = activeJob.id + ' : ' + jobTitle;
@@ -356,7 +368,7 @@
             resultsSummary.append( heading, paragraph );
             artifacts.hidden = false;
             saveStatus.textContent = 'Review the preview and asset warnings, then approve to save.';
-            saveButton.disabled = false;
+            refreshSaveAction();
             const oldNav = artifacts.querySelector( '.sm-team-preview-navigation' );
             if ( oldNav ) oldNav.remove();
             stage( 'results' );
@@ -373,44 +385,70 @@
     } );
 
     saveButton.addEventListener( 'click', async () => {
-        if ( busy || approved || !prepared.length || !activeJob ) return;
+        const mode = saveKind.value;
+        if ( busy || savedModes.has( mode ) || !prepared.length || !activeJob ) return;
         busy = true;
         saveButton.disabled = true;
         saveKind.disabled = true;
-        saveStatus.textContent = 'Saving approved Gutenberg output…';
+        saveStatus.textContent = 'Saving ' + ( mode === 'draft' ? 'draft pages' : 'unsynced patterns' ) + '…';
         try {
             const kind = activeJob.kind;
-            const mode = saveKind.value;
             let result;
+            let statusMessage;
             if ( kind === 'package' ) {
+                let token = activeJob.token;
+                let items = prepared.map( item => ( {
+                    path: item.path, title: item.title, content: item.content,
+                } ) );
+                if ( savedModes.size ) {
+                    // Package commits invalidate their one-time token. A second
+                    // export requires fresh signed asset URLs and block content.
+                    const file = pick.file( 'package' );
+                    if ( !file ) throw new Error( 'Package file is no longer selected. Select and scan it again.' );
+                    const form = new FormData();
+                    form.append( 'package', file );
+                    const scanned = await request( SyndaMorphTeam.packageScanUrl, form, true );
+                    token = scanned.token;
+                    const refreshed = [];
+                    for ( const item of prepared ) {
+                        const page = await request( SyndaMorphTeam.packagePageUrl, {
+                            token, page: item.path, js_mode: activeJob.jsMode,
+                        } );
+                        const converted = await SyndaMorphConverter.prepareImport( page.html, activeJob.jsMode );
+                        refreshed.push( {
+                            path: item.path, title: item.title, content: converted.content,
+                        } );
+                    }
+                    items = refreshed;
+                }
                 result = await request( SyndaMorphTeam.packageCommitUrl, {
-                    token: activeJob.token, mode,
-                    pages: prepared.map( item => ( { path: item.path, title: item.title, content: item.content } ) ),
+                    token, mode, pages: items,
                 } );
-                saveStatus.textContent = result.created.length + ' ' + mode + '(s) created. ' +
-                    result.uploaded_images + ' images uploaded; ' + result.reused_images + ' references reused.';
+                statusMessage = result.created.length + ' ' + ( mode === 'draft' ? 'draft(s)' : 'pattern(s)' ) +
+                    ' created. ' + result.uploaded_images + ' images uploaded; ' +
+                    result.reused_images + ' references reused.';
             } else if ( mode === 'pattern' ) {
                 result = await request( SyndaMorphImport.patternUrl, {
                     title: prepared[ 0 ].title, content: prepared[ 0 ].content,
                 } );
-                saveStatus.textContent = 'Pattern saved in Gutenberg → Patterns → SyndaMorph.';
+                statusMessage = 'Pattern saved in Gutenberg → Patterns → SyndaMorph.';
             } else {
                 result = await request( SyndaMorphImport.restUrl, {
                     title: prepared[ 0 ].title, content: prepared[ 0 ].content, status: 'draft',
                 } );
-                saveStatus.textContent = 'Draft saved. Open it through the WordPress Pages screen.';
+                statusMessage = 'Draft saved. Open it through the WordPress Pages screen.';
             }
-            approved = true;
+            savedModes.set( mode, statusMessage );
             previewState.textContent = 'Saved';
             previewState.dataset.state = 'success';
-
         } catch ( error ) {
             saveStatus.textContent = 'Save failed: ' + ( error.message || String( error ) );
-
-            saveButton.disabled = false;
         } finally {
             busy = false;
             saveKind.disabled = false;
+            // Preserve error messages; successful saves use the per-mode state.
+            if ( savedModes.has( mode ) ) refreshSaveAction();
+            else saveButton.disabled = false;
         }
     } );
 } )();
