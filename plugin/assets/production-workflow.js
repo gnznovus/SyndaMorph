@@ -25,6 +25,16 @@
     const reloadPreview = $( 'syndamorph-team-reload-preview' );
     const returnSetup = $( 'syndamorph-team-return-setup' );
     const previewHeading = $( 'syndamorph-team-preview-heading' );
+    const viewResult = $( 'syndamorph-team-view-result' );
+    const previewNav = $( 'syndamorph-team-preview-navbar' );
+    const tabWindow = $( 'syndamorph-team-preview-tab-window' );
+    const previewTabs = $( 'syndamorph-team-preview-tabs' );
+    const pager = $( 'syndamorph-team-preview-pager' );
+    const prevPage = $( 'syndamorph-team-preview-prev' );
+    const nextPage = $( 'syndamorph-team-preview-next' );
+    const picker = $( 'syndamorph-team-preview-picker' );
+    const pickerLabel = $( 'syndamorph-team-preview-picker-label' );
+    const pickerMenu = $( 'syndamorph-team-preview-picker-menu' );
     const previewState = $( 'syndamorph-team-preview-state' );
     const warnings = $( 'syndamorph-team-preview-warnings' );
     const saveButton = $( 'syndamorph-team-save' );
@@ -46,6 +56,8 @@
     const savedModes = new Map();
     const savedDraftIds = [];
     let activeJob = null;
+    let syncPreviewNav = () => {};
+    let buildPreviewNav = () => {};
     const titleFor = path => ( path.split( '/' ).pop() || 'Untitled' ).replace( /\.html?$/i, '' ).replace( /[-_]+/g, ' ' );
     const request = async ( url, body, form = false ) => {
         const headers = { 'X-WP-Nonce': SyndaMorphTeam.nonce };
@@ -118,6 +130,8 @@
         diagnostics.hidden = true;
         saveButton.disabled = true;
         artifacts.hidden = true;
+        previewNav.hidden = true;
+        viewResult.hidden = true;
         previewGeneration++;
         frame.removeAttribute( 'srcdoc' );
         inspectStatus.textContent = 'Ready for inspection';
@@ -288,23 +302,135 @@
         }
         previewState.textContent = 'Review required';
         previewState.dataset.state = 'running';
-        if ( prepared.length > 1 ) {
-            const nav = document.createElement( 'div' );
-            nav.className = 'sm-team-preview-navigation';
-            const prev = document.createElement( 'button' );
-            prev.type = 'button';prev.className = 'sm-team-secondary';prev.textContent = 'Previous page';
-            prev.disabled = cursor === 0;
-            prev.addEventListener( 'click', () => showPreview( cursor - 1 ) );
-            const next = document.createElement( 'button' );
-            next.type = 'button';next.className = 'sm-team-secondary';next.textContent = 'Next page';
-            next.disabled = cursor === prepared.length - 1;
-            next.addEventListener( 'click', () => showPreview( cursor + 1 ) );
-            nav.append( prev, next );
-            const existing = artifacts.querySelector( '.sm-team-preview-navigation' );
-            if ( existing ) existing.replaceWith( nav );
-            else frame.after( nav );
-        }
+        syncPreviewNav();
     };
+    // Responsive results navbar: only fully visible tabs; a fixed-width picker
+    // appears when the complete title strip exceeds the available width.
+    let firstVisible = 0;
+    let tabWidths = [];
+    const tabGap = 5;
+    const closePicker = () => {
+        pickerMenu.hidden = true;
+        picker.setAttribute( 'aria-expanded', 'false' );
+    };
+    const fitTabsFrom = ( start, available ) => {
+        let used = 0;
+        let count = 0;
+        for ( let i = start; i < tabWidths.length; i++ ) {
+            const needed = Math.min( tabWidths[ i ], available ) + ( count ? tabGap : 0 );
+            if ( count && used + needed > available + 0.5 ) break;
+            used += needed;
+            count++;
+        }
+        return Math.max( 1, count );
+    };
+    const showVisibleTabs = () => {
+        if ( previewNav.hidden ) return;
+        const tabs = Array.from( previewTabs.children );
+        if ( pager.hidden ) {
+            firstVisible = 0;
+            tabs.forEach( tab => { tab.hidden = false; tab.style.width = ''; } );
+            return;
+        }
+        const available = tabWindow.clientWidth;
+        if ( !available ) return;
+        if ( cursor < firstVisible ) firstVisible = cursor;
+        while ( cursor >= firstVisible + fitTabsFrom( firstVisible, available ) && firstVisible < cursor ) {
+            firstVisible++;
+        }
+        const count = fitTabsFrom( firstVisible, available );
+        tabs.forEach( ( tab, index ) => {
+            tab.hidden = index < firstVisible || index >= firstVisible + count;
+            tab.style.width = !tab.hidden && tabWidths[ index ] > available ? available + 'px' : '';
+        } );
+    };
+    const reflowPreviewNav = () => {
+        if ( previewNav.hidden || prepared.length < 2 ) return;
+        const fullWidth = tabWidths.reduce( ( sum, width ) => sum + width, 0 ) + ( tabWidths.length - 1 ) * tabGap;
+        const overflow = fullWidth > previewNav.clientWidth + 0.5;
+        pager.hidden = !overflow;
+        if ( !overflow ) firstVisible = 0;
+        showVisibleTabs();
+    };
+    syncPreviewNav = () => {
+        if ( previewNav.hidden ) return;
+        pickerLabel.textContent = prepared[ cursor ]?.title || '';
+        pickerLabel.title = pickerLabel.textContent;
+        prevPage.disabled = cursor === 0;
+        nextPage.disabled = cursor === prepared.length - 1;
+        Array.from( previewTabs.children ).forEach( ( tab, index ) => {
+            const active = index === cursor;
+            tab.setAttribute( 'aria-selected', String( active ) );
+            tab.tabIndex = active ? 0 : -1;
+        } );
+        Array.from( pickerMenu.children ).forEach( ( option, index ) => option.setAttribute( 'aria-selected', String( index === cursor ) ) );
+        closePicker();
+        showVisibleTabs();
+    };
+    buildPreviewNav = () => {
+        previewNav.hidden = prepared.length < 2;
+        pickerMenu.replaceChildren();
+        previewTabs.replaceChildren();
+        tabWidths = [];
+        firstVisible = 0;
+        closePicker();
+        if ( previewNav.hidden ) return;
+        for ( const [ index, item ] of prepared.entries() ) {
+            const tab = document.createElement( 'button' );
+            tab.type = 'button';
+            tab.className = 'sm-team-preview-tab';
+            tab.setAttribute( 'role', 'tab' );
+            tab.title = item.title;
+            tab.textContent = item.title;
+            tab.addEventListener( 'click', () => showPreview( index ) );
+            previewTabs.append( tab );
+            const option = document.createElement( 'button' );
+            option.type = 'button';
+            option.className = 'sm-team-preview-option';
+            option.setAttribute( 'role', 'option' );
+            option.title = item.title;
+            option.textContent = item.title;
+            option.addEventListener( 'click', () => {
+                showPreview( index );
+                picker.focus();
+            } );
+            pickerMenu.append( option );
+        }
+        // Measure natural tab widths before clipping. Never scroll the iframe.
+        tabWidths = Array.from( previewTabs.children, tab => tab.getBoundingClientRect().width );
+        reflowPreviewNav();
+    };
+    prevPage.addEventListener( 'click', () => { if ( cursor > 0 ) showPreview( cursor - 1 ); } );
+    nextPage.addEventListener( 'click', () => { if ( cursor < prepared.length - 1 ) showPreview( cursor + 1 ); } );
+    picker.addEventListener( 'click', () => {
+        const opening = pickerMenu.hidden;
+        pickerMenu.hidden = !opening;
+        picker.setAttribute( 'aria-expanded', String( opening ) );
+        if ( opening ) pickerMenu.children[ cursor ]?.scrollIntoView( { block: 'nearest' } );
+    } );
+    document.addEventListener( 'click', event => {
+        if ( !pager.contains( event.target ) ) closePicker();
+    } );
+    pickerMenu.addEventListener( 'keydown', event => {
+        if ( event.key === 'Escape' ) {
+            closePicker();
+            picker.focus();
+        }
+    } );
+    window.addEventListener( 'keydown', event => {
+        if ( event.key === 'Escape' ) closePicker();
+    } );
+    if ( typeof ResizeObserver !== 'undefined' ) {
+        new ResizeObserver( () => reflowPreviewNav() ).observe( previewNav );
+    } else {
+        window.addEventListener( 'resize', reflowPreviewNav );
+    }
+    viewResult.addEventListener( 'click', () => {
+        if ( !prepared.length || artifacts.hidden ) return;
+        stage( 'results' );
+        $( 'sm-team-tab-results' ).scrollIntoView( { behavior: 'smooth', block: 'start' } );
+        requestAnimationFrame( reflowPreviewNav );
+    } );
     convertButton.addEventListener( 'click', async () => {
         if ( busy ) return;
         if ( !inspected || inspected.kind !== pick.sourceType() ) {
@@ -324,6 +450,8 @@
         convertButton.disabled = true;
         saveButton.disabled = true;
         artifacts.hidden = true;
+        previewNav.hidden = true;
+        viewResult.hidden = true;
         previewScrollLock.unlock();
         prepared = [];
         activeJob = null;
@@ -386,10 +514,11 @@
             artifacts.hidden = false;
             saveStatus.textContent = 'Review the preview and asset warnings, then approve to save.';
             refreshSaveAction();
-            const oldNav = artifacts.querySelector( '.sm-team-preview-navigation' );
-            if ( oldNav ) oldNav.remove();
             stage( 'results' );
+            buildPreviewNav();
             showPreview( 0 );
+            viewResult.textContent = prepared.length > 1 ? 'View Results' : 'View Result';
+            viewResult.hidden = false;
         } catch ( error ) {
             showError( convertError, 'Conversion failed: ' + ( error.message || String( error ) ) );
             jobState.textContent = 'Conversion error';
