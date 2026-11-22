@@ -164,6 +164,7 @@ function syndamorph_team_render_tab(): void {
                                 <div class="sm-team-agent" data-agent="designer"><span class="sm-team-avatar">D</span><div><strong>Designer Agent</strong><p>Design architecture and visual fidelity</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
                                 <div class="sm-team-agent" data-agent="developer"><span class="sm-team-avatar">C</span><div><strong>Developer Agent</strong><p>Gutenberg blocks and interactions</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
                                 <div class="sm-team-note">Actual disagreements, corrections and evidence will appear here after real orchestration is connected. The demo does not invent validation outcomes.</div>
+                                <button type="button" class="sm-team-secondary sm-team-view-result" id="syndamorph-team-view-result" hidden>View Result</button>
                             </div>
                         </section>
                     </div>
@@ -203,6 +204,17 @@ function syndamorph_team_render_tab(): void {
                                         <span class="sm-status-pill" id="syndamorph-team-preview-state" data-state="idle">Not reviewed</span>
                                     </div>
                                 </div>
+                                <nav class="sm-team-preview-navbar" id="syndamorph-team-preview-navbar" aria-label="Converted page previews" hidden>
+                                    <div class="sm-team-preview-tab-window" id="syndamorph-team-preview-tab-window">
+                                        <div class="sm-team-preview-tabs" id="syndamorph-team-preview-tabs" role="tablist" aria-label="Converted page previews"></div>
+                                    </div>
+                                    <div class="sm-team-preview-pager" id="syndamorph-team-preview-pager" hidden>
+                                        <button type="button" class="sm-team-preview-arrow" id="syndamorph-team-preview-prev" aria-label="Previous preview" title="Previous preview">&#8249;</button>
+                                        <button type="button" class="sm-team-preview-picker" id="syndamorph-team-preview-picker" aria-label="Choose preview" aria-haspopup="listbox" aria-expanded="false"><span id="syndamorph-team-preview-picker-label"></span><span aria-hidden="true">&#9662;</span></button>
+                                        <button type="button" class="sm-team-preview-arrow" id="syndamorph-team-preview-next" aria-label="Next preview" title="Next preview">&#8250;</button>
+                                        <div class="sm-team-preview-picker-menu" id="syndamorph-team-preview-picker-menu" role="listbox" aria-label="Jump to preview" hidden></div>
+                                    </div>
+                                </nav>
                                 <div id="syndamorph-team-preview-warnings" class="sm-team-preview-warnings" role="status" aria-live="polite"></div>
                                 <iframe id="syndamorph-team-preview-frame" title="Converted Gutenberg preview" sandbox="" referrerpolicy="no-referrer"></iframe>
                                 <div class="sm-team-export-actions">
