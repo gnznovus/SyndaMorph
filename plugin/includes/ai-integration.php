@@ -4,8 +4,38 @@
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
+function syndamorph_ai_mock_enabled(): bool {
+    return defined( 'WP_DEBUG' ) && WP_DEBUG && '1' === getenv( 'SYNDAMORPH_MOCK_AI_ENABLED' );
+}
+
 function syndamorph_ai_providers(): array {
-    return array( 'anthropic' => 'Anthropic (Claude)', 'openai' => 'OpenAI', 'google' => 'Google (Gemini)' );
+    $providers = array( 'anthropic' => 'Anthropic (Claude)', 'openai' => 'OpenAI', 'google' => 'Google (Gemini)' );
+    if ( syndamorph_ai_mock_enabled() ) {
+        $providers['mock'] = 'Mock Provider (Local Test)';
+    }
+    return $providers;
+}
+
+function syndamorph_ai_mock_test( string $key ): array {
+    $outcomes = array(
+        'sm_mock_success_2026' => array( 200, 'Mock connection succeeded.' ),
+        'sm_mock_reject_2026' => array( 401, 'Mock credential rejected.' ),
+        'sm_mock_unavailable_2026' => array( 0, 'Mock provider unavailable.' ),
+    );
+    $outcome = $outcomes[ $key ] ?? array( 401, 'Mock credential rejected.' );
+    return array(
+        'provider' => 'mock',
+        'ok' => 200 === $outcome[0],
+        'http_status' => $outcome[0],
+        'latency_ms' => 0,
+        'result' => $outcome[1],
+        'key' => array( 'configured' => false, 'preview' => '' ),
+        'diagnostics' => array(
+            'transport' => 'Local in-process mock (no external request)',
+            'response_body_exposed' => false,
+            'simulated' => true,
+        ),
+    );
 }
 
 function syndamorph_ai_key_material(): string {
@@ -34,6 +64,9 @@ function syndamorph_ai_saved_key( string $provider ): string {
 }
 
 function syndamorph_ai_key_status( string $provider ): array {
+    if ( 'mock' === $provider ) {
+        return array( 'configured' => false, 'preview' => '' );
+    }
     $key = syndamorph_ai_saved_key( $provider );
     return array( 'configured' => '' !== $key, 'preview' => '' !== $key ? substr( $key, 0, 4 ) . '••••••••' : '' );
 }
@@ -78,7 +111,7 @@ function syndamorph_ai_render_tab(): void {
                 <div class="sm-stats" aria-label="Provider summary">
                     <div class="sm-stat">
                         <span class="sm-stat-label">Available providers</span>
-                        <span class="sm-stat-value">03</span>
+                        <span class="sm-stat-value" id="syndamorph-ai-provider-count"><?php echo esc_html( str_pad( (string) count( syndamorph_ai_providers() ), 2, '0', STR_PAD_LEFT ) ); ?></span>
                     </div>
                     <div class="sm-stat">
                         <span class="sm-stat-label">Keys configured</span>
@@ -113,7 +146,10 @@ function syndamorph_ai_render_tab(): void {
                                         <span class="dashicons dashicons-visibility" aria-hidden="true"></span>
                                     </button>
                                 </div>
-                                <p class="sm-hint">Leave empty to test with a previously saved key. New keys are stored server-side.</p>
+                                <p class="sm-hint" id="syndamorph-ai-key-hint">Leave empty to test with a previously saved key. New keys are stored server-side.</p>
+                                <?php if ( syndamorph_ai_mock_enabled() ) : ?>
+                                <p class="sm-hint" id="syndamorph-ai-mock-hint" hidden>Mock keys: <code>sm_mock_success_2026</code> · <code>sm_mock_reject_2026</code> · <code>sm_mock_unavailable_2026</code>. Not saved or sent externally.</p>
+                                <?php endif; ?>
                                 <div class="sm-key-status" id="syndamorph-ai-preview" role="status" aria-live="polite">Checking saved credentials…</div>
                             </div>
                         </div>
@@ -176,6 +212,10 @@ add_action( 'rest_api_init', static function (): void {
             $new_key = $request->get_param( 'key' );
             if ( null !== $new_key && ! is_string( $new_key ) ) {
                 return new WP_Error( 'syndamorph_ai_key', 'API key must be text.', array( 'status' => 400 ) );
+            }
+            if ( 'mock' === $provider ) {
+                // Explicitly in-process: never persist the fixture or make outbound requests.
+                return rest_ensure_response( syndamorph_ai_mock_test( is_string( $new_key ) ? $new_key : '' ) );
             }
             if ( is_string( $new_key ) && '' !== $new_key ) {
                 if ( strlen( $new_key ) > 4096 || preg_match( '/[\x00-\x1f\x7f]/', $new_key ) ) {
