@@ -82,9 +82,6 @@ function syndamorph_ai_render_tab(): void {
                     <p class="sm-nav-label">Workspace</p>
                     <nav class="sm-nav" aria-label="SyndaMorph modules">
                         <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph' ) ); ?>">
-                            <span class="dashicons dashicons-upload" aria-hidden="true"></span> Source Importer
-                        </a>
-                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=team' ) ); ?>">
                             <span class="dashicons dashicons-groups" aria-hidden="true"></span> AI Production Team
                         </a>
                         <a class="sm-nav-item is-active" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=ai' ) ); ?>" aria-current="page">
