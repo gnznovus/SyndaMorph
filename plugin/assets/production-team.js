@@ -182,6 +182,16 @@
         } );
     }
 
+    // Shared, read-only selection access for the migrated deterministic workflow.
+    // The existing Importer stays untouched during the parity phase.
+    window.SyndaMorphTeamSelection = Object.freeze( {
+        file: kind => accepted[ kind ],
+        sourceType: () => sourceType.value,
+        brief: () => brief.value.trim(),
+        html: () => html.value,
+        url: () => url.value.trim(),
+    } );
+
     // The PM will generate job titles during real classification. UI-only names
     // are deliberately marked simulated, never represented as AI inference.
     function demoTitle( kind ) {
