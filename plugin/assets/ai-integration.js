@@ -39,7 +39,7 @@
         if ( mockHint ) mockHint.hidden = !isMock;
         if ( keyHint ) keyHint.hidden = isMock;
         input.value = '';
-        input.type = 'password';
+        input.classList.add( 'sm-masked-key' );
         if ( toggle ) {
             toggle.setAttribute( 'aria-pressed', 'false' );
             toggle.setAttribute( 'aria-label', 'Show API key' );
@@ -51,8 +51,8 @@
     } );
     if ( toggle ) {
         toggle.addEventListener( 'click', () => {
-            const showing = input.type === 'password';
-            input.type = showing ? 'text' : 'password';
+            const showing = input.classList.contains( 'sm-masked-key' );
+            input.classList.toggle( 'sm-masked-key', !showing );
             toggle.setAttribute( 'aria-pressed', String( showing ) );
             toggle.setAttribute( 'aria-label', showing ? 'Hide API key' : 'Show API key' );
         } );
