@@ -84,6 +84,9 @@ function syndamorph_ai_render_tab(): void {
                         <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph' ) ); ?>">
                             <span class="dashicons dashicons-upload" aria-hidden="true"></span> Source Importer
                         </a>
+                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=team' ) ); ?>">
+                            <span class="dashicons dashicons-groups" aria-hidden="true"></span> AI Production Team
+                        </a>
                         <a class="sm-nav-item is-active" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=ai' ) ); ?>" aria-current="page">
                             <span class="dashicons dashicons-admin-network" aria-hidden="true"></span> AI Integration
                         </a>
@@ -119,25 +122,6 @@ function syndamorph_ai_render_tab(): void {
                         <span class="sm-stat-value sm-stat-small" id="syndamorph-ai-last-test">Not tested</span>
                     </div>
                 </div>
-                <section class="sm-card sm-purr-card" aria-labelledby="sm-purr-title">
-                    <div class="sm-card-header">
-                        <h2 class="sm-card-title" id="sm-purr-title">Purr · Production Team Communication POC</h2>
-                        <p class="sm-card-caption">Two-in-one test: Railway Gateway integration + simulated Boss → Designer → Developer → Boss communication. No Gutenberg generation or genuine agent reasoning.</p>
-                    </div>
-                    <div class="sm-card-body">
-                        <div class="sm-field">
-                            <label class="sm-field-label" for="syndamorph-purr-job">Demonstration job</label>
-                            <input class="sm-control" id="syndamorph-purr-job" type="text" maxlength="200" value="Create a landing page for Hotel Indigo" autocomplete="off">
-                        </div>
-                        <div class="sm-purr-toolbar">
-                            <span id="syndamorph-purr-status" class="sm-status-pill" data-state="idle" role="status" aria-live="polite">Not tested</span>
-                            <button type="button" id="syndamorph-purr-run" class="sm-primary">Run communication POC</button>
-                        </div>
-                        <div class="sm-purr-transcript" id="syndamorph-purr-transcript" aria-live="polite">
-                            <p class="sm-hint">Start the test to see real responses received through Purr. Role labels represent the simulated workflow, not separate AI agents.</p>
-                        </div>
-                    </div>
-                </section>
                 <div class="sm-workspace">
                     <section class="sm-card" aria-labelledby="sm-connection-title">
                         <div class="sm-card-header">
@@ -315,6 +299,5 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
         'statusUrl' => rest_url( 'syndamorph/v1/ai/providers' ),
         'testUrl' => rest_url( 'syndamorph/v1/ai/test' ),
         'deleteBaseUrl' => rest_url( 'syndamorph/v1/ai/keys/' ),
-        'purrPocUrl' => rest_url( 'syndamorph/v1/purr/communication-poc' ),
     ) ) . ';', 'before' );
 } );
