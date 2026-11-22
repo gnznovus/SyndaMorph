@@ -19,6 +19,7 @@
     const inspectActions = $( 'syndamorph-team-source-actions' );
     const artifacts = $( 'syndamorph-team-artifacts' );
     const frame = $( 'syndamorph-team-preview-frame' );
+    const reloadPreview = $( 'syndamorph-team-reload-preview' );
     const previewHeading = $( 'syndamorph-team-preview-heading' );
     const previewState = $( 'syndamorph-team-preview-state' );
     const warnings = $( 'syndamorph-team-preview-warnings' );
@@ -87,6 +88,7 @@
         diagnostics.hidden = true;
         saveButton.disabled = true;
         artifacts.hidden = true;
+        previewGeneration++;
         frame.removeAttribute( 'srcdoc' );
         inspectStatus.textContent = 'Ready for inspection';
         inspectStatus.dataset.state = 'idle';
@@ -178,11 +180,25 @@
         }
     } );
 
+    let previewGeneration = 0;
+    const paintPreview = () => {
+        const item = prepared[ cursor ];
+        if ( !item ) return;
+        const token = ++previewGeneration;
+        frame.removeAttribute( 'srcdoc' );
+        // Only mount srcdoc after the Results panel has become visible.
+        // A hidden sandboxed iframe can otherwise initialize as a blank document.
+        requestAnimationFrame( () => {
+            if ( token !== previewGeneration || artifacts.hidden ) return;
+            frame.srcdoc = item.preview;
+        } );
+    };
+    reloadPreview.addEventListener( 'click', paintPreview );
     const showPreview = index => {
         cursor = index;
         const item = prepared[ cursor ];
         if ( !item ) return;
-        frame.srcdoc = item.preview;
+        paintPreview();
         previewHeading.textContent = item.title + ' · ' + ( cursor + 1 ) + '/' + prepared.length;
         const issues = [
             ...( item.missing || [] ).map( issue => typeof issue === 'string' ? issue : 'Image: ' + ( issue.source || 'unknown' ) ),
