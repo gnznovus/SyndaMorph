@@ -257,3 +257,11 @@
     border-color: #ED3832;
 }
 #syndamorph-ai-integration .sm-delete-key[hidden] { display: none !important; }
+
+/* Purr Gateway communication POC */
+#syndamorph-ai-integration .sm-purr-card { margin: 0 0 22px; }
+#syndamorph-ai-integration .sm-purr-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin: 18px 0; }
+#syndamorph-ai-integration .sm-purr-transcript { display: grid; gap: 12px; }
+#syndamorph-ai-integration .sm-purr-message { border: 1px solid #e6e8ec; background: #fafbfc; border-radius: 10px; padding: 14px 16px; }
+#syndamorph-ai-integration .sm-purr-message strong { display: block; margin-bottom: 7px; color: #1f2937; }
+#syndamorph-ai-integration .sm-purr-message p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
