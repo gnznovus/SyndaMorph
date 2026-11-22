@@ -95,7 +95,7 @@ function syndamorph_team_render_tab(): void {
                                     <p class="sm-team-upload-feedback" data-upload-feedback="package" role="status" aria-live="polite"></p>
                                     <p class="sm-hint">Selected filename only; the package is not uploaded in simulation mode.</p>
                                 </div>
-                                <div class="sm-team-source-actions">
+                                <div class="sm-team-source-actions" id="syndamorph-team-source-actions">
                                     <button type="button" class="sm-team-secondary" id="syndamorph-team-inspect">Inspect source</button>
                                     <span id="syndamorph-team-inspect-status" role="status" aria-live="polite">Ready for inspection</span>
                                 </div>
@@ -128,6 +128,7 @@ function syndamorph_team_render_tab(): void {
                                     <button type="button" class="sm-team-secondary" id="syndamorph-team-reset">Reset</button>
                                 </div>
                                 <p class="sm-hint">Conversion uses the existing deterministic Gutenberg engine. The simulation remains a separate demo.</p>
+                                <p class="sm-team-action-feedback" id="syndamorph-team-convert-error" role="alert" hidden></p>
                                 <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">Use Inspect source → Convert with existing engine for real conversion. Agent handoff simulation is separate.</p>
                             </div>
                         </section>
@@ -140,13 +141,6 @@ function syndamorph_team_render_tab(): void {
                         <div class="sm-stat"><span class="sm-stat-label">Team handoffs</span><span class="sm-stat-value" id="syndamorph-team-handoffs">00 / 04</span></div>
                         <div class="sm-stat"><span class="sm-stat-label">Output readiness</span><span class="sm-stat-value sm-stat-small" id="syndamorph-team-output-state">Not generated</span></div>
                     </div>
-                    <section class="sm-card sm-team-real-work" aria-labelledby="sm-team-real-work-title">
-                        <div class="sm-card-header"><h2 class="sm-card-title" id="sm-team-real-work-title">Actual conversion activity</h2>
-                            <p class="sm-card-caption">Real operations through the existing Source Importer endpoints; not simulated agent reasoning.</p></div>
-                        <div class="sm-card-body"><ol class="sm-team-timeline" id="syndamorph-team-operation-feed" aria-live="polite">
-                            <li class="sm-team-empty">Inspect a source or start a conversion from Setup to see real operation events.</li>
-                        </ol></div>
-                    </section>
                     <div class="sm-team-layout sm-team-production-grid">
                         <section class="sm-card" aria-labelledby="sm-team-timeline-title">
                             <div class="sm-card-header sm-team-feed-heading">
