@@ -15,7 +15,8 @@
     const diagnosticsJson = $( 'syndamorph-team-source-diagnostics-json' );
     const convertButton = $( 'syndamorph-team-convert' );
     const jsToggle = $( 'syndamorph-team-js-mode' );
-    const operationFeed = $( 'syndamorph-team-operation-feed' );
+    const convertError = $( 'syndamorph-team-convert-error' );
+    const inspectActions = $( 'syndamorph-team-source-actions' );
     const artifacts = $( 'syndamorph-team-artifacts' );
     const frame = $( 'syndamorph-team-preview-frame' );
     const previewHeading = $( 'syndamorph-team-preview-heading' );
@@ -62,20 +63,20 @@
             panel.hidden = panel.dataset.panel !== name;
         } );
     };
-    const eventLine = ( title, detail ) => {
-        if ( operationFeed.querySelector( '.sm-team-empty' ) ) operationFeed.replaceChildren();
-        const li = document.createElement( 'li' );
-        li.className = 'sm-team-step';
-        const heading = document.createElement( 'strong' );
-        heading.textContent = title;
-        const desc = document.createElement( 'p' );
-        desc.textContent = detail;
-        li.append( heading, desc );
-        operationFeed.append( li );
+    const showError = ( node, message ) => {
+        if ( !node ) return;
+        node.textContent = message;
+        node.hidden = !message;
     };
-    const setStatus = ( title, detail ) => {
-        inspectStatus.textContent = title;
-        eventLine( title, detail );
+    const setStatus = ( title, detail, isError = false ) => {
+        inspectStatus.textContent = isError ? detail : title;
+        inspectStatus.dataset.state = isError ? 'error' : 'ok';
+    };
+    const sourceMode = () => {
+        const kind = pick.sourceType();
+        inspectActions.hidden = kind === 'html';
+        inspectButton.textContent = kind === 'package' ? 'Scan package' : 'Inspect source';
+        if ( kind === 'html' ) inspectStatus.textContent = 'HTML can convert directly';
     };
     const resetInspection = () => {
         sourceGeneration++;
@@ -88,9 +89,12 @@
         artifacts.hidden = true;
         frame.removeAttribute( 'srcdoc' );
         inspectStatus.textContent = 'Ready for inspection';
+        inspectStatus.dataset.state = 'idle';
+        showError( convertError, '' );
         sourceSummary.textContent = '';
     };
-    kindInput.addEventListener( 'change', resetInspection );
+    kindInput.addEventListener( 'change', () => { resetInspection(); sourceMode(); } );
+    sourceMode();
     root.querySelectorAll( '#syndamorph-team-source, #syndamorph-team-render-mode, #syndamorph-team-html' )
         .forEach( control => control.addEventListener( 'change', resetInspection ) );
     root.querySelectorAll( '[data-drop-kind]' ).forEach( drop => {
@@ -107,7 +111,7 @@
         inspectButton.disabled = true;
         convertButton.disabled = true;
         inspection.hidden = true;
-        setStatus( 'Inspecting ' + kind + ' source…', 'Using the existing SyndaMorph REST endpoints where required.' );
+        setStatus( 'Inspecting ' + kind + ' source…', '' );
         try {
             let result;
             if ( kind === 'url' ) {
@@ -123,7 +127,7 @@
                 const sections = all.filter( item => item && item.html && item.bounds &&
                     ![ 'header', 'footer', 'overlay' ].includes( item.kind ) &&
                     ( item.geometryAvailable === false || item.bounds.height > 0 ) );
-                if ( !sections.length ) throw new Error( 'No usable sections detected; see Source Importer diagnostics.' );
+                if ( !sections.length ) throw new Error( 'No usable sections were detected. Try a different rendering mode.' );
                 inspected = { kind, sections, diagnostics: result.diagnostics };
                 sourceSummary.textContent = sections.length + ' usable section(s) of ' + all.length +
                     ' detected. Select the section to convert.';
@@ -166,7 +170,7 @@
             inspection.hidden = false;
             setStatus( 'Source inspected', sourceSummary.textContent );
         } catch ( error ) {
-            if ( token === sourceGeneration ) setStatus( 'Inspection failed', error.message || String( error ) );
+            if ( token === sourceGeneration ) setStatus( 'Inspection failed', error.message || String( error ), true );
         } finally {
             busy = false;
             inspectButton.disabled = false;
@@ -224,21 +228,26 @@
     convertButton.addEventListener( 'click', async () => {
         if ( busy ) return;
         if ( !inspected || inspected.kind !== pick.sourceType() ) {
-            inspectStatus.textContent = 'Inspect the selected source before conversion.';
-            return;
+            if ( pick.sourceType() === 'html' && ( pick.file( 'html' ) || pick.html().trim() ) ) {
+                inspected = { kind: 'html' };
+            } else {
+                showError( convertError, pick.sourceType() === 'package' ? 'Scan and select package pages first.' : 'Inspect the URL and choose a section before conversion.' );
+                return;
+            }
         }
         const chosen = inspected;
         const generation = sourceGeneration;
         const kind = chosen.kind;
         const jsMode = Boolean( jsToggle.checked );
         busy = true;
+        showError( convertError, '' );
         convertButton.disabled = true;
         saveButton.disabled = true;
         artifacts.hidden = true;
         prepared = [];
         approved = false;
         stage( 'production' );
-        eventLine( 'Conversion started', 'Reusing SyndaMorphConverter.prepareImport for native Gutenberg blocks.' );
+        jobState.textContent = 'Converting';
         try {
             let pages = [];
             if ( kind === 'url' ) {
@@ -259,7 +268,7 @@
             const next = [];
             for ( const page of pages ) {
                 if ( generation !== sourceGeneration ) return;
-                eventLine( 'Preparing ' + page.title, 'Converting source to editable Gutenberg blocks.' );
+                jobState.textContent = 'Converting ' + page.title;
                 let source = page.html;
                 let missing = [];
                 let css = [];
@@ -273,7 +282,7 @@
                 const converted = await SyndaMorphConverter.prepareImport( source, jsMode );
                 next.push( { ...page, content: converted.content, preview: converted.preview,
                     missing: [ ...missing, ...converted.missing ], css, stylesheets: converted.stylesheets } );
-                eventLine( page.title + ' converted', 'Preview prepared. Validation warnings will appear in Results.' );
+
             }
             if ( generation !== sourceGeneration ) return;
             prepared = next;
@@ -296,14 +305,13 @@
             saveButton.disabled = false;
             const oldNav = artifacts.querySelector( '.sm-team-preview-navigation' );
             if ( oldNav ) oldNav.remove();
-            showPreview( 0 );
-            eventLine( 'Conversion completed', 'Results are ready for human review and optional WordPress import.' );
             stage( 'results' );
+            showPreview( 0 );
         } catch ( error ) {
-            eventLine( 'Conversion failed', error.message || String( error ) );
+            showError( convertError, 'Conversion failed: ' + ( error.message || String( error ) ) );
             jobState.textContent = 'Conversion error';
             outputState.textContent = 'Not ready';
-            stage( 'production' );
+            stage( 'setup' );
         } finally {
             busy = false;
             convertButton.disabled = false;
@@ -341,10 +349,10 @@
             approved = true;
             previewState.textContent = 'Saved';
             previewState.dataset.state = 'success';
-            eventLine( 'WordPress save succeeded', saveStatus.textContent );
+
         } catch ( error ) {
             saveStatus.textContent = 'Save failed: ' + ( error.message || String( error ) );
-            eventLine( 'WordPress save failed', saveStatus.textContent );
+
             saveButton.disabled = false;
         } finally {
             busy = false;
