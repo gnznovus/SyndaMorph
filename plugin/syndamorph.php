@@ -151,8 +151,10 @@ function syndamorph_render_import_page(): void {
             <p><label><input id="syndamorph-js-render" type="checkbox"> <strong>Render inline JavaScript (experimental)</strong></label></p>
             <p class="description">Runs the imported document in an isolated Docker browser before conversion. Only inline JavaScript is supported; network requests and external scripts are blocked. Requires the local renderer service.</p>
             <p><label for="syndamorph-page-title"><strong>Draft title</strong></label></p>
-            <input id="syndamorph-page-title" class="regular-text" type="text" value="Imported HTML" maxlength="200">
-            <p><button id="syndamorph-convert" type="button" class="button button-primary">Preview Import</button></p>
+            <div class="sm-inline-action">
+                <input id="syndamorph-page-title" class="regular-text" type="text" value="Imported HTML" maxlength="200">
+                <button id="syndamorph-convert" type="button" class="button button-primary">Preview Import</button>
+            </div>
             <div id="syndamorph-result" role="status" aria-live="polite"></div>
             <section id="syndamorph-preview" class="syndamorph-preview-modal" hidden role="dialog" aria-modal="true" aria-labelledby="syndamorph-preview-title" aria-describedby="syndamorph-preview-description">
                 <div class="syndamorph-preview-card">
