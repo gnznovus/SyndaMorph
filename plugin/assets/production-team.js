@@ -59,37 +59,126 @@
     sourceType.addEventListener( 'change', showSource );
     showSource();
 
-    function updateFileLabel( input, labelId ) {
-        const selected = input.files && input.files[ 0 ];
-        setText( byId( labelId ), selected ? selected.name : 'No file selected' );
+    // Both picker and drop interactions use one validation gate.
+    // This is client-side UX validation; real imports still require server validation.
+    const accepted = { html: null, package: null };
+    const uploadConfig = {
+        html: { input: htmlFile, labelId: 'syndamorph-team-html-file-name', empty: 'Drop HTML / HTM here or browse', pattern: /\\.html?$/i, type: 'HTML or HTM' },
+        package: { input: file, labelId: 'syndamorph-team-package-name', empty: 'Drop ZIP here or browse', pattern: /\\.zip$/i, type: 'ZIP' },
+    };
+    function uploadFeedback( kind, message, isError = false ) {
+        const node = root.querySelector( '[data-upload-feedback="' + kind + '"]' );
+        if ( node ) {
+            node.textContent = message;
+            node.dataset.state = isError ? 'error' : 'ok';
+        }
     }
-    file.addEventListener( 'change', () => updateFileLabel( file, 'syndamorph-team-package-name' ) );
-    htmlFile.addEventListener( 'change', async () => {
-        updateFileLabel( htmlFile, 'syndamorph-team-html-file-name' );
-        const selected = htmlFile.files && htmlFile.files[ 0 ];
-        if ( !selected ) return;
-        if ( !/\\.html?$/i.test( selected.name ) ) {
-            setText( notice, 'Select an HTML or HTM file.' );
-            return;
-        }
-        if ( selected.size > 2 * 1024 * 1024 ) {
-            setText( notice, 'HTML preview accepts files up to 2 MB.' );
-            return;
-        }
-        const expected = selected;
+    function updateFileLabel( kind ) {
+        const config = uploadConfig[ kind ];
+        setText( byId( config.labelId ), accepted[ kind ] ? accepted[ kind ].name : config.empty );
+    }
+    function restorePicker( kind ) {
+        const input = uploadConfig[ kind ].input;
+        const previous = accepted[ kind ];
         try {
-            const markup = await selected.text();
-            if ( !htmlFile.files || htmlFile.files[ 0 ] !== expected ) return;
+            const transfer = new DataTransfer();
+            if ( previous ) transfer.items.add( previous );
+            input.files = transfer.files;
+        } catch ( _error ) {
+            // The accepted-file state remains authoritative in environments
+            // that do not allow assigning a FileList to an input.
+            input.value = '';
+        }
+    }
+    function checkFile( kind, selected ) {
+        const config = uploadConfig[ kind ];
+        if ( !selected || !config.pattern.test( selected.name ) ) {
+            return 'Rejected: only ' + config.type + ' files are accepted here.';
+        }
+        if ( kind === 'html' && selected.size > 2 * 1024 * 1024 ) {
+            return 'Rejected: HTML files must be 2 MB or smaller.';
+        }
+        return '';
+    }
+    let htmlReadToken = 0;
+    async function acceptFile( kind, selected, fromDrop = false ) {
+        const error = checkFile( kind, selected );
+        if ( error ) {
+            uploadFeedback( kind, error, true );
+            setText( notice, error );
+            if ( !fromDrop ) restorePicker( kind );
+            return;
+        }
+        if ( kind === 'html' ) {
+            const readToken = ++htmlReadToken;
+            let markup;
+            try {
+                markup = await selected.text();
+            } catch ( _error ) {
+                uploadFeedback( kind, 'Rejected: could not read the HTML file.', true );
+                if ( !fromDrop ) restorePicker( kind );
+                return;
+            }
+            if ( readToken !== htmlReadToken ) return;
             if ( markup.length > html.maxLength ) {
-                setText( notice, 'HTML is too large for this preview (50,000 characters maximum).' );
+                uploadFeedback( kind, 'Rejected: HTML exceeds the 50,000-character editor limit.', true );
+                if ( !fromDrop ) restorePicker( kind );
                 return;
             }
             html.value = markup;
-            setText( notice, 'HTML loaded locally into the editor. Nothing was uploaded.' );
-        } catch ( _error ) {
-            setText( notice, 'Could not read the selected HTML file.' );
         }
-    } );
+        accepted[ kind ] = selected;
+        if ( fromDrop ) restorePicker( kind );
+        updateFileLabel( kind );
+        uploadFeedback( kind, kind === 'html' ? 'Accepted · HTML loaded locally into the editor.' : 'Accepted · ZIP selected locally.' );
+        setText( notice, 'File accepted locally. No upload or conversion was performed.' );
+    }
+    for ( const kind of Object.keys( uploadConfig ) ) {
+        const config = uploadConfig[ kind ];
+        const zone = root.querySelector( '[data-drop-kind="' + kind + '"]' );
+        config.input.addEventListener( 'change', () => {
+            const selected = config.input.files && config.input.files[ 0 ];
+            if ( selected ) void acceptFile( kind, selected );
+            else {
+                accepted[ kind ] = null;
+                if ( kind === 'html' ) ++htmlReadToken;
+                updateFileLabel( kind );
+                uploadFeedback( kind, '' );
+            }
+        } );
+        if ( !zone ) continue;
+        let dragDepth = 0;
+        zone.addEventListener( 'dragenter', event => {
+            event.preventDefault();
+            dragDepth++;
+            zone.classList.add( 'is-dragging' );
+        } );
+        zone.addEventListener( 'dragover', event => {
+            event.preventDefault();
+            if ( event.dataTransfer ) event.dataTransfer.dropEffect = 'copy';
+        } );
+        zone.addEventListener( 'dragleave', event => {
+            event.preventDefault();
+            dragDepth = Math.max( 0, dragDepth - 1 );
+            if ( dragDepth === 0 ) zone.classList.remove( 'is-dragging' );
+        } );
+        zone.addEventListener( 'drop', event => {
+            event.preventDefault();
+            dragDepth = 0;
+            zone.classList.remove( 'is-dragging' );
+            const files = event.dataTransfer && event.dataTransfer.files;
+            if ( !files || files.length !== 1 ) {
+                uploadFeedback( kind, 'Rejected: drop exactly one ' + config.type + ' file.', true );
+                return;
+            }
+            void acceptFile( kind, files[ 0 ], true );
+        } );
+        zone.addEventListener( 'keydown', event => {
+            if ( event.target !== zone || ( event.key !== 'Enter' && event.key !== ' ' ) ) return;
+            event.preventDefault();
+            config.input.click();
+        } );
+    }
 
     // The PM will generate job titles during real classification. UI-only names
     // are deliberately marked simulated, never represented as AI inference.
