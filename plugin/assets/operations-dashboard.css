@@ -226,3 +226,8 @@
     #syndamorph-html-import .syndamorph-package-upload > input[type="file"],
     #syndamorph-html-import .sm-inline-action > input[type="text"] { flex-basis: 100%; }
 }
+
+/* Mask API token without using password input semantics that trigger generated-password UI. */
+#syndamorph-ai-integration input.sm-masked-key {
+    -webkit-text-security: disc;
+}
