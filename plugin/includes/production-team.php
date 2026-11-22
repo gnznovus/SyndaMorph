@@ -43,103 +43,126 @@ function syndamorph_team_render_tab(): void {
                 <h1 class="sm-page-title">AI Production Team</h1>
                 <p class="sm-page-description">Prepare a job, simulate agent handoffs, and inspect the production timeline. This workspace is UI-only until the execution pipeline is connected.</p>
 
-                <div class="sm-stats" aria-label="Simulation overview">
-                    <div class="sm-stat">
-                        <span class="sm-stat-label">Current job</span>
-                        <span class="sm-stat-value sm-stat-small" id="syndamorph-team-job-state">Not started</span>
-                    </div>
-                    <div class="sm-stat">
-                        <span class="sm-stat-label">Team handoffs</span>
-                        <span class="sm-stat-value" id="syndamorph-team-handoffs">00 / 04</span>
-                    </div>
-                    <div class="sm-stat">
-                        <span class="sm-stat-label">Output readiness</span>
-                        <span class="sm-stat-value sm-stat-small" id="syndamorph-team-output-state">Not generated</span>
-                    </div>
-                </div>
+                <nav class="sm-team-tabs" aria-label="Production workflow stages" role="tablist">
+                    <button type="button" id="sm-team-tab-setup" role="tab" aria-controls="sm-team-panel-setup" aria-selected="true" tabindex="0" data-panel="setup">01 <strong>Setup</strong><span>Prepare job</span></button>
+                    <button type="button" id="sm-team-tab-production" role="tab" aria-controls="sm-team-panel-production" aria-selected="false" tabindex="-1" data-panel="production">02 <strong>Production</strong><span>Live activity</span></button>
+                    <button type="button" id="sm-team-tab-results" role="tab" aria-controls="sm-team-panel-results" aria-selected="false" tabindex="-1" data-panel="results">03 <strong>Results</strong><span>Review output</span></button>
+                </nav>
 
-                <div class="sm-team-layout">
-                    <section class="sm-card" aria-labelledby="sm-team-job-title">
-                        <div class="sm-card-header">
-                            <h2 class="sm-card-title" id="sm-team-job-title">Job briefing</h2>
-                            <p class="sm-card-caption">This simulation does not submit a production job or fetch source content.</p>
-                        </div>
-                        <div class="sm-card-body">
-                            <div class="sm-field">
-                                <label class="sm-field-label" for="syndamorph-team-job">Job title</label>
-                                <input class="sm-control" type="text" id="syndamorph-team-job" maxlength="200" value="Hotel Indigo landing page" autocomplete="off">
+                <section id="sm-team-panel-setup" class="sm-team-panel" role="tabpanel" aria-labelledby="sm-team-tab-setup" data-panel="setup">
+                    <div class="sm-team-layout sm-team-setup-grid">
+                        <section class="sm-card" aria-labelledby="sm-team-source-title">
+                            <div class="sm-card-header">
+                                <h2 class="sm-card-title" id="sm-team-source-title">Source import</h2>
+                                <p class="sm-card-caption">Choose what the team will work with. Source processing is not connected in simulation mode.</p>
                             </div>
-                            <div class="sm-field">
-                                <label class="sm-field-label" for="syndamorph-team-source">Source reference (optional)</label>
-                                <input class="sm-control" type="url" id="syndamorph-team-source" placeholder="https://example.com/wireframe" maxlength="2048" autocomplete="off">
-                                <p class="sm-hint">Reference only. No capture or external access in simulation mode.</p>
+                            <div class="sm-card-body">
+                                <div class="sm-field">
+                                    <label class="sm-field-label" for="syndamorph-team-source-type">Source type</label>
+                                    <select class="sm-control" id="syndamorph-team-source-type">
+                                        <option value="url">Website URL</option>
+                                        <option value="html">HTML markup</option>
+                                        <option value="package">ZIP package</option>
+                                    </select>
+                                </div>
+                                <div class="sm-field sm-team-source-input" data-source="url">
+                                    <label class="sm-field-label" for="syndamorph-team-source">Page URL</label>
+                                    <input class="sm-control" type="url" id="syndamorph-team-source" placeholder="https://example.com/landing-page" maxlength="2048" autocomplete="off">
+                                    <p class="sm-hint">Reference only. The simulation will not fetch this URL.</p>
+                                </div>
+                                <div class="sm-field sm-team-source-input" data-source="html" hidden>
+                                    <label class="sm-field-label" for="syndamorph-team-html">HTML source</label>
+                                    <textarea class="sm-control" id="syndamorph-team-html" rows="7" maxlength="50000" placeholder="Paste HTML markup here"></textarea>
+                                    <p class="sm-hint">Simulation reads only the input type, not the markup. Existing Importer handles real conversions.</p>
+                                </div>
+                                <div class="sm-field sm-team-source-input" data-source="package" hidden>
+                                    <label class="sm-field-label" for="syndamorph-team-package">ZIP package</label>
+                                    <input class="sm-control sm-team-file" type="file" id="syndamorph-team-package" accept=".zip,application/zip">
+                                    <p class="sm-hint">Selected filename only; package is not uploaded by this simulation.</p>
+                                </div>
+                                <div class="sm-team-note">In the final pipeline, the PM will assign the job title during classification. There is intentionally no manual title field or separate title-generation call.</div>
                             </div>
-                            <div class="sm-field">
-                                <label class="sm-field-label" for="syndamorph-team-brief">Production brief</label>
-                                <textarea class="sm-control sm-team-brief" id="syndamorph-team-brief" rows="4" maxlength="1200">Demonstrate how the Boss, Designer, and Developer coordinate a Gutenberg production job.</textarea>
+                        </section>
+                        <section class="sm-card" aria-labelledby="sm-team-brief-title">
+                            <div class="sm-card-header">
+                                <h2 class="sm-card-title" id="sm-team-brief-title">Production brief</h2>
+                                <p class="sm-card-caption">Describe the outcome; the PM owns task classification and delegation.</p>
                             </div>
-                            <div class="sm-team-actions">
-                                <button type="button" class="sm-primary" id="syndamorph-team-run">Run simulation</button>
-                                <button type="button" class="sm-team-secondary" id="syndamorph-team-reset">Reset</button>
+                            <div class="sm-card-body">
+                                <div class="sm-field">
+                                    <label class="sm-field-label" for="syndamorph-team-brief">Task instructions</label>
+                                    <textarea class="sm-control sm-team-brief" id="syndamorph-team-brief" rows="7" maxlength="1200">Convert the supplied source into independently editable Gutenberg sections, preserving layout fidelity.</textarea>
+                                </div>
+                                <div class="sm-team-actions">
+                                    <button type="button" class="sm-primary" id="syndamorph-team-run">Start simulation <span aria-hidden="true">→</span></button>
+                                    <button type="button" class="sm-team-secondary" id="syndamorph-team-reset">Reset</button>
+                                </div>
+                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">UI simulation only · no production job, source capture, or AI inference.</p>
                             </div>
-                            <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">Local simulation only · no AI tokens consumed.</p>
-                        </div>
-                    </section>
-                    <section class="sm-card" aria-labelledby="sm-team-roster-title">
-                        <div class="sm-card-header">
-                            <h2 class="sm-card-title" id="sm-team-roster-title">Agent roster</h2>
-                            <p class="sm-card-caption">Defined roles; simulated status indicators.</p>
-                        </div>
-                        <div class="sm-card-body">
-                            <div class="sm-team-agent" data-agent="boss"><span class="sm-team-avatar">B</span><div><strong>Boss Agent</strong><p>Classification, delegation, approval</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
-                            <div class="sm-team-agent" data-agent="designer"><span class="sm-team-avatar">D</span><div><strong>Designer Agent</strong><p>Design planning and section structure</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
-                            <div class="sm-team-agent" data-agent="developer"><span class="sm-team-avatar">C</span><div><strong>Developer Agent</strong><p>Block and interaction implementation</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
-                            <div class="sm-team-note">Freelancer allocation, real model calls, and automated repair are reserved for a later phase.</div>
-                        </div>
-                    </section>
-                </div>
+                        </section>
+                    </div>
+                </section>
 
-                <div class="sm-team-layout sm-team-bottom">
-                    <section class="sm-card" aria-labelledby="sm-team-timeline-title">
+                <section id="sm-team-panel-production" class="sm-team-panel" role="tabpanel" aria-labelledby="sm-team-tab-production" data-panel="production" hidden>
+                    <div class="sm-stats" aria-label="Simulation overview">
+                        <div class="sm-stat"><span class="sm-stat-label">Current job</span><span class="sm-stat-value sm-stat-small" id="syndamorph-team-job-state">Not started</span></div>
+                        <div class="sm-stat"><span class="sm-stat-label">Team handoffs</span><span class="sm-stat-value" id="syndamorph-team-handoffs">00 / 04</span></div>
+                        <div class="sm-stat"><span class="sm-stat-label">Output readiness</span><span class="sm-stat-value sm-stat-small" id="syndamorph-team-output-state">Not generated</span></div>
+                    </div>
+                    <div class="sm-team-layout sm-team-production-grid">
+                        <section class="sm-card" aria-labelledby="sm-team-timeline-title">
+                            <div class="sm-card-header sm-team-feed-heading">
+                                <div><h2 class="sm-card-title" id="sm-team-timeline-title">Live Production Feed</h2>
+                                <p class="sm-card-caption">Simulated streaming decisions, actions and handoffs. Real agent reasoning and execution are not connected.</p></div>
+                                <span class="sm-status-pill" id="syndamorph-team-feed-state" data-state="idle">Idle</span>
+                            </div>
+                            <div class="sm-card-body">
+                                <p class="sm-team-job-header" id="syndamorph-team-current-job">No job submitted</p>
+                                <ol class="sm-team-timeline" id="syndamorph-team-timeline" aria-live="polite" aria-relevant="additions">
+                                    <li class="sm-team-empty">No activity yet. Start a simulation from Setup.</li>
+                                </ol>
+                            </div>
+                        </section>
+                        <section class="sm-card" aria-labelledby="sm-team-roster-title">
+                            <div class="sm-card-header"><h2 class="sm-card-title" id="sm-team-roster-title">Agent roster</h2><p class="sm-card-caption">Assigned roles and simulated activity.</p></div>
+                            <div class="sm-card-body">
+                                <div class="sm-team-agent" data-agent="boss"><span class="sm-team-avatar">B</span><div><strong>PM / Boss Agent</strong><p>Job classification, delegation and approval</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
+                                <div class="sm-team-agent" data-agent="designer"><span class="sm-team-avatar">D</span><div><strong>Designer Agent</strong><p>Design architecture and visual fidelity</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
+                                <div class="sm-team-agent" data-agent="developer"><span class="sm-team-avatar">C</span><div><strong>Developer Agent</strong><p>Gutenberg blocks and interactions</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
+                                <div class="sm-team-note">Actual disagreements, corrections and evidence will appear here after real orchestration is connected. The demo does not invent validation outcomes.</div>
+                            </div>
+                        </section>
+                    </div>
+                    <section class="sm-card sm-team-purr" aria-labelledby="sm-team-purr-title">
                         <div class="sm-card-header">
-                            <h2 class="sm-card-title" id="sm-team-timeline-title">Production timeline</h2>
-                            <p class="sm-card-caption">Deterministic stages, shown in order. No fabricated AI responses.</p>
+                            <h2 class="sm-card-title" id="sm-team-purr-title">Purr Gateway — Online Communication POC</h2>
+                            <p class="sm-card-caption">Optional real Railway test: four deterministic Gateway replies. Separate from the local streaming simulation.</p>
                         </div>
                         <div class="sm-card-body">
-                            <ol class="sm-team-timeline" id="syndamorph-team-timeline" aria-live="polite">
-                                <li class="sm-team-empty">No activity yet. Run a simulation to view agent handoffs.</li>
-                            </ol>
+                            <div class="sm-team-purr-toolbar">
+                                <span id="syndamorph-purr-status" class="sm-status-pill" data-state="idle" role="status" aria-live="polite">Not tested</span>
+                                <button type="button" id="syndamorph-purr-run" class="sm-primary">Test Purr communication</button>
+                            </div>
+                            <div id="syndamorph-purr-transcript" class="sm-purr-transcript" aria-live="polite">
+                                <p class="sm-hint">No Gateway requests sent yet.</p>
+                            </div>
                         </div>
                     </section>
+                </section>
+
+                <section id="sm-team-panel-results" class="sm-team-panel" role="tabpanel" aria-labelledby="sm-team-tab-results" data-panel="results" hidden>
                     <section class="sm-card" aria-labelledby="sm-team-review-title">
-                        <div class="sm-card-header">
-                            <h2 class="sm-card-title" id="sm-team-review-title">Result review</h2>
-                            <p class="sm-card-caption">Distinguishes workflow completion from deliverable readiness.</p>
-                        </div>
+                        <div class="sm-card-header"><h2 class="sm-card-title" id="sm-team-review-title">Job results</h2>
+                            <p class="sm-card-caption">Job identity and outcome. A completed conversation is not a generated Gutenberg artifact.</p></div>
                         <div class="sm-card-body">
+                            <h2 class="sm-team-result-title" id="syndamorph-team-result-title">No job submitted</h2>
                             <div class="sm-team-result" id="syndamorph-team-review" role="status" aria-live="polite">
                                 <strong>No output available</strong>
-                                <p>Complete a simulation to review its handoff summary. Gutenberg patterns, HTML, and custom blocks are not generated by this mode.</p>
+                                <p>Start a simulation from Setup. In the real pipeline, this page will contain generated sections, evidence and review controls.</p>
                             </div>
-                            <a class="sm-team-link" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph' ) ); ?>">Open Source Importer <span aria-hidden="true">→</span></a>
+                            <a class="sm-team-link" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph' ) ); ?>">Open manual Source Importer <span aria-hidden="true">→</span></a>
                         </div>
                     </section>
-                </div>
-
-                <section class="sm-card sm-team-purr" aria-labelledby="sm-team-purr-title">
-                    <div class="sm-card-header">
-                        <h2 class="sm-card-title" id="sm-team-purr-title">Purr Gateway — Online Communication POC</h2>
-                        <p class="sm-card-caption">Optional live integration check: requests reach Railway and receive four replies. Purr's deterministic product-guidance backend does not produce role-specific agent reasoning.</p>
-                    </div>
-                    <div class="sm-card-body">
-                        <div class="sm-team-purr-toolbar">
-                            <span id="syndamorph-purr-status" class="sm-status-pill" data-state="idle" role="status" aria-live="polite">Not tested</span>
-                            <button type="button" id="syndamorph-purr-run" class="sm-primary">Test Purr communication</button>
-                        </div>
-                        <div id="syndamorph-purr-transcript" class="sm-purr-transcript" aria-live="polite">
-                            <p class="sm-hint">No Gateway requests sent yet. Run this separate online test to verify transport and the predefined four-step sequence.</p>
-                        </div>
-                    </div>
                 </section>
             </main>
         </div>
