@@ -27,6 +27,7 @@
     const previewState = $( 'syndamorph-team-preview-state' );
     const warnings = $( 'syndamorph-team-preview-warnings' );
     const saveButton = $( 'syndamorph-team-save' );
+    const saveOpenButton = $( 'syndamorph-team-save-open' );
     const saveKind = $( 'syndamorph-team-output-kind' );
     const saveStatus = $( 'syndamorph-team-save-status' );
     const resultsTitle = $( 'syndamorph-team-result-title' );
@@ -42,6 +43,7 @@
     let busy = false;
     let sourceGeneration = 0;
     const savedModes = new Map();
+    const savedDraftIds = [];
     let activeJob = null;
     const titleFor = path => ( path.split( '/' ).pop() || 'Untitled' ).replace( /\.html?$/i, '' ).replace( /[-_]+/g, ' ' );
     const request = async ( url, body, form = false ) => {
@@ -67,17 +69,21 @@
             panel.hidden = panel.dataset.panel !== name;
         } );
     };
+    const editorUrl = id => SyndaMorphImport.editUrl + '?post=' + encodeURIComponent( id ) + '&action=edit';
     const refreshSaveAction = () => {
         const mode = saveKind.value;
         const saved = savedModes.get( mode );
+        const canSave = !busy && Boolean( prepared.length && activeJob ) && !saved;
         saveButton.dataset.state = busy ? 'saving' : saved ? 'saved' : 'ready';
-        saveButton.disabled = busy || !prepared.length || !activeJob || Boolean( saved );
-        saveButton.textContent = saved ? ( mode === 'draft' ? 'Draft saved' : 'Pattern saved' ) : 'Approve & Save';
-        if ( saved ) {
-            saveStatus.textContent = saved;
-        } else if ( prepared.length ) {
-            saveStatus.textContent = 'Ready to save as ' + ( mode === 'draft' ? 'draft pages' : 'unsynced patterns' ) + '.';
-        }
+        saveButton.disabled = !canSave;
+        saveButton.textContent = saved ? ( mode === 'draft' ? 'Draft saved' : 'Pattern saved' ) : 'Save';
+        const draftMode = mode === 'draft';
+        saveOpenButton.hidden = !draftMode;
+        saveOpenButton.dataset.state = busy ? 'saving' : saved ? 'saved' : 'ready';
+        saveOpenButton.disabled = busy || !prepared.length || !activeJob || ( Boolean( saved ) && !savedDraftIds.length );
+        saveOpenButton.textContent = saved ? 'Open Editor' : 'Save & Open Editor';
+        if ( saved ) saveStatus.textContent = saved;
+        else if ( prepared.length ) saveStatus.textContent = 'Ready to save as ' + ( draftMode ? 'draft pages' : 'unsynced patterns' ) + '.';
     };
     saveKind.addEventListener( 'change', refreshSaveAction );
     const showError = ( node, message ) => {
@@ -101,6 +107,7 @@
         prepared = [];
         activeJob = null;
         savedModes.clear();
+        savedDraftIds.length = 0;
         inspection.hidden = true;
         diagnostics.hidden = true;
         saveButton.disabled = true;
@@ -315,6 +322,7 @@
         prepared = [];
         activeJob = null;
         savedModes.clear();
+        savedDraftIds.length = 0;
         stage( 'production' );
         jobState.textContent = 'Converting';
         try {
@@ -388,11 +396,17 @@
         }
     } );
 
-    saveButton.addEventListener( 'click', async () => {
+    const saveOutput = async ( openEditor = false ) => {
         const mode = saveKind.value;
-        if ( busy || savedModes.has( mode ) || !prepared.length || !activeJob ) return;
+        if ( busy || !prepared.length || !activeJob ) return;
+        if ( savedModes.has( mode ) ) {
+            if ( openEditor && mode === 'draft' && savedDraftIds.length ) window.location.assign( editorUrl( savedDraftIds[ 0 ] ) );
+            return;
+        }
         busy = true;
         saveButton.dataset.state = 'saving';
+        saveOpenButton.dataset.state = 'saving';
+        saveOpenButton.disabled = true;
         saveButton.disabled = true;
         saveKind.disabled = true;
         saveStatus.textContent = 'Saving ' + ( mode === 'draft' ? 'draft pages' : 'unsynced patterns' ) + '…';
@@ -400,6 +414,7 @@
             const kind = activeJob.kind;
             let result;
             let statusMessage;
+            let createdDraftIds = [];
             if ( kind === 'package' ) {
                 let token = activeJob.token;
                 let items = prepared.map( item => ( {
@@ -429,6 +444,7 @@
                 result = await request( SyndaMorphTeam.packageCommitUrl, {
                     token, mode, pages: items,
                 } );
+                if ( mode === 'draft' ) createdDraftIds = result.created.map( entry => Number( entry.id ) ).filter( Number.isSafeInteger );
                 statusMessage = result.created.length + ' ' + ( mode === 'draft' ? 'draft(s)' : 'pattern(s)' ) +
                     ' created. ' + result.uploaded_images + ' images uploaded; ' +
                     result.reused_images + ' references reused.';
@@ -441,11 +457,14 @@
                 result = await request( SyndaMorphImport.restUrl, {
                     title: prepared[ 0 ].title, content: prepared[ 0 ].content, status: 'draft',
                 } );
+                createdDraftIds = [ Number( result.id ) ].filter( Number.isSafeInteger );
                 statusMessage = 'Draft saved. Open it through the WordPress Pages screen.';
             }
+            if ( mode === 'draft' ) savedDraftIds.push( ...createdDraftIds );
             savedModes.set( mode, statusMessage );
             previewState.textContent = 'Saved';
             previewState.dataset.state = 'success';
+            if ( openEditor && mode === 'draft' && savedDraftIds.length ) window.location.assign( editorUrl( savedDraftIds[ 0 ] ) );
         } catch ( error ) {
             saveStatus.textContent = 'Save failed: ' + ( error.message || String( error ) );
         } finally {
@@ -453,7 +472,14 @@
             saveKind.disabled = false;
             // Preserve error messages; successful saves use the per-mode state.
             if ( savedModes.has( mode ) ) refreshSaveAction();
-            else { saveButton.dataset.state = 'ready'; saveButton.disabled = false; }
+            else {
+                saveButton.dataset.state = 'ready';
+                saveOpenButton.dataset.state = 'ready';
+                saveButton.disabled = false;
+                saveOpenButton.disabled = mode !== 'draft';
+            }
         }
-    } );
+    };
+    saveButton.addEventListener( 'click', () => saveOutput( false ) );
+    saveOpenButton.addEventListener( 'click', () => saveOutput( true ) );
 } )();
