@@ -603,3 +603,28 @@
 #syndamorph-production-team #syndamorph-team-save[data-state="saving"]:disabled {
     cursor: wait;
 }
+
+/* Results export: full-width selector + secondary Save + primary Save & Open. */
+#syndamorph-production-team .sm-team-export-actions {
+    display:flex;align-items:center;gap:10px;flex-wrap:nowrap;
+}
+#syndamorph-production-team .sm-team-export-actions select.sm-control {
+    width:100%;min-width:0;flex:1 1 auto;
+}
+#syndamorph-production-team .sm-team-export-actions .sm-team-secondary,
+#syndamorph-production-team .sm-team-export-actions .sm-primary {
+    flex:0 0 auto;min-height:44px;white-space:nowrap;
+}
+#syndamorph-production-team .sm-team-export-actions [hidden] {
+    display:none !important;
+}
+#syndamorph-production-team #syndamorph-team-save[data-state="saved"]:disabled {
+    cursor:not-allowed;
+}
+#syndamorph-production-team #syndamorph-team-save-open[data-state="saved"] {
+    cursor:pointer;
+}
+@media (max-width:680px) {
+    #syndamorph-production-team .sm-team-export-actions {flex-wrap:wrap;}
+    #syndamorph-production-team .sm-team-export-actions select.sm-control {flex-basis:100%;}
+}
