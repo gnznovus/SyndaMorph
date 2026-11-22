@@ -217,7 +217,7 @@
         const token = ++previewGeneration;
         // Ensure scroll chain never escapes the iframe at its top/bottom edges.
         const scrollStyle = '<style>html,body{overscroll-behavior:contain}</style>';
-        const previewDocument = item.preview.replace( /<\\/head>/i, scrollStyle + '</head>' );
+        const previewDocument = item.preview.replace( '</head>', scrollStyle + '</head>' );
         frame.removeAttribute( 'srcdoc' );
         // Only mount srcdoc after the Results panel has become visible.
         // A hidden sandboxed iframe can otherwise initialize as a blank document.
