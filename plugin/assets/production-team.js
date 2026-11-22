@@ -63,8 +63,8 @@
     // This is client-side UX validation; real imports still require server validation.
     const accepted = { html: null, package: null };
     const uploadConfig = {
-        html: { input: htmlFile, labelId: 'syndamorph-team-html-file-name', empty: 'Drop HTML / HTM here or browse', pattern: /\\.html?$/i, type: 'HTML or HTM' },
-        package: { input: file, labelId: 'syndamorph-team-package-name', empty: 'Drop ZIP here or browse', pattern: /\\.zip$/i, type: 'ZIP' },
+        html: { input: htmlFile, labelId: 'syndamorph-team-html-file-name', empty: 'Drop HTML / HTM here or browse', pattern: /\.html?$/i, type: 'HTML or HTM' },
+        package: { input: file, labelId: 'syndamorph-team-package-name', empty: 'Drop ZIP here or browse', pattern: /\.zip$/i, type: 'ZIP' },
     };
     function uploadFeedback( kind, message, isError = false ) {
         const node = root.querySelector( '[data-upload-feedback="' + kind + '"]' );
