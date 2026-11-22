@@ -29,6 +29,8 @@ services:
       WORDPRESS_DB_USER: wordpress
       WORDPRESS_DB_PASSWORD: wordpress_dev
       WORDPRESS_DEBUG: "1"
+      # Enables an in-process mock provider only when WP_DEBUG is also true.
+      SYNDAMORPH_MOCK_AI_ENABLED: "1"
       SYNDAMORPH_RENDERER_URL: "http://renderer:3000/render"
       SYNDAMORPH_BACKEND_URL: "http://backend:3100/capture"
       SYNDAMORPH_BACKEND_TOKEN: "local-poc-token-change-before-deployment"
