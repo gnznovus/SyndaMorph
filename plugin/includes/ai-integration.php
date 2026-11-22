@@ -29,7 +29,7 @@ function syndamorph_ai_mock_test( string $key ): array {
         'http_status' => $outcome[0],
         'latency_ms' => 0,
         'result' => $outcome[1],
-        'key' => array( 'configured' => false, 'preview' => '' ),
+        'key' => syndamorph_ai_key_status( 'mock' ),
         'diagnostics' => array(
             'transport' => 'Local in-process mock (no external request)',
             'response_body_exposed' => false,
@@ -64,9 +64,6 @@ function syndamorph_ai_saved_key( string $provider ): string {
 }
 
 function syndamorph_ai_key_status( string $provider ): array {
-    if ( 'mock' === $provider ) {
-        return array( 'configured' => false, 'preview' => '' );
-    }
     $key = syndamorph_ai_saved_key( $provider );
     return array( 'configured' => '' !== $key, 'preview' => '' !== $key ? substr( $key, 0, 4 ) . '••••••••' : '' );
 }
@@ -148,9 +145,14 @@ function syndamorph_ai_render_tab(): void {
                                 </div>
                                 <p class="sm-hint" id="syndamorph-ai-key-hint">Leave empty to test with a previously saved key. New keys are stored server-side.</p>
                                 <?php if ( syndamorph_ai_mock_enabled() ) : ?>
-                                <p class="sm-hint" id="syndamorph-ai-mock-hint" hidden>Mock keys: <code>sm_mock_success_2026</code> · <code>sm_mock_reject_2026</code> · <code>sm_mock_unavailable_2026</code>. Not saved or sent externally.</p>
+                                <p class="sm-hint" id="syndamorph-ai-mock-hint" hidden>Mock keys: <code>sm_mock_success_2026</code> · <code>sm_mock_reject_2026</code> · <code>sm_mock_unavailable_2026</code>. Saved using the same encrypted storage as real providers; never sent externally.</p>
                                 <?php endif; ?>
-                                <div class="sm-key-status" id="syndamorph-ai-preview" role="status" aria-live="polite">Checking saved credentials…</div>
+                                <div class="sm-saved-key">
+                                    <div class="sm-key-status" id="syndamorph-ai-preview" role="status" aria-live="polite">Checking saved credentials…</div>
+                                    <button type="button" class="sm-icon-button sm-delete-key" id="syndamorph-ai-delete-key" aria-label="Delete saved API key" title="Delete saved credential" hidden>
+                                        <span class="dashicons dashicons-no-alt" aria-hidden="true"></span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <div class="sm-card-actions">
@@ -201,6 +203,23 @@ add_action( 'rest_api_init', static function (): void {
             return rest_ensure_response( $statuses );
         },
     ) );
+    register_rest_route( 'syndamorph/v1', '/ai/keys/(?P<provider>[a-z]+)', array(
+        'methods' => 'DELETE',
+        'permission_callback' => $permission,
+        'callback' => static function ( WP_REST_Request $request ) {
+            $provider = (string) $request->get_param( 'provider' );
+            if ( ! array_key_exists( $provider, syndamorph_ai_providers() ) ) {
+                return new WP_Error( 'syndamorph_ai_provider', 'Unsupported provider.', array( 'status' => 400 ) );
+            }
+            // Remove the actual encrypted option, not merely the UI representation.
+            delete_option( 'syndamorph_ai_key_' . $provider );
+            return rest_ensure_response( array(
+                'provider' => $provider,
+                'key' => syndamorph_ai_key_status( $provider ),
+                'deleted' => ! get_option( 'syndamorph_ai_key_' . $provider, false ),
+            ) );
+        },
+    ) );
     register_rest_route( 'syndamorph/v1', '/ai/test', array(
         'methods' => 'POST',
         'permission_callback' => $permission,
@@ -212,10 +231,6 @@ add_action( 'rest_api_init', static function (): void {
             $new_key = $request->get_param( 'key' );
             if ( null !== $new_key && ! is_string( $new_key ) ) {
                 return new WP_Error( 'syndamorph_ai_key', 'API key must be text.', array( 'status' => 400 ) );
-            }
-            if ( 'mock' === $provider ) {
-                // Explicitly in-process: never persist the fixture or make outbound requests.
-                return rest_ensure_response( syndamorph_ai_mock_test( is_string( $new_key ) ? $new_key : '' ) );
             }
             if ( is_string( $new_key ) && '' !== $new_key ) {
                 if ( strlen( $new_key ) > 4096 || preg_match( '/[\x00-\x1f\x7f]/', $new_key ) ) {
@@ -230,6 +245,10 @@ add_action( 'rest_api_init', static function (): void {
             $key = syndamorph_ai_saved_key( $provider );
             if ( '' === $key ) {
                 return new WP_Error( 'syndamorph_ai_missing', 'No saved key for this provider.', array( 'status' => 400 ) );
+            }
+            if ( 'mock' === $provider ) {
+                // Use the decrypted saved key; only the provider operation is simulated.
+                return rest_ensure_response( syndamorph_ai_mock_test( $key ) );
             }
             $started = microtime( true );
             $request_args = array( 'timeout' => 20, 'redirection' => 0, 'headers' => array(), 'body' => '' );
@@ -276,5 +295,6 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
         'nonce' => wp_create_nonce( 'wp_rest' ),
         'statusUrl' => rest_url( 'syndamorph/v1/ai/providers' ),
         'testUrl' => rest_url( 'syndamorph/v1/ai/test' ),
+        'deleteBaseUrl' => rest_url( 'syndamorph/v1/ai/keys/' ),
     ) ) . ';', 'before' );
 } );
