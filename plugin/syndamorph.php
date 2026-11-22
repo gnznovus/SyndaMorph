@@ -14,6 +14,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/capture-endpoint.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/package-import.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/updater.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/ai-integration.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/purr-poc.php';
 
 add_action( 'admin_menu', static function (): void {
     add_management_page(
