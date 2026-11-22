@@ -42,30 +42,113 @@ function syndamorph_ai_render_tab(): void {
     if ( ! current_user_can( 'manage_options' ) ) { return; }
     ?>
     <div class="wrap" id="syndamorph-ai-integration">
-        <h1>SyndaMorph — AI Integration</h1>
-        <nav class="nav-tab-wrapper" aria-label="SyndaMorph sections">
-            <a class="nav-tab" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph' ) ); ?>">Importer</a>
-            <a class="nav-tab nav-tab-active" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=ai' ) ); ?>" aria-current="page">AI Integration</a>
-        </nav>
-        <div style="max-width:780px;margin-top:24px">
-            <p>Test provider connectivity for the internal MVP. Saved credentials stay server-side.</p>
-            <table class="form-table" role="presentation">
-                <tr><th scope="row"><label for="syndamorph-ai-provider">AI Provider</label></th><td>
-                    <select id="syndamorph-ai-provider">
-                        <?php foreach ( syndamorph_ai_providers() as $id => $name ) : ?>
-                            <option value="<?php echo esc_attr( $id ); ?>"><?php echo esc_html( $name ); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </td></tr>
-                <tr><th scope="row"><label for="syndamorph-ai-key">API Key</label></th><td>
-                    <input type="password" id="syndamorph-ai-key" class="regular-text" autocomplete="new-password" spellcheck="false" placeholder="Enter new key to save">
-                    <p class="description">Leave blank to use an existing key. Never paste credentials into debug logs.</p>
-                    <p id="syndamorph-ai-preview" aria-live="polite"></p>
-                </td></tr>
-            </table>
-            <p><button type="button" class="button button-primary" id="syndamorph-ai-test">Run Test</button></p>
-            <h2>Verbose / Debug</h2>
-            <pre id="syndamorph-ai-output" role="status" aria-live="polite" style="white-space:pre-wrap;overflow-wrap:anywhere;max-height:390px;overflow:auto;background:#fff;border:1px solid #c3c4c7;padding:16px">No test executed.</pre>
+        <div class="sm-dashboard">
+            <aside class="sm-sidebar" aria-label="Operations navigation">
+                <div class="sm-brand">
+                    <span class="sm-brand-mark" aria-hidden="true">S</span>
+                    <div><div class="sm-brand-name">SyndaMorph</div><div class="sm-brand-caption">Operations</div></div>
+                </div>
+                <div>
+                    <p class="sm-nav-label">Workspace</p>
+                    <nav class="sm-nav" aria-label="SyndaMorph modules">
+                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph' ) ); ?>">
+                            <span class="dashicons dashicons-upload" aria-hidden="true"></span> Source Importer
+                        </a>
+                        <a class="sm-nav-item is-active" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=ai' ) ); ?>" aria-current="page">
+                            <span class="dashicons dashicons-admin-network" aria-hidden="true"></span> AI Integration
+                        </a>
+                    </nav>
+                </div>
+                <div class="sm-sidebar-footer">
+                    <strong>Internal MVP</strong><br>
+                    AI credentials and provider checks are managed from this WordPress installation.
+                </div>
+            </aside>
+            <main class="sm-main">
+                <div class="sm-topline">
+                    <span class="sm-breadcrumb">Workspace / <strong>AI Integration</strong></span>
+                    <span class="sm-environment">MVP · DEVELOPMENT</span>
+                </div>
+                <p class="sm-kicker">Integration setup</p>
+                <h1 class="sm-page-title">Connect your AI providers</h1>
+                <p class="sm-page-description">
+                    Configure provider credentials and verify connectivity. A successful connection check
+                    does not yet enable the autonomous production pipeline.
+                </p>
+                <div class="sm-stats" aria-label="Provider summary">
+                    <div class="sm-stat">
+                        <span class="sm-stat-label">Available providers</span>
+                        <span class="sm-stat-value">03</span>
+                    </div>
+                    <div class="sm-stat">
+                        <span class="sm-stat-label">Keys configured</span>
+                        <span class="sm-stat-value" id="syndamorph-ai-configured">—</span>
+                    </div>
+                    <div class="sm-stat">
+                        <span class="sm-stat-label">Last connection test</span>
+                        <span class="sm-stat-value sm-stat-small" id="syndamorph-ai-last-test">Not tested</span>
+                    </div>
+                </div>
+                <div class="sm-workspace">
+                    <section class="sm-card" aria-labelledby="sm-connection-title">
+                        <div class="sm-card-header">
+                            <h2 class="sm-card-title" id="sm-connection-title">Provider configuration</h2>
+                            <p class="sm-card-caption">Select a provider, enter a credential, and run a connectivity check.</p>
+                        </div>
+                        <div class="sm-card-body">
+                            <div class="sm-field">
+                                <label for="syndamorph-ai-provider" class="sm-field-label">AI provider</label>
+                                <select class="sm-control" id="syndamorph-ai-provider">
+                                    <?php foreach ( syndamorph_ai_providers() as $id => $name ) : ?>
+                                        <option value="<?php echo esc_attr( $id ); ?>"><?php echo esc_html( $name ); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <p class="sm-hint">Choose the API service you want to verify.</p>
+                            </div>
+                            <div class="sm-field">
+                                <label for="syndamorph-ai-key" class="sm-field-label">Secret API key</label>
+                                <div class="sm-key-row">
+                                    <input class="sm-control" type="password" id="syndamorph-ai-key" autocomplete="new-password" spellcheck="false" placeholder="Paste a new API key">
+                                    <button type="button" class="sm-icon-button" id="syndamorph-ai-toggle-key" aria-label="Show API key" aria-pressed="false">
+                                        <span class="dashicons dashicons-visibility" aria-hidden="true"></span>
+                                    </button>
+                                </div>
+                                <p class="sm-hint">Leave empty to test with a previously saved key. New keys are stored server-side.</p>
+                                <div class="sm-key-status" id="syndamorph-ai-preview" role="status" aria-live="polite">Checking saved credentials…</div>
+                            </div>
+                        </div>
+                        <div class="sm-card-actions">
+                            <span class="sm-privacy"><span class="dashicons dashicons-lock" aria-hidden="true"></span> Credentials never appear in output</span>
+                            <button type="button" class="sm-primary" id="syndamorph-ai-test">
+                                <span class="dashicons dashicons-controls-play" aria-hidden="true"></span>
+                                <span id="syndamorph-ai-test-label">Run connection test</span>
+                            </button>
+                        </div>
+                    </section>
+                    <section class="sm-card" aria-labelledby="sm-output-title">
+                        <div class="sm-card-header sm-console-header">
+                            <div>
+                                <h2 class="sm-card-title" id="sm-output-title">Connection diagnostics</h2>
+                                <p class="sm-card-caption">Verbose response · sanitized</p>
+                            </div>
+                            <span class="sm-status-pill" id="syndamorph-ai-state" data-state="idle">Idle</span>
+                        </div>
+                        <div class="sm-card-body">
+                            <div class="sm-console-toolbar">
+                                <span class="sm-console-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                                <span>test-output.json</span>
+                                <button type="button" class="sm-console-copy" id="syndamorph-ai-copy">Copy log</button>
+                            </div>
+                            <pre class="sm-console" id="syndamorph-ai-output" role="status" aria-live="polite">[ready] Select a provider and run a connection test.
+[secure] API secrets are omitted from diagnostics.</pre>
+                            <div class="sm-console-note">
+                                <span class="dashicons dashicons-info-outline" aria-hidden="true"></span>
+                                <span>Connection tests validate API access only. Model capability, billing limits, and conversion fidelity are separate checks.</span>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </main>
         </div>
     </div>
     <?php
@@ -147,6 +230,7 @@ add_action( 'rest_api_init', static function (): void {
 add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
     if ( 'tools_page_syndamorph' !== $hook || ! current_user_can( 'manage_options' ) ||
          ! isset( $_GET['tab'] ) || 'ai' !== sanitize_key( wp_unslash( $_GET['tab'] ) ) ) { return; }
+    wp_enqueue_style( 'syndamorph-operations', plugin_dir_url( __DIR__ ) . 'assets/operations-dashboard.css', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/operations-dashboard.css' ) );
     wp_enqueue_script( 'syndamorph-ai-tab', plugin_dir_url( __DIR__ ) . 'assets/ai-integration.js', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/ai-integration.js' ), true );
     wp_add_inline_script( 'syndamorph-ai-tab', 'window.SyndaMorphAI=' . wp_json_encode( array(
         'nonce' => wp_create_nonce( 'wp_rest' ),
