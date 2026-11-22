@@ -201,7 +201,7 @@
         } else if ( kind === 'html' ) {
             if ( !html.value.trim() ) return 'Paste HTML or choose an HTML file to start the demonstration.';
         } else if ( kind === 'package' ) {
-            if ( !file.files || !file.files[ 0 ] || !/\.zip$/i.test( file.files[ 0 ].name ) ) return 'Select a ZIP package.';
+            if ( !accepted.package ) return 'Select a ZIP package.';
         }
         if ( !brief.value.trim() ) return 'Describe the task in the production brief.';
         return '';
