@@ -15,6 +15,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/package-import.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/updater.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/ai-integration.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/purr-poc.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/production-team.php';
 
 add_action( 'admin_menu', static function (): void {
     add_management_page(
@@ -28,8 +29,13 @@ add_action( 'admin_menu', static function (): void {
 
 function syndamorph_render_import_page(): void {
     if ( ! current_user_can( 'edit_pages' ) ) { return; }
-    if ( isset( $_GET['tab'] ) && 'ai' === sanitize_key( wp_unslash( $_GET['tab'] ) ) ) {
+    $tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
+    if ( 'ai' === $tab ) {
         syndamorph_ai_render_tab();
+        return;
+    }
+    if ( 'team' === $tab ) {
+        syndamorph_team_render_tab();
         return;
     }
     ?>
@@ -47,6 +53,9 @@ function syndamorph_render_import_page(): void {
                             <span class="dashicons dashicons-upload" aria-hidden="true"></span> Source Importer
                         </a>
                         <?php if ( current_user_can( 'manage_options' ) ) : ?>
+                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=team' ) ); ?>">
+                            <span class="dashicons dashicons-groups" aria-hidden="true"></span> AI Production Team
+                        </a>
                         <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=ai' ) ); ?>">
                             <span class="dashicons dashicons-admin-network" aria-hidden="true"></span> AI Integration
                         </a>
@@ -204,7 +213,7 @@ function syndamorph_render_import_page(): void {
 
 add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
     if ( 'tools_page_syndamorph' !== $hook || ! current_user_can( 'edit_pages' ) ||
-        ( isset( $_GET['tab'] ) && 'ai' === sanitize_key( wp_unslash( $_GET['tab'] ) ) ) ) { return; }
+        ( isset( $_GET['tab'] ) && in_array( sanitize_key( wp_unslash( $_GET['tab'] ) ), array( 'ai', 'team' ), true ) ) ) { return; }
     wp_enqueue_style( 'syndamorph-operations', plugin_dir_url( __FILE__ ) . 'assets/operations-dashboard.css', array(), (string) filemtime( plugin_dir_path( __FILE__ ) . 'assets/operations-dashboard.css' ) );
     wp_enqueue_style(
         'syndamorph-admin',
