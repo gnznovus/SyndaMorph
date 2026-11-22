@@ -3,11 +3,13 @@ on:
   push:
     branches: [feat/mvp-autonomous-pipeline]
     paths:
-      - 'backend/mvp/**'
+      - 'backend/**'
+      - 'compose.yaml'
       - '.github/workflows/mvp-pipeline-check.yml'
   pull_request:
     paths:
-      - 'backend/mvp/**'
+      - 'backend/**'
+      - 'compose.yaml'
       - '.github/workflows/mvp-pipeline-check.yml'
 jobs:
   test:
@@ -19,8 +21,19 @@ jobs:
           node-version: '22'
       - name: Syntax
         run: |
+          node --check backend/server.js
           node --check backend/mvp/plan.js
           node --check backend/mvp/registry.js
           node --check backend/mvp/loop.js
-      - name: MVP contract and loop tests
-        run: node --test backend/mvp/*.test.js
+          node --check backend/mvp/claude.js
+          node --check backend/mvp/endpoint.js
+      - name: Backend and MVP tests
+        run: |
+          npm install --prefix backend --ignore-scripts --no-audit --no-fund
+          npm test --prefix backend
+      - name: Docker Compose validation
+        run: docker compose config --quiet
+      - name: Backend runtime packaging
+        run: |
+          docker build -t syndamorph-mvp ./backend
+          docker run --rm --entrypoint node syndamorph-mvp -e "require('./mvp/endpoint'); require('./mvp/claude'); console.log('MVP modules available')"
