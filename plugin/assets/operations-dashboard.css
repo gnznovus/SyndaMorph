@@ -628,3 +628,87 @@
     #syndamorph-production-team .sm-team-export-actions {flex-wrap:wrap;}
     #syndamorph-production-team .sm-team-export-actions select.sm-control {flex-basis:100%;}
 }
+
+/* Results: approved V2 preview navbar. Only complete tabs are rendered. */
+#syndamorph-production-team .sm-team-preview-navbar {
+    display:flex;align-items:stretch;gap:10px;min-width:0;width:100%;
+    position:relative;border-bottom:1px solid var(--sm-border);
+    margin:10px 0 14px;
+}
+#syndamorph-production-team .sm-team-preview-navbar[hidden],
+#syndamorph-production-team .sm-team-preview-pager[hidden],
+#syndamorph-production-team .sm-team-preview-tab[hidden],
+#syndamorph-production-team .sm-team-preview-picker-menu[hidden],
+#syndamorph-production-team .sm-team-view-result[hidden] { display:none !important; }
+#syndamorph-production-team .sm-team-preview-tab-window {
+    min-width:0;flex:1 1 0;overflow:hidden;clip-path:inset(0);
+}
+#syndamorph-production-team .sm-team-preview-tabs {
+    display:flex;align-items:stretch;gap:5px;height:42px;min-width:0;
+    overflow:hidden;white-space:nowrap;
+}
+#syndamorph-production-team .sm-team-preview-tab {
+    display:block;flex:0 0 auto;width:max-content;max-width:220px;min-width:0;
+    padding:0 16px;border:0;border-bottom:2px solid transparent;
+    background:transparent;color:#687385;font-size:12px;font-weight:650;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;
+}
+#syndamorph-production-team .sm-team-preview-tab:hover {background:#f6f7f9;}
+#syndamorph-production-team .sm-team-preview-tab[aria-selected="true"] {
+    background:#fff6f6;color:#d82e37;border-bottom-color:#d82e37;
+}
+#syndamorph-production-team .sm-team-preview-pager {
+    flex:0 0 clamp(176px,27%,238px);min-width:0;position:relative;
+    height:42px;display:flex;align-items:center;gap:4px;padding:0 0 4px 8px;
+}
+#syndamorph-production-team .sm-team-preview-arrow,
+#syndamorph-production-team .sm-team-preview-picker {
+    height:30px;border:1px solid #dbe1e8;border-radius:6px;
+    background:#fff;color:#485365;cursor:pointer;
+}
+#syndamorph-production-team .sm-team-preview-arrow {
+    display:grid;place-items:center;width:29px;flex:0 0 29px;
+    font-size:21px;line-height:1;padding:0;
+}
+#syndamorph-production-team .sm-team-preview-arrow:disabled {
+    opacity:.3;cursor:default;
+}
+#syndamorph-production-team .sm-team-preview-picker {
+    display:flex;justify-content:space-between;align-items:center;
+    flex:1 1 0;width:0;min-width:0;gap:7px;
+    text-align:left;padding:0 9px 0 11px;font-size:12px;
+}
+#syndamorph-production-team .sm-team-preview-picker span:first-child {
+    min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-weight:650;
+}
+#syndamorph-production-team .sm-team-preview-picker span:last-child {
+    flex:0 0 auto;font-size:10px;color:#727d8c;
+}
+#syndamorph-production-team .sm-team-preview-picker-menu {
+    position:absolute;top:calc(100% + 5px);right:32px;width:200px;
+    max-width:min(260px,calc(100vw - 52px));max-height:240px;
+    overflow-y:auto;overflow-x:hidden;z-index:20;
+    padding:5px;background:#fff;border:1px solid #dce1e7;
+    border-radius:8px;box-shadow:0 10px 30px #13263b2a;
+}
+#syndamorph-production-team .sm-team-preview-option {
+    display:block;width:100%;padding:8px 9px;border:0;border-radius:5px;
+    text-align:left;background:transparent;color:#192332;font-size:12px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;
+}
+#syndamorph-production-team .sm-team-preview-option:hover,
+#syndamorph-production-team .sm-team-preview-option:focus-visible {background:#f4f5f8;}
+#syndamorph-production-team .sm-team-preview-option[aria-selected="true"] {
+    background:#fff0f1;color:#b72532;font-weight:750;
+}
+#syndamorph-production-team .sm-team-view-result {
+    display:block;margin:16px 0 0 auto;min-height:34px;
+}
+@media(max-width:690px) {
+    #syndamorph-production-team .sm-team-preview-navbar {gap:4px;}
+    #syndamorph-production-team .sm-team-preview-tab {max-width:150px;padding-inline:11px;}
+    #syndamorph-production-team .sm-team-preview-pager {gap:3px;padding-left:3px;}
+    #syndamorph-production-team .sm-team-preview-arrow {width:27px;flex-basis:27px;}
+    #syndamorph-production-team .sm-team-preview-picker-menu {right:29px;width:174px;}
+}
