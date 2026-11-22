@@ -41,7 +41,7 @@ function syndamorph_team_render_tab(): void {
                 </div>
                 <p class="sm-kicker">Production workspace</p>
                 <h1 class="sm-page-title">AI Production Team</h1>
-                <p class="sm-page-description">Prepare a job, simulate agent handoffs, and inspect the production timeline. This workspace is UI-only until the execution pipeline is connected.</p>
+                <p class="sm-page-description">Inspect and convert source content with the existing Gutenberg engine, review results, or try the separate AI team simulation. Agent orchestration is not connected yet.</p>
 
                 <nav class="sm-team-tabs" aria-label="Production workflow stages" role="tablist">
                     <button type="button" id="sm-team-tab-setup" role="tab" aria-controls="sm-team-panel-setup" aria-selected="true" tabindex="0" data-panel="setup">01 <strong>Setup</strong><span>Prepare job</span></button>
@@ -54,7 +54,7 @@ function syndamorph_team_render_tab(): void {
                         <section class="sm-card" aria-labelledby="sm-team-source-title">
                             <div class="sm-card-header">
                                 <h2 class="sm-card-title" id="sm-team-source-title">Source import</h2>
-                                <p class="sm-card-caption">Choose what the team will work with. Source processing is not connected in simulation mode.</p>
+                                <p class="sm-card-caption">Select URL, HTML or ZIP. Inspect source content through the existing SyndaMorph pipeline before conversion.</p>
                             </div>
                             <div class="sm-card-body">
                                 <div class="sm-field">
@@ -105,13 +105,13 @@ function syndamorph_team_render_tab(): void {
                                     <p class="sm-hint" id="syndamorph-team-source-summary"></p>
                                     <details id="syndamorph-team-source-diagnostics" hidden><summary>Capture diagnostics</summary><pre id="syndamorph-team-source-diagnostics-json"></pre></details>
                                 </div>
-                                <div class="sm-team-note">In the final pipeline, the PM will assign the job title during classification. There is intentionally no manual title field or separate title-generation call.</div>
+                                <div class="sm-team-note">The future PM will assign job titles during classification. Current deterministic conversions use source-derived titles; no AI inference is involved.</div>
                             </div>
                         </section>
                         <section class="sm-card" aria-labelledby="sm-team-brief-title">
                             <div class="sm-card-header">
                                 <h2 class="sm-card-title" id="sm-team-brief-title">Production brief</h2>
-                                <p class="sm-card-caption">Describe the outcome; the PM owns task classification and delegation.</p>
+                                <p class="sm-card-caption">Describe the intended output. The deterministic converter works today; the PM orchestration flow remains a simulation.</p>
                             </div>
                             <div class="sm-card-body">
                                 <div class="sm-team-advanced">
@@ -128,7 +128,7 @@ function syndamorph_team_render_tab(): void {
                                     <button type="button" class="sm-team-secondary" id="syndamorph-team-reset">Reset</button>
                                 </div>
                                 <p class="sm-hint">Conversion uses the existing deterministic Gutenberg engine. The simulation remains a separate demo.</p>
-                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">UI simulation only · no production job, source capture, or AI inference.</p>
+                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">Use Inspect source → Convert with existing engine for real conversion. Agent handoff simulation is separate.</p>
                             </div>
                         </section>
                     </div>
@@ -151,7 +151,7 @@ function syndamorph_team_render_tab(): void {
                         <section class="sm-card" aria-labelledby="sm-team-timeline-title">
                             <div class="sm-card-header sm-team-feed-heading">
                                 <div><h2 class="sm-card-title" id="sm-team-timeline-title">Live Production Feed</h2>
-                                <p class="sm-card-caption">Simulated streaming decisions, actions and handoffs. Real agent reasoning and execution are not connected.</p></div>
+                                <p class="sm-card-caption">Authored demonstration handoffs only. Real conversion events are displayed separately above.</p></div>
                                 <span class="sm-status-pill" id="syndamorph-team-feed-state" data-state="idle">Idle</span>
                             </div>
                             <div class="sm-card-body">
@@ -196,7 +196,7 @@ function syndamorph_team_render_tab(): void {
                             <h2 class="sm-team-result-title" id="syndamorph-team-result-title">No job submitted</h2>
                             <div class="sm-team-result" id="syndamorph-team-review" role="status" aria-live="polite">
                                 <strong>No output available</strong>
-                                <p>Start a simulation from Setup. In the real pipeline, this page will contain generated sections, evidence and review controls.</p>
+                                <p>Inspect and convert a source from Setup to view real Gutenberg previews and approve WordPress output.</p>
                             </div>
                             <section class="sm-team-artifacts" id="syndamorph-team-artifacts" hidden aria-label="Converted Gutenberg preview">
                                 <div class="sm-team-preview-toolbar">
