@@ -8,6 +8,7 @@
     const sourceType = byId( 'syndamorph-team-source-type' );
     const url = byId( 'syndamorph-team-source' );
     const html = byId( 'syndamorph-team-html' );
+    const htmlFile = byId( 'syndamorph-team-html-file' );
     const file = byId( 'syndamorph-team-package' );
     const brief = byId( 'syndamorph-team-brief' );
     const run = byId( 'syndamorph-team-run' );
@@ -58,6 +59,38 @@
     sourceType.addEventListener( 'change', showSource );
     showSource();
 
+    function updateFileLabel( input, labelId ) {
+        const selected = input.files && input.files[ 0 ];
+        setText( byId( labelId ), selected ? selected.name : 'No file selected' );
+    }
+    file.addEventListener( 'change', () => updateFileLabel( file, 'syndamorph-team-package-name' ) );
+    htmlFile.addEventListener( 'change', async () => {
+        updateFileLabel( htmlFile, 'syndamorph-team-html-file-name' );
+        const selected = htmlFile.files && htmlFile.files[ 0 ];
+        if ( !selected ) return;
+        if ( !/\\.html?$/i.test( selected.name ) ) {
+            setText( notice, 'Select an HTML or HTM file.' );
+            return;
+        }
+        if ( selected.size > 2 * 1024 * 1024 ) {
+            setText( notice, 'HTML preview accepts files up to 2 MB.' );
+            return;
+        }
+        const expected = selected;
+        try {
+            const markup = await selected.text();
+            if ( !htmlFile.files || htmlFile.files[ 0 ] !== expected ) return;
+            if ( markup.length > html.maxLength ) {
+                setText( notice, 'HTML is too large for this preview (50,000 characters maximum).' );
+                return;
+            }
+            html.value = markup;
+            setText( notice, 'HTML loaded locally into the editor. Nothing was uploaded.' );
+        } catch ( _error ) {
+            setText( notice, 'Could not read the selected HTML file.' );
+        }
+    } );
+
     // The PM will generate job titles during real classification. UI-only names
     // are deliberately marked simulated, never represented as AI inference.
     function demoTitle( kind ) {
@@ -77,7 +110,7 @@
                 if ( ![ 'http:', 'https:' ].includes( parsed.protocol ) || !parsed.hostname ) throw new Error( 'Invalid' );
             } catch ( _error ) { return 'Source must be a valid HTTP(S) URL.'; }
         } else if ( kind === 'html' ) {
-            if ( !html.value.trim() ) return 'Paste HTML source to start the demonstration.';
+            if ( !html.value.trim() ) return 'Paste HTML or choose an HTML file to start the demonstration.';
         } else if ( kind === 'package' ) {
             if ( !file.files || !file.files[ 0 ] || !/\.zip$/i.test( file.files[ 0 ].name ) ) return 'Select a ZIP package.';
         }
