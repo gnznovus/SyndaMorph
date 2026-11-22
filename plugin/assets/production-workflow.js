@@ -98,6 +98,7 @@
         sourceGeneration++;
         inspected = null;
         prepared = [];
+        activeJob = null;
         savedModes.clear();
         inspection.hidden = true;
         diagnostics.hidden = true;
@@ -311,6 +312,7 @@
         artifacts.hidden = true;
         previewScrollLock.unlock();
         prepared = [];
+        activeJob = null;
         savedModes.clear();
         stage( 'production' );
         jobState.textContent = 'Converting';
@@ -381,6 +383,7 @@
         } finally {
             busy = false;
             convertButton.disabled = false;
+            refreshSaveAction();
         }
     } );
 
