@@ -18,10 +18,7 @@ function syndamorph_team_render_tab(): void {
                 <div>
                     <p class="sm-nav-label">Workspace</p>
                     <nav class="sm-nav" aria-label="SyndaMorph modules">
-                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph' ) ); ?>">
-                            <span class="dashicons dashicons-upload" aria-hidden="true"></span> Source Importer
-                        </a>
-                        <a class="sm-nav-item is-active" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=team' ) ); ?>" aria-current="page">
+                        <a class="sm-nav-item is-active" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph' ) ); ?>" aria-current="page">
                             <span class="dashicons dashicons-groups" aria-hidden="true"></span> AI Production Team
                         </a>
                         <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=ai' ) ); ?>">
@@ -30,14 +27,14 @@ function syndamorph_team_render_tab(): void {
                     </nav>
                 </div>
                 <div class="sm-sidebar-footer">
-                    <strong>UI-first MVP</strong><br>
-                    Demonstration-only jobs. Production orchestration and artifact generation are not connected yet.
+                    <strong>Internal MVP</strong><br>
+                    URL, HTML and ZIP conversion is operational. AI team orchestration remains experimental.
                 </div>
             </aside>
             <main class="sm-main">
                 <div class="sm-topline">
                     <span class="sm-breadcrumb">Workspace / <strong>AI Production Team</strong></span>
-                    <span class="sm-environment">MVP · SIMULATION</span>
+                    <span class="sm-environment">MVP · DEVELOPMENT</span>
                 </div>
                 <p class="sm-kicker">Production workspace</p>
                 <h1 class="sm-page-title">AI Production Team</h1>
@@ -214,7 +211,6 @@ function syndamorph_team_render_tab(): void {
                                 </div>
                                 <p class="sm-hint" id="syndamorph-team-save-status" role="status" aria-live="polite">Review the converted preview before saving.</p>
                             </section>
-                            <a class="sm-team-link" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph' ) ); ?>">Open manual Source Importer <span aria-hidden="true">→</span></a>
                         </div>
                     </section>
                 </section>
@@ -226,7 +222,7 @@ function syndamorph_team_render_tab(): void {
 
 add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
     if ( 'tools_page_syndamorph' !== $hook || ! current_user_can( 'manage_options' ) ||
-         ! isset( $_GET['tab'] ) || 'team' !== sanitize_key( wp_unslash( $_GET['tab'] ) ) ) { return; }
+         ( isset( $_GET['tab'] ) && 'ai' === sanitize_key( wp_unslash( $_GET['tab'] ) ) ) ) { return; }
 
     wp_enqueue_style( 'syndamorph-operations', plugin_dir_url( __DIR__ ) . 'assets/operations-dashboard.css', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/operations-dashboard.css' ) );
     wp_enqueue_style( 'syndamorph-admin', plugin_dir_url( __DIR__ ) . 'assets/admin.css', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/admin.css' ) );
