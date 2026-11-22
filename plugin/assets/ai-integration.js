@@ -9,6 +9,8 @@
     const preview = byId( 'syndamorph-ai-preview' );
     const output = byId( 'syndamorph-ai-output' );
     const configuredCount = byId( 'syndamorph-ai-configured' );
+    const mockHint = byId( 'syndamorph-ai-mock-hint' );
+    const keyHint = byId( 'syndamorph-ai-key-hint' );
     const lastTest = byId( 'syndamorph-ai-last-test' );
     const state = byId( 'syndamorph-ai-state' );
     const toggle = byId( 'syndamorph-ai-toggle-key' );
@@ -25,12 +27,17 @@
     };
     const refreshSummary = () => {
         if ( configuredCount ) {
-            configuredCount.textContent = String( Object.values( statuses ).filter( ( item ) => item && item.configured ).length ).padStart( 2, '0' ) + ' / 03';
+            const realProviders = Object.entries( statuses ).filter( ( [ id ] ) => id !== 'mock' );
+            const configured = realProviders.filter( ( [ , item ] ) => item && item.configured ).length;
+            configuredCount.textContent = String( configured ).padStart( 2, '0' ) + ' / ' + String( realProviders.length ).padStart( 2, '0' );
         }
     };
     const showStatus = () => {
         const saved = statuses[ provider.value ];
-        preview.textContent = saved && saved.configured ? 'Saved key  ·  ' + saved.preview : 'No saved credential for this provider';
+        const isMock = provider.value === 'mock';
+        preview.textContent = isMock ? 'Local mock · test keys are never stored' : saved && saved.configured ? 'Saved key  ·  ' + saved.preview : 'No saved credential for this provider';
+        if ( mockHint ) mockHint.hidden = !isMock;
+        if ( keyHint ) keyHint.hidden = isMock;
         input.value = '';
         input.type = 'password';
         if ( toggle ) {
