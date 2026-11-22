@@ -145,7 +145,7 @@ function syndamorph_ai_render_tab(): void {
                                 </div>
                                 <p class="sm-hint" id="syndamorph-ai-key-hint">Leave empty to test with a previously saved key. New keys are stored server-side.</p>
                                 <?php if ( syndamorph_ai_mock_enabled() ) : ?>
-                                <p class="sm-hint" id="syndamorph-ai-mock-hint" hidden>Mock keys: <code>sm_mock_success_2026</code> · <code>sm_mock_reject_2026</code> · <code>sm_mock_unavailable_2026</code>. Saved using the same encrypted storage as real providers; never sent externally.</p>
+                                <p class="sm-hint" id="syndamorph-ai-mock-hint" hidden>Use the synthetic test key provided for the acceptance test. It is saved using the real encrypted credential store and never sent externally.</p>
                                 <?php endif; ?>
                                 <div class="sm-saved-key">
                                     <div class="sm-key-status" id="syndamorph-ai-preview" role="status" aria-live="polite">Checking saved credentials…</div>
