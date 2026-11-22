@@ -335,3 +335,56 @@
 @media(max-width:782px) {
     #syndamorph-production-team .sm-team-agent {flex-wrap:wrap;}
 }
+
+/* AI Production Team V2 — workflow-level navigation and stage layouts. */
+#syndamorph-production-team .sm-team-tabs {
+    display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;
+    padding:6px;margin-bottom:22px;border:1px solid var(--sm-border);
+    background:#fff;border-radius:14px;
+}
+#syndamorph-production-team .sm-team-tabs [role="tab"] {
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    min-width:0;min-height:52px;padding:11px 12px;border:1px solid transparent;
+    border-radius:10px;background:transparent;color:#7b8798;cursor:pointer;
+    font-size:12px;font-weight:650;transition:background .16s,color .16s;
+}
+#syndamorph-production-team .sm-team-tabs [role="tab"] strong {font-size:13px;color:inherit;}
+#syndamorph-production-team .sm-team-tabs [role="tab"] span {font-size:11px;font-weight:500;color:inherit;opacity:.8;}
+#syndamorph-production-team .sm-team-tabs [role="tab"]:hover {background:#f8f9fb;color:var(--sm-ink);}
+#syndamorph-production-team .sm-team-tabs [role="tab"][aria-selected="true"] {
+    color:#c52d29;background:#fff1ef;border-color:#ffe0da;box-shadow:0 1px 4px rgba(237,56,50,.06);
+}
+#syndamorph-production-team .sm-team-tabs [role="tab"]:focus-visible {outline:2px solid var(--sm-accent);outline-offset:2px;}
+#syndamorph-production-team .sm-team-panel[hidden],
+#syndamorph-production-team .sm-team-source-input[hidden] {display:none !important;}
+#syndamorph-production-team .sm-team-setup-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
+#syndamorph-production-team .sm-team-production-grid {grid-template-columns:minmax(0,1.45fr) minmax(275px,.65fr);}
+#syndamorph-production-team .sm-team-feed-heading {display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+#syndamorph-production-team .sm-team-feed-heading .sm-status-pill {flex-shrink:0;}
+#syndamorph-production-team .sm-team-job-header {font-size:13px;font-weight:770;color:var(--sm-ink);margin:0 0 20px;overflow-wrap:anywhere;}
+#syndamorph-production-team .sm-team-result-title {font-size:18px;line-height:1.45;margin:0 0 18px;color:var(--sm-ink);overflow-wrap:anywhere;}
+#syndamorph-production-team .sm-team-file {padding:9px 12px;max-width:100%;}
+#syndamorph-production-team .sm-team-file::file-selector-button {
+    border:1px solid #d9e0eb;border-radius:7px;padding:8px 12px;margin-right:12px;background:#f8f9fc;cursor:pointer;
+}
+#syndamorph-production-team .sm-team-step-count {
+    display:inline-block;font-size:9px;font-weight:800;letter-spacing:1px;
+    color:#b33c36;margin-bottom:7px;
+}
+#syndamorph-production-team .sm-team-note {line-height:1.6;}
+#syndamorph-production-team .sm-team-panel .sm-stats {margin-bottom:18px;}
+#syndamorph-production-team .sm-team-panel .sm-team-layout {margin-bottom:18px;}
+#syndamorph-production-team .sm-team-panel .sm-team-purr {margin-top:0;}
+@media (max-width:1180px) {
+    #syndamorph-production-team .sm-team-setup-grid,
+    #syndamorph-production-team .sm-team-production-grid {grid-template-columns:minmax(0,1fr);}
+}
+@media (max-width:782px) {
+    #syndamorph-production-team .sm-team-tabs [role="tab"] {flex-direction:column;gap:2px;min-height:55px;padding:8px 5px;}
+    #syndamorph-production-team .sm-team-tabs [role="tab"] span {font-size:10px;}
+    #syndamorph-production-team .sm-team-feed-heading {flex-wrap:wrap;}
+}
+@media (max-width:440px) {
+    #syndamorph-production-team .sm-team-tabs [role="tab"] {font-size:11px;}
+    #syndamorph-production-team .sm-team-tabs [role="tab"] strong {font-size:12px;}
+}
