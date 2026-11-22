@@ -275,7 +275,7 @@
 #syndamorph-production-team textarea.sm-control {
     width:100%;max-width:none;min-height:105px;padding:12px 13px;
     border:1px solid #d9e0eb;border-radius:9px;color:var(--sm-ink);
-    font:13px/1.55 inherit;resize:vertical;
+    font-family:inherit;font-size:13px;line-height:1.55;resize:vertical;
 }
 #syndamorph-production-team textarea.sm-control:focus {
     border-color:var(--sm-accent);box-shadow:0 0 0 3px rgba(237,56,50,.14);outline:none;
