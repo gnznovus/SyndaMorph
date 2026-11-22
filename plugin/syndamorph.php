@@ -13,6 +13,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/render-endpoint.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/capture-endpoint.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/package-import.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/updater.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/ai-integration.php';
 
 add_action( 'admin_menu', static function (): void {
     add_management_page(
@@ -26,9 +27,19 @@ add_action( 'admin_menu', static function (): void {
 
 function syndamorph_render_import_page(): void {
     if ( ! current_user_can( 'edit_pages' ) ) { return; }
+    if ( isset( $_GET['tab'] ) && 'ai' === sanitize_key( wp_unslash( $_GET['tab'] ) ) ) {
+        syndamorph_ai_render_tab();
+        return;
+    }
     ?>
     <div class="wrap" id="syndamorph-html-import">
         <h1>SyndaMorph <span style="font-weight:normal;font-size:13px;">POC</span></h1>
+        <?php if ( current_user_can( 'manage_options' ) ) : ?>
+        <nav class="nav-tab-wrapper" aria-label="SyndaMorph sections">
+            <a class="nav-tab nav-tab-active" aria-current="page" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph' ) ); ?>">Importer</a>
+            <a class="nav-tab" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=ai' ) ); ?>">AI Integration</a>
+        </nav>
+        <?php endif; ?>
         <p>Paste static HTML or choose an .html file. Review the preview, then approve draft creation.</p>
         <section class="syndamorph-package-section" aria-labelledby="syndamorph-url-heading">
             <h2 id="syndamorph-url-heading">Capture a wireframe URL (V2 POC)</h2>
@@ -149,7 +160,8 @@ function syndamorph_render_import_page(): void {
 }
 
 add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
-    if ( 'tools_page_syndamorph' !== $hook || ! current_user_can( 'edit_pages' ) ) { return; }
+    if ( 'tools_page_syndamorph' !== $hook || ! current_user_can( 'edit_pages' ) ||
+        ( isset( $_GET['tab'] ) && 'ai' === sanitize_key( wp_unslash( $_GET['tab'] ) ) ) ) { return; }
     wp_enqueue_style(
         'syndamorph-admin',
         plugin_dir_url( __FILE__ ) . 'assets/admin.css',
