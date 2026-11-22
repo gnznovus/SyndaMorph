@@ -231,3 +231,29 @@
 #syndamorph-ai-integration input.sm-masked-key {
     -webkit-text-security: disc;
 }
+
+/* Saved-key preview stays masked; deletion action is visible only when configured. */
+#syndamorph-ai-integration .sm-saved-key {
+    display: flex;
+    align-items: stretch;
+    gap: 9px;
+    margin-top: 12px;
+}
+#syndamorph-ai-integration .sm-saved-key .sm-key-status {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-top: 0;
+    display: flex;
+    align-items: center;
+    overflow-wrap: anywhere;
+}
+#syndamorph-ai-integration .sm-delete-key {
+    color: #ED3832;
+    background: #fff6f5;
+    border-color: #ffd4cf;
+}
+#syndamorph-ai-integration .sm-delete-key:hover {
+    background: #ffe8e5;
+    border-color: #ED3832;
+}
+#syndamorph-ai-integration .sm-delete-key[hidden] { display: none !important; }
