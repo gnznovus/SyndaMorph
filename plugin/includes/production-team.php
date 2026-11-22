@@ -114,6 +114,10 @@ function syndamorph_team_render_tab(): void {
                                 <p class="sm-card-caption">Describe the outcome; the PM owns task classification and delegation.</p>
                             </div>
                             <div class="sm-card-body">
+                                <div class="sm-team-advanced">
+                                    <label><input type="checkbox" id="syndamorph-team-js-mode"> Render inline JavaScript (experimental)</label>
+                                    <p class="sm-hint">Uses the existing isolated Docker renderer. Scripts are never run in WordPress admin. Only enable for trusted sources.</p>
+                                </div>
                                 <div class="sm-field">
                                     <label class="sm-field-label" for="syndamorph-team-brief">Task instructions</label>
                                     <textarea class="sm-control sm-team-brief" id="syndamorph-team-brief" rows="7" maxlength="1200">Convert the supplied source into independently editable Gutenberg sections, preserving layout fidelity.</textarea>
