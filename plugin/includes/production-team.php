@@ -83,7 +83,11 @@ function syndamorph_team_render_tab(): void {
                                     <p class="sm-team-source-divider">OR PASTE HTML</p>
                                     <label class="sm-field-label" for="syndamorph-team-html">HTML source</label>
                                     <textarea class="sm-control" id="syndamorph-team-html" rows="7" placeholder="Paste HTML markup here"></textarea>
-                                    <p class="sm-hint">Smaller files are shown in the editor; larger files remain selected without rendering them in the textarea. No upload or conversion occurs in simulation mode.</p>
+                                    <p class="sm-hint">Small files open in the editor; large files remain selected for conversion without loading the textarea.</p>
+                                    <div class="sm-team-advanced sm-team-source-option">
+                                        <label for="syndamorph-team-js-html"><input type="checkbox" id="syndamorph-team-js-html"> Render inline JavaScript (experimental)</label>
+                                        <p class="sm-hint">Render trusted HTML scripts using the isolated Docker renderer.</p>
+                                    </div>
                                 </div>
                                 <div class="sm-field sm-team-source-input" data-source="package" hidden>
                                     <label class="sm-field-label" for="syndamorph-team-package">ZIP package</label>
@@ -93,7 +97,11 @@ function syndamorph_team_render_tab(): void {
                                         <span class="sm-team-file-name" id="syndamorph-team-package-name" aria-live="polite">Drop ZIP here or browse</span>
                                     </div>
                                     <p class="sm-team-upload-feedback" data-upload-feedback="package" role="status" aria-live="polite"></p>
-                                    <p class="sm-hint">Selected filename only; the package is not uploaded in simulation mode.</p>
+                                    <p class="sm-hint">Package files are uploaded only when you choose Scan package.</p>
+                                    <div class="sm-team-advanced sm-team-source-option">
+                                        <label for="syndamorph-team-js-package"><input type="checkbox" id="syndamorph-team-js-package"> Render packaged JavaScript (experimental)</label>
+                                        <p class="sm-hint">For ZIPs containing JavaScript assets. Execution uses the isolated renderer; enable only for trusted packages.</p>
+                                    </div>
                                 </div>
                                 <div class="sm-team-source-actions" id="syndamorph-team-source-actions">
                                     <button type="button" class="sm-team-secondary" id="syndamorph-team-inspect">Inspect source</button>
@@ -105,7 +113,11 @@ function syndamorph_team_render_tab(): void {
                                     <p class="sm-hint" id="syndamorph-team-source-summary"></p>
                                     <details id="syndamorph-team-source-diagnostics" hidden><summary>Capture diagnostics</summary><pre id="syndamorph-team-source-diagnostics-json"></pre></details>
                                 </div>
-                                <div class="sm-team-note">The future PM will assign job titles during classification. Current deterministic conversions use source-derived titles; no AI inference is involved.</div>
+                                <div class="sm-team-source-footer">
+                                    <p class="sm-team-note">For now, conversion titles come from the source. The PM will assign descriptive job titles during real classification.</p>
+                                    <button type="button" class="sm-primary" id="syndamorph-team-convert">Convert &amp; Preview <span aria-hidden="true">→</span></button>
+                                    <p class="sm-team-action-feedback" id="syndamorph-team-convert-error" role="alert" hidden></p>
+                                </div>
                             </div>
                         </section>
                         <section class="sm-card" aria-labelledby="sm-team-brief-title">
@@ -114,22 +126,15 @@ function syndamorph_team_render_tab(): void {
                                 <p class="sm-card-caption">Describe the intended output. The deterministic converter works today; the PM orchestration flow remains a simulation.</p>
                             </div>
                             <div class="sm-card-body">
-                                <div class="sm-team-advanced">
-                                    <label><input type="checkbox" id="syndamorph-team-js-mode"> Render inline JavaScript (experimental)</label>
-                                    <p class="sm-hint">Uses the existing isolated Docker renderer. Scripts are never run in WordPress admin. Only enable for trusted sources.</p>
-                                </div>
                                 <div class="sm-field">
                                     <label class="sm-field-label" for="syndamorph-team-brief">Task instructions</label>
                                     <textarea class="sm-control sm-team-brief" id="syndamorph-team-brief" rows="7" maxlength="1200">Convert the supplied source into independently editable Gutenberg sections, preserving layout fidelity.</textarea>
                                 </div>
                                 <div class="sm-team-actions">
-                                    <button type="button" class="sm-primary" id="syndamorph-team-convert">Convert with existing engine <span aria-hidden="true">→</span></button>
                                     <button type="button" class="sm-team-secondary" id="syndamorph-team-run">Start simulation <span aria-hidden="true">→</span></button>
                                     <button type="button" class="sm-team-secondary" id="syndamorph-team-reset">Reset</button>
                                 </div>
-                                <p class="sm-hint">Conversion uses the existing deterministic Gutenberg engine. The simulation remains a separate demo.</p>
-                                <p class="sm-team-action-feedback" id="syndamorph-team-convert-error" role="alert" hidden></p>
-                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">Use Inspect source → Convert with existing engine for real conversion. Agent handoff simulation is separate.</p>
+                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">Simulation demonstrates agent handoffs; production conversion runs from Source Import.</p>
                             </div>
                         </section>
                     </div>
