@@ -595,3 +595,11 @@
 #syndamorph-production-team #sm-team-panel-setup .sm-team-actions {
     margin-top: 18px;
 }
+
+/* Disabled export means completed, not still processing. */
+#syndamorph-production-team #syndamorph-team-save[data-state="saved"]:disabled {
+    cursor: not-allowed;
+}
+#syndamorph-production-team #syndamorph-team-save[data-state="saving"]:disabled {
+    cursor: wait;
+}
