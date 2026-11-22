@@ -144,7 +144,7 @@ body.syndamorph-modal-open { overflow: hidden; }
 .syndamorph-name-body > p:first-child { margin: 0 0 18px; color: #50575e; font-size: 13px; }
 .syndamorph-name-body label { display: block; margin-bottom: 7px; font-size: 13px; }
 #syndamorph-name-input { width: 100%; max-width: 100%; min-height: 38px; font-size: 14px; }
-.syndamorph-name-error { color: #b32d2e; font-size: 12px; margin: 7px 0 0; }
+.syndamorph-name-error { color: #ED3832; font-size: 12px; margin: 7px 0 0; }
 .syndamorph-name-error[hidden] { display: none; }
 .syndamorph-name-actions { justify-content: flex-end; border-top: 1px solid #e1e3e6; background: #f9fafb; }
 .syndamorph-name-actions .button { min-height: 34px; }
