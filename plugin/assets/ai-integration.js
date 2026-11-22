@@ -106,52 +106,6 @@
         } );
     }
 
-    // Real Gateway calls with synthetic role messages; no provider secrets reach the browser.
-    const purrRun = byId( 'syndamorph-purr-run' );
-    const purrJob = byId( 'syndamorph-purr-job' );
-    const purrState = byId( 'syndamorph-purr-status' );
-    const purrTranscript = byId( 'syndamorph-purr-transcript' );
-    if ( purrRun && purrJob && purrState && purrTranscript ) {
-        purrRun.addEventListener( 'click', async () => {
-            if ( purrRun.disabled ) return;
-            purrRun.disabled = true;
-            purrState.textContent = 'Connecting';
-            purrState.dataset.state = 'running';
-            purrTranscript.textContent = 'Opening Purr session and exchanging four messages…';
-            try {
-                const response = await fetch( SyndaMorphAI.purrPocUrl, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': SyndaMorphAI.nonce },
-                    body: JSON.stringify( { job: purrJob.value.trim() } ),
-                } );
-                const data = await response.json();
-                if ( !response.ok || !data.success || !data.session_created || data.steps_completed !== 4 ) {
-                    throw new Error( 'Gateway or workflow verification failed' );
-                }
-                purrTranscript.replaceChildren();
-                for ( const item of data.conversation ) {
-                    const row = document.createElement( 'article' );
-                    row.className = 'sm-purr-message';
-                    const title = document.createElement( 'strong' );
-                    title.textContent = item.step + '. ' + item.agent + ' · ' + item.action;
-                    const message = document.createElement( 'p' );
-                    message.textContent = item.message;
-                    row.append( title, message );
-                    purrTranscript.append( row );
-                }
-                purrState.textContent = '4 / 4 received';
-                purrState.dataset.state = 'success';
-            } catch ( _error ) {
-                purrState.textContent = 'Failed';
-                purrState.dataset.state = 'error';
-                purrTranscript.textContent = 'Communication test could not complete. Verify Purr configuration, container restart, and Gateway availability.';
-            } finally {
-                purrRun.disabled = false;
-            }
-        } );
-    }
-
     fetch( SyndaMorphAI.statusUrl, {
         credentials: 'same-origin', headers: { 'X-WP-Nonce': SyndaMorphAI.nonce },
     } ).then( ( response ) => {
