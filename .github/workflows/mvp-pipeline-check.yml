@@ -5,11 +5,23 @@ on:
     paths:
       - 'backend/**'
       - 'compose.yaml'
+      - 'plugin/includes/production-team.php'
+      - 'plugin/includes/ai-integration.php'
+      - 'plugin/syndamorph.php'
+      - 'plugin/assets/production-team.js'
+      - 'plugin/assets/ai-integration.js'
+      - 'plugin/assets/operations-dashboard.css'
       - '.github/workflows/mvp-pipeline-check.yml'
   pull_request:
     paths:
       - 'backend/**'
       - 'compose.yaml'
+      - 'plugin/includes/production-team.php'
+      - 'plugin/includes/ai-integration.php'
+      - 'plugin/syndamorph.php'
+      - 'plugin/assets/production-team.js'
+      - 'plugin/assets/ai-integration.js'
+      - 'plugin/assets/operations-dashboard.css'
       - '.github/workflows/mvp-pipeline-check.yml'
 jobs:
   test:
@@ -24,6 +36,10 @@ jobs:
           node --check backend/server.js
           node --check backend/purr-poc.js
           node --check plugin/assets/ai-integration.js
+          node --check plugin/assets/production-team.js
+          php -l plugin/includes/production-team.php
+          php -l plugin/includes/ai-integration.php
+          php -l plugin/syndamorph.php
           node --check backend/mvp/plan.js
           node --check backend/mvp/registry.js
           node --check backend/mvp/loop.js
