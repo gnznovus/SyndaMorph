@@ -33,14 +33,38 @@ function syndamorph_render_import_page(): void {
     }
     ?>
     <div class="wrap" id="syndamorph-html-import">
-        <h1>SyndaMorph <span style="font-weight:normal;font-size:13px;">POC</span></h1>
-        <?php if ( current_user_can( 'manage_options' ) ) : ?>
-        <nav class="nav-tab-wrapper" aria-label="SyndaMorph sections">
-            <a class="nav-tab nav-tab-active" aria-current="page" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph' ) ); ?>">Importer</a>
-            <a class="nav-tab" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=ai' ) ); ?>">AI Integration</a>
-        </nav>
-        <?php endif; ?>
-        <p>Paste static HTML or choose an .html file. Review the preview, then approve draft creation.</p>
+        <div class="sm-dashboard">
+            <aside class="sm-sidebar" aria-label="Operations navigation">
+                <div class="sm-brand">
+                    <span class="sm-brand-mark" aria-hidden="true">S</span>
+                    <div><div class="sm-brand-name">SyndaMorph</div><div class="sm-brand-caption">Operations</div></div>
+                </div>
+                <div>
+                    <p class="sm-nav-label">Workspace</p>
+                    <nav class="sm-nav" aria-label="SyndaMorph modules">
+                        <a class="sm-nav-item is-active" aria-current="page" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph' ) ); ?>">
+                            <span class="dashicons dashicons-upload" aria-hidden="true"></span> Source Importer
+                        </a>
+                        <?php if ( current_user_can( 'manage_options' ) ) : ?>
+                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=ai' ) ); ?>">
+                            <span class="dashicons dashicons-admin-network" aria-hidden="true"></span> AI Integration
+                        </a>
+                        <?php endif; ?>
+                    </nav>
+                </div>
+                <div class="sm-sidebar-footer"><strong>Internal MVP</strong><br>Capture, preview, and convert source content to editable Gutenberg blocks.</div>
+            </aside>
+            <main class="sm-main">
+                <div class="sm-topline">
+                    <span class="sm-breadcrumb">Workspace / <strong>Source Importer</strong></span>
+                    <span class="sm-environment">MVP · DEVELOPMENT</span>
+                </div>
+                <p class="sm-kicker">Production workspace</p>
+                <h1 class="sm-page-title">Import your source</h1>
+                <p class="sm-page-description">Start with a live URL, a ZIP package, or HTML. Review captured content before creating editable Gutenberg drafts or patterns.</p>
+                <div class="sm-import-grid">
+                <div class="sm-import-column">
+                    <div class="sm-import-section-label">Source capture</div>
         <section class="syndamorph-package-section" aria-labelledby="syndamorph-url-heading">
             <h2 id="syndamorph-url-heading">Capture a wireframe URL (V2 POC)</h2>
             <p>Captures one page only. Choose a detected section to preview using the existing Gutenberg converter. External assets remain URL references.</p>
@@ -69,6 +93,7 @@ function syndamorph_render_import_page(): void {
                 <p class="description" id="syndamorph-url-warning"></p>
             </div>
         </section>
+                    <div class="sm-import-section-label">Batch import</div>
         <div class="syndamorph-package-section">
             <h2>Import a ZIP package</h2>
             <p>Upload a package with one or more HTML pages and relative CSS/images. Select the pages, review each converted preview, then approve drafts or patterns.</p>
@@ -106,9 +131,18 @@ function syndamorph_render_import_page(): void {
                 </div>
             </section>
         </div>
-        <hr class="syndamorph-section-rule">
-        <h2>Import a single HTML file</h2>
-        <div style="max-width:900px;">
+                </div>
+                <div class="sm-import-column">
+                    <div class="sm-import-section-label">HTML conversion</div>
+                    <div class="sm-html-panel">
+                        <div class="sm-html-header">
+                            <span class="dashicons dashicons-editor-code" aria-hidden="true"></span>
+                            <div>
+                                <h2>Import HTML</h2>
+                                <p>Paste markup or upload an HTML file to preview conversion.</p>
+                            </div>
+                        </div>
+                        <div class="sm-html-body">
             <p><label for="syndamorph-html-file"><strong>HTML file (optional)</strong></label></p>
             <input id="syndamorph-html-file" type="file" accept=".html,.htm,text/html">
             <p><label for="syndamorph-html-input"><strong>Paste HTML</strong></label></p>
@@ -154,6 +188,11 @@ function syndamorph_render_import_page(): void {
                 </div>
             </section>
             <p class="description">POC scope: native headings, paragraphs, images, buttons, lists, tables, dividers, semantic groups, and simple columns. Supported CSS colors, background images, font size/weight/line height, spacing, column gaps, fractional grid tracks, vertical alignment, and proportional widths become native block settings. Complex CSS and external stylesheets are not imported. Scripts are not executed.</p>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            </main>
         </div>
     </div>
     <?php
@@ -162,6 +201,7 @@ function syndamorph_render_import_page(): void {
 add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
     if ( 'tools_page_syndamorph' !== $hook || ! current_user_can( 'edit_pages' ) ||
         ( isset( $_GET['tab'] ) && 'ai' === sanitize_key( wp_unslash( $_GET['tab'] ) ) ) ) { return; }
+    wp_enqueue_style( 'syndamorph-operations', plugin_dir_url( __FILE__ ) . 'assets/operations-dashboard.css', array(), (string) filemtime( plugin_dir_path( __FILE__ ) . 'assets/operations-dashboard.css' ) );
     wp_enqueue_style(
         'syndamorph-admin',
         plugin_dir_url( __FILE__ ) . 'assets/admin.css',
