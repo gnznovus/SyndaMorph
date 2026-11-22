@@ -71,14 +71,25 @@ function syndamorph_team_render_tab(): void {
                                     <p class="sm-hint">Reference only. The simulation will not fetch this URL.</p>
                                 </div>
                                 <div class="sm-field sm-team-source-input" data-source="html" hidden>
+                                    <label class="sm-field-label" for="syndamorph-team-html-file">HTML file</label>
+                                    <div class="sm-team-upload">
+                                        <input type="file" id="syndamorph-team-html-file" class="sm-team-native-file" accept=".html,.htm,text/html" aria-describedby="syndamorph-team-html-file-name">
+                                        <label class="sm-team-file-button" for="syndamorph-team-html-file">Choose HTML file</label>
+                                        <span class="sm-team-file-name" id="syndamorph-team-html-file-name" aria-live="polite">No file selected</span>
+                                    </div>
+                                    <p class="sm-team-source-divider">OR PASTE HTML</p>
                                     <label class="sm-field-label" for="syndamorph-team-html">HTML source</label>
                                     <textarea class="sm-control" id="syndamorph-team-html" rows="7" maxlength="50000" placeholder="Paste HTML markup here"></textarea>
-                                    <p class="sm-hint">Simulation reads only the input type, not the markup. Existing Importer handles real conversions.</p>
+                                    <p class="sm-hint">Selecting a file loads its text locally into the editor. This simulation does not upload or convert it.</p>
                                 </div>
                                 <div class="sm-field sm-team-source-input" data-source="package" hidden>
                                     <label class="sm-field-label" for="syndamorph-team-package">ZIP package</label>
-                                    <input class="sm-control sm-team-file" type="file" id="syndamorph-team-package" accept=".zip,application/zip">
-                                    <p class="sm-hint">Selected filename only; package is not uploaded by this simulation.</p>
+                                    <div class="sm-team-upload">
+                                        <input type="file" id="syndamorph-team-package" class="sm-team-native-file" accept=".zip,application/zip" aria-describedby="syndamorph-team-package-name">
+                                        <label class="sm-team-file-button" for="syndamorph-team-package">Choose ZIP package</label>
+                                        <span class="sm-team-file-name" id="syndamorph-team-package-name" aria-live="polite">No file selected</span>
+                                    </div>
+                                    <p class="sm-hint">Selected filename only; the package is not uploaded in simulation mode.</p>
                                 </div>
                                 <div class="sm-team-note">In the final pipeline, the PM will assign the job title during classification. There is intentionally no manual title field or separate title-generation call.</div>
                             </div>
