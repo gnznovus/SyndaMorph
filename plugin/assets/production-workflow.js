@@ -70,6 +70,7 @@
     const refreshSaveAction = () => {
         const mode = saveKind.value;
         const saved = savedModes.get( mode );
+        saveButton.dataset.state = busy ? 'saving' : saved ? 'saved' : 'ready';
         saveButton.disabled = busy || !prepared.length || !activeJob || Boolean( saved );
         saveButton.textContent = saved ? ( mode === 'draft' ? 'Draft saved' : 'Pattern saved' ) : 'Approve & Save';
         if ( saved ) {
@@ -391,6 +392,7 @@
         const mode = saveKind.value;
         if ( busy || savedModes.has( mode ) || !prepared.length || !activeJob ) return;
         busy = true;
+        saveButton.dataset.state = 'saving';
         saveButton.disabled = true;
         saveKind.disabled = true;
         saveStatus.textContent = 'Saving ' + ( mode === 'draft' ? 'draft pages' : 'unsynced patterns' ) + '…';
@@ -451,7 +453,7 @@
             saveKind.disabled = false;
             // Preserve error messages; successful saves use the per-mode state.
             if ( savedModes.has( mode ) ) refreshSaveAction();
-            else saveButton.disabled = false;
+            else { saveButton.dataset.state = 'ready'; saveButton.disabled = false; }
         }
     } );
 } )();
