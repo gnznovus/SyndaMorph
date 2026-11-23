@@ -52,8 +52,11 @@ function syndamorph_gateway_admin_ajax(): void {
     $base = untrailingslashit( SYNDAMORPH_GATEWAY_URL );
     $scheme = wp_parse_url( $base, PHP_URL_SCHEME );
     $host = wp_parse_url( $base, PHP_URL_HOST );
+    // HTTP is allowed only to the fixed, internal Docker Compose service in local WP environments.
+    $local_gateway = 'http://gateway:3200' === $base && 'local' === wp_get_environment_type();
+    $local_loopback = 'http' === $scheme && in_array( strtolower( (string) $host ), array( 'localhost', '127.0.0.1' ), true );
     if ( ! is_string( $host ) || ! is_string( $scheme ) ||
-        ( 'https' !== $scheme && !( 'http' === $scheme && in_array( strtolower( $host ), array( 'localhost', '127.0.0.1' ), true ) ) ) ||
+        ( 'https' !== $scheme && ! $local_gateway && ! $local_loopback ) ||
         wp_parse_url( $base, PHP_URL_QUERY ) || wp_parse_url( $base, PHP_URL_FRAGMENT ) ||
         wp_parse_url( $base, PHP_URL_USER ) || wp_parse_url( $base, PHP_URL_PASS ) ) {
         wp_send_json_error( array( 'error' => 'invalid_gateway_configuration' ), 503 );
