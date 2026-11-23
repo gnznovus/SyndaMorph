@@ -241,7 +241,10 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
     $tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
     if ( 'ai' === $tab ) { return; }
     wp_enqueue_style( 'syndamorph-operations', plugin_dir_url( __DIR__ ) . 'assets/operations-dashboard.css', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/operations-dashboard.css' ) );
-    if ( 'gateway' === $tab ) { return; }
+    if ( 'gateway' === $tab ) {
+        wp_enqueue_style( 'syndamorph-gateway-ui', plugin_dir_url( __DIR__ ) . 'assets/gateway-admin.css', array( 'syndamorph-operations' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/gateway-admin.css' ) );
+        return;
+    }
     wp_enqueue_style( 'syndamorph-admin', plugin_dir_url( __DIR__ ) . 'assets/admin.css', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/admin.css' ) );
     wp_enqueue_script( 'syndamorph-pattern-dialog', plugin_dir_url( __DIR__ ) . 'assets/pattern-dialog.js', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/pattern-dialog.js' ), true );
     wp_enqueue_script( 'syndamorph-import', plugin_dir_url( __DIR__ ) . 'assets/import.js', array( 'syndamorph-pattern-dialog' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/import.js' ), true );
