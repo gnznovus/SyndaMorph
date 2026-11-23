@@ -110,4 +110,21 @@ expect(is_wp_error($refused) && $refused->code==='sm_generation_incomplete' &&
     $refused->args['stopReason']==='refusal', 'Refusal misreported as token exhaustion');
 unset($GLOBALS['stop_reason_test']);
 
+// Guard against reintroducing a second POC brief or source-required paid job.
+$ui = file_get_contents(dirname(__DIR__) . '/plugin/includes/production-team.php');
+$client = file_get_contents(dirname(__DIR__) . '/plugin/assets/ai-team-real.js');
+$first = strpos($ui, 'id="syndamorph-team-run"');
+$real = strpos($ui, 'id="syndamorph-real-run"');
+$reset = strpos($ui, 'id="syndamorph-team-reset"');
+expect($first !== false && $real !== false && $reset !== false && $first < $real && $real < $reset,
+    'Real AI run button must appear between simulation and Reset');
+expect(!str_contains($ui, 'id="syndamorph-real-brief"') && !str_contains($ui, 'sm-real-poc-title'),
+    'Standalone real POC shell was reintroduced');
+expect(str_contains($client, "byId('syndamorph-team-brief')") &&
+    str_contains($client, 'JSON.stringify({brief: prompt})') &&
+    !str_contains($client, 'validateSource('),
+    'Real AI run must use only existing production brief, never source selection');
+expect(str_contains($ui, 'id="syndamorph-real-results"'),
+    'Integrated AI output panel is missing');
+
 echo "PASS: live model catalog cache/refresh, no hardcoded models, four role handoff, usage, deterministic checks and spending gate\n";
