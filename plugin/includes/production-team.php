@@ -140,14 +140,14 @@ function syndamorph_team_render_tab(): void {
                 <section id="sm-team-panel-production" class="sm-team-panel" role="tabpanel" aria-labelledby="sm-team-tab-production" data-panel="production" hidden>
                     <div class="sm-stats" aria-label="Simulation overview">
                         <div class="sm-stat"><span class="sm-stat-label">Current job</span><span class="sm-stat-value sm-stat-small" id="syndamorph-team-job-state">Not started</span></div>
-                        <div class="sm-stat"><span class="sm-stat-label">Team handoffs</span><span class="sm-stat-value" id="syndamorph-team-handoffs">00 / 04</span></div>
+                        <div class="sm-stat"><span class="sm-stat-label">Team handoffs</span><span class="sm-stat-value" id="syndamorph-team-handoffs">00 / 09</span></div>
                         <div class="sm-stat"><span class="sm-stat-label">Output readiness</span><span class="sm-stat-value sm-stat-small" id="syndamorph-team-output-state">Not generated</span></div>
                     </div>
                     <div class="sm-team-layout sm-team-production-grid">
                         <section class="sm-card" aria-labelledby="sm-team-timeline-title">
                             <div class="sm-card-header sm-team-feed-heading">
                                 <div><h2 class="sm-card-title" id="sm-team-timeline-title">Live Production Feed</h2>
-                                <p class="sm-card-caption">Authored demonstration handoffs only. Real conversion events are displayed separately above.</p></div>
+                                <p class="sm-card-caption">Rule-based entertainment with authored agent dialogue. No AI inference or validated production actions.</p></div>
                                 <span class="sm-status-pill" id="syndamorph-team-feed-state" data-state="idle">Idle</span>
                             </div>
                             <div class="sm-card-body">
@@ -163,7 +163,7 @@ function syndamorph_team_render_tab(): void {
                                 <div class="sm-team-agent" data-agent="boss"><span class="sm-team-avatar">B</span><div><strong>PM / Boss Agent</strong><p>Job classification, delegation and approval</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
                                 <div class="sm-team-agent" data-agent="designer"><span class="sm-team-avatar">D</span><div><strong>Designer Agent</strong><p>Design architecture and visual fidelity</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
                                 <div class="sm-team-agent" data-agent="developer"><span class="sm-team-avatar">C</span><div><strong>Developer Agent</strong><p>Gutenberg blocks and interactions</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
-                                <div class="sm-team-note">Actual disagreements, corrections and evidence will appear here after real orchestration is connected. The demo does not invent validation outcomes.</div>
+                                <div class="sm-team-note">Rule-based banter is entertainment only. Real agent decisions and evidence require actual inference.</div>
                                 <button type="button" class="sm-team-secondary sm-team-view-result" id="syndamorph-team-view-result" hidden>View Result</button>
                             </div>
                         </section>
@@ -252,7 +252,8 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
         'renderUrl' => rest_url( 'syndamorph/v1/render-dom' ),
         'rendererAvailable' => 'http://renderer:3000/render' === getenv( 'SYNDAMORPH_RENDERER_URL' ),
     ) ) . ';', 'before' );
-    wp_enqueue_script( 'syndamorph-team', plugin_dir_url( __DIR__ ) . 'assets/production-team.js', array( 'syndamorph-import' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-team.js' ), true );
+    wp_enqueue_script( 'syndamorph-demo-dialogue', plugin_dir_url( __DIR__ ) . 'assets/demo-dialogue.js', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/demo-dialogue.js' ), true );
+    wp_enqueue_script( 'syndamorph-team', plugin_dir_url( __DIR__ ) . 'assets/production-team.js', array( 'syndamorph-import', 'syndamorph-demo-dialogue' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-team.js' ), true );
     wp_add_inline_script( 'syndamorph-team', 'window.SyndaMorphTeam=' . wp_json_encode( array(
         'nonce' => wp_create_nonce( 'wp_rest' ),
         'purrPocUrl' => rest_url( 'syndamorph/v1/purr/communication-poc' ),
