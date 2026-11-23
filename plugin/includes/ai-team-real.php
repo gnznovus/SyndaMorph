@@ -6,8 +6,8 @@ function syndamorph_team_real_run( string $brief ) {
     $settings = syndamorph_models_settings();
     $provider = $settings['provider'] ?? '';
     $model = $settings['model'] ?? '';
-    if ( 'anthropic' !== $provider || ! is_string( $model ) || '' === $model ) {
-        return new WP_Error( 'sm_team_setup', 'Configure an Anthropic model in AI Integration first.', array( 'status' => 400 ) );
+    if ( ! is_string( $provider ) || '' === $provider || ! is_string( $model ) || '' === $model ) {
+        return new WP_Error( 'sm_team_setup', 'Configure a supported model in AI Integration first.', array( 'status' => 400 ) );
     }
     $catalog = syndamorph_models_catalog( $provider );
     if ( is_wp_error( $catalog ) ) { return $catalog; }
