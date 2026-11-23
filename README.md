@@ -321,6 +321,14 @@ SyndaMorph can save the current converted preview **or** the current content in 
 
 Both actions store the same standard Gutenberg block markup as `wp_block` posts with `wp_pattern_sync_status=unsynced`, assigned to the native `wp_pattern_category` term **SyndaMorph**. The custom name dialog replaces browser prompts in both workflows. Patterns created before v0.6.1 remain in their previous category; only newly saved patterns are automatically categorized. Pattern creation requires permission to edit pages. This is a **full-content snapshot**, not a selection-only pattern; missing-image placeholders remain replaceable native Image blocks.
 
+## AI Production Team — real four-agent POC
+
+The **Tools → SyndaMorph → AI Production Team** workspace supports both an authored **Start simulation** demo and a separately confirmed **Run real AI team** job. The real button sits between **Start simulation** and **Reset** in the **Production brief** card. Real execution requires **only the Task instructions text** (12–2,000 characters); no source URL, HTML, or ZIP is needed. Configure a paid Anthropic model and estimated budget in **AI Integration** first.
+
+Real execution follows **Boss → Designer → Developer → Validator** through the existing protected WordPress REST route. The configured model runs four sequential server-side calls using bounded Anthropic streaming and produces text-only agent reports, per-agent input/output token usage, duration, estimated cost, and validation notes in the existing Production/Results tabs. **It does not generate a Gutenberg pattern, execute code, open a visual preview, or automatically publish anything.** The Source Import **Convert & Preview** workflow remains independent.
+
+**Baseline (24 November 2026):** four Claude Haiku 5.5 agents completed a premium hotel hero experiment: 11,957 input tokens, 16,515 output tokens, ~73.8s elapsed, ~$0.009453 estimated API cost. The deterministic safety/structure checks passed; the validator also identified design/contract issues, and no browser fidelity verification was performed. The configured budget is an estimated preflight guard rather than a guaranteed billing cap. See [integrated real-AI POC notes](docs/real-ai-team-poc-1.md) for architecture, setup, metrics, and limitations.
+
 ## Current POC scope
 
 - **Preview-first approval:** renders an converted Gutenberg layout preview inside an isolated, script-disabled iframe; no draft is created until **Create Draft** is selected. Changing the imported HTML invalidates the preview and requires review again.
