@@ -75,10 +75,10 @@ test('download is one-time, revocation checked again on use, metadata has no sto
         const version = f.gateway.versionsFor(a, pkg.id)[0];
         assert.equal(version.sha256, checksum);
         assert.equal(Object.hasOwn(version, 'storageKey'), false);
-        const download = f.gateway.authorizeDownload(a, pkg.id, '1.0.0');
+        const download = f.gateway.authorizeDownload(principal, pkg.id, '1.0.0');
         assert.equal(f.gateway.consumeDownload(download.grant).storageKey, 'artifact.zip');
         assert.throws(() => f.gateway.consumeDownload(download.grant), { status: 404 });
-        const newer = f.gateway.authorizeDownload(a, pkg.id, '1.0.0');
+        const newer = f.gateway.authorizeDownload(principal, pkg.id, '1.0.0');
         f.gateway.updateLease(a.id, lease.id, { status: 'revoked' });
         assert.throws(() => f.gateway.consumeDownload(newer.grant), { status: 403 });
         const nextLease = f.gateway.lease(a.id, pkg.id, {});
