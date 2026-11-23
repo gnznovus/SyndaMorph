@@ -12,7 +12,6 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 require_once plugin_dir_path( __FILE__ ) . 'includes/render-endpoint.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/capture-endpoint.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/package-import.php';
-require_once plugin_dir_path( __FILE__ ) . 'includes/artifact-poc.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/updater.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/ai-integration.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/purr-poc.php';
