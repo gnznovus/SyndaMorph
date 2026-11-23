@@ -206,14 +206,22 @@ function syndamorph_ai_render_tab(): void {
                         <p class="sm-card-caption">Models are discovered from the provider; standard token prices come from a separately maintained pricing reference. Confirm rates before any paid run.</p>
                     </div>
                     <div class="sm-card-body" style="display:grid;gap:16px">
-                        <div class="sm-field">
-                            <label class="sm-field-label" for="syndamorph-model-choice">Available models</label>
-                            <select class="sm-control" id="syndamorph-model-choice"><option value="">Load available models first</option></select>
-                            <p class="sm-hint" id="syndamorph-model-status">Anthropic catalog available after saving a provider key. Other provider adapters are pending.</p>
-                        </div>
-                        <div class="sm-model-controls">
-                            <div class="sm-model-refresh-row">
-                                <button type="button" class="sm-outline-button" id="syndamorph-model-refresh">Refresh provider models</button>
+                        <div class="sm-model-layout">
+                            <div class="sm-model-left">
+                                <div class="sm-field">
+                                    <label class="sm-field-label" for="syndamorph-model-choice">Available models</label>
+                                    <select class="sm-control" id="syndamorph-model-choice"><option value="">Load available models first</option></select>
+                                    <p class="sm-hint" id="syndamorph-model-status">Anthropic catalog available after saving a provider key. Other provider adapters are pending.</p>
+                                </div>
+                                <div class="sm-model-controls">
+                                    <div class="sm-model-refresh-row">
+                                        <button type="button" class="sm-outline-button" id="syndamorph-model-refresh">Refresh provider models</button>
+                                    </div>
+                                    <div class="sm-field sm-model-budget">
+                                        <label class="sm-field-label" for="syndamorph-model-budget">Maximum estimated job cost (USD)</label>
+                                        <input class="sm-control" id="syndamorph-model-budget" type="number" min="0.01" max="100" step="0.01" value="1.00">
+                                    </div>
+                                </div>
                             </div>
                             <div class="sm-model-summary">
                                 <div class="sm-stat">
@@ -221,10 +229,6 @@ function syndamorph_ai_render_tab(): void {
                                     <strong class="sm-stat-value" id="syndamorph-model-cost">Unknown</strong>
                                     <span class="sm-hint">Assumes 6K input + 4K output tokens</span>
                                 </div>
-                            </div>
-                            <div class="sm-field sm-model-budget">
-                                <label class="sm-field-label" for="syndamorph-model-budget">Maximum estimated job cost (USD)</label>
-                                <input class="sm-control" id="syndamorph-model-budget" type="number" min="0.01" max="100" step="0.01" value="1.00">
                             </div>
                         </div>
                         <p class="sm-hint">Displayed standard rates are based on <a href="https://platform.claude.com/docs/en/about-claude/pricing" target="_blank" rel="noopener noreferrer">Anthropic's published pricing</a> (checked 24 Nov 2026). Models without a known reference price cannot be selected for paid jobs. Estimates exclude caching and other billing adjustments; Haiku 5.5 costs more for prompts over 100K tokens.</p>
