@@ -125,15 +125,20 @@ add_action( 'rest_api_init', static function (): void {
             if ( ! in_array( $id, $ids, true ) ) {
                 return new WP_Error( 'sm_model_unknown', 'Select a model from the discovered catalog.', array( 'status' => 400 ) );
             }
+            $budget = $request->get_param( 'maxJobUsd' );
+            if ( ! is_numeric( $budget ) || (float) $budget <= 0 || (float) $budget > 100 ) {
+                return new WP_Error( 'sm_model_budget', 'Enter a positive per-job budget up to USD 100.', array( 'status' => 400 ) );
+            }
             $input = $request->get_param( 'inputPrice' );
             $output = $request->get_param( 'outputPrice' );
             if ( ! is_numeric( $input ) || ! is_numeric( $output ) ||
-                (float) $input < 0 || (float) $output < 0 ||
+                (float) $input <= 0 || (float) $output <= 0 ||
                 (float) $input > 10000 || (float) $output > 10000 ) {
                 return new WP_Error( 'sm_model_price', 'Enter valid nonnegative USD rates per million tokens.', array( 'status' => 400 ) );
             }
             $settings = array( 'provider' => $provider, 'model' => $id,
                 'inputPrice' => (float) $input, 'outputPrice' => (float) $output,
+                'maxJobUsd' => (float) $budget,
                 'pricingSource' => 'administrator-entered', 'savedAt' => time() );
             update_option( 'syndamorph_ai_model_settings', $settings, false );
             return rest_ensure_response( $settings );
