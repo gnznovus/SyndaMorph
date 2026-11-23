@@ -149,6 +149,10 @@ function syndamorph_ai_render_tab(): void {
                                 <span class="sm-hint">Assumes 6K input + 4K output tokens</span>
                             </div>
                         </div>
+                        <div class="sm-field">
+                            <label class="sm-field-label" for="syndamorph-model-budget">Maximum estimated job cost (USD)</label>
+                            <input class="sm-control" style="max-width:220px" id="syndamorph-model-budget" type="number" min="0.01" max="100" step="0.01" value="1.00">
+                        </div>
                         <p class="sm-hint">Rates are administrator-entered, not provider-verified. Real usage is measured; computed cost is an estimate and excludes special cache or billing adjustments.</p>
                         <div><button type="button" class="sm-primary" id="syndamorph-model-save">Save model and pricing</button></div>
                         <p id="syndamorph-model-save-status" role="status" aria-live="polite"></p>
