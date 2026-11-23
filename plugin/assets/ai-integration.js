@@ -18,6 +18,34 @@
     const deleteButton = byId( 'syndamorph-ai-delete-key' );
     if ( !provider || !input || !button || !preview || !output ) return;
 
+    // Provider connection is the first step; model controls remain mounted
+    // while hidden so catalog refresh and saved form values are preserved.
+    const settingTabs = Array.from( document.querySelectorAll( '#syndamorph-ai-integration .sm-ai-settings-tabs [role="tab"]' ) );
+    const settingPanels = Array.from( document.querySelectorAll( '#syndamorph-ai-integration .sm-ai-settings-panel' ) );
+    const setSettingsTab = ( name, focus = false ) => {
+        for ( const tab of settingTabs ) {
+            const active = tab.dataset.panel === name;
+            tab.setAttribute( 'aria-selected', String( active ) );
+            tab.tabIndex = active ? 0 : -1;
+            if ( active && focus ) tab.focus();
+        }
+        for ( const panel of settingPanels ) panel.hidden = panel.id !== 'sm-ai-panel-' + name;
+    };
+    settingTabs.forEach( ( tab, index ) => {
+        tab.addEventListener( 'click', () => setSettingsTab( tab.dataset.panel ) );
+        tab.addEventListener( 'keydown', ( event ) => {
+            let next = index;
+            if ( event.key === 'ArrowRight' ) next = ( index + 1 ) % settingTabs.length;
+            else if ( event.key === 'ArrowLeft' ) next = ( index + settingTabs.length - 1 ) % settingTabs.length;
+            else if ( event.key === 'Home' ) next = 0;
+            else if ( event.key === 'End' ) next = settingTabs.length - 1;
+            else return;
+            event.preventDefault();
+            setSettingsTab( settingTabs[ next ].dataset.panel, true );
+        } );
+    } );
+    setSettingsTab( 'provider' );
+
     let statuses = {};
     let isRunning = false;
     const setState = ( label, kind ) => {
