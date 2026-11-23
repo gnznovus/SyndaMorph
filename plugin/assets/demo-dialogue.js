@@ -14,56 +14,60 @@
     });
     // Three intent pools per role. An intent describes the conversation purpose;
     // each pool has alternative authored lines for repeat demonstrations.
+    // Each index is one shared conversation scenario. All roles use the SAME
+    // scenario index, so the discussion develops one topic instead of randomly
+    // switching subjects at every turn.
+    const TOPICS = Object.freeze(['spacing', 'responsive', 'interaction']);
     const POOLS = Object.freeze({
         boss: {
             intake: [
-                'New {source} brief received. Designer, define the visual direction first; Developer, prepare the Gutenberg reality check.',
-                'Team, we have a {source} request. I want the layout idea and its implementation concerns on the table before we pretend to celebrate.',
-                '{source} is on the board. Designer takes composition, Developer takes feasibility. Please keep the dramatic sighing under budget.',
+                'For this {source}, let us settle section spacing first. Designer, propose a rhythm; Developer, check whether Gutenberg can keep it editable.',
+                'For this {source}, our question is the two-column layout on mobile. Designer, propose the stacking order; Developer, challenge any fragile behavior.',
+                'For this {source}, we need to decide how to handle an interactive call-to-action. Designer, describe the interaction; Developer, propose the smallest maintainable implementation.',
             ],
             mediate: [
-                'Designer wants the polish; Developer wants sensible blocks. Fair. Keep the appearance, simplify what cannot be maintained.',
-                'I hear the visual ambition and the implementation caution. Find a middle ground that would not frighten the next editor.',
-                'Both concerns noted. Prefer editable structure over clever tricks; no one gets bonus points for mystery CSS.',
+                'So we agree on breathing room, but not arbitrary pixel offsets. Designer, give Developer a consistent spacing rule.',
+                'The mobile order concern is fair. Designer, lock the content priority; Developer can map it to native columns that stack.',
+                'We can keep the interaction without shipping unnecessary JavaScript. Designer, confirm the simpler behavior before handoff.',
             ],
             close: [
-                'Demo meeting adjourned. We exchanged opinions, not actual design files, compiled blocks, or validation results.',
-                'That is a simulated handoff, team. No pixels were inspected and no Gutenberg blocks were harmed.',
-                'Nice imaginary teamwork. Actual source analysis and fidelity approval remain future jobs for real adapters.',
+                'Spacing decision recorded for this demo: consistent section rhythm using editable block settings. No source inspection or validation occurred.',
+                'Responsive decision recorded for this demo: prioritize reading order and native stacking. No mobile viewport was actually tested.',
+                'Interaction decision recorded for this demo: use native behavior before custom scripts. No working interaction was implemented.',
             ],
         },
         designer: {
             direction: [
-                'For {source}, I would start with clear hierarchy, a strong hero, and breathing room. Purely a design suggestion.',
-                'My imaginary mood board says consistent spacing and deliberate typography. No screenshot measurements were taken.',
-                'I propose a simple visual rhythm: headline, supporting content, then supporting sections. This is a mock direction.',
+                'I suggest generous gaps between sections and tighter gaps inside content groups. That gives the page rhythm without making every element float.',
+                'I want the headline and key message first on small screens, with supporting imagery after them. Desktop can remain two columns.',
+                'I pictured a button with a subtle animated entrance, but the real requirement is simply a clear, accessible call-to-action.',
             ],
             respond: [
-                'Fine, Developer. I will trade the fancy motion for clean native structure. But the spacing stays.',
-                'Fair point about maintenance. I can keep the composition without relying on twenty layers of absolute positioning.',
-                'I heard the block limitations. Let us keep the layout modular and avoid decoration that cannot be edited.',
+                'Agreed: no magic offsets. I will define one section gap and one inner-content gap instead of styling every block separately.',
+                'Agreed. The content should read in the same meaningful order on mobile; we can drop the decorative column trick.',
+                'Fair. The animation is optional, so I will keep the call-to-action visible and usable without it.',
             ],
             handoff: [
-                'Design handoff suggestion: group related content, keep readable widths, and let the editor own the text.',
-                'Visual note for implementation: preserve hierarchy first, and use a reusable pattern where the structure repeats.',
-                'I am handing over an idea, not an asset. Please do not mark it as a completed design.',
+                'Developer, use the shared section and inner-group spacing rules. Preserve those two levels of hierarchy in editable block controls.',
+                'Developer, keep the text before imagery in the document order, then let native columns stack at smaller widths.',
+                'Developer, build the call-to-action as a native button and leave animation out unless the brief explicitly requires it.',
             ],
         },
         developer: {
             feasibility: [
-                'Reality check: native Gutenberg blocks first. Custom JavaScript only if an actual requirement justifies it.',
-                'I can work with a clean grid and groups. A thousand nested wrappers? I would like to file a complaint.',
-                'Before anything gets built, we should verify which interaction really needs a custom block.',
+                'I can represent both gaps with native Group spacing. I would avoid absolute positioning because an editor could break the layout later.',
+                'Native Columns will stack, but the document order matters. Please confirm that the text comes before the image in the source structure.',
+                'A native Button covers the click target and link. Animation would require extra behavior, so I would not add it without a requirement.',
             ],
             approach: [
-                'Proposed implementation path: semantic groups, native headings, and reusable components. No code has been generated.',
-                'I would split the structure into independently editable sections and avoid fragile CSS dependencies.',
-                'The hypothetical build would favor core blocks, with custom behavior isolated behind an explicit interface.',
+                'I would map section gaps to Group margins and inner gaps to block spacing. Both stay editable without custom scripts.',
+                'I would use Columns and preserve the agreed reading order. That is simpler than custom breakpoint JavaScript.',
+                'I would use a core Button with the required destination and visible focus behavior. No custom script needed for this proposal.',
             ],
             confirm: [
-                'Acknowledged. This is still a rehearsal; the compile queue is empty and there is nothing to deploy.',
-                'Copy that. I have zero generated blocks to report, which is excellent for our imaginary bug count.',
-                'Received. Waiting for actual analysis before anyone calls this implementation complete.',
+                'Spacing handoff acknowledged: two gap levels, both editable. No Gutenberg blocks have actually been generated.',
+                'Responsive handoff acknowledged: text first, imagery second. No responsive screenshot or actual block build exists yet.',
+                'Interaction handoff acknowledged: native button, no optional animation. No link or behavior has actually been tested.',
             ],
         },
     });
@@ -82,14 +86,15 @@
         const source = { url: 'URL section', html: 'HTML page', package: 'ZIP package' }[ kind ];
         if ( !source ) throw new TypeError( 'Unsupported demo source type.' );
         const seed = String( brief ).length + kind.length;
-        return FLOW.map( ( [ agent, intent, type ], index ) => {
+        const scenario = seed % TOPICS.length;
+        return FLOW.map( ( [ agent, intent, type ] ) => {
             const lines = POOLS[ agent ][ intent ];
-            const chosen = lines[ ( seed + index ) % lines.length ];
+            const chosen = lines[ scenario ];
             return Object.freeze( {
-                agent, name: NAMES[ agent ], intent, type,
+                agent, name: NAMES[ agent ], intent, type, topic: TOPICS[ scenario ],
                 action: chosen.replaceAll( '{source}', source ),
             } );
         } );
     }
-    return Object.freeze( { buildConversation, POOLS, FLOW } );
+    return Object.freeze( { buildConversation, POOLS, FLOW, TOPICS } );
 } );
