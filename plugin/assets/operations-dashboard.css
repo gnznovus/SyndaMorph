@@ -712,3 +712,23 @@
     #syndamorph-production-team .sm-team-preview-arrow {width:27px;flex-basis:27px;}
     #syndamorph-production-team .sm-team-preview-picker-menu {right:29px;width:174px;}
 }
+
+/* Simulation feed: additional whitespace and readable conversation hierarchy. */
+#syndamorph-production-team .sm-team-timeline {gap:16px;}
+#syndamorph-production-team .sm-team-step {
+    padding:17px 20px 18px;
+    border-radius:0 10px 10px 0;
+}
+#syndamorph-production-team .sm-team-step strong {
+    display:block;font-size:12px;line-height:1.55;
+}
+#syndamorph-production-team .sm-team-step-count {
+    margin-bottom:8px;
+}
+#syndamorph-production-team .sm-team-step p {
+    margin:10px 0 0;font-size:12px;line-height:1.75;
+}
+@media(max-width:600px) {
+    #syndamorph-production-team .sm-team-timeline {gap:12px;}
+    #syndamorph-production-team .sm-team-step {padding:14px 15px 16px;}
+}
