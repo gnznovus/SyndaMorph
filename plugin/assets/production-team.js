@@ -247,6 +247,7 @@
         review.append( heading, detail );
     }
     function resetState() {
+        root.dispatchEvent( new Event( 'syndamorph-team-reset' ) );
         stopSimulation();
         current = null;
         demoSession = null;
@@ -291,6 +292,7 @@
         if ( followLatest ) timeline.scrollTop = timeline.scrollHeight;
     }
     function begin() {
+        root.dispatchEvent( new Event( 'syndamorph-team-demo-start' ) );
         const error = validateSource();
         if ( error ) { notice.textContent = error; return; }
         stopSimulation();
@@ -330,6 +332,13 @@
         };
         activeTimer = window.setTimeout( tick, 250 );
     }
+    root.addEventListener( 'syndamorph-team-real-start', () => {
+        stopSimulation();
+        demoSession = null;
+        stages = [];
+        timeline.replaceChildren();
+        review.replaceChildren();
+    } );
     run.addEventListener( 'click', begin );
     reset.addEventListener( 'click', () => { resetState(); selectTab( 'setup' ); } );
 
