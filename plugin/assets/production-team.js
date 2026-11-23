@@ -227,13 +227,9 @@
             pill.dataset.state = done ? 'success' : 'idle';
         } );
     }
-    // These are authored demonstration updates, not model thoughts or verified actions.
-    const stages = [
-        { agent: 'boss', name: 'PM / Boss Agent', type: 'Planning summary', action: 'Classified the source and assigned design planning. Demo job title assigned; genuine PM classification is pending.' },
-        { agent: 'designer', name: 'Designer Agent', type: 'Handoff', action: 'Acknowledged design responsibility. No actual source layout has been analyzed.' },
-        { agent: 'developer', name: 'Developer Agent', type: 'Handoff', action: 'Acknowledged Gutenberg implementation responsibility. No blocks or scripts were generated.' },
-        { agent: 'boss', name: 'PM / Boss Agent', type: 'Review', action: 'Confirmed four simulated communication stages. No artifacts or visual validations exist yet.' },
-    ];
+    // These are authored intent-pool lines. No AI calls or verified actions.
+    let stages = [];
+    const demoCount = () => String( stages.length || window.SyndaMorphDemoDialogue.FLOW.length ).padStart( 2, '0' );
     function stopSimulation() {
         generation += 1;
         if ( activeTimer !== null ) window.clearTimeout( activeTimer );
@@ -245,8 +241,8 @@
         heading.textContent = completed ? 'Simulation completed · artifacts not generated' : 'Simulation in progress';
         const detail = document.createElement( 'p' );
         detail.textContent = completed
-            ? 'All four predefined handoffs were displayed. No source capture, AI reasoning, Gutenberg patterns, custom blocks, or fidelity tests were performed.'
-            : 'Handoffs are being displayed one at a time. This is a UI animation, not production execution.';
+            ? 'All authored intent-pool messages were displayed. No source capture, AI reasoning, Gutenberg patterns, custom blocks, or fidelity tests were performed.'
+            : 'Authored dialogue is displayed one message at a time. This is entertainment, not production execution.';
         review.append( heading, detail );
     }
     function resetState() {
@@ -260,7 +256,7 @@
         setText( currentJob, 'No job submitted' );
         setText( resultTitle, 'No job submitted' );
         setText( jobState, 'Not started' );
-        setText( handoffs, '00 / 04' );
+        setText( handoffs, '00 / ' + demoCount() );
         setText( outputState, 'Not generated' );
         setText( feedState, 'Idle' );
         feedState.dataset.state = 'idle';
@@ -283,17 +279,18 @@
         text.textContent = stage.action;
         const stamp = document.createElement( 'span' );
         stamp.className = 'sm-team-step-count';
-        stamp.textContent = 'DEMO 0' + ( index + 1 );
+        stamp.textContent = 'DEMO ' + String( index + 1 ).padStart( 2, '0' );
         li.append( stamp, title, text );
         timeline.append( li );
         setAgentStates( index + 1 );
-        setText( handoffs, String( index + 1 ).padStart( 2, '0' ) + ' / 04' );
+        setText( handoffs, String( index + 1 ).padStart( 2, '0' ) + ' / ' + demoCount() );
         li.scrollIntoView( { block: 'nearest', behavior: 'smooth' } );
     }
     function begin() {
         const error = validateSource();
         if ( error ) { notice.textContent = error; return; }
         stopSimulation();
+        stages = window.SyndaMorphDemoDialogue.buildConversation( { kind: sourceType.value, brief: brief.value.trim() } );
         const ticket = generation;
         const id = 'DEMO-' + Date.now().toString( 36 ).toUpperCase();
         current = { id, title: demoTitle( sourceType.value ), sourceType: sourceType.value };
@@ -301,10 +298,10 @@
         setText( resultTitle, current.id + ' : ' + current.title );
         setText( jobState, 'Simulating' );
         setText( outputState, 'Not generated' );
-        setText( handoffs, '00 / 04' );
-        setText( feedState, 'Streaming demo' );
+        setText( handoffs, '00 / ' + demoCount() );
+        setText( feedState, 'Rule-based demo' );
         feedState.dataset.state = 'running';
-        setText( notice, 'Demo accepted · title is simulated, not AI-generated.' );
+        setText( notice, 'Rule-based entertainment · no AI inference or generated artifacts.' );
         timeline.replaceChildren();
         setAgentStates( 0 );
         renderReview( false );
