@@ -33,6 +33,7 @@ function wp_remote_get($url,$args) {
 }
 function wp_remote_post($url,$args) {
     if ($url !== 'https://api.anthropic.com/v1/messages') throw new RuntimeException('Unexpected generation endpoint');
+    if (isset($GLOBALS['upstream_test_status'])) return array('status'=>$GLOBALS['upstream_test_status'], 'body'=>'{"sensitive":"should-not-leak"}');
     $req=json_decode($args['body'],true);
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
@@ -82,4 +83,12 @@ expect(is_float($result['estimatedCostUsd']),'Estimated spend missing');
 $GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=0.0001;
 expect(is_wp_error(syndamorph_team_real_run('Create a premium hotel hero with clear CTA.')),'Budget gate failed');
 expect(count($GLOBALS['generations'])===4,'Budget failure made paid call');
+unset($GLOBALS['upstream_test_status']);
+$GLOBALS['upstream_test_status']=429;
+$upstream=syndamorph_models_generate('anthropic','claude-dynamic-test-1','test','test');
+expect(is_wp_error($upstream) && $upstream->code==='sm_generation_upstream' &&
+    str_contains($upstream->get_error_message(), '429') &&
+    !str_contains($upstream->get_error_message(), 'sensitive'), 'Upstream error classification or response-body protection failed');
+unset($GLOBALS['upstream_test_status']);
+
 echo "PASS: live model catalog cache/refresh, no hardcoded models, four role handoff, usage, deterministic checks and spending gate\n";
