@@ -16,6 +16,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/updater.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/ai-integration.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/purr-poc.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/production-team.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/gateway-admin.php';
 
 /**
  * The legacy Source Importer screen has been retired. Keep the converter and
@@ -34,6 +35,10 @@ add_action( 'admin_menu', static function (): void {
 function syndamorph_render_operations_page(): void {
     if ( ! current_user_can( 'manage_options' ) ) { return; }
     $tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
+    if ( 'gateway' === $tab ) {
+        syndamorph_gateway_render_tab();
+        return;
+    }
     if ( 'ai' === $tab ) {
         syndamorph_ai_render_tab();
         return;
