@@ -2,6 +2,11 @@
 
 **From design to editable.**
 
+## AI Production Team (development branch)
+
+On `feat/secure-gateway-leasing-v1`, use **Tools → SyndaMorph → AI Integration** to configure an authorized Anthropic model and estimated spending cap, then **AI Production Team → Setup → Task instructions → Start Production**. Only the brief is required; no source URL, HTML or ZIP. The Boss, Designer, Developer and Validator emit real incremental SSE messages to Production, with human-readable reports and a sandboxed HTML preview in Results. Nothing is published or converted into Gutenberg by this operation. Source Import remains separate. See [real AI team POC and streaming notes](docs/real-ai-team-poc-1.md).
+
+
 SyndaMorph is a standalone WordPress plugin that imports static HTML into editable native Gutenberg blocks.
 
 ## GitHub Releases updater (validated locally; first release pending)
