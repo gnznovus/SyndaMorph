@@ -108,33 +108,120 @@ function syndamorph_models_settings(): array {
     return is_array( $settings ) ? $settings : array();
 }
 
-function syndamorph_models_generate( string $provider, string $model, string $system, string $input, int $max_tokens = 1200 ) {
-    if ( 'anthropic' !== $provider ) {
-        return new WP_Error( 'sm_provider_unsupported', 'This provider has no generation adapter yet.', array( 'status' => 501 ) );
+/**
+ * Stream Anthropic SSE into a bounded server-side accumulator. WordPress' REST
+ * endpoint still returns one JSON result when the four-agent job completes.
+ * No model-generated text is ever streamed directly to an executable page.
+ */
+function syndamorph_anthropic_sse_request( string $key, array $payload ) {
+    if ( ! function_exists( 'curl_init' ) ) {
+        return new WP_Error( 'sm_stream_unavailable', 'PHP cURL is required for the streaming baseline.', array( 'status' => 503 ) );
     }
-    $key = syndamorph_ai_saved_key( $provider );
-    if ( '' === $key ) {
-        return new WP_Error( 'sm_provider_key', 'Anthropic credential is missing.', array( 'status' => 400 ) );
+    $handle = curl_init( 'https://api.anthropic.com/v1/messages' );
+    if ( false === $handle ) {
+        return new WP_Error( 'sm_generation_transport', 'Could not initialize Anthropic streaming transport.', array( 'status' => 502 ) );
     }
-    $response = wp_remote_post( 'https://api.anthropic.com/v1/messages', array(
-        'timeout' => 60, 'redirection' => 0, 'limit_response_size' => 200000,
-        'headers' => array(
-            'x-api-key' => $key, 'anthropic-version' => '2023-06-01',
-            'content-type' => 'application/json',
+    $text = '';
+    $pending = '';
+    $stop_reason = null;
+    $model = (string) ( $payload['model'] ?? '' );
+    $usage = array( 'inputTokens' => 0, 'outputTokens' => 0, 'cacheReadTokens' => 0, 'cacheWriteTokens' => 0 );
+    $saw_start = false;
+    $saw_stop = false;
+    $overflow = false;
+    $provider_error = false;
+    $event_count = 0;
+    $process = static function ( string $frame ) use ( &$text, &$stop_reason, &$model, &$usage, &$saw_start, &$saw_stop, &$provider_error, &$event_count ): void {
+        $lines = preg_split( '/\\r?\\n/', $frame );
+        $data_lines = array();
+        foreach ( $lines as $line ) {
+            if ( str_starts_with( $line, 'data:' ) ) {
+                $data_lines[] = ltrim( substr( $line, 5 ), ' ' );
+            }
+        }
+        if ( ! $data_lines ) { return; }
+        $event = json_decode( implode( "\n", $data_lines ), true );
+        if ( ! is_array( $event ) ) { return; }
+        $event_count++;
+        switch ( $event['type'] ?? '' ) {
+            case 'message_start':
+                $saw_start = true;
+                $message = $event['message'] ?? array();
+                if ( is_array( $message ) ) {
+                    $model = (string) ( $message['model'] ?? $model );
+                    $initial = $message['usage'] ?? array();
+                    if ( is_array( $initial ) ) {
+                        $usage['inputTokens'] = max( 0, (int) ( $initial['input_tokens'] ?? 0 ) );
+                        $usage['cacheReadTokens'] = max( 0, (int) ( $initial['cache_read_input_tokens'] ?? 0 ) );
+                        $usage['cacheWriteTokens'] = max( 0, (int) ( $initial['cache_creation_input_tokens'] ?? 0 ) );
+                    }
+                }
+                break;
+            case 'content_block_delta':
+                $delta = $event['delta'] ?? array();
+                if ( is_array( $delta ) && 'text_delta' === ( $delta['type'] ?? '' ) && is_string( $delta['text'] ?? null ) ) {
+                    $text .= $delta['text'];
+                }
+                break;
+            case 'message_delta':
+                $delta = $event['delta'] ?? array();
+                if ( is_array( $delta ) && is_string( $delta['stop_reason'] ?? null ) ) {
+                    $stop_reason = $delta['stop_reason'];
+                }
+                $delta_usage = $event['usage'] ?? array();
+                if ( is_array( $delta_usage ) ) {
+                    $usage['outputTokens'] = max( $usage['outputTokens'], (int) ( $delta_usage['output_tokens'] ?? 0 ) );
+                }
+                break;
+            case 'message_stop':
+                $saw_stop = true;
+                break;
+            case 'error':
+                $provider_error = true;
+                break;
+        }
+    };
+    $write = static function ( $curl, string $chunk ) use ( &$pending, &$text, &$overflow, &$event_count, $process ): int {
+        $length = strlen( $chunk );
+        $pending .= str_replace( "\r\n", "\n", $chunk );
+        if ( strlen( $pending ) > 65536 || strlen( $text ) > 120000 || $event_count > 100000 ) {
+            $overflow = true;
+            return 0;
+        }
+        while ( false !== ( $position = strpos( $pending, "\n\n" ) ) ) {
+            $frame = substr( $pending, 0, $position );
+            $pending = substr( $pending, $position + 2 );
+            $process( $frame );
+            if ( strlen( $text ) > 120000 ) {
+                $overflow = true;
+                return 0;
+            }
+        }
+        return $length;
+    };
+    curl_setopt_array( $handle, array(
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => wp_json_encode( $payload ),
+        CURLOPT_HTTPHEADER => array(
+            'x-api-key: ' . $key,
+            'anthropic-version: 2023-06-01',
+            'content-type: application/json',
+            'accept: text/event-stream',
         ),
-        'body' => wp_json_encode( array(
-            'model' => $model, 'max_tokens' => $max_tokens,
-            'system' => $system, 'messages' => array( array( 'role' => 'user', 'content' => $input ) ),
-        ) ),
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_CONNECTTIMEOUT => 15,
+        CURLOPT_TIMEOUT => 240,
+        CURLOPT_WRITEFUNCTION => $write,
+        CURLOPT_RETURNTRANSFER => false,
+        CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
     ) );
-    if ( is_wp_error( $response ) ) {
-        // Never echo transport errors: they can include server details or input.
-        return new WP_Error( 'sm_generation_transport', 'Anthropic connection failed or timed out. Check server connectivity and timeout logs.', array( 'status' => 502 ) );
-    }
-    $upstream_status = (int) wp_remote_retrieve_response_code( $response );
-    if ( 200 !== $upstream_status ) {
-        // Expose only upstream HTTP status and a fixed explanation, never response bodies.
-        $reason = match ( $upstream_status ) {
+    $ok = curl_exec( $handle );
+    $http = (int) curl_getinfo( $handle, CURLINFO_HTTP_CODE );
+    curl_close( $handle );
+    if ( 200 !== $http ) {
+        $reason = match ( $http ) {
             400 => 'Anthropic rejected the request parameters or selected model.',
             401 => 'Anthropic rejected the API credential.',
             403 => 'Anthropic denied access to the selected model.',
@@ -142,16 +229,79 @@ function syndamorph_models_generate( string $provider, string $model, string $sy
             429 => 'Anthropic rate limit or quota was reached.',
             default => 'Anthropic returned a non-success response.',
         };
-        return new WP_Error( 'sm_generation_upstream', $reason . ' (Anthropic HTTP ' . $upstream_status . ').', array( 'status' => 502 ) );
+        return new WP_Error( 'sm_generation_upstream', $reason . ' (Anthropic HTTP ' . $http . ').', array( 'status' => 502 ) );
     }
-    $json = json_decode( wp_remote_retrieve_body( $response ), true );
-    if ( ! is_array( $json ) || ! is_array( $json['content'] ?? null ) ) {
-        return new WP_Error( 'sm_generation_invalid', 'Anthropic returned an invalid response structure.', array( 'status' => 502 ) );
+    if ( $overflow ) {
+        return new WP_Error( 'sm_generation_oversize', 'Streaming output exceeded the safety size bound.', array( 'status' => 502, 'outputTokens' => $usage['outputTokens'] ) );
+    }
+    if ( false === $ok || $provider_error || ! $saw_start || ! $saw_stop ) {
+        return new WP_Error( 'sm_generation_transport', 'Anthropic streaming ended unexpectedly or timed out.', array( 'status' => 502, 'outputTokens' => $usage['outputTokens'] ) );
+    }
+    return array( 'model' => $model, 'text' => $text, 'stop_reason' => $stop_reason, 'usage' => $usage );
+}
+
+/** Provider-neutral generation boundary; optional server-side streaming. */
+function syndamorph_models_generate( string $provider, string $model, string $system, string $input, int $max_tokens = 1200, bool $stream = false ) {
+    if ( 'anthropic' !== $provider ) {
+        return new WP_Error( 'sm_provider_unsupported', 'This provider has no generation adapter yet.', array( 'status' => 501 ) );
+    }
+    $key = syndamorph_ai_saved_key( $provider );
+    if ( '' === $key ) {
+        return new WP_Error( 'sm_provider_key', 'Anthropic credential is missing.', array( 'status' => 400 ) );
+    }
+    $payload = array(
+        'model' => $model, 'max_tokens' => $max_tokens,
+        'system' => $system, 'messages' => array( array( 'role' => 'user', 'content' => $input ) ),
+    );
+    if ( $stream ) {
+        $payload['stream'] = true;
+        $json = syndamorph_anthropic_sse_request( $key, $payload );
+        if ( is_wp_error( $json ) ) { return $json; }
+    } else {
+        $response = wp_remote_post( 'https://api.anthropic.com/v1/messages', array(
+            'timeout' => 60, 'redirection' => 0, 'limit_response_size' => 200000,
+            'headers' => array(
+                'x-api-key' => $key, 'anthropic-version' => '2023-06-01',
+                'content-type' => 'application/json',
+            ),
+            'body' => wp_json_encode( $payload ),
+        ) );
+        if ( is_wp_error( $response ) ) {
+            return new WP_Error( 'sm_generation_transport', 'Anthropic connection failed or timed out. Check server connectivity and timeout logs.', array( 'status' => 502 ) );
+        }
+        $upstream_status = (int) wp_remote_retrieve_response_code( $response );
+        if ( 200 !== $upstream_status ) {
+            $reason = match ( $upstream_status ) {
+                400 => 'Anthropic rejected the request parameters or selected model.',
+                401 => 'Anthropic rejected the API credential.',
+                403 => 'Anthropic denied access to the selected model.',
+                404 => 'Anthropic did not recognize the requested model.',
+                429 => 'Anthropic rate limit or quota was reached.',
+                default => 'Anthropic returned a non-success response.',
+            };
+            return new WP_Error( 'sm_generation_upstream', $reason . ' (Anthropic HTTP ' . $upstream_status . ').', array( 'status' => 502 ) );
+        }
+        $raw = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( ! is_array( $raw ) || ! is_array( $raw['content'] ?? null ) ) {
+            return new WP_Error( 'sm_generation_invalid', 'Anthropic returned an invalid response structure.', array( 'status' => 502 ) );
+        }
+        $text = '';
+        foreach ( $raw['content'] as $part ) {
+            if ( 'text' === ( $part['type'] ?? '' ) && is_string( $part['text'] ?? null ) ) { $text .= $part['text']; }
+        }
+        $json = array(
+            'text' => $text, 'model' => $raw['model'] ?? $model,
+            'stop_reason' => $raw['stop_reason'] ?? null,
+            'usage' => array(
+                'inputTokens' => max( 0, (int) ( $raw['usage']['input_tokens'] ?? 0 ) ),
+                'outputTokens' => max( 0, (int) ( $raw['usage']['output_tokens'] ?? 0 ) ),
+                'cacheReadTokens' => max( 0, (int) ( $raw['usage']['cache_read_input_tokens'] ?? 0 ) ),
+                'cacheWriteTokens' => max( 0, (int) ( $raw['usage']['cache_creation_input_tokens'] ?? 0 ) ),
+            ),
+        );
     }
     $stop_reason = $json['stop_reason'] ?? null;
     if ( 'end_turn' !== $stop_reason ) {
-        // Only known stop-reason identifiers are surfaced, never model text,
-        // raw provider bodies, or untrusted explanations.
         $reasons = array(
             'max_tokens' => 'Output token limit reached before the agent finished.',
             'refusal' => 'Model declined to complete the request.',
@@ -159,31 +309,20 @@ function syndamorph_models_generate( string $provider, string $model, string $sy
             'pause_turn' => 'Model requested a paused/resumed turn, unsupported by this POC.',
             'stop_sequence' => 'Model stopped at a stop sequence before completing.',
         );
-        $reason = is_string( $stop_reason ) && isset( $reasons[ $stop_reason ] )
-            ? $stop_reason : 'unknown';
-        $usage = $json['usage'] ?? array();
-        $tokens = is_array( $usage ) ? max( 0, (int) ( $usage['output_tokens'] ?? 0 ) ) : 0;
+        $reason = is_string( $stop_reason ) && isset( $reasons[ $stop_reason ] ) ? $stop_reason : 'unknown';
         return new WP_Error(
             'max_tokens' === $reason ? 'sm_generation_token_limit' : 'sm_generation_incomplete',
             $reasons[ $reason ] ?? 'Model stopped for an unrecognized reason.',
-            array( 'status' => 502, 'stopReason' => $reason, 'outputTokens' => $tokens )
+            array( 'status' => 502, 'stopReason' => $reason, 'outputTokens' => (int) ( $json['usage']['outputTokens'] ?? 0 ) )
         );
     }
-    $text = '';
-    foreach ( $json['content'] as $part ) {
-        if ( 'text' === ( $part['type'] ?? '' ) && is_string( $part['text'] ?? null ) ) { $text .= $part['text']; }
-    }
-    if ( '' === trim( $text ) || strlen( $text ) > 180000 ) {
+    if ( '' === trim( (string) $json['text'] ) || strlen( $json['text'] ) > 120000 ) {
         return new WP_Error( 'sm_generation_invalid', 'Model returned invalid or oversized output.', array( 'status' => 502 ) );
     }
     return array(
-        'text' => $text, 'model' => sanitize_text_field( (string) ( $json['model'] ?? $model ) ),
-        'usage' => array(
-            'inputTokens' => max( 0, (int) ( $json['usage']['input_tokens'] ?? 0 ) ),
-            'outputTokens' => max( 0, (int) ( $json['usage']['output_tokens'] ?? 0 ) ),
-            'cacheReadTokens' => max( 0, (int) ( $json['usage']['cache_read_input_tokens'] ?? 0 ) ),
-            'cacheWriteTokens' => max( 0, (int) ( $json['usage']['cache_creation_input_tokens'] ?? 0 ) ),
-        ),
+        'text' => $json['text'],
+        'model' => sanitize_text_field( (string) $json['model'] ),
+        'usage' => $json['usage'],
     );
 }
 
