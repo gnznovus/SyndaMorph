@@ -37,8 +37,8 @@ test('repeatable demo variants never request an AI provider', () => {
 test('all nine messages share one topic with coordinated handoffs', () => {
     const scenarios = {
         spacing: ['spacing', 'gaps', 'gap', 'spacing'],
-        responsive: ['mobile', 'column', 'order', 'stack'],
-        interaction: ['button', 'interaction', 'animation', 'script'],
+        responsive: ['mobile', 'column', 'order', 'stack', 'responsive'],
+        interaction: ['button', 'interaction', 'interactive', 'animation', 'script', 'call-to-action', 'behavior', 'link'],
     };
     for (let length = 0; length < 3; length++) {
         const messages = buildConversation({ kind: 'html', brief: 'x'.repeat(length) });
