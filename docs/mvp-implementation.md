@@ -33,5 +33,13 @@ Branch: `feat/mvp-autonomous-pipeline` from `poc/hybrid-engine`; stable v0.11.1 
 
 - `Fidelity > Editable > Reusable`; never pass visual match while block validity, content integrity or behavior fails.
 - Use an approved component from the registry before proposing a new block; generated PHP/JS is build-time validated and never executed from an AI response directly.
-- Claude access is not confirmed. A mock adapter and recorded evidence are sufficient for P0. API and CLI adapters will share the same plan contract.
+- At the time of the original P0 scaffold, live Claude execution was unconfirmed; the later real-agent POC now has verified paid calls. The P0 layout-plan/compiler contract remains separate and is not yet wired to the real-team route.
 - No automatic production publication, unrestricted site capture, privileged remote execution or claims of transactionally atomic WordPress rollback in the demo.
+
+## Later integration milestone: real four-agent AI Production Team (24 November 2026)
+
+On `feat/secure-gateway-leasing-v1`, the WordPress Operations workspace now accepts a **brief-only** live AI job from **AI Production Team → Setup → Task instructions → Run real AI team**, between **Start simulation** and **Reset**. There is no separate POC card and no mandatory source URL, HTML or ZIP. The simulation remains an optional, explicitly labeled demo.
+
+The administrator-only real workflow calls **Boss → Designer → Developer → Validator** sequentially through the Anthropic adapter, with server-side streaming and a configured estimated budget. Its first complete Haiku 5.5 run consumed 11,957 input and 16,515 output tokens over 73.8 seconds, costing an estimated $0.009453. Each agent's report and token/latency/cost metrics are displayed in Production/Results as **text**, never executed or published.
+
+This demonstrates real LLM inference and role handoff **only**. It does not replace the deterministic Source Import converter, complete the P0 layout-plan/custom-block compiler, create Gutenberg-native patterns from AI output, or verify browser fidelity. See [real AI team POC](real-ai-team-poc-1.md) for the exact workflow, baseline and constraints.
