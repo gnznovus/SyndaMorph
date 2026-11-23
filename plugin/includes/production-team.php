@@ -1,6 +1,6 @@
 <?php
 /**
- * AI Production Team — manual simulation and real, brief-only AI execution.
+ * AI Production Team — real, brief-only streaming AI execution.
  * Real AI execution generates text/HTML for review; publishing is disabled.
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
@@ -123,7 +123,7 @@ function syndamorph_team_render_tab(): void {
                         <section class="sm-card" aria-labelledby="sm-team-brief-title">
                             <div class="sm-card-header">
                                 <h2 class="sm-card-title" id="sm-team-brief-title">Production brief</h2>
-                                <p class="sm-card-caption">Describe the desired output. Run a demo or the real Boss → Designer → Developer → Validator AI workflow; source import is optional for AI generation.</p>
+                                <p class="sm-card-caption">Describe the desired output for Boss → Designer → Developer → Validator. No source input is required.</p>
                             </div>
                             <div class="sm-card-body">
                                 <div class="sm-field">
@@ -131,11 +131,10 @@ function syndamorph_team_render_tab(): void {
                                     <textarea class="sm-control sm-team-brief" id="syndamorph-team-brief" rows="7" maxlength="2000">Create a responsive, premium hotel hero section with a welcoming headline, short introduction, and clear call-to-action. Use a self-contained layout without external assets.</textarea>
                                 </div>
                                 <div class="sm-team-actions">
-                                    <button type="button" class="sm-team-secondary" id="syndamorph-team-run">Start simulation <span aria-hidden="true">→</span></button>
-                                    <button type="button" class="sm-primary" id="syndamorph-real-run">Run real AI team</button>
+                                    <button type="button" class="sm-primary" id="syndamorph-real-run">Start Production <span aria-hidden="true">→</span></button>
                                     <button type="button" class="sm-team-secondary" id="syndamorph-team-reset">Reset</button>
                                 </div>
-                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">Simulation is optional. Real AI needs only this brief and a configured paid model; conversion runs separately from Source Import.</p>
+                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">Real AI uses this brief only. Live agent messages appear in Production; Source Import remains independent.</p>
                             </div>
                         </section>
                     </div>
@@ -151,7 +150,7 @@ function syndamorph_team_render_tab(): void {
                         <section class="sm-card" aria-labelledby="sm-team-timeline-title">
                             <div class="sm-card-header sm-team-feed-heading">
                                 <div><h2 class="sm-card-title" id="sm-team-timeline-title">Live Production Feed</h2>
-                                <p class="sm-card-caption">Simulation is labeled as demo; real runs display actual agent handoffs after the request completes.</p></div>
+                                <p class="sm-card-caption">Real agent messages and handoffs stream as they are generated.</p></div>
                                 <span class="sm-status-pill" id="syndamorph-team-feed-state" data-state="idle">Idle</span>
                             </div>
                             <div class="sm-card-body">
@@ -168,26 +167,12 @@ function syndamorph_team_render_tab(): void {
                                 <div class="sm-team-agent" data-agent="designer"><span class="sm-team-avatar">D</span><div><strong>Designer Agent</strong><p>Design architecture and visual fidelity</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
                                 <div class="sm-team-agent" data-agent="developer"><span class="sm-team-avatar">C</span><div><strong>Developer Agent</strong><p>HTML/CSS section implementation</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
                                 <div class="sm-team-agent" data-agent="validator"><span class="sm-team-avatar">V</span><div><strong>Validator Agent</strong><p>Implementation review and findings</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
-                                <div class="sm-team-note">Simulation is illustrative only. Real AI output is generated, not browser-verified or published.</div>
+                                <div class="sm-team-note">Generated content requires review; no browser verification or publishing is performed.</div>
                                 <button type="button" class="sm-team-secondary sm-team-view-result" id="syndamorph-team-view-result" hidden>View Result</button>
                             </div>
                         </section>
                     </div>
-                    <section class="sm-card sm-team-purr" aria-labelledby="sm-team-purr-title">
-                        <div class="sm-card-header">
-                            <h2 class="sm-card-title" id="sm-team-purr-title">Purr Gateway — Online Communication POC</h2>
-                            <p class="sm-card-caption">Optional real Railway test: four deterministic Gateway replies. Separate from production AI jobs.</p>
-                        </div>
-                        <div class="sm-card-body">
-                            <div class="sm-team-purr-toolbar">
-                                <span id="syndamorph-purr-status" class="sm-status-pill" data-state="idle" role="status" aria-live="polite">Not tested</span>
-                                <button type="button" id="syndamorph-purr-run" class="sm-primary">Test Purr communication</button>
-                            </div>
-                            <div id="syndamorph-purr-transcript" class="sm-purr-transcript" aria-live="polite">
-                                <p class="sm-hint">No Gateway requests sent yet.</p>
-                            </div>
-                        </div>
-                    </section>
+
                 </section>
 
                 <section id="sm-team-panel-results" class="sm-team-panel" role="tabpanel" aria-labelledby="sm-team-tab-results" data-panel="results" hidden>
@@ -262,11 +247,9 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
         'renderUrl' => rest_url( 'syndamorph/v1/render-dom' ),
         'rendererAvailable' => 'http://renderer:3000/render' === getenv( 'SYNDAMORPH_RENDERER_URL' ),
     ) ) . ';', 'before' );
-    wp_enqueue_script( 'syndamorph-demo-dialogue', plugin_dir_url( __DIR__ ) . 'assets/demo-dialogue.js', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/demo-dialogue.js' ), true );
-    wp_enqueue_script( 'syndamorph-team', plugin_dir_url( __DIR__ ) . 'assets/production-team.js', array( 'syndamorph-import', 'syndamorph-demo-dialogue' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-team.js' ), true );
+    wp_enqueue_script( 'syndamorph-team', plugin_dir_url( __DIR__ ) . 'assets/production-team.js', array( 'syndamorph-import' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-team.js' ), true );
     wp_add_inline_script( 'syndamorph-team', 'window.SyndaMorphTeam=' . wp_json_encode( array(
         'nonce' => wp_create_nonce( 'wp_rest' ),
-        'purrPocUrl' => rest_url( 'syndamorph/v1/purr/communication-poc' ),
         'captureUrl' => rest_url( 'syndamorph/v1/capture-url' ),
         'packageScanUrl' => rest_url( 'syndamorph/v1/package-scan' ),
         'packagePageUrl' => rest_url( 'syndamorph/v1/package-page' ),
@@ -275,7 +258,7 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
     wp_enqueue_script( 'syndamorph-real-team', plugin_dir_url( __DIR__ ) . 'assets/ai-team-real.js', array( 'syndamorph-team' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/ai-team-real.js' ), true );
     wp_add_inline_script( 'syndamorph-real-team', 'window.SyndaMorphRealTeam=' . wp_json_encode( array(
         'nonce' => wp_create_nonce( 'wp_rest' ),
-        'url' => rest_url( 'syndamorph/v1/ai/team-poc' ),
+        'url' => rest_url( 'syndamorph/v1/ai/team-stream' ),
     ) ) . ';', 'before' );
     wp_enqueue_script( 'syndamorph-team-migration', plugin_dir_url( __DIR__ ) . 'assets/production-workflow.js',
         array( 'syndamorph-team', 'syndamorph-import' ),
