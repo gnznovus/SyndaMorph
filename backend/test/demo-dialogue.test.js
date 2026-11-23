@@ -33,3 +33,19 @@ test('repeatable demo variants never request an AI provider', () => {
     assert.deepEqual(first, second);
     assert.notEqual(buildConversation({ kind: 'html', brief: 'Expanded' })[0].action, first[0].action);
 });
+
+test('all nine messages share one topic with coordinated handoffs', () => {
+    const scenarios = {
+        spacing: ['spacing', 'gaps', 'gap', 'spacing'],
+        responsive: ['mobile', 'column', 'order', 'stack'],
+        interaction: ['button', 'interaction', 'animation', 'script'],
+    };
+    for (let length = 0; length < 3; length++) {
+        const messages = buildConversation({ kind: 'html', brief: 'x'.repeat(length) });
+        const topic = messages[0].topic;
+        assert.ok(Object.hasOwn(scenarios, topic));
+        assert.ok(messages.every(item => item.topic === topic));
+        assert.ok(messages.every(item => scenarios[topic].some(term =>
+            item.action.toLowerCase().includes(term))), topic + ' message drifted');
+    }
+});
