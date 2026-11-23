@@ -63,3 +63,5 @@ jobs:
         run: |
           docker build -t syndamorph-mvp ./backend
           docker run --rm --entrypoint node syndamorph-mvp -e "require('./mvp/endpoint'); require('./mvp/claude'); require('./purr-poc'); console.log('MVP and Purr modules available')"
+          docker build -f backend/gateway/Dockerfile -t syndamorph-gateway ./backend
+          docker run --rm --entrypoint node syndamorph-gateway -e "require('./gateway/core'); require('./gateway/store'); require('./gateway/server'); console.log('Gateway modules available')"
