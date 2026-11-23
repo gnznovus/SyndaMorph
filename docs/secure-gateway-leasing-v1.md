@@ -64,6 +64,33 @@ node --test backend/gateway/gateway.test.js
 npm test --prefix backend
 ```
 
+
+## WordPress Client Access Manager (admin UI)
+
+The existing SyndaMorph WordPress plugin now includes **Tools → SyndaMorph → Client Access Manager**. Only users with `manage_options` can open the page or send management requests.
+
+Configure **server-side** in WordPress `wp-config.php`:
+
+```php
+define( 'SYNDAMORPH_GATEWAY_URL', 'https://gateway.example.com' );
+define( 'SYNDAMORPH_GATEWAY_ADMIN_TOKEN', getenv( 'SYNDAMORPH_GATEWAY_ADMIN_TOKEN' ) ?: '' );
+```
+
+Keep the token in a server-secret store or environment variable, not JavaScript or source control. The Gateway must be reachable from PHP over HTTPS. HTTP is permitted **only** for explicitly configured `localhost` / `127.0.0.1` during local development. Protect the administrator API using network restrictions in addition to the configured token.
+
+Supported operations in the UI:
+
+1. Register a customer, select a customer, suspend/resume access.
+2. Issue a client-level API key, display/copy it **once**, list only key prefixes, revoke an existing key.
+3. Register private packages under the selected customer, view published version summaries.
+4. Assign, suspend, resume, change expiration, or revoke package leases.
+
+Browser requests use WordPress admin AJAX with `manage_options` and `check_ajax_referer`. PHP sends a fixed set of permitted requests to the Gateway. Neither the Gateway administrator token nor credential hashes are returned to the browser. The newly issued **client** key is intentionally returned once to the administrator and should be securely delivered to the client.
+
+The UI does **not** upload or publish artifact ZIPs, connect to Unpacker, or provide an installation registry. These remain separate milestones. The Gateway administrator overview endpoint (`GET /admin/v1/overview`) returns only customer names/status, credential prefixes/status, package version summaries, and lease states.
+
+**Additional production requirements:** add per-admin audit events, scoped roles, stronger admin authentication, CSRF review, rate limits, production-grade durable storage, and integration tests against a configured WordPress runtime before any live customer rollout.
+
 ## V1 limitations / required production hardening
 
 This is an **MVP backend**, not a production-grade multi-tenant SaaS Gateway.
