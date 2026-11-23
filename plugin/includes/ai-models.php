@@ -42,6 +42,18 @@ function syndamorph_anthropic_pricing( string $model_id ): ?array {
     );
 }
 
+function syndamorph_models_with_pricing( array $catalog ): array {
+    if ( 'anthropic' === ( $catalog['provider'] ?? '' ) && is_array( $catalog['models'] ?? null ) ) {
+        foreach ( $catalog['models'] as &$entry ) {
+            if ( is_array( $entry ) && is_string( $entry['id'] ?? null ) ) {
+                $entry['pricing'] = syndamorph_anthropic_pricing( $entry['id'] );
+            }
+        }
+        unset( $entry );
+    }
+    return $catalog;
+}
+
 function syndamorph_models_catalog( string $provider, bool $force = false ) {
     if ( 'anthropic' !== $provider ) {
         return new WP_Error( 'sm_model_unsupported', 'Model discovery is not implemented for this provider.', array( 'status' => 501 ) );
@@ -52,7 +64,7 @@ function syndamorph_models_catalog( string $provider, bool $force = false ) {
     }
     $cache_key = 'syndamorph_ai_models_' . $provider;
     $cached = get_transient( $cache_key );
-    if ( ! $force && is_array( $cached ) && ! empty( $cached['models'] ) ) { return $cached; }
+    if ( ! $force && is_array( $cached ) && ! empty( $cached['models'] ) ) { return syndamorph_models_with_pricing( $cached ); }
     $response = wp_remote_get( 'https://api.anthropic.com/v1/models?limit=100', array(
         'timeout' => 18, 'redirection' => 0,
         'headers' => array( 'x-api-key' => $key, 'anthropic-version' => '2023-06-01', 'Accept' => 'application/json' ),
@@ -62,7 +74,7 @@ function syndamorph_models_catalog( string $provider, bool $force = false ) {
         $last_good = get_option( 'syndamorph_ai_catalog_last_' . $provider, array() );
         if ( is_array( $last_good ) && ! empty( $last_good['models'] ) ) {
             $last_good['stale'] = true;
-            return $last_good;
+            return syndamorph_models_with_pricing( $last_good );
         }
         return new WP_Error( 'sm_model_fetch', 'Could not retrieve the model catalog from Anthropic.', array( 'status' => 502 ) );
     }
