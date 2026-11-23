@@ -24,6 +24,12 @@ test('customer keys are distinct, private packages require lease, revocation is 
         const a = f.gateway.customer({ name: 'Client A' });
         const b = f.gateway.customer({ name: 'Client B' });
         const ka = f.gateway.issueKey(a.id), kb = f.gateway.issueKey(b.id);
+        const overview = f.gateway.adminOverview();
+        assert.equal(overview.customers.length, 2);
+        assert.equal(overview.credentials.length, 2);
+        assert.equal(overview.credentials[0].prefix, ka.token.slice(0, 12));
+        assert.equal(Object.hasOwn(overview.credentials[0], 'hash'), false);
+        assert.ok(!JSON.stringify(overview).includes(ka.token));
         assert.notEqual(ka.token, kb.token);
         assert.ok(!JSON.stringify(f.repo.read()).includes(ka.token));
         assert.equal(f.gateway.authenticate('Bearer ' + ka.token).id, a.id);
@@ -101,6 +107,10 @@ test('HTTP admin separation, bearer auth, version publication, and authorized ZI
         res = await request('/admin/v1/customers', 'POST', admin, { name: 'A' });
         assert.equal(res.status, 201);
         const a = await res.json();
+        assert.equal((await request('/admin/v1/overview')).status, 401);
+        res = await request('/admin/v1/overview', 'GET', admin);
+        assert.equal(res.status, 200);
+        assert.equal((await res.json()).customers[0].id, a.id);
         res = await request('/admin/v1/customers/' + a.id + '/keys', 'POST', admin, {});
         const key = (await res.json()).token;
         res = await request('/v1/client/me', 'GET', { authorization: 'Bearer ' + key });
