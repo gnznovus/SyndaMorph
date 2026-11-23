@@ -128,7 +128,7 @@ function syndamorph_team_render_tab(): void {
                             <div class="sm-card-body">
                                 <div class="sm-field">
                                     <label class="sm-field-label" for="syndamorph-team-brief">Task instructions</label>
-                                    <textarea class="sm-control sm-team-brief" id="syndamorph-team-brief" rows="7" maxlength="1200">Convert the supplied source into independently editable Gutenberg sections, preserving layout fidelity.</textarea>
+                                    <textarea class="sm-control sm-team-brief" id="syndamorph-team-brief" rows="7" maxlength="2000">Create a responsive, premium hotel hero section with a welcoming headline, short introduction, and clear call-to-action. Use a self-contained layout without external assets.</textarea>
                                 </div>
                                 <div class="sm-team-actions">
                                     <button type="button" class="sm-team-secondary" id="syndamorph-team-run">Start simulation <span aria-hidden="true">→</span></button>
