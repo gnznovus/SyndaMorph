@@ -50,6 +50,7 @@ function makeServer({ gateway, adminToken, artifactDir }) {
                 if (!body || typeof body !== 'object' || Array.isArray(body)) throw new AccessError(400, 'invalid_json');
             }
             let match;
+            if (req.method === 'GET' && pathname === '/admin/v1/overview') return json(res, 200, gateway.adminOverview());
             if (req.method === 'POST' && pathname === '/admin/v1/customers') return json(res, 201, gateway.customer(body));
             if ((match = pathname.match(/^\/admin\/v1\/customers\/(cus_[a-f0-9]{24})\/status$/)) && req.method === 'PATCH')
                 return json(res, 200, gateway.setCustomerStatus(match[1], body.status));
