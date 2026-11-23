@@ -207,6 +207,8 @@
     const budget = byId( 'syndamorph-model-budget' );
     const cost = byId( 'syndamorph-model-cost' );
     let catalogRequest = 0;
+    let catalogModels = [];
+    const formatUsd = amount => Number( amount ).toFixed( 2 ).replace( /\\.00$/, '' );
     const estimate = () => {
         const input = Number( inputRate?.value );
         const out = Number( outputRate?.value );
@@ -216,6 +218,25 @@
     };
     inputRate?.addEventListener( 'input', estimate );
     outputRate?.addEventListener( 'input', estimate );
+    const populateModelRates = () => {
+        const entry = catalogModels.find( item => item.id === modelChoice?.value );
+        if ( !entry ) return;
+        if ( entry.pricing ) {
+            inputRate.value = String( entry.pricing.input );
+            outputRate.value = String( entry.pricing.output );
+        } else {
+            inputRate.value = '';
+            outputRate.value = '';
+        }
+        estimate();
+        if ( modelStatus ) {
+            modelStatus.textContent = entry.pricing
+                ? 'Pricing reference ' + entry.pricing.verifiedAt + ' · ' +
+                  ( entry.pricing.note || 'Standard token rates only; other billing modifiers are excluded.' )
+                : 'Pricing unavailable for this model. Verify official rates and enter them manually.';
+        }
+    };
+    modelChoice?.addEventListener( 'change', populateModelRates );
 
     async function loadModels( force = false ) {
         if ( !modelChoice ) return;
@@ -234,13 +255,19 @@
             const result = await response.json();
             if ( !response.ok ) throw new Error( result.message || 'Model catalog unavailable.' );
             if ( seq !== catalogRequest ) return;
+            catalogModels = result.models || [];
             modelChoice.replaceChildren( new Option( 'Select a provider model', '' ) );
-            for ( const entry of result.models || [] ) {
-                modelChoice.add( new Option( entry.name + ' (' + entry.id + ')', entry.id ) );
+            for ( const entry of catalogModels ) {
+                const price = entry.pricing;
+                const suffix = price
+                    ? ' ($' + formatUsd( price.input ) + ' in / $' + formatUsd( price.output ) + ' out per 1M)'
+                    : ' (price unavailable)';
+                modelChoice.add( new Option( entry.name + suffix, entry.id ) );
             }
             const saved = result.settings || {};
-            if ( saved.provider === selectedProvider && result.models.some( x => x.id === saved.model ) ) {
+            if ( saved.provider === selectedProvider && catalogModels.some( x => x.id === saved.model ) ) {
                 modelChoice.value = saved.model;
+                populateModelRates();
                 inputRate.value = String( saved.inputPrice );
                 outputRate.value = String( saved.outputPrice );
                 budget.value = String( saved.maxJobUsd ?? 1 );
