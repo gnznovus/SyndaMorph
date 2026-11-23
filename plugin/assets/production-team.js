@@ -292,9 +292,9 @@
         if ( followLatest ) timeline.scrollTop = timeline.scrollHeight;
     }
     function begin() {
-        root.dispatchEvent( new Event( 'syndamorph-team-demo-start' ) );
         const error = validateSource();
         if ( error ) { notice.textContent = error; return; }
+        root.dispatchEvent( new Event( 'syndamorph-team-demo-start' ) );
         stopSimulation();
         demoSession = window.SyndaMorphDemoDialogue.createSession( { kind: sourceType.value, brief: brief.value.trim() } );
         stages = [];
