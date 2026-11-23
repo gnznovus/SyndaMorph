@@ -54,3 +54,11 @@ This is **only the source-analysis adapter** for the demo; it does not yet compi
 - Provider requests are made one per analyze call. No hidden loops, no background spend.
 - `sectionId` must refer to a real section returned by capture. Initial Hotel Indigo test may use `section-1`.
 - Next development step: mobile capture and live Gutenberg compiler/validator adapters, then API-backed repair iterations.
+
+## WordPress AI Production Team POC (later milestone)
+
+This document describes the historical backend MVP setup. The current `feat/secure-gateway-leasing-v1` branch additionally implements a **real Anthropic four-agent POC inside WordPress Operations**. It is separate from the backend scaffold described above.
+
+To run it, configure a paid model under **Tools → SyndaMorph → AI Integration**, then open **AI Production Team → Setup**, enter a standalone brief under **Task instructions** (no URL/HTML/ZIP required) and choose **Run real AI team** between **Start simulation** and **Reset**. The job returns Boss, Designer, Developer and Validator reports with per-role token/duration/cost measurements. No code is executed, no Gutenberg pattern is created, and nothing is published automatically.
+
+See [Real AI Production Team — POC #1](real-ai-team-poc-1.md) for verified baseline results, safety boundaries and current limitations.
