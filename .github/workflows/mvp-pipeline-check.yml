@@ -44,6 +44,10 @@ jobs:
           php -l plugin/includes/production-team.php
           php -l plugin/includes/ai-integration.php
           php -l plugin/syndamorph.php
+          php -l plugin/includes/gateway-admin.php
+          node --check plugin/assets/gateway-admin.js
+          node --check backend/gateway/server.js
+          node --check backend/gateway/core.js
           node --check backend/mvp/plan.js
           node --check backend/mvp/registry.js
           node --check backend/mvp/loop.js
