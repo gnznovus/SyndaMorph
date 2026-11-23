@@ -31,5 +31,5 @@ test('repeatable demo variants never request an AI provider', () => {
     const first = buildConversation({ kind: 'html', brief: 'Sample' });
     const second = buildConversation({ kind: 'html', brief: 'Sample' });
     assert.deepEqual(first, second);
-    assert.notEqual(buildConversation({ kind: 'html', brief: 'Longer brief' })[0].action, first[0].action);
+    assert.notEqual(buildConversation({ kind: 'html', brief: 'Expanded' })[0].action, first[0].action);
 });
