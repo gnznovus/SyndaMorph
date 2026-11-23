@@ -252,6 +252,8 @@ add_action( 'rest_api_init', static function (): void {
             }
             // Remove the actual encrypted option, not merely the UI representation.
             delete_option( 'syndamorph_ai_key_' . $provider );
+            delete_transient( 'syndamorph_ai_models_' . $provider );
+            delete_option( 'syndamorph_ai_catalog_last_' . $provider );
             return rest_ensure_response( array(
                 'provider' => $provider,
                 'key' => syndamorph_ai_key_status( $provider ),
@@ -280,6 +282,8 @@ add_action( 'rest_api_init', static function (): void {
                     return new WP_Error( 'syndamorph_ai_storage', 'Credential encryption unavailable.', array( 'status' => 503 ) );
                 }
                 update_option( 'syndamorph_ai_key_' . $provider, $encrypted, false );
+                delete_transient( 'syndamorph_ai_models_' . $provider );
+                delete_option( 'syndamorph_ai_catalog_last_' . $provider );
             }
             $key = syndamorph_ai_saved_key( $provider );
             if ( '' === $key ) {
