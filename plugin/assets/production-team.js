@@ -229,7 +229,8 @@
     }
     // These are authored intent-pool lines. No AI calls or verified actions.
     let stages = [];
-    const demoCount = () => String( stages.length || window.SyndaMorphDemoDialogue.FLOW.length ).padStart( 2, '0' );
+    let demoSession = null;
+    const turnCount = () => String( stages.length ).padStart( 2, '0' );
     function stopSimulation() {
         generation += 1;
         if ( activeTimer !== null ) window.clearTimeout( activeTimer );
@@ -238,7 +239,7 @@
     function renderReview( completed ) {
         review.replaceChildren();
         const heading = document.createElement( 'strong' );
-        heading.textContent = completed ? 'Simulation completed · artifacts not generated' : 'Simulation in progress';
+        heading.textContent = completed ? ( demoSession?.state.forced ? 'Simulation unresolved · artifacts not generated' : 'Peace route reached · artifacts not generated' ) : 'Simulation in progress';
         const detail = document.createElement( 'p' );
         detail.textContent = completed
             ? 'All authored intent-pool messages were displayed. No source capture, AI reasoning, Gutenberg patterns, custom blocks, or fidelity tests were performed.'
@@ -248,6 +249,8 @@
     function resetState() {
         stopSimulation();
         current = null;
+        demoSession = null;
+        stages = [];
         timeline.replaceChildren();
         const li = document.createElement( 'li' );
         li.className = 'sm-team-empty';
@@ -256,7 +259,7 @@
         setText( currentJob, 'No job submitted' );
         setText( resultTitle, 'No job submitted' );
         setText( jobState, 'Not started' );
-        setText( handoffs, '00 / ' + demoCount() );
+        setText( handoffs, '00 turns' );
         setText( outputState, 'Not generated' );
         setText( feedState, 'Idle' );
         feedState.dataset.state = 'idle';
@@ -284,14 +287,15 @@
         li.append( stamp, title, text );
         timeline.append( li );
         setAgentStates( index + 1 );
-        setText( handoffs, String( index + 1 ).padStart( 2, '0' ) + ' / ' + demoCount() );
+        setText( handoffs, turnCount() + ' turns' );
         if ( followLatest ) timeline.scrollTop = timeline.scrollHeight;
     }
     function begin() {
         const error = validateSource();
         if ( error ) { notice.textContent = error; return; }
         stopSimulation();
-        stages = window.SyndaMorphDemoDialogue.buildConversation( { kind: sourceType.value, brief: brief.value.trim() } );
+        demoSession = window.SyndaMorphDemoDialogue.createSession( { kind: sourceType.value, brief: brief.value.trim() } );
+        stages = [];
         const ticket = generation;
         const id = 'DEMO-' + Date.now().toString( 36 ).toUpperCase();
         current = { id, title: demoTitle( sourceType.value ), sourceType: sourceType.value };
@@ -299,7 +303,7 @@
         setText( resultTitle, current.id + ' : ' + current.title );
         setText( jobState, 'Simulating' );
         setText( outputState, 'Not generated' );
-        setText( handoffs, '00 / ' + demoCount() );
+        setText( handoffs, '00 turns' );
         setText( feedState, 'Rule-based demo' );
         feedState.dataset.state = 'running';
         setText( notice, 'Rule-based entertainment · no AI inference or generated artifacts.' );
@@ -310,15 +314,18 @@
         let index = 0;
         const tick = () => {
             if ( ticket !== generation ) return;
+            const message = demoSession.next();
+            if ( !message ) return;
+            stages.push( message );
             appendStage( index++ );
-            if ( index < stages.length ) {
+            if ( !demoSession.state.resolved ) {
                 activeTimer = window.setTimeout( tick, 950 );
                 return;
             }
             activeTimer = null;
-            setText( jobState, 'Demo completed' );
-            setText( feedState, 'Demo completed' );
-            feedState.dataset.state = 'success';
+            setText( jobState, demoSession.state.forced ? 'Review needed' : 'Demo completed' );
+            setText( feedState, demoSession.state.forced ? 'Unresolved' : 'Peace route reached' );
+            feedState.dataset.state = demoSession.state.forced ? 'running' : 'success';
             renderReview( true );
         };
         activeTimer = window.setTimeout( tick, 250 );
