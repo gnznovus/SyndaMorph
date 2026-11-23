@@ -187,10 +187,15 @@ add_action( 'rest_api_init', static function (): void {
                 (float) $input > 10000 || (float) $output > 10000 ) {
                 return new WP_Error( 'sm_model_price', 'Enter valid nonnegative USD rates per million tokens.', array( 'status' => 400 ) );
             }
+            $published_rate = 'anthropic' === $provider ? syndamorph_anthropic_pricing( $id ) : null;
+            $uses_reference = null !== $published_rate &&
+                (float) $input === $published_rate['input'] &&
+                (float) $output === $published_rate['output'];
             $settings = array( 'provider' => $provider, 'model' => $id,
                 'inputPrice' => (float) $input, 'outputPrice' => (float) $output,
                 'maxJobUsd' => (float) $budget,
-                'pricingSource' => 'administrator-entered', 'savedAt' => time() );
+                'pricingSource' => $uses_reference ? 'anthropic-standard-reference-2026-11-24' : 'administrator-entered',
+                'savedAt' => time() );
             update_option( 'syndamorph_ai_model_settings', $settings, false );
             return rest_ensure_response( $settings );
         },
