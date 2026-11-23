@@ -75,9 +75,9 @@ expect($GLOBALS['model_fetches']===2,'Manual catalog refresh ignored');
 expect(is_wp_error(syndamorph_models_catalog('google')),'Unsupported provider accepted');
 $GLOBALS['options']['syndamorph_ai_model_settings']=array(
     'provider'=>'anthropic','model'=>'claude-dynamic-test-1',
-    'inputPrice'=>3.0,'outputPrice'=>15.0,'maxJobUsd'=>1.0,'pricingSource'=>'administrator-entered',
+    'inputPrice'=>0.1,'outputPrice'=>0.5,'maxJobUsd'=>1.0,'pricingSource'=>'administrator-entered',
 );
-$result=syndamorph_team_real_run('Create a premium hotel hero with clear CTA.');
+$result=syndamorph_team_real_run('Create a premium hotel hero with clear CTA.', false);
 expect(is_array($result),'Real team pipeline failed');
 expect(array_keys($result['outputs'])===array('boss','designer','developer','validator'),'Role execution order wrong');
 expect(count($GLOBALS['generations'])===4,'Expected four paid calls');
@@ -85,8 +85,12 @@ expect($result['usage']['inputTokens']===4800 && $result['usage']['outputTokens'
 expect($result['status']==='generated' && $result['checks']['contains_heading'],'Independent validator failed');
 expect($result['published']===false && $result['renderedInBrowser']===false,'POC falsely claimed publishing/rendering');
 expect(is_float($result['estimatedCostUsd']),'Estimated spend missing');
+expect(count($result['agentMetrics'])===4 && $result['agentMetrics'][1]['role']==='designer' &&
+    $result['agentMetrics'][1]['outputTokens']===150 &&
+    $result['agentMetrics'][1]['outputCap']===16384,
+    'Streaming baseline per-agent metrics or generous output caps missing');
 $GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=0.0001;
-expect(is_wp_error(syndamorph_team_real_run('Create a premium hotel hero with clear CTA.')),'Budget gate failed');
+expect(is_wp_error(syndamorph_team_real_run('Create a premium hotel hero with clear CTA.', false)),'Budget gate failed');
 expect(count($GLOBALS['generations'])===4,'Budget failure made paid call');
 unset($GLOBALS['upstream_test_status']);
 $GLOBALS['upstream_test_status']=429;
