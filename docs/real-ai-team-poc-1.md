@@ -1,40 +1,62 @@
-# Real AI Production Team POC #1 — provider adapter
+# Real AI Production Team — POC #1 (Integrated)
 
-**Status:** Prototype for manual, administrator-only, paid Anthropic testing. Never publishes WordPress content.
+**Status:** Four-agent proof of concept completed with real Claude Haiku 5.5 calls. Administrator-only, explicitly initiated, paid generation. No automatic publishing or executable preview.
 
-## Architecture
+## Architecture and boundaries
 
-- `plugin/includes/ai-models.php`: provider-facing catalog and generation interface. Only the Anthropic adapter is implemented; unsupported providers return an explicit error. Provider model IDs/display names are fetched from `GET /v1/models`, not hardcoded.
-- `plugin/includes/ai-team-real.php`: provider-neutral sequential Boss → Designer → Developer → Validator orchestration. Four calls using the selected model. No autonomous retries, no code execution, no publishing.
-- `plugin/assets/ai-integration.js`: model picker, live refresh, administrator-entered token prices, estimated cost, and budget.
-- `plugin/assets/ai-team-real.js`: standalone manual execution UI that does not interfere with the mock production workflow.
-- `tests/real-ai-poc-test.php`: mocked, paid-call-free catalog/handoff/cost-limit regression.
+- **AI Production Team → Setup → Production brief → Task instructions** is the sole input for a real AI job. No source URL, HTML, ZIP, or separate POC textarea is required.
+- **Run real AI team** appears between **Start simulation** and **Reset**. Simulation remains an optional, clearly labeled demo. Real runs invoke the actual backend, not authored dialogue.
+- Source Import and **Convert & Preview** remain a separate deterministic Gutenberg conversion pipeline. A real AI run produces an HTML/CSS section **for review**, not a native Gutenberg pattern.
+- The real route remains `POST /wp-json/syndamorph/v1/ai/team-poc`, taking `{"brief":"..."}` and protected by the WordPress administrator capability and REST nonce.
+- `plugin/includes/ai-models.php`: dynamic provider catalog, separately maintained reference prices, and Anthropic generation adapter. Server-side cURL SSE is accumulated into bounded text; raw events are never intentionally exposed to the browser.
+- `plugin/includes/ai-team-real.php`: synchronous Boss → Designer → Developer → Validator, four bounded calls with contextual handoffs. No retries, executing generated scripts, or publishing. Output caps are 16,384 tokens/agent for the streaming baseline.
+- `plugin/includes/production-team.php`: unified Setup/Production/Results shell; no standalone POC card.
+- `plugin/assets/production-team.js`: simulation, selection state, and unified job/reset lifecycle.
+- `plugin/assets/ai-team-real.js`: real-job submit, safe text-only per-agent reports, metrics, feedback, and errors in the existing Production and Results panels.
+- `plugin/assets/production-workflow.js`: existing deterministic Source Import inspection, conversion, preview and save actions (not changed by the AI POC).
+- `tests/real-ai-poc-test.php`: offline mocked model and four-agent regression without paid calls.
 
-## First local run
+## Running
 
-1. `git switch feat/secure-gateway-leasing-v1 && git pull` on the SyndaMorph repository.
-2. If Docker and WordPress are already up, the bind-mounted plugin files update without a rebuild; hard-refresh WordPress.
-3. Open **Tools → SyndaMorph → AI Integration**. Enter/test your Anthropic API key if not saved on this installation.
-4. Choose Anthropic, then **Refresh provider models**. Pick an actual available model ID from the API response.
-5. Enter **input and output USD per 1M tokens** from your verified provider billing tariff; these are not provided by model discovery and must not be guessed.
-6. Set an **estimated per-job USD budget** (default UI value USD 1.00) and save.
-7. Open **AI Production Team** → **Real AI Production Team POC #1**. Edit the example hero brief, click **Run real AI team**, and confirm the paid request.
-8. Review agent outputs, deterministic checks, token usage and estimated cost. Generated HTML is presented as escaped text, not executed or inserted into WordPress.
+1. Pull `feat/secure-gateway-leasing-v1`; hard-refresh the local WordPress UI (the plugin directory is bind-mounted).
+2. In **AI Integration**, configure/test the Anthropic credential, load supported models, and save model selection plus maximum estimated per-job budget.
+3. Open **AI Production Team → Setup**. Enter a clear task in **Task instructions** (12–2,000 characters). Source Import fields may remain untouched.
+4. Select **Run real AI team** and confirm paid execution.
+5. The Production tab indicates that the job is in progress. **Important:** Anthropic streams to WordPress, but the current synchronous REST endpoint does **not** push live per-agent status to the browser. Detailed events and token metrics become available only after completion.
+6. Inspect **Results**: individual Boss, Designer, Developer and Validator output panels; input/output tokens, durations, estimated costs, and basic deterministic checks. Content is rendered as plain text and is **not** auto-published.
+7. **Start simulation** still runs the authored dialogue demo; it is not proof of AI inference. **Reset** clears the current session display. Source Import conversion and its review/save workflow remain independent.
 
-**Important limitations**
+## Successful baseline — 24 November 2026
 
-- The positive rate and job budget are a preflight/stepwise **estimated guard**, not a guaranteed cap on provider billing. Real token charges, cache writes/reads, and special model pricing can differ.
-- This POC uses 4 synchronous WordPress server-side Anthropic API requests. WordPress/PHP/network timeouts are possible; a durable queue and streaming status are future work.
-- Validator's assessment is an AI opinion; the separate deterministic checks only verify minimum structural/safety signals. There is **no browser render, screenshot comparison, actual Gutenberg compilation, or fidelity benchmark** in this first pass.
-- The model catalog caches successful lookups for 15 minutes and permits explicit refresh. If Anthropic is unreachable, last successful models are returned marked stale. Catalog is invalidated when the saved API key is replaced/deleted.
-- The first release implements Anthropic only. The UI still lists OpenAI and Gemini for connectivity checks, but their generation/model adapters aren't wired. Purr will implement the same interface later.
-- Cost pricing is clearly labeled administrator-entered, not current-provider-verified, and does not cover all token billing dimensions.
-- This is administrator-only, local/internal POC code; there is no customer-facing publishing route.
+One four-agent run on `claude-haiku-5-5`, with the prompt requesting a responsive premium hotel hero section.
 
-## Automated verification
+| Agent | Input tokens | Output tokens | Duration | Estimated cost (USD) |
+| --- | ---: | ---: | ---: | ---: |
+| Boss | 238 | 869 | 4,975 ms | 0.000458 |
+| Designer | 1,181 | 4,422 | 20,488 ms | 0.002329 |
+| Developer | 3,850 | 3,648 | 13,265 ms | 0.002209 |
+| Validator | 6,688 | 7,576 | 35,089 ms | 0.004457 |
+| **Total** | **11,957** | **16,515** | **73,816 ms** | **0.009453** |
+
+All four reported `end_turn`. Model produced a complete HTML/CSS section and a detailed inspection report. Structural checks passed, but that does **not** establish visual fidelity, responsive behavior, Gutenberg-native editability or validator approval.
+
+The validator flagged missing full-document and viewport markup, although the Developer was explicitly instructed to return a **section**, not a complete HTML document. This is an agent deliverable-contract inconsistency to refine, not proof that the section itself was invalid.
+
+## Limitations and safeguards
+
+- Both streaming and orchestration are synchronous server-side; the browser gets one JSON response at job completion. A distinct durable progress channel, job persistence, cancellation and partial-result recovery are not implemented.
+- Streaming alone does **not** remove Anthropic's `max_tokens` cap. Each agent has a high ceiling, not unlimited output.
+- Budget enforcement is an **estimate**, not a guaranteed upper bound on provider billing. Actual pricing/caching may differ. Partial calls may be billed even if the job fails.
+- Raw generated HTML is not injected as executable DOM. Do not interpret deterministic structural checks as browser tests or sanitization sufficient for publishing.
+- Only Anthropic generation is implemented; OpenAI/Gemini/Purr adapters are not yet plugged into this team runner.
+- Keep the simulation labeled separately so authored dialogue is never mistaken for inference.
+- External assets, scripts, form controls and remote URLs are deliberately disallowed in the POC Developer output.
+- For production use, refine agent contracts, limit verbosity, introduce durable progress/results, and add dedicated Gutenberg conversion and rendering verification.
+
+## Verification
 
 ```bash
 php tests/real-ai-poc-test.php
 ```
 
-The test covers dynamic (mock provider HTTP) catalog filtering/caching/refresh, four distinct role handoffs, usage summation, basic deterministic checks, and budget rejection **without paid API calls**.
+Offline CI covers catalog filtering/cache, four-role handoff, output cap/budget behavior, token usage aggregation, refusal and `max_tokens` error classification. Live provider behavior and UI flows still require manual testing after changes.
