@@ -56,11 +56,12 @@ independence does not mean disk-failure independence.
 ## WordPress CLI proof (local disposable environment)
 
 The following script uses `wp eval` in the project WordPress container;
-execute as an administrator / WP-CLI user:
+replace `<admin-username>` with an actual WordPress administrator account. The
+publish/update functions check WordPress editing capabilities:
 
 ```sh
 # 1. SyndaMorph enabled: create, update, restore, verify snapshots.
-wp eval '
+wp --user=<admin-username> eval '
 $a = syndamorph_poc_publish("Independence POC", "<!-- wp:paragraph --><p>Version one</p><!-- /wp:paragraph -->");
 if (is_wp_error($a)) { throw new Exception($a->get_error_message()); }
 $id = $a["id"];
