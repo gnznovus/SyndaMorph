@@ -75,7 +75,7 @@ function createGateway({ repository, pepper, now = () => new Date(), grants = ne
         if (!credential) fail(401, 'unauthorized');
         const owner = db.customers.find(c => c.id === credential.customerId && active(c));
         if (!owner) fail(401, 'unauthorized');
-        return owner;
+        return { ...owner, credentialId: credential.id };
     }
     function registerPackage(customerId, input) {
         if (!validName(input?.name)) fail(400, 'invalid_package');
@@ -146,7 +146,7 @@ function createGateway({ repository, pepper, now = () => new Date(), grants = ne
         const item = pkg.versions.find(v => v.version === version && v.status === 'published');
         if (!item) fail(404, 'version_not_found');
         const token = crypto.randomBytes(32).toString('base64url');
-        const grant = { customerId: owner.id, packageId, version, storageKey: item.storageKey, sha256: item.sha256, size: item.size, expiresAt: now().getTime() + 60000 };
+        const grant = { customerId: owner.id, credentialId: owner.credentialId, packageId, version, storageKey: item.storageKey, sha256: item.sha256, size: item.size, expiresAt: now().getTime() + 60000 };
         grants.set(digest(pepper, token), grant);
         return { grant: token, expiresIn: 60, sha256: item.sha256, size: item.size };
     }
@@ -158,7 +158,7 @@ function createGateway({ repository, pepper, now = () => new Date(), grants = ne
         if (!grant || grant.expiresAt <= now().getTime()) fail(404, 'download_not_found');
         const db = load();
         const owner = db.customers.find(c => c.id === grant.customerId && active(c));
-        if (!owner) fail(403, 'access_revoked');
+        if (!owner || !db.credentials.some(k => k.id === grant.credentialId && k.customerId === owner.id && active(k))) fail(403, 'access_revoked');
         const pkg = permitted(db, owner, grant.packageId);
         if (!pkg.versions.some(v => v.version === grant.version && v.status === 'published' && v.sha256 === grant.sha256)) fail(403, 'access_revoked');
         return grant;
