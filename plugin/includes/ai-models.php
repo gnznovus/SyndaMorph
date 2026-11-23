@@ -145,9 +145,29 @@ function syndamorph_models_generate( string $provider, string $model, string $sy
         return new WP_Error( 'sm_generation_upstream', $reason . ' (Anthropic HTTP ' . $upstream_status . ').', array( 'status' => 502 ) );
     }
     $json = json_decode( wp_remote_retrieve_body( $response ), true );
-    if ( ! is_array( $json ) || 'end_turn' !== ( $json['stop_reason'] ?? '' ) ||
-        ! is_array( $json['content'] ?? null ) ) {
-        return new WP_Error( 'sm_generation_incomplete', 'Model response was incomplete.', array( 'status' => 502 ) );
+    if ( ! is_array( $json ) || ! is_array( $json['content'] ?? null ) ) {
+        return new WP_Error( 'sm_generation_invalid', 'Anthropic returned an invalid response structure.', array( 'status' => 502 ) );
+    }
+    $stop_reason = $json['stop_reason'] ?? null;
+    if ( 'end_turn' !== $stop_reason ) {
+        // Only known stop-reason identifiers are surfaced, never model text,
+        // raw provider bodies, or untrusted explanations.
+        $reasons = array(
+            'max_tokens' => 'Output token limit reached before the agent finished.',
+            'refusal' => 'Model declined to complete the request.',
+            'tool_use' => 'Model requested tool execution, which this POC does not support.',
+            'pause_turn' => 'Model requested a paused/resumed turn, unsupported by this POC.',
+            'stop_sequence' => 'Model stopped at a stop sequence before completing.',
+        );
+        $reason = is_string( $stop_reason ) && isset( $reasons[ $stop_reason ] )
+            ? $stop_reason : 'unknown';
+        $usage = $json['usage'] ?? array();
+        $tokens = is_array( $usage ) ? max( 0, (int) ( $usage['output_tokens'] ?? 0 ) ) : 0;
+        return new WP_Error(
+            'max_tokens' === $reason ? 'sm_generation_token_limit' : 'sm_generation_incomplete',
+            $reasons[ $reason ] ?? 'Model stopped for an unrecognized reason.',
+            array( 'status' => 502, 'stopReason' => $reason, 'outputTokens' => $tokens )
+        );
     }
     $text = '';
     foreach ( $json['content'] as $part ) {
