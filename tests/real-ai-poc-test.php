@@ -54,6 +54,11 @@ require dirname(__DIR__) . '/plugin/includes/ai-models.php';
 require dirname(__DIR__) . '/plugin/includes/ai-team-real.php';
 function expect($ok,$message) { if(!$ok) throw new RuntimeException($message); }
 
+$rate = syndamorph_anthropic_pricing( 'claude-sonnet-5-5' );
+expect( $rate['input'] === 2.0 && $rate['output'] === 10.0, 'Sonnet price not mapped to published standard rates' );
+$haiku = syndamorph_anthropic_pricing( 'claude-haiku-5-5' );
+expect( $haiku['input'] === 0.1 && $haiku['output'] === 0.5 && str_contains( $haiku['note'], '100K' ), 'Haiku long-context tier missing' );
+expect( null === syndamorph_anthropic_pricing( 'claude-unknown-future' ), 'Unknown model given fabricated pricing' );
 $catalog=syndamorph_models_catalog('anthropic');
 expect(!is_wp_error($catalog),'Dynamic discovery failed');
 expect(count($catalog['models'])===1 && $catalog['models'][0]['id']==='claude-dynamic-test-1','Invalid catalog filtering');
