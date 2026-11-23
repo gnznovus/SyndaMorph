@@ -17,7 +17,7 @@ function syndamorph_gateway_render_tab(): void {
     if ( ! current_user_can( 'manage_options' ) ) { return; }
     wp_enqueue_script(
         'syndamorph-gateway-admin',
-        plugin_dir_url( dirname( __FILE__ ) . '/syndamorph.php' ) . 'assets/gateway-admin.js',
+        plugin_dir_url( dirname( __DIR__ ) . '/syndamorph.php' ) . 'assets/gateway-admin.js',
         array(),
         (string) filemtime( dirname( __DIR__ ) . '/assets/gateway-admin.js' ),
         true
