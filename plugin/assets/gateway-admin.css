@@ -1,0 +1,103 @@
+/* Gateway-specific layout only. Typography, tokens, cards and shell are shared with Operations. */
+#syndamorph-gateway-admin .sm-gateway-workspace {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+#syndamorph-gateway-admin .sm-gateway-workspace > .sm-gateway-panel:first-child {
+    grid-column: 1 / -1;
+}
+#syndamorph-gateway-admin .sm-gateway-panel {
+    min-width: 0;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+#syndamorph-gateway-admin .sm-gateway-panel > .sm-card-title { margin: 0; }
+#syndamorph-gateway-admin .sm-gateway-row,
+#syndamorph-gateway-admin .sm-gateway-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: end;
+    min-width: 0;
+}
+#syndamorph-gateway-admin .sm-gateway-panel > .sm-gateway-panel {
+    padding: 16px;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px solid var(--sm-border);
+    box-shadow: none;
+}
+#syndamorph-gateway-admin .sm-gateway-field {
+    display: grid;
+    gap: 8px;
+    flex: 1 1 200px;
+    min-width: 0;
+    margin: 0;
+}
+#syndamorph-gateway-admin .sm-gateway-field input,
+#syndamorph-gateway-admin .sm-gateway-field select {
+    width: 100%;
+    max-width: none;
+    min-height: 40px;
+}
+#syndamorph-gateway-admin .sm-gateway-button {
+    min-height: 40px;
+    padding: 9px 16px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: normal;
+    text-align: center;
+}
+#syndamorph-gateway-admin .sm-gateway-button-primary {
+    color: #fff;
+    background: var(--sm-accent);
+}
+#syndamorph-gateway-admin .sm-gateway-button-primary:hover { filter: brightness(.92); }
+#syndamorph-gateway-admin .sm-gateway-button-secondary {
+    color: var(--sm-ink);
+    background: #fff;
+    border-color: var(--sm-border);
+}
+#syndamorph-gateway-admin .sm-gateway-button-secondary:hover { background: #f1f4f9; }
+#syndamorph-gateway-admin .sm-gateway-button:focus-visible {
+    outline: 2px solid var(--sm-accent);
+    outline-offset: 2px;
+}
+#syndamorph-gateway-admin .sm-gateway-notices:empty { display: none; }
+#syndamorph-gateway-admin .sm-gateway-message,
+#syndamorph-gateway-admin .sm-gateway-alert {
+    margin: 0 0 18px;
+    padding: 13px 16px;
+    border-radius: 10px;
+    background: #edf8f2;
+    border: 1px solid #bce3ce;
+    color: #22633e;
+    font-size: 12px;
+}
+#syndamorph-gateway-admin .sm-gateway-message.is-error,
+#syndamorph-gateway-admin .sm-gateway-alert {
+    background: #fff6eb;
+    border-color: #f0d3a7;
+    color: #794c17;
+}
+#syndamorph-gateway-admin .sm-gateway-panel code {
+    display: block;
+    max-width: 100%;
+    padding: 12px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    background: #e9edf3;
+    border-radius: 8px;
+}
+#syndamorph-gateway-admin .sm-gateway-panel p { margin: 0; line-height: 1.6; }
+#syndamorph-gateway-admin .sm-gateway-panel h3 { margin: 0; font-size: 13px; }
+@media (max-width: 1100px) {
+    #syndamorph-gateway-admin .sm-gateway-workspace { grid-template-columns: 1fr; }
+}
