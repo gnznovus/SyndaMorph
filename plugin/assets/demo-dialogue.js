@@ -132,7 +132,8 @@
     }
     // A session generates the NEXT response from the current branch and shared
     // topic. Randomness decides whether new objections appear, never the topic.
-    function createSession({ kind = 'html', brief = '', seed, random } = {}) {
+    function createSession({ kind = 'html', brief = '', seed, random, maxTurns = MAX_TURNS } = {}) {
+        if (!Number.isSafeInteger(maxTurns) || maxTurns < 5 || maxTurns > MAX_TURNS) throw new RangeError('Invalid turn limit.');
         const source = { url: 'URL section', html: 'HTML page', package: 'ZIP package' }[kind];
         if (!source) throw new TypeError('Unsupported demo source type.');
         const startSeed = seed === undefined ? hashSeed(String(brief) + Date.now() + Math.random()) : seed;
@@ -150,7 +151,7 @@
             const n = Number(rng());
             const chance = Number.isFinite(n) ? Math.max(0, Math.min(0.999999, n)) : 0.5;
             // At least one objection is possible; no endless dispute.
-            if (state.objections < 2 && chance < (state.objections ? 0.28 : 0.58) && state.turnCount < MAX_TURNS - 6) {
+            if (state.objections < 2 && chance < (state.objections ? 0.28 : 0.58) && state.turnCount < maxTurns - 6) {
                 const variant = state.objections;
                 state.objections++;
                 state.tension++;
@@ -178,7 +179,7 @@
         function next() {
             if (state.resolved) return null;
             if (!pending.length) pending = branch();
-            if (state.turnCount >= MAX_TURNS - 1 && !state.aligned) {
+            if (state.turnCount >= maxTurns - 1 && !state.aligned) {
                 pending = [{agent:'boss',intent:'close',type:'Unresolved — review required',
                     action:'We have reached the demo conversation limit without agreement. Escalating for real review; no work has been validated.'}];
                 state.forced = true;
@@ -196,6 +197,7 @@
             });
             last = message;
             state.turnCount++;
+            state.phase = step.intent;
             if (step.intent === 'revise') state.tension = Math.max(0, state.tension - 1);
             if (step.intent === 'close') {
                 state.resolved = true;
