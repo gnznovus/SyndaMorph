@@ -30,8 +30,10 @@
                 const details = data.data && typeof data.data === 'object' ? data.data : {};
                 const role = typeof details.role === 'string' ? ' · Agent: ' + details.role : '';
                 const completed = Number.isInteger(details.completedCalls) ? ' · Completed calls: ' + details.completedCalls : '';
+                const stop = typeof details.stopReason === 'string' ? ' · Stop reason: ' + details.stopReason : '';
+                const tokens = Number.isInteger(details.outputTokens) ? ' · Output tokens: ' + details.outputTokens : '';
                 throw new Error((data.message || 'WordPress rejected this request.') +
-                    ' [HTTP ' + response.status + ' / ' + (data.code || 'unknown') + ']' + role + completed);
+                    ' [HTTP ' + response.status + ' / ' + (data.code || 'unknown') + ']' + role + completed + stop + tokens);
             }
             status.textContent = data.status + ' · ' + data.model + ' · ' + data.elapsedMs + ' ms · ' +
                 (data.estimatedCostUsd === null ? 'Cost unknown' : 'Estimated $' + data.estimatedCostUsd.toFixed(6));
