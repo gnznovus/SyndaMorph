@@ -218,7 +218,7 @@ function syndamorph_ai_render_tab(): void {
                                         <button type="button" class="sm-outline-button" id="syndamorph-model-refresh">Refresh provider models</button>
                                     </div>
                                     <div class="sm-field sm-model-budget">
-                                        <label class="sm-field-label" for="syndamorph-model-budget">Maximum estimated job cost (USD)</label>
+                                        <label class="sm-field-label" for="syndamorph-model-budget">Max job budget (USD)</label>
                                         <input class="sm-control" id="syndamorph-model-budget" type="number" min="0.01" max="100" step="0.01" value="1.00">
                                     </div>
                                 </div>
