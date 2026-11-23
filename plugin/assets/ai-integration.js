@@ -176,6 +176,7 @@
     const modelSaveStatus = byId( 'syndamorph-model-save-status' );
     const inputRate = byId( 'syndamorph-model-input-price' );
     const outputRate = byId( 'syndamorph-model-output-price' );
+    const budget = byId( 'syndamorph-model-budget' );
     const cost = byId( 'syndamorph-model-cost' );
     let catalogRequest = 0;
     const estimate = () => {
@@ -214,6 +215,7 @@
                 modelChoice.value = saved.model;
                 inputRate.value = String( saved.inputPrice );
                 outputRate.value = String( saved.outputPrice );
+                budget.value = String( saved.maxJobUsd ?? 1 );
             } else {
                 inputRate.value = '';
                 outputRate.value = '';
@@ -244,6 +246,7 @@
                 body: JSON.stringify( {
                     provider: provider.value, model: modelChoice.value,
                     inputPrice: Number( inputRate.value ), outputPrice: Number( outputRate.value ),
+                    maxJobUsd: Number( budget.value ),
                 } ),
             } );
             const data = await response.json();
