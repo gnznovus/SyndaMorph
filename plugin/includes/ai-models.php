@@ -199,7 +199,7 @@ function syndamorph_anthropic_sse_request( string $key, array $payload ) {
         }
         return $length;
     };
-    curl_setopt_array( $handle, array(
+    $configured = curl_setopt_array( $handle, array(
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => wp_json_encode( $payload ),
         CURLOPT_HTTPHEADER => array(
@@ -211,13 +211,26 @@ function syndamorph_anthropic_sse_request( string $key, array $payload ) {
         CURLOPT_FOLLOWLOCATION => false,
         CURLOPT_CONNECTTIMEOUT => 15,
         CURLOPT_TIMEOUT => 240,
+        // RETURNTRANSFER must be established before the custom writer.
+        // Otherwise cURL may reset the writer and echo raw SSE into REST JSON.
+        CURLOPT_RETURNTRANSFER => true,
         CURLOPT_WRITEFUNCTION => $write,
-        CURLOPT_RETURNTRANSFER => false,
         CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
         CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_SSL_VERIFYHOST => 2,
     ) );
-    $ok = curl_exec( $handle );
+    if ( ! $configured ) {
+        curl_close( $handle );
+        return new WP_Error( 'sm_stream_unavailable', 'Could not configure PHP streaming transport.', array( 'status' => 503 ) );
+    }
+    // Defense in depth: never let provider SSE corrupt a WordPress REST response,
+    // even if an environment overrides the cURL writer.
+    ob_start();
+    try {
+        $ok = curl_exec( $handle );
+    } finally {
+        ob_end_clean();
+    }
     $http = (int) curl_getinfo( $handle, CURLINFO_HTTP_CODE );
     curl_close( $handle );
     if ( 200 !== $http ) {
