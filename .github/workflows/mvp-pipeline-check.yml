@@ -38,6 +38,7 @@ jobs:
           node --check backend/server.js
           node --check backend/purr-poc.js
           node --check plugin/assets/ai-integration.js
+          node --check plugin/assets/demo-dialogue.js
           node --check plugin/assets/production-team.js
           node --check plugin/assets/production-workflow.js
           php -l plugin/includes/production-team.php
