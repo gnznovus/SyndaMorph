@@ -811,24 +811,57 @@
 }
 
 
-/* Model configuration: one pricing source, with space between advisory text and actions. */
+/* Model configuration: compact actions and estimates aligned beneath the picker. */
 #syndamorph-ai-integration #sm-ai-panel-model .sm-card-body {
-    row-gap: 22px !important;
+    row-gap: 20px !important;
 }
 #syndamorph-ai-integration #sm-ai-panel-model .sm-field {
-    gap: 10px;
+    gap: 8px;
 }
 #syndamorph-ai-integration #sm-ai-panel-model #syndamorph-model-status {
-    margin: 10px 0 0;
+    margin: 6px 0 0;
     line-height: 1.65;
 }
+#syndamorph-ai-integration #sm-ai-panel-model .sm-model-controls {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) minmax(210px, 1fr) minmax(210px, 1fr);
+    align-items: stretch;
+    gap: 16px;
+}
 #syndamorph-ai-integration #sm-ai-panel-model .sm-model-refresh-row {
-    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    margin: 0;
 }
 #syndamorph-ai-integration #sm-ai-panel-model .sm-model-summary {
-    display: grid;
-    grid-template-columns: minmax(0, 360px);
+    display: block;
+    min-width: 0;
 }
 #syndamorph-ai-integration #sm-ai-panel-model .sm-model-summary .sm-stat {
+    min-height: 100%;
     min-width: 0;
+    box-sizing: border-box;
+}
+#syndamorph-ai-integration #sm-ai-panel-model .sm-model-budget {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+    margin: 0;
+}
+#syndamorph-ai-integration #sm-ai-panel-model .sm-model-budget .sm-control {
+    width: 100%;
+    max-width: none;
+}
+@media (max-width: 1000px) {
+    #syndamorph-ai-integration #sm-ai-panel-model .sm-model-controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    #syndamorph-ai-integration #sm-ai-panel-model .sm-model-refresh-row { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+    #syndamorph-ai-integration #sm-ai-panel-model .sm-model-controls {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    #syndamorph-ai-integration #sm-ai-panel-model .sm-model-refresh-row { grid-column: auto; }
 }
