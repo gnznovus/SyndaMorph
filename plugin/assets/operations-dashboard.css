@@ -743,3 +743,69 @@
     padding-right: 8px;
     scrollbar-gutter: stable;
 }
+
+
+/* AI Integration sub-navigation: reuse Operations tokens and focus treatment. */
+#syndamorph-ai-integration .sm-ai-settings-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+    background: #fff;
+    border: 1px solid var(--sm-border);
+    border-radius: 14px;
+    padding: 6px;
+    margin: 0 0 22px;
+}
+#syndamorph-ai-integration .sm-ai-settings-tabs [role="tab"] {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    min-width: 0;
+    padding: 10px 12px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    color: #7b8798;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 650;
+    transition: color .16s, background .16s;
+}
+#syndamorph-ai-integration .sm-ai-settings-tabs [role="tab"]:hover {
+    background: #f8f9fb; color: var(--sm-ink);
+}
+#syndamorph-ai-integration .sm-ai-settings-tabs [role="tab"][aria-selected="true"] {
+    color: #c52d29;
+    background: #fff1ef;
+    border-color: #ffe0da;
+    box-shadow: 0 1px 4px rgba(237,56,50,.06);
+}
+#syndamorph-ai-integration .sm-ai-settings-tabs [role="tab"]:focus-visible,
+#syndamorph-ai-integration .sm-outline-button:focus-visible {
+    outline: 2px solid var(--sm-accent);
+    outline-offset: 2px;
+}
+#syndamorph-ai-integration .sm-ai-tab-step {
+    font-size: 11px;
+    opacity: .75;
+    font-weight: 750;
+}
+#syndamorph-ai-integration .sm-ai-settings-panel[hidden] { display: none; }
+#syndamorph-ai-integration .sm-outline-button {
+    min-height: 42px;
+    padding: 0 16px;
+    background: #fff;
+    border: 1px solid #d9e0eb;
+    border-radius: 9px;
+    color: var(--sm-ink);
+    font-size: 12px;
+    font-weight: 750;
+    cursor: pointer;
+}
+#syndamorph-ai-integration .sm-outline-button:hover { background: #f5f7fb; border-color: #bac5d4; }
+#syndamorph-ai-integration .sm-outline-button:disabled { opacity: .55; cursor: wait; }
+@media (max-width: 600px) {
+    #syndamorph-ai-integration .sm-ai-settings-tabs [role="tab"] { font-size: 11px; gap: 6px; }
+}
