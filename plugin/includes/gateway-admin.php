@@ -29,13 +29,51 @@ function syndamorph_gateway_render_tab(): void {
     ) ) . ';', 'before' );
     ?>
     <div class="wrap" id="syndamorph-gateway-admin">
-        <h1>SyndaMorph · Client Access Manager</h1>
-        <p>Customers, client-level API keys, private packages, and package leases.</p>
-        <?php if ( ! syndamorph_gateway_admin_configured() ) : ?>
-            <div class="notice notice-warning"><p>Secure Gateway is not configured. Set the Gateway URL and administrator token in server-side WordPress configuration. No client records can be changed.</p></div>
-        <?php endif; ?>
-        <div id="syndamorph-gateway-status" role="status" aria-live="polite"></div>
-        <div id="syndamorph-gateway-root"></div>
+        <div class="sm-dashboard">
+            <aside class="sm-sidebar" aria-label="Operations navigation">
+                <div class="sm-brand">
+                    <span class="sm-brand-mark" aria-hidden="true">S</span>
+                    <div><div class="sm-brand-name">SyndaMorph</div><div class="sm-brand-caption">Operations</div></div>
+                </div>
+                <div>
+                    <p class="sm-nav-label">Workspace</p>
+                    <nav class="sm-nav" aria-label="SyndaMorph modules">
+                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph' ) ); ?>">
+                            <span class="dashicons dashicons-groups" aria-hidden="true"></span> AI Production Team
+                        </a>
+                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=ai' ) ); ?>">
+                            <span class="dashicons dashicons-admin-network" aria-hidden="true"></span> AI Integration
+                        </a>
+                        <a class="sm-nav-item is-active" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=gateway' ) ); ?>" aria-current="page">
+                            <span class="dashicons dashicons-shield" aria-hidden="true"></span> Client Access Manager
+                        </a>
+                    </nav>
+                </div>
+                <div class="sm-sidebar-footer">
+                    <strong>Secure Gateway · MVP</strong><br>
+                    Client credentials authorize future downloads only. Installed patterns and archives remain independent.
+                </div>
+            </aside>
+            <main class="sm-main">
+                <div class="sm-topline">
+                    <span class="sm-breadcrumb">Workspace / <strong>Client Access Manager</strong></span>
+                    <span class="sm-environment">MVP · DEVELOPMENT</span>
+                </div>
+                <p class="sm-kicker">Secure distribution</p>
+                <h1 class="sm-page-title">Client Access Manager</h1>
+                <p class="sm-page-description">Manage customer-level API keys, private packages, and time-bound delivery leases.</p>
+                <?php if ( ! syndamorph_gateway_admin_configured() ) : ?>
+                    <div class="sm-gateway-alert" role="alert">Secure Gateway is not configured. Set its URL and administrator token in server-side WordPress configuration.</div>
+                <?php endif; ?>
+                <div class="sm-stats" id="syndamorph-gateway-stats" aria-label="Gateway summary">
+                    <div class="sm-stat"><span class="sm-stat-label">Clients</span><strong class="sm-stat-value" data-stat="customers">—</strong></div>
+                    <div class="sm-stat"><span class="sm-stat-label">Private packages</span><strong class="sm-stat-value" data-stat="packages">—</strong></div>
+                    <div class="sm-stat"><span class="sm-stat-label">Active leases</span><strong class="sm-stat-value" data-stat="leases">—</strong></div>
+                </div>
+                <div id="syndamorph-gateway-status" class="sm-gateway-notices" role="status" aria-live="polite"></div>
+                <div id="syndamorph-gateway-root" class="sm-gateway-workspace"></div>
+            </main>
+        </div>
     </div>
     <?php
 }
