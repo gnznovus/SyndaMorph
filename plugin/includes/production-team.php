@@ -140,7 +140,7 @@ function syndamorph_team_render_tab(): void {
                 <section id="sm-team-panel-production" class="sm-team-panel" role="tabpanel" aria-labelledby="sm-team-tab-production" data-panel="production" hidden>
                     <div class="sm-stats" aria-label="Simulation overview">
                         <div class="sm-stat"><span class="sm-stat-label">Current job</span><span class="sm-stat-value sm-stat-small" id="syndamorph-team-job-state">Not started</span></div>
-                        <div class="sm-stat"><span class="sm-stat-label">Team handoffs</span><span class="sm-stat-value" id="syndamorph-team-handoffs">00 / 09</span></div>
+                        <div class="sm-stat"><span class="sm-stat-label">Conversation turns</span><span class="sm-stat-value" id="syndamorph-team-handoffs">00 turns</span></div>
                         <div class="sm-stat"><span class="sm-stat-label">Output readiness</span><span class="sm-stat-value sm-stat-small" id="syndamorph-team-output-state">Not generated</span></div>
                     </div>
                     <div class="sm-team-layout sm-team-production-grid">
