@@ -202,41 +202,31 @@
     const modelSave = byId( 'syndamorph-model-save' );
     const modelStatus = byId( 'syndamorph-model-status' );
     const modelSaveStatus = byId( 'syndamorph-model-save-status' );
-    const inputRate = byId( 'syndamorph-model-input-price' );
-    const outputRate = byId( 'syndamorph-model-output-price' );
-    const budget = byId( 'syndamorph-model-budget' );
     const cost = byId( 'syndamorph-model-cost' );
+    const budget = byId( 'syndamorph-model-budget' );
     let catalogRequest = 0;
     let catalogModels = [];
     const formatUsd = amount => Number( amount ).toFixed( 2 ).replace( /\\.00$/, '' );
+    const activeModel = () => catalogModels.find( entry => entry.id === modelChoice?.value );
     const estimate = () => {
-        const input = Number( inputRate?.value );
-        const out = Number( outputRate?.value );
-        if ( cost ) cost.textContent = inputRate?.value !== '' && outputRate?.value !== '' &&
-            Number.isFinite( input ) && Number.isFinite( out ) ?
-            '$' + ( ( 6000 * input + 4000 * out ) / 1000000 ).toFixed( 4 ) : 'Unknown';
+        const rate = activeModel()?.pricing;
+        if ( cost ) cost.textContent = rate && Number.isFinite( Number( rate.input ) ) &&
+            Number.isFinite( Number( rate.output ) )
+            ? '$' + ( ( 6000 * Number( rate.input ) + 4000 * Number( rate.output ) ) / 1000000 ).toFixed( 4 )
+            : 'Unavailable';
     };
-    inputRate?.addEventListener( 'input', estimate );
-    outputRate?.addEventListener( 'input', estimate );
-    const populateModelRates = () => {
-        const entry = catalogModels.find( item => item.id === modelChoice?.value );
-        if ( !entry ) return;
-        if ( entry.pricing ) {
-            inputRate.value = String( entry.pricing.input );
-            outputRate.value = String( entry.pricing.output );
-        } else {
-            inputRate.value = '';
-            outputRate.value = '';
-        }
+    const updateSelectedModel = () => {
+        const entry = activeModel();
         estimate();
+        if ( !entry ) return;
         if ( modelStatus ) {
             modelStatus.textContent = entry.pricing
                 ? 'Pricing reference ' + entry.pricing.verifiedAt + ' · ' +
                   ( entry.pricing.note || 'Standard token rates only; other billing modifiers are excluded.' )
-                : 'Pricing unavailable for this model. Verify official rates and enter them manually.';
+                : 'Pricing unavailable for this model; paid execution is disabled.';
         }
     };
-    modelChoice?.addEventListener( 'change', populateModelRates );
+    modelChoice?.addEventListener( 'change', updateSelectedModel );
 
     async function loadModels( force = false ) {
         if ( !modelChoice ) return;
@@ -267,14 +257,9 @@
             const saved = result.settings || {};
             if ( saved.provider === selectedProvider && catalogModels.some( x => x.id === saved.model ) ) {
                 modelChoice.value = saved.model;
-                populateModelRates();
-                inputRate.value = String( saved.inputPrice );
-                outputRate.value = String( saved.outputPrice );
                 budget.value = String( saved.maxJobUsd ?? 1 );
-            } else {
-                inputRate.value = '';
-                outputRate.value = '';
             }
+            updateSelectedModel();
             modelChoice.disabled = false;
             estimate();
             if ( modelStatus ) modelStatus.textContent = result.models.length + ' live models · ' +
@@ -288,8 +273,8 @@
     }
     modelRefresh?.addEventListener( 'click', () => loadModels( true ) );
     modelSave?.addEventListener( 'click', async () => {
-        if ( !modelChoice?.value || inputRate.value === '' || outputRate.value === '' ) {
-            modelSaveStatus.textContent = 'Choose a model and enter both pricing rates.';
+        if ( !modelChoice?.value || !activeModel()?.pricing ) {
+            modelSaveStatus.textContent = 'Choose a model with available reference pricing.';
             return;
         }
         modelSave.disabled = true;
@@ -300,13 +285,12 @@
                 headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': SyndaMorphAI.nonce },
                 body: JSON.stringify( {
                     provider: provider.value, model: modelChoice.value,
-                    inputPrice: Number( inputRate.value ), outputPrice: Number( outputRate.value ),
                     maxJobUsd: Number( budget.value ),
                 } ),
             } );
             const data = await response.json();
             if ( !response.ok ) throw new Error( data.message || 'Could not save model settings.' );
-            modelSaveStatus.textContent = 'Saved ' + data.model + ' with administrator-entered pricing.';
+            modelSaveStatus.textContent = 'Saved ' + data.model + ' with reference pricing and job budget.';
         } catch ( error ) {
             modelSaveStatus.textContent = error.message;
         } finally { modelSave.disabled = false; }
