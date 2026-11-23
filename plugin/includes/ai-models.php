@@ -113,7 +113,7 @@ function syndamorph_models_settings(): array {
  * endpoint still returns one JSON result when the four-agent job completes.
  * No model-generated text is ever streamed directly to an executable page.
  */
-function syndamorph_anthropic_sse_request( string $key, array $payload ) {
+function syndamorph_anthropic_sse_request( string $key, array $payload, ?callable $on_delta = null ) {
     if ( ! function_exists( 'curl_init' ) ) {
         return new WP_Error( 'sm_stream_unavailable', 'PHP cURL is required for the streaming baseline.', array( 'status' => 503 ) );
     }
@@ -131,7 +131,7 @@ function syndamorph_anthropic_sse_request( string $key, array $payload ) {
     $overflow = false;
     $provider_error = false;
     $event_count = 0;
-    $process = static function ( string $frame ) use ( &$text, &$stop_reason, &$model, &$usage, &$saw_start, &$saw_stop, &$provider_error, &$event_count ): void {
+    $process = static function ( string $frame ) use ( &$text, &$stop_reason, &$model, &$usage, &$saw_start, &$saw_stop, &$provider_error, &$event_count, $on_delta ): void {
         $lines = preg_split( '/\\r?\\n/', $frame );
         $data_lines = array();
         foreach ( $lines as $line ) {
@@ -161,6 +161,7 @@ function syndamorph_anthropic_sse_request( string $key, array $payload ) {
                 $delta = $event['delta'] ?? array();
                 if ( is_array( $delta ) && 'text_delta' === ( $delta['type'] ?? '' ) && is_string( $delta['text'] ?? null ) ) {
                     $text .= $delta['text'];
+                    if ( $on_delta ) { $on_delta( $delta['text'] ); }
                 }
                 break;
             case 'message_delta':
@@ -223,13 +224,14 @@ function syndamorph_anthropic_sse_request( string $key, array $payload ) {
         curl_close( $handle );
         return new WP_Error( 'sm_stream_unavailable', 'Could not configure PHP streaming transport.', array( 'status' => 503 ) );
     }
-    // Defense in depth: never let provider SSE corrupt a WordPress REST response,
-    // even if an environment overrides the cURL writer.
-    ob_start();
+    // The provider stream is consumed only by the custom cURL writer.
+    // For JSON calls, absorb accidental transport output. For SSE calls,
+    // allow only explicitly emitted, sanitized progress events through.
+    if ( ! $on_delta ) { ob_start(); }
     try {
         $ok = curl_exec( $handle );
     } finally {
-        ob_end_clean();
+        if ( ! $on_delta ) { ob_end_clean(); }
     }
     $http = (int) curl_getinfo( $handle, CURLINFO_HTTP_CODE );
     curl_close( $handle );
@@ -254,7 +256,7 @@ function syndamorph_anthropic_sse_request( string $key, array $payload ) {
 }
 
 /** Provider-neutral generation boundary; optional server-side streaming. */
-function syndamorph_models_generate( string $provider, string $model, string $system, string $input, int $max_tokens = 1200, bool $stream = false ) {
+function syndamorph_models_generate( string $provider, string $model, string $system, string $input, int $max_tokens = 1200, bool $stream = false, ?callable $on_delta = null ) {
     if ( 'anthropic' !== $provider ) {
         return new WP_Error( 'sm_provider_unsupported', 'This provider has no generation adapter yet.', array( 'status' => 501 ) );
     }
@@ -268,7 +270,7 @@ function syndamorph_models_generate( string $provider, string $model, string $sy
     );
     if ( $stream ) {
         $payload['stream'] = true;
-        $json = syndamorph_anthropic_sse_request( $key, $payload );
+        $json = syndamorph_anthropic_sse_request( $key, $payload, $on_delta );
         if ( is_wp_error( $json ) ) { return $json; }
     } else {
         $response = wp_remote_post( 'https://api.anthropic.com/v1/messages', array(
