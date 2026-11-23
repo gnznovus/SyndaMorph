@@ -258,6 +258,16 @@
             if ( saved.provider === selectedProvider && catalogModels.some( x => x.id === saved.model ) ) {
                 modelChoice.value = saved.model;
                 budget.value = String( saved.maxJobUsd ?? 1 );
+            } else {
+                // Start the first POC with the least expensive known model.
+                // Selection is local until the administrator explicitly saves it.
+                const priced = catalogModels.filter( x => x.pricing &&
+                    Number.isFinite( Number( x.pricing.input ) ) &&
+                    Number.isFinite( Number( x.pricing.output ) ) );
+                priced.sort( ( a, b ) =>
+                    ( 6000 * a.pricing.input + 4000 * a.pricing.output ) -
+                    ( 6000 * b.pricing.input + 4000 * b.pricing.output ) );
+                if ( priced.length ) modelChoice.value = priced[0].id;
             }
             updateSelectedModel();
             modelChoice.disabled = false;
