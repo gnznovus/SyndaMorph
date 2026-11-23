@@ -5,8 +5,6 @@ on:
     paths:
       - 'backend/**'
       - 'compose.yaml'
-      - 'plugin/includes/artifact-poc.php'
-      - 'tests/artifact-poc-test.php'
       - 'plugin/includes/production-team.php'
       - 'plugin/includes/ai-integration.php'
       - 'plugin/syndamorph.php'
@@ -43,9 +41,6 @@ jobs:
           node --check plugin/assets/demo-dialogue.js
           node --check plugin/assets/production-team.js
           node --check plugin/assets/production-workflow.js
-          php -l plugin/includes/artifact-poc.php
-          php -l tests/artifact-poc-test.php
-          php tests/artifact-poc-test.php
           php -l plugin/includes/production-team.php
           php -l plugin/includes/ai-integration.php
           php -l plugin/syndamorph.php
