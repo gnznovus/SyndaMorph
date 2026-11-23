@@ -49,7 +49,7 @@
         refreshSummary();
     };
     provider.addEventListener( 'change', () => {
-        if ( !isRunning ) showStatus();
+        if ( !isRunning ) { showStatus(); loadModels(); }
     } );
     if ( toggle ) {
         toggle.addEventListener( 'click', () => {
@@ -114,6 +114,7 @@
     } ).then( ( data ) => {
         statuses = data;
         showStatus();
+        loadModels();
     } ).catch( () => {
         preview.textContent = 'Saved credential status unavailable';
         output.textContent = '[error] Could not load provider configuration.';
@@ -141,6 +142,7 @@
             statuses[ selected ] = data.key;
             showStatus();
             refreshSummary();
+            if ( data.ok ) loadModels( true );
             setState( data.ok ? 'Connected' : 'Failed', data.ok ? 'success' : 'error' );
             if ( lastTest ) lastTest.textContent = data.ok ? 'Successful' : 'Failed';
             output.textContent = JSON.stringify( {
@@ -163,5 +165,92 @@
             provider.disabled = false;
             if ( buttonLabel ) buttonLabel.textContent = 'Run connection test';
         }
+    } );
+
+    // Model catalog and pricing are separate: provider APIs expose models but
+    // not a trustworthy, complete billing tariff.
+    const modelChoice = byId( 'syndamorph-model-choice' );
+    const modelRefresh = byId( 'syndamorph-model-refresh' );
+    const modelSave = byId( 'syndamorph-model-save' );
+    const modelStatus = byId( 'syndamorph-model-status' );
+    const modelSaveStatus = byId( 'syndamorph-model-save-status' );
+    const inputRate = byId( 'syndamorph-model-input-price' );
+    const outputRate = byId( 'syndamorph-model-output-price' );
+    const cost = byId( 'syndamorph-model-cost' );
+    let catalogRequest = 0;
+    const estimate = () => {
+        const input = Number( inputRate?.value );
+        const out = Number( outputRate?.value );
+        if ( cost ) cost.textContent = inputRate?.value !== '' && outputRate?.value !== '' &&
+            Number.isFinite( input ) && Number.isFinite( out ) ?
+            '$' + ( ( 6000 * input + 4000 * out ) / 1000000 ).toFixed( 4 ) : 'Unknown';
+    };
+    inputRate?.addEventListener( 'input', estimate );
+    outputRate?.addEventListener( 'input', estimate );
+
+    async function loadModels( force = false ) {
+        if ( !modelChoice ) return;
+        const seq = ++catalogRequest;
+        const selectedProvider = provider.value;
+        modelChoice.replaceChildren( new Option( 'Loading models…', '' ) );
+        modelChoice.disabled = true;
+        if ( modelStatus ) modelStatus.textContent = 'Requesting provider catalog…';
+        try {
+            const url = new URL( SyndaMorphAI.modelsUrl );
+            url.searchParams.set( 'provider', selectedProvider );
+            if ( force ) url.searchParams.set( 'refresh', '1' );
+            const response = await fetch( url, {
+                credentials: 'same-origin', headers: { 'X-WP-Nonce': SyndaMorphAI.nonce },
+            } );
+            const result = await response.json();
+            if ( !response.ok ) throw new Error( result.message || 'Model catalog unavailable.' );
+            if ( seq !== catalogRequest ) return;
+            modelChoice.replaceChildren( new Option( 'Select a provider model', '' ) );
+            for ( const entry of result.models || [] ) {
+                modelChoice.add( new Option( entry.name + ' (' + entry.id + ')', entry.id ) );
+            }
+            const saved = result.settings || {};
+            if ( saved.provider === selectedProvider && result.models.some( x => x.id === saved.model ) ) {
+                modelChoice.value = saved.model;
+                inputRate.value = String( saved.inputPrice );
+                outputRate.value = String( saved.outputPrice );
+            } else {
+                inputRate.value = '';
+                outputRate.value = '';
+            }
+            modelChoice.disabled = false;
+            estimate();
+            if ( modelStatus ) modelStatus.textContent = result.models.length + ' live models · ' +
+                ( result.stale ? 'Last-known catalog (provider unavailable)' : 'Provider catalog' ) +
+                ( result.has_more ? ' · More pages available; this POC shows the first page only' : '' );
+        } catch ( error ) {
+            if ( seq !== catalogRequest ) return;
+            modelChoice.replaceChildren( new Option( 'Unavailable', '' ) );
+            if ( modelStatus ) modelStatus.textContent = error.message;
+        }
+    }
+    modelRefresh?.addEventListener( 'click', () => loadModels( true ) );
+    modelSave?.addEventListener( 'click', async () => {
+        if ( !modelChoice?.value || inputRate.value === '' || outputRate.value === '' ) {
+            modelSaveStatus.textContent = 'Choose a model and enter both pricing rates.';
+            return;
+        }
+        modelSave.disabled = true;
+        modelSaveStatus.textContent = 'Saving…';
+        try {
+            const response = await fetch( SyndaMorphAI.modelSettingsUrl, {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': SyndaMorphAI.nonce },
+                body: JSON.stringify( {
+                    provider: provider.value, model: modelChoice.value,
+                    inputPrice: Number( inputRate.value ), outputPrice: Number( outputRate.value ),
+                } ),
+            } );
+            const data = await response.json();
+            if ( !response.ok ) throw new Error( data.message || 'Could not save model settings.' );
+            modelSaveStatus.textContent = 'Saved ' + data.model + ' with administrator-entered pricing.';
+        } catch ( error ) {
+            modelSaveStatus.textContent = error.message;
+        } finally { modelSave.disabled = false; }
     } );
 } )();
