@@ -14,6 +14,8 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/capture-endpoint.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/package-import.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/updater.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/ai-integration.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/ai-models.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/ai-team-real.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/purr-poc.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/production-team.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/gateway-admin.php';
