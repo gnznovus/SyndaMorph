@@ -1,18 +1,18 @@
-# Real AI Production Team — POC #1 (Integrated)
+# Real AI Production Team — POC #1 and live production streaming
 
-**Status:** Four-agent proof of concept completed with real Claude Haiku 5.5 calls. Administrator-only, explicitly initiated, paid generation. No automatic publishing or executable preview.
+**Status:** Four-agent proof of concept completed with real Claude Haiku 5.5 calls. Administrator-only, explicitly initiated, paid generation. No automatic publishing. HTML preview runs in a sandboxed, script-disabled iframe.
 
 ## Architecture and boundaries
 
 - **AI Production Team → Setup → Production brief → Task instructions** is the sole input for a real AI job. No source URL, HTML, ZIP, or separate POC textarea is required.
-- **Run real AI team** appears between **Start simulation** and **Reset**. Simulation remains an optional, clearly labeled demo. Real runs invoke the actual backend, not authored dialogue.
+- **Start Production** is the single AI action, followed by **Reset**. The authored simulator and separate Purr communication POC controls have been removed from the shell.
 - Source Import and **Convert & Preview** remain a separate deterministic Gutenberg conversion pipeline. A real AI run produces an HTML/CSS section **for review**, not a native Gutenberg pattern.
-- The real route remains `POST /wp-json/syndamorph/v1/ai/team-poc`, taking `{"brief":"..."}` and protected by the WordPress administrator capability and REST nonce.
-- `plugin/includes/ai-models.php`: dynamic provider catalog, separately maintained reference prices, and Anthropic generation adapter. Server-side cURL SSE is accumulated into bounded text; raw events are never intentionally exposed to the browser.
-- `plugin/includes/ai-team-real.php`: synchronous Boss → Designer → Developer → Validator, four bounded calls with contextual handoffs. No retries, executing generated scripts, or publishing. Output caps are 16,384 tokens/agent for the streaming baseline.
+- The UI calls `POST /wp-json/syndamorph/v1/ai/team-stream` with `{"brief":"..."}`, a WordPress REST nonce and administrator permission. The legacy JSON `/ai/team-poc` endpoint remains for compatibility, not UI usage.
+- `plugin/includes/ai-models.php`: dynamic catalog, pricing and Anthropic cURL SSE parser. Parsed text deltas are forwarded through a bounded callback; raw provider protocol frames and credentials never enter the UI.
+- `plugin/includes/ai-team-real.php`: Boss → Designer → Developer → Validator, four bounded calls and contextual handoffs. Sends `ready`, `agent_start`, `agent_delta`, `agent_complete`, `job_complete` or `job_error` events over SSE. No automatic retry, script execution or publishing; output cap is 16,384 tokens per agent.
 - `plugin/includes/production-team.php`: unified Setup/Production/Results shell; no standalone POC card.
-- `plugin/assets/production-team.js`: simulation, selection state, and unified job/reset lifecycle.
-- `plugin/assets/ai-team-real.js`: real-job submit, safe text-only per-agent reports, metrics, feedback, and errors in the existing Production and Results panels.
+- `plugin/assets/production-team.js`: Source Import selection state, tabs and reset; authored simulation execution is removed.
+- `plugin/assets/ai-team-real.js`: incremental browser stream reader, live text-only agent feed, metrics and inspectable results, including a sandboxed HTML preview.
 - `plugin/assets/production-workflow.js`: existing deterministic Source Import inspection, conversion, preview and save actions (not changed by the AI POC).
 - `tests/real-ai-poc-test.php`: offline mocked model and four-agent regression without paid calls.
 
@@ -21,10 +21,10 @@
 1. Pull `feat/secure-gateway-leasing-v1`; hard-refresh the local WordPress UI (the plugin directory is bind-mounted).
 2. In **AI Integration**, configure/test the Anthropic credential, load supported models, and save model selection plus maximum estimated per-job budget.
 3. Open **AI Production Team → Setup**. Enter a clear task in **Task instructions** (12–2,000 characters). Source Import fields may remain untouched.
-4. Select **Run real AI team** and confirm paid execution.
-5. The Production tab indicates that the job is in progress. **Important:** Anthropic streams to WordPress, but the current synchronous REST endpoint does **not** push live per-agent status to the browser. Detailed events and token metrics become available only after completion.
-6. Inspect **Results**: individual Boss, Designer, Developer and Validator output panels; input/output tokens, durations, estimated costs, and basic deterministic checks. Content is rendered as plain text and is **not** auto-published.
-7. **Start simulation** still runs the authored dialogue demo; it is not proof of AI inference. **Reset** clears the current session display. Source Import conversion and its review/save workflow remain independent.
+4. Select **Start Production** and confirm paid execution.
+5. The Production tab streams each agent's generated text as the provider emits it. Status and token metrics are sent at each handoff. If a transport intermediary buffers responses, delivery can be delayed despite application-level streaming.
+6. Inspect **Results**: each agent's full text, input/output tokens, duration, estimated cost, structural checks and an isolated HTML preview. Nothing is auto-published or converted into Gutenberg blocks.
+7. **Reset** clears the current display. Source Import conversion and its review/save workflow remain independent.
 
 ## Successful baseline — 24 November 2026
 
@@ -44,12 +44,12 @@ The validator flagged missing full-document and viewport markup, although the De
 
 ## Limitations and safeguards
 
-- Both streaming and orchestration are synchronous server-side; the browser gets one JSON response at job completion. A distinct durable progress channel, job persistence, cancellation and partial-result recovery are not implemented.
+- SSE streams incremental generation and completion events through one long-lived HTTP request. There is no durable job persistence, cancellation API, replay or partial-result recovery after reload. Reverse proxies/PHP buffering may impede live delivery.
 - Streaming alone does **not** remove Anthropic's `max_tokens` cap. Each agent has a high ceiling, not unlimited output.
 - Budget enforcement is an **estimate**, not a guaranteed upper bound on provider billing. Actual pricing/caching may differ. Partial calls may be billed even if the job fails.
-- Raw generated HTML is not injected as executable DOM. Do not interpret deterministic structural checks as browser tests or sanitization sufficient for publishing.
+- The HTML preview is isolated in a sandboxed iframe with restrictive CSP; it is still untrusted model output and does not establish production-safe sanitization, visual fidelity or editable Gutenberg output.
 - Only Anthropic generation is implemented; OpenAI/Gemini/Purr adapters are not yet plugged into this team runner.
-- Keep the simulation labeled separately so authored dialogue is never mistaken for inference.
+- The authored simulation is no longer mounted in the Production Team shell.
 - External assets, scripts, form controls and remote URLs are deliberately disallowed in the POC Developer output.
 - For production use, refine agent contracts, limit verbosity, introduce durable progress/results, and add dedicated Gutenberg conversion and rendering verification.
 
