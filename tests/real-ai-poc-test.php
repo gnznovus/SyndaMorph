@@ -34,6 +34,11 @@ function wp_remote_get($url,$args) {
 function wp_remote_post($url,$args) {
     if ($url !== 'https://api.anthropic.com/v1/messages') throw new RuntimeException('Unexpected generation endpoint');
     if (isset($GLOBALS['upstream_test_status'])) return array('status'=>$GLOBALS['upstream_test_status'], 'body'=>'{"sensitive":"should-not-leak"}');
+    if (isset($GLOBALS['stop_reason_test'])) return array('status'=>200, 'body'=>json_encode(array(
+        'stop_reason'=>$GLOBALS['stop_reason_test'],
+        'content'=>array(array('type'=>'text','text'=>'partial output; do not use')),
+        'usage'=>array('input_tokens'=>80,'output_tokens'=>1200),
+    )));
     $req=json_decode($args['body'],true);
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
@@ -90,5 +95,15 @@ expect(is_wp_error($upstream) && $upstream->code==='sm_generation_upstream' &&
     str_contains($upstream->get_error_message(), '429') &&
     !str_contains($upstream->get_error_message(), 'sensitive'), 'Upstream error classification or response-body protection failed');
 unset($GLOBALS['upstream_test_status']);
+$GLOBALS['stop_reason_test']='max_tokens';
+$truncated=syndamorph_models_generate('anthropic','claude-dynamic-test-1','test','test',2400);
+expect(is_wp_error($truncated) && $truncated->code==='sm_generation_token_limit' &&
+    $truncated->args['stopReason']==='max_tokens' && $truncated->args['outputTokens']===1200,
+    'Token exhaustion diagnostic missing or mislabeled');
+$GLOBALS['stop_reason_test']='refusal';
+$refused=syndamorph_models_generate('anthropic','claude-dynamic-test-1','test','test',2400);
+expect(is_wp_error($refused) && $refused->code==='sm_generation_incomplete' &&
+    $refused->args['stopReason']==='refusal', 'Refusal misreported as token exhaustion');
+unset($GLOBALS['stop_reason_test']);
 
 echo "PASS: live model catalog cache/refresh, no hardcoded models, four role handoff, usage, deterministic checks and spending gate\n";
