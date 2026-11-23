@@ -122,42 +122,15 @@ function syndamorph_ai_render_tab(): void {
                         <span class="sm-stat-value sm-stat-small" id="syndamorph-ai-last-test">Not tested</span>
                     </div>
                 </div>
-                <section class="sm-card" aria-labelledby="sm-model-config-title" style="margin-bottom:24px">
-                    <div class="sm-card-header">
-                        <h2 class="sm-card-title" id="sm-model-config-title">AI model configuration</h2>
-                        <p class="sm-card-caption">Discover models from your connected provider. Set a model and verified USD token rates for cost estimates; model discovery does not include pricing.</p>
-                    </div>
-                    <div class="sm-card-body" style="display:grid;gap:16px">
-                        <div class="sm-field">
-                            <label class="sm-field-label" for="syndamorph-model-choice">Available models</label>
-                            <select class="sm-control" id="syndamorph-model-choice"><option value="">Load available models first</option></select>
-                            <p class="sm-hint" id="syndamorph-model-status">Anthropic catalog available after saving a provider key. Other provider adapters are pending.</p>
-                            <div><button type="button" class="sm-secondary" id="syndamorph-model-refresh">Refresh provider models</button></div>
-                        </div>
-                        <div class="sm-stats" style="margin:0">
-                            <div class="sm-stat sm-field">
-                                <label class="sm-field-label" for="syndamorph-model-input-price">Input USD / 1M tokens</label>
-                                <input class="sm-control" id="syndamorph-model-input-price" type="number" min="0" max="10000" step="0.01" placeholder="Provider rate">
-                            </div>
-                            <div class="sm-stat sm-field">
-                                <label class="sm-field-label" for="syndamorph-model-output-price">Output USD / 1M tokens</label>
-                                <input class="sm-control" id="syndamorph-model-output-price" type="number" min="0" max="10000" step="0.01" placeholder="Provider rate">
-                            </div>
-                            <div class="sm-stat">
-                                <span class="sm-stat-label">Illustrative POC estimate</span>
-                                <strong class="sm-stat-value" id="syndamorph-model-cost">Unknown</strong>
-                                <span class="sm-hint">Assumes 6K input + 4K output tokens</span>
-                            </div>
-                        </div>
-                        <div class="sm-field">
-                            <label class="sm-field-label" for="syndamorph-model-budget">Maximum estimated job cost (USD)</label>
-                            <input class="sm-control" style="max-width:220px" id="syndamorph-model-budget" type="number" min="0.01" max="100" step="0.01" value="1.00">
-                        </div>
-                        <p class="sm-hint">Rates are administrator-entered, not provider-verified. Real usage is measured; computed cost is an estimate and excludes special cache or billing adjustments.</p>
-                        <div><button type="button" class="sm-primary" id="syndamorph-model-save">Save model and pricing</button></div>
-                        <p id="syndamorph-model-save-status" role="status" aria-live="polite"></p>
-                    </div>
-                </section>
+                <nav class="sm-ai-settings-tabs" role="tablist" aria-label="AI Integration settings">
+                    <button type="button" role="tab" id="sm-ai-tab-provider" aria-controls="sm-ai-panel-provider" aria-selected="true" tabindex="0" data-panel="provider">
+                        <span class="sm-ai-tab-step">01</span><strong>Provider Connection</strong>
+                    </button>
+                    <button type="button" role="tab" id="sm-ai-tab-model" aria-controls="sm-ai-panel-model" aria-selected="false" tabindex="-1" data-panel="model">
+                        <span class="sm-ai-tab-step">02</span><strong>Model Configuration</strong>
+                    </button>
+                </nav>
+                <section id="sm-ai-panel-provider" class="sm-ai-settings-panel" role="tabpanel" aria-labelledby="sm-ai-tab-provider">
                 <div class="sm-workspace">
                     <section class="sm-card" aria-labelledby="sm-connection-title">
                         <div class="sm-card-header">
@@ -225,6 +198,45 @@ function syndamorph_ai_render_tab(): void {
                         </div>
                     </section>
                 </div>
+                </section>
+                <section id="sm-ai-panel-model" class="sm-ai-settings-panel" role="tabpanel" aria-labelledby="sm-ai-tab-model" hidden>
+                <section class="sm-card" aria-labelledby="sm-model-config-title" >
+                    <div class="sm-card-header">
+                        <h2 class="sm-card-title" id="sm-model-config-title">AI model configuration</h2>
+                        <p class="sm-card-caption">Discover models from your connected provider. Set a model and verified USD token rates for cost estimates; model discovery does not include pricing.</p>
+                    </div>
+                    <div class="sm-card-body" style="display:grid;gap:16px">
+                        <div class="sm-field">
+                            <label class="sm-field-label" for="syndamorph-model-choice">Available models</label>
+                            <select class="sm-control" id="syndamorph-model-choice"><option value="">Load available models first</option></select>
+                            <p class="sm-hint" id="syndamorph-model-status">Anthropic catalog available after saving a provider key. Other provider adapters are pending.</p>
+                            <div><button type="button" class="sm-outline-button" id="syndamorph-model-refresh">Refresh provider models</button></div>
+                        </div>
+                        <div class="sm-stats" style="margin:0">
+                            <div class="sm-stat sm-field">
+                                <label class="sm-field-label" for="syndamorph-model-input-price">Input USD / 1M tokens</label>
+                                <input class="sm-control" id="syndamorph-model-input-price" type="number" min="0" max="10000" step="0.01" placeholder="Provider rate">
+                            </div>
+                            <div class="sm-stat sm-field">
+                                <label class="sm-field-label" for="syndamorph-model-output-price">Output USD / 1M tokens</label>
+                                <input class="sm-control" id="syndamorph-model-output-price" type="number" min="0" max="10000" step="0.01" placeholder="Provider rate">
+                            </div>
+                            <div class="sm-stat">
+                                <span class="sm-stat-label">Illustrative POC estimate</span>
+                                <strong class="sm-stat-value" id="syndamorph-model-cost">Unknown</strong>
+                                <span class="sm-hint">Assumes 6K input + 4K output tokens</span>
+                            </div>
+                        </div>
+                        <div class="sm-field">
+                            <label class="sm-field-label" for="syndamorph-model-budget">Maximum estimated job cost (USD)</label>
+                            <input class="sm-control" style="max-width:220px" id="syndamorph-model-budget" type="number" min="0.01" max="100" step="0.01" value="1.00">
+                        </div>
+                        <p class="sm-hint">Rates are administrator-entered, not provider-verified. Real usage is measured; computed cost is an estimate and excludes special cache or billing adjustments.</p>
+                        <div><button type="button" class="sm-primary" id="syndamorph-model-save">Save model and pricing</button></div>
+                        <p id="syndamorph-model-save-status" role="status" aria-live="polite"></p>
+                    </div>
+                </section>
+                </section>
             </main>
         </div>
     </div>
