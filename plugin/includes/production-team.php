@@ -156,12 +156,12 @@ function syndamorph_team_render_tab(): void {
                             <div class="sm-card-body">
                                 <p class="sm-team-job-header" id="syndamorph-team-current-job">No job submitted</p>
                                 <ol class="sm-team-timeline" id="syndamorph-team-timeline" aria-live="polite" aria-relevant="additions">
-                                    <li class="sm-team-empty">No activity yet. Run a simulation or the real AI team from Setup.</li>
+                                    <li class="sm-team-empty">No activity yet. Start Production from Setup.</li>
                                 </ol>
                             </div>
                         </section>
                         <section class="sm-card" aria-labelledby="sm-team-roster-title">
-                            <div class="sm-card-header"><h2 class="sm-card-title" id="sm-team-roster-title">Agent roster</h2><p class="sm-card-caption">Agent status reflects the selected demo or actual AI run.</p></div>
+                            <div class="sm-card-header"><h2 class="sm-card-title" id="sm-team-roster-title">Agent roster</h2><p class="sm-card-caption">Agent status follows real model generation and handoffs.</p></div>
                             <div class="sm-card-body">
                                 <div class="sm-team-agent" data-agent="boss"><span class="sm-team-avatar">B</span><div><strong>PM / Boss Agent</strong><p>Job classification, delegation and approval</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
                                 <div class="sm-team-agent" data-agent="designer"><span class="sm-team-avatar">D</span><div><strong>Designer Agent</strong><p>Design architecture and visual fidelity</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
