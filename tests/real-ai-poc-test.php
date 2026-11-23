@@ -113,18 +113,32 @@ unset($GLOBALS['stop_reason_test']);
 // Guard against reintroducing a second POC brief or source-required paid job.
 $ui = file_get_contents(dirname(__DIR__) . '/plugin/includes/production-team.php');
 $client = file_get_contents(dirname(__DIR__) . '/plugin/assets/ai-team-real.js');
-$first = strpos($ui, 'id="syndamorph-team-run"');
 $real = strpos($ui, 'id="syndamorph-real-run"');
 $reset = strpos($ui, 'id="syndamorph-team-reset"');
-expect($first !== false && $real !== false && $reset !== false && $first < $real && $real < $reset,
-    'Real AI run button must appear between simulation and Reset');
-expect(!str_contains($ui, 'id="syndamorph-real-brief"') && !str_contains($ui, 'sm-real-poc-title'),
-    'Standalone real POC shell was reintroduced');
-expect(str_contains($client, "byId('syndamorph-team-brief')") &&
-    str_contains($client, 'JSON.stringify({brief: prompt})') &&
-    !str_contains($client, 'validateSource('),
-    'Real AI run must use only existing production brief, never source selection');
-expect(str_contains($ui, 'id="syndamorph-real-results"'),
-    'Integrated AI output panel is missing');
+expect($real !== false && $reset !== false && $real < $reset &&
+    str_contains($ui, 'Start Production') && !str_contains($ui, 'Start simulation'),
+    'Production must provide one real start action followed by Reset');
+expect(!str_contains($ui, 'id="syndamorph-real-brief"') &&
+    !str_contains($ui, 'id="syndamorph-purr-run"') &&
+    !str_contains($ui, 'syndamorph-demo-dialogue'),
+    'Legacy POC or simulator controls still exposed');
+expect(str_contains($client, "byId(") === false || str_contains($client, "const brief = $('syndamorph-team-brief')"),
+    'The real client must use the Production Brief');
+expect(str_contains($client, 'JSON.stringify({brief:prompt})') &&
+    !str_contains($client, 'validateSource(') &&
+    str_contains($client, 'response.body.getReader()') &&
+    str_contains($client, 'agent_delta') &&
+    str_contains($ui, 'syndamorph/v1/ai/team-stream'),
+    'Real AI must use brief-only incremental SSE events');
+expect(str_contains($ui, 'id="syndamorph-real-results"') &&
+    str_contains($client, "frame.setAttribute('sandbox', '')"),
+    'Safe HTML results panel is missing');
+$server = file_get_contents(dirname(__DIR__) . '/plugin/includes/ai-team-real.php');
+$models = file_get_contents(dirname(__DIR__) . '/plugin/includes/ai-models.php');
+expect(str_contains($server, "syndamorph_team_sse_emit( 'job_complete'") &&
+    str_contains($server, "syndamorph_team_sse_emit( 'job_error'") &&
+    str_contains($server, "'agent_delta'") &&
+    str_contains($models, '$on_delta( $delta[\'text\'] )'),
+    'Server-side incremental event delivery missing');
 
 echo "PASS: live model catalog cache/refresh, no hardcoded models, four role handoff, usage, deterministic checks and spending gate\n";
