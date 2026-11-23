@@ -732,3 +732,14 @@
     #syndamorph-production-team .sm-team-timeline {gap:12px;}
     #syndamorph-production-team .sm-team-step {padding:14px 15px 16px;}
 }
+
+/* Keep the demonstration conversation contained; leave the roster and View Result accessible. */
+#syndamorph-production-team #syndamorph-team-timeline {
+    max-height: clamp(280px, 46vh, 440px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    align-content: start;
+    padding-right: 8px;
+    scrollbar-gutter: stable;
+}
