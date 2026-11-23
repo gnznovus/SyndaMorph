@@ -1,7 +1,7 @@
 <?php
 /**
- * AI Production Team — UI-first job simulation workspace.
- * No production execution or Gutenberg artifact generation occurs on this tab.
+ * AI Production Team — manual simulation and real, brief-only AI execution.
+ * Real AI execution generates text/HTML for review; publishing is disabled.
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
@@ -31,7 +31,7 @@ function syndamorph_team_render_tab(): void {
                 </div>
                 <div class="sm-sidebar-footer">
                     <strong>Internal MVP</strong><br>
-                    URL, HTML and ZIP conversion is operational. AI team orchestration remains experimental.
+                    URL, HTML and ZIP conversion is operational. AI team generation is experimental and never publishes automatically.
                 </div>
             </aside>
             <main class="sm-main">
@@ -41,26 +41,7 @@ function syndamorph_team_render_tab(): void {
                 </div>
                 <p class="sm-kicker">Production workspace</p>
                 <h1 class="sm-page-title">AI Production Team</h1>
-                <p class="sm-page-description">Inspect and convert source content with the existing Gutenberg engine, review results, or try the separate AI team simulation. Agent orchestration is not connected yet.</p>
-
-                <section class="sm-card" aria-labelledby="sm-real-poc-title" style="margin-bottom:24px">
-                    <div class="sm-card-header">
-                        <h2 class="sm-card-title" id="sm-real-poc-title">Real AI Production Team · POC #1</h2>
-                        <p class="sm-card-caption">Four sequential Claude calls: Boss → Designer → Developer → Validator. Runs independently of the existing mock simulation; no publishing or script execution.</p>
-                    </div>
-                    <div class="sm-card-body" style="display:grid;gap:14px">
-                        <div class="sm-field">
-                            <label class="sm-field-label" for="syndamorph-real-brief">Production brief</label>
-                            <textarea class="sm-control" id="syndamorph-real-brief" rows="3" maxlength="2000">Create a responsive, premium hotel hero section with a welcoming headline, short introduction, and clear call-to-action. Use a self-contained layout without external assets.</textarea>
-                        </div>
-                        <div>
-                            <button type="button" class="sm-primary" id="syndamorph-real-run">Run real AI team</button>
-                            <a href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=ai' ) ); ?>">Configure AI model</a>
-                        </div>
-                        <p class="sm-hint" id="syndamorph-real-status" role="status" aria-live="polite">Ready · Four paid API calls per run. The configured model and token rates determine estimated cost.</p>
-                        <pre class="sm-console" id="syndamorph-real-output" style="max-height:480px;overflow:auto;white-space:pre-wrap">No real job executed yet.</pre>
-                    </div>
-                </section>
+                <p class="sm-page-description">Inspect and convert source content with the existing Gutenberg engine, review results, or run the four-agent AI workflow from a production brief. AI output stays in review until explicitly handled.</p>
 
                 <nav class="sm-team-tabs" aria-label="Production workflow stages" role="tablist">
                     <button type="button" id="sm-team-tab-setup" role="tab" aria-controls="sm-team-panel-setup" aria-selected="true" tabindex="0" data-panel="setup">01 <strong>Setup</strong><span>Prepare job</span></button>
@@ -142,7 +123,7 @@ function syndamorph_team_render_tab(): void {
                         <section class="sm-card" aria-labelledby="sm-team-brief-title">
                             <div class="sm-card-header">
                                 <h2 class="sm-card-title" id="sm-team-brief-title">Production brief</h2>
-                                <p class="sm-card-caption">Describe the intended output. The deterministic converter works today; the PM orchestration flow remains a simulation.</p>
+                                <p class="sm-card-caption">Describe the desired output. Run a demo or the real Boss → Designer → Developer → Validator AI workflow; source import is optional for AI generation.</p>
                             </div>
                             <div class="sm-card-body">
                                 <div class="sm-field">
@@ -151,16 +132,17 @@ function syndamorph_team_render_tab(): void {
                                 </div>
                                 <div class="sm-team-actions">
                                     <button type="button" class="sm-team-secondary" id="syndamorph-team-run">Start simulation <span aria-hidden="true">→</span></button>
+                                    <button type="button" class="sm-primary" id="syndamorph-real-run">Run real AI team</button>
                                     <button type="button" class="sm-team-secondary" id="syndamorph-team-reset">Reset</button>
                                 </div>
-                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">Simulation demonstrates agent handoffs; production conversion runs from Source Import.</p>
+                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">Simulation is optional. Real AI needs only this brief and a configured paid model; conversion runs separately from Source Import.</p>
                             </div>
                         </section>
                     </div>
                 </section>
 
                 <section id="sm-team-panel-production" class="sm-team-panel" role="tabpanel" aria-labelledby="sm-team-tab-production" data-panel="production" hidden>
-                    <div class="sm-stats" aria-label="Simulation overview">
+                    <div class="sm-stats" aria-label="Production overview">
                         <div class="sm-stat"><span class="sm-stat-label">Current job</span><span class="sm-stat-value sm-stat-small" id="syndamorph-team-job-state">Not started</span></div>
                         <div class="sm-stat"><span class="sm-stat-label">Conversation turns</span><span class="sm-stat-value" id="syndamorph-team-handoffs">00 turns</span></div>
                         <div class="sm-stat"><span class="sm-stat-label">Output readiness</span><span class="sm-stat-value sm-stat-small" id="syndamorph-team-output-state">Not generated</span></div>
@@ -169,23 +151,24 @@ function syndamorph_team_render_tab(): void {
                         <section class="sm-card" aria-labelledby="sm-team-timeline-title">
                             <div class="sm-card-header sm-team-feed-heading">
                                 <div><h2 class="sm-card-title" id="sm-team-timeline-title">Live Production Feed</h2>
-                                <p class="sm-card-caption">Rule-based entertainment with authored agent dialogue. No AI inference or validated production actions.</p></div>
+                                <p class="sm-card-caption">Simulation is labeled as demo; real runs display actual agent handoffs after the request completes.</p></div>
                                 <span class="sm-status-pill" id="syndamorph-team-feed-state" data-state="idle">Idle</span>
                             </div>
                             <div class="sm-card-body">
                                 <p class="sm-team-job-header" id="syndamorph-team-current-job">No job submitted</p>
                                 <ol class="sm-team-timeline" id="syndamorph-team-timeline" aria-live="polite" aria-relevant="additions">
-                                    <li class="sm-team-empty">No activity yet. Start a simulation from Setup.</li>
+                                    <li class="sm-team-empty">No activity yet. Run a simulation or the real AI team from Setup.</li>
                                 </ol>
                             </div>
                         </section>
                         <section class="sm-card" aria-labelledby="sm-team-roster-title">
-                            <div class="sm-card-header"><h2 class="sm-card-title" id="sm-team-roster-title">Agent roster</h2><p class="sm-card-caption">Assigned roles and simulated activity.</p></div>
+                            <div class="sm-card-header"><h2 class="sm-card-title" id="sm-team-roster-title">Agent roster</h2><p class="sm-card-caption">Agent status reflects the selected demo or actual AI run.</p></div>
                             <div class="sm-card-body">
                                 <div class="sm-team-agent" data-agent="boss"><span class="sm-team-avatar">B</span><div><strong>PM / Boss Agent</strong><p>Job classification, delegation and approval</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
                                 <div class="sm-team-agent" data-agent="designer"><span class="sm-team-avatar">D</span><div><strong>Designer Agent</strong><p>Design architecture and visual fidelity</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
-                                <div class="sm-team-agent" data-agent="developer"><span class="sm-team-avatar">C</span><div><strong>Developer Agent</strong><p>Gutenberg blocks and interactions</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
-                                <div class="sm-team-note">Rule-based banter is entertainment only. Real agent decisions and evidence require actual inference.</div>
+                                <div class="sm-team-agent" data-agent="developer"><span class="sm-team-avatar">C</span><div><strong>Developer Agent</strong><p>HTML/CSS section implementation</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
+                                <div class="sm-team-agent" data-agent="validator"><span class="sm-team-avatar">V</span><div><strong>Validator Agent</strong><p>Implementation review and findings</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
+                                <div class="sm-team-note">Simulation is illustrative only. Real AI output is generated, not browser-verified or published.</div>
                                 <button type="button" class="sm-team-secondary sm-team-view-result" id="syndamorph-team-view-result" hidden>View Result</button>
                             </div>
                         </section>
@@ -193,7 +176,7 @@ function syndamorph_team_render_tab(): void {
                     <section class="sm-card sm-team-purr" aria-labelledby="sm-team-purr-title">
                         <div class="sm-card-header">
                             <h2 class="sm-card-title" id="sm-team-purr-title">Purr Gateway — Online Communication POC</h2>
-                            <p class="sm-card-caption">Optional real Railway test: four deterministic Gateway replies. Separate from the local streaming simulation.</p>
+                            <p class="sm-card-caption">Optional real Railway test: four deterministic Gateway replies. Separate from production AI jobs.</p>
                         </div>
                         <div class="sm-card-body">
                             <div class="sm-team-purr-toolbar">
@@ -210,13 +193,14 @@ function syndamorph_team_render_tab(): void {
                 <section id="sm-team-panel-results" class="sm-team-panel" role="tabpanel" aria-labelledby="sm-team-tab-results" data-panel="results" hidden>
                     <section class="sm-card" aria-labelledby="sm-team-review-title">
                         <div class="sm-card-header"><h2 class="sm-card-title" id="sm-team-review-title">Job results</h2>
-                            <p class="sm-card-caption">Job identity and outcome. A completed conversation is not a generated Gutenberg artifact.</p></div>
+                            <p class="sm-card-caption">Real AI reports are review-only; Gutenberg conversion remains available through Source Import.</p></div>
                         <div class="sm-card-body">
                             <h2 class="sm-team-result-title" id="syndamorph-team-result-title">No job submitted</h2>
                             <div class="sm-team-result" id="syndamorph-team-review" role="status" aria-live="polite">
                                 <strong>No output available</strong>
                                 <p>Inspect and convert a source from Setup to view real Gutenberg previews and approve WordPress output.</p>
                             </div>
+                            <div id="syndamorph-real-results" class="sm-team-ai-results" hidden aria-label="Real AI generation results"></div>
                             <section class="sm-team-artifacts" id="syndamorph-team-artifacts" hidden aria-label="Converted Gutenberg preview">
                                 <div class="sm-team-preview-toolbar">
                                     <strong id="syndamorph-team-preview-heading">Gutenberg preview</strong>
@@ -288,7 +272,7 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
         'packagePageUrl' => rest_url( 'syndamorph/v1/package-page' ),
         'packageCommitUrl' => rest_url( 'syndamorph/v1/package-commit' ),
     ) ) . ';', 'before' );
-    wp_enqueue_script( 'syndamorph-real-team', plugin_dir_url( __DIR__ ) . 'assets/ai-team-real.js', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/ai-team-real.js' ), true );
+    wp_enqueue_script( 'syndamorph-real-team', plugin_dir_url( __DIR__ ) . 'assets/ai-team-real.js', array( 'syndamorph-team' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/ai-team-real.js' ), true );
     wp_add_inline_script( 'syndamorph-real-team', 'window.SyndaMorphRealTeam=' . wp_json_encode( array(
         'nonce' => wp_create_nonce( 'wp_rest' ),
         'url' => rest_url( 'syndamorph/v1/ai/team-poc' ),
