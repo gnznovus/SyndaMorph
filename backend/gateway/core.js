@@ -29,6 +29,23 @@ function createGateway({ repository, pepper, now = () => new Date(), grants = ne
     const active = value => value.status === 'active';
     const validLease = lease => active(lease) && lease.startsAt <= current() && (lease.expiresAt === null || lease.expiresAt > current());
 
+    function adminOverview() {
+        const db = load();
+        return {
+            customers: db.customers.map(({ id, name, status, createdAt }) => ({ id, name, status, createdAt })),
+            credentials: db.credentials.map(({ id, customerId, prefix, status, createdAt }) => ({ id, customerId, prefix, status, createdAt })),
+            packages: db.packages.map(({ id, customerId, name, versions, createdAt }) => ({
+                id, customerId, name, createdAt,
+                versions: versions.map(({ version, sha256, size, status, publishedAt }) => ({ version, sha256, size, status, publishedAt })),
+            })),
+            leases: db.leases.map(row => ({
+                ...row,
+                effectiveStatus: row.status === 'active'
+                    ? (row.startsAt > current() ? 'scheduled' : row.expiresAt !== null && row.expiresAt <= current() ? 'expired' : 'active')
+                    : row.status,
+            })),
+        };
+    }
     function customer(input) {
         if (!validName(input?.name)) fail(400, 'invalid_customer');
         return change(db => {
@@ -163,6 +180,6 @@ function createGateway({ repository, pepper, now = () => new Date(), grants = ne
         if (!pkg.versions.some(v => v.version === grant.version && v.status === 'published' && v.sha256 === grant.sha256)) fail(403, 'access_revoked');
         return grant;
     }
-    return { customer, setCustomerStatus, issueKey, revokeKey, authenticate, registerPackage, publishVersion, lease, updateLease, packagesFor, versionsFor, authorizeDownload, consumeDownload };
+    return { adminOverview, customer, setCustomerStatus, issueKey, revokeKey, authenticate, registerPackage, publishVersion, lease, updateLease, packagesFor, versionsFor, authorizeDownload, consumeDownload };
 }
 module.exports = { createGateway, AccessError };
