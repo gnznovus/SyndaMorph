@@ -271,6 +271,7 @@
     }
     function appendStage( index ) {
         const stage = stages[ index ];
+        const followLatest = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 48;
         const li = document.createElement( 'li' );
         li.className = 'sm-team-step';
         const title = document.createElement( 'strong' );
@@ -284,7 +285,7 @@
         timeline.append( li );
         setAgentStates( index + 1 );
         setText( handoffs, String( index + 1 ).padStart( 2, '0' ) + ' / ' + demoCount() );
-        li.scrollIntoView( { block: 'nearest', behavior: 'smooth' } );
+        if ( followLatest ) timeline.scrollTop = timeline.scrollHeight;
     }
     function begin() {
         const error = validateSource();
