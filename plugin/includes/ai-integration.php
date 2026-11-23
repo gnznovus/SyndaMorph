@@ -203,7 +203,7 @@ function syndamorph_ai_render_tab(): void {
                 <section class="sm-card" aria-labelledby="sm-model-config-title" >
                     <div class="sm-card-header">
                         <h2 class="sm-card-title" id="sm-model-config-title">AI model configuration</h2>
-                        <p class="sm-card-caption">Discover models from your connected provider. Set a model and verified USD token rates for cost estimates; model discovery does not include pricing.</p>
+                        <p class="sm-card-caption">Models are discovered from the provider; standard token prices come from a separately maintained pricing reference. Confirm rates before any paid run.</p>
                     </div>
                     <div class="sm-card-body" style="display:grid;gap:16px">
                         <div class="sm-field">
@@ -231,7 +231,7 @@ function syndamorph_ai_render_tab(): void {
                             <label class="sm-field-label" for="syndamorph-model-budget">Maximum estimated job cost (USD)</label>
                             <input class="sm-control" style="max-width:220px" id="syndamorph-model-budget" type="number" min="0.01" max="100" step="0.01" value="1.00">
                         </div>
-                        <p class="sm-hint">Rates are administrator-entered, not provider-verified. Real usage is measured; computed cost is an estimate and excludes special cache or billing adjustments.</p>
+                        <p class="sm-hint">Displayed standard rates are based on <a href="https://platform.claude.com/docs/en/about-claude/pricing" target="_blank" rel="noopener noreferrer">Anthropic's published pricing</a> (checked 24 Nov 2026). You can override them. Estimates exclude caching and other billing adjustments; Haiku 5.5 costs more for prompts over 100K tokens.</p>
                         <div><button type="button" class="sm-primary" id="syndamorph-model-save">Save model and pricing</button></div>
                         <p id="syndamorph-model-save-status" role="status" aria-live="polite"></p>
                     </div>
