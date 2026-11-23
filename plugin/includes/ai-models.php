@@ -6,6 +6,42 @@
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
+/**
+ * Published standard Claude API token rates, USD per 1M tokens.
+ * This is a maintained pricing snapshot, NOT the dynamic model catalog.
+ * Source: https://platform.claude.com/docs/en/about-claude/pricing
+ * Verified: 2026-11-24. Anthropic does not include tariffs in GET /v1/models.
+ * Haiku 5.5 has a higher rate when a request exceeds 100K prompt tokens.
+ */
+function syndamorph_anthropic_pricing( string $model_id ): ?array {
+    $rates = array(
+        'claude-fable-5-2' => array( 8.0, 40.0 ),
+        'claude-haiku-5-5' => array( 0.1, 0.5 ),
+        'claude-sonnet-5-5' => array( 2.0, 10.0 ),
+        'claude-opus-5-5' => array( 4.0, 20.0 ),
+        'claude-fable-5-1' => array( 10.0, 50.0 ),
+        'claude-opus-5' => array( 5.0, 25.0 ),
+        'claude-sonnet-5' => array( 2.0, 10.0 ),
+        'claude-fable-5' => array( 10.0, 50.0 ),
+        'claude-opus-4-8' => array( 5.0, 25.0 ),
+        'claude-opus-4-7' => array( 5.0, 25.0 ),
+        'claude-sonnet-4-6' => array( 3.0, 15.0 ),
+        'claude-opus-4-6' => array( 5.0, 25.0 ),
+        'claude-opus-4-5-20251101' => array( 5.0, 25.0 ),
+        'claude-haiku-4-5-20251001' => array( 1.0, 5.0 ),
+    );
+    if ( ! isset( $rates[ $model_id ] ) ) { return null; }
+    return array(
+        'input' => $rates[ $model_id ][0],
+        'output' => $rates[ $model_id ][1],
+        'source' => 'https://platform.claude.com/docs/en/about-claude/pricing',
+        'verifiedAt' => '2026-11-24',
+        'note' => 'claude-haiku-5-5' === $model_id
+            ? 'Standard rates apply only up to 100K prompt tokens; over 100K: $0.50 input / $2.50 output per 1M.'
+            : '',
+    );
+}
+
 function syndamorph_models_catalog( string $provider, bool $force = false ) {
     if ( 'anthropic' !== $provider ) {
         return new WP_Error( 'sm_model_unsupported', 'Model discovery is not implemented for this provider.', array( 'status' => 501 ) );
@@ -39,7 +75,10 @@ function syndamorph_models_catalog( string $provider, bool $force = false ) {
         if ( ! is_array( $model ) || ! is_string( $model['id'] ?? null ) ||
              ! preg_match( '/^[a-z0-9][a-z0-9._-]{1,99}$/iD', $model['id'] ) ||
              ! is_string( $model['display_name'] ?? null ) ) { continue; }
-        $models[] = array( 'id' => $model['id'], 'name' => sanitize_text_field( $model['display_name'] ) );
+        $models[] = array(
+            'id' => $model['id'], 'name' => sanitize_text_field( $model['display_name'] ),
+            'pricing' => syndamorph_anthropic_pricing( $model['id'] ),
+        );
     }
     if ( ! $models ) {
         return new WP_Error( 'sm_model_empty', 'The provider returned no usable models.', array( 'status' => 502 ) );
