@@ -12,6 +12,31 @@ This service belongs to **SyndaMorph**, not the SyndaMorph Unpacker plugin. It i
 - Leases and credentials affect future Gateway access only. Installed WordPress content and local archives are never contacted, disabled, or deleted.
 - Unpacker plugin self-updates remain independent from leases.
 
+## Local Docker Compose integration (Windows / PowerShell)
+
+On the `feat/secure-gateway-leasing-v1` branch, from the repo root:
+
+```powershell
+.\\scripts\\setup_gateway_dev.ps1
+docker compose up -d --build gateway wordpress
+docker compose ps gateway wordpress
+```
+
+Then refresh `http://localhost:8085/wp-admin/tools.php?page=syndamorph&tab=gateway`.
+
+The initializer adds two random 48-byte secrets to the ignored local `.env` file (preserving any existing nonempty values and other settings). **Never commit the secrets**, and don't use these development settings in production. The Gateway stores its registry in the dedicated `gateway_data` named volume and its private artifacts in `gateway_artifacts`. Neither is removed by `docker compose restart`. Do **not** use `docker compose down -v`.
+
+The Gateway binds only to the internal Docker network and has no host-published port. WordPress PHP reaches it at `http://gateway:3200`; the administrator token is passed through the WordPress container environment and only used by PHP. An exact local-environment hostname exemption allows HTTP for this internal link; remote/production URLs must use HTTPS.
+
+Useful health check:
+
+```powershell
+docker compose exec wordpress curl -fsS http://gateway:3200/healthz
+docker compose logs --tail=50 gateway
+```
+
+After initial setup, `docker compose up -d --build gateway wordpress` is enough. If you rotate either secret, follow a planned credential rotation; changing the HMAC pepper invalidates existing client keys, and changing the admin token requires both containers to be recreated.
+
 ## Start the isolated MVP
 
 Run from the repository root with Node 22+:
