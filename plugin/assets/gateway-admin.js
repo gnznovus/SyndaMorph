@@ -20,27 +20,27 @@
     };
     const attach = (parent, ...children) => { for (const child of children) parent.append(child); return parent; };
     const button = (label, handler, secondary = false) => {
-        const b = element('button', label, { type: 'button', className: secondary ? 'button' : 'button button-primary' });
+        const b = element('button', label, { type: 'button', className: secondary ? 'sm-gateway-button sm-gateway-button-secondary' : 'sm-gateway-button sm-gateway-button-primary' });
         b.addEventListener('click', handler);
         return b;
     };
     const section = (title) => {
-        const node = element('section', null, { className: 'sm-gateway-panel' });
-        attach(node, element('h2', title));
+        const node = element('section', null, { className: 'sm-card sm-gateway-panel' });
+        attach(node, element('h2', title, { className: 'sm-card-title' }));
         return node;
     };
     const field = (label, value = '', type = 'text') => {
-        const wrapper = element('label', null, { className: 'sm-gateway-field' });
-        attach(wrapper, element('span', label));
-        const control = element('input', null, { type });
+        const wrapper = element('label', null, { className: 'sm-field sm-gateway-field' });
+        attach(wrapper, element('span', label, { className: 'sm-field-label' }));
+        const control = element('input', null, { type, className: 'sm-control' });
         control.value = value;
         wrapper.append(control);
         return { wrapper, control };
     };
     const select = (items, selected, label) => {
         const wrapper = element('label', null, { className: 'sm-gateway-field' });
-        wrapper.append(element('span', label));
-        const box = element('select');
+        wrapper.append(element('span', label, { className: 'sm-field-label' }));
+        const box = element('select', null, { className: 'sm-control' });
         for (const item of items) {
             const opt = element('option', item.label);
             opt.value = item.value;
@@ -51,7 +51,7 @@
         return { wrapper, control: box };
     };
     const notice = (message, error = false) => {
-        status.replaceChildren(element('p', message, { className: 'notice inline ' + (error ? 'notice-error' : 'notice-success') }));
+        status.replaceChildren(element('p', message, { className: 'sm-gateway-message ' + (error ? 'is-error' : 'is-success') }));
     };
     async function call(operation, payload = {}) {
         const form = new URLSearchParams({
@@ -89,6 +89,18 @@
     const row = (...cells) => attach(element('div', null, { className: 'sm-gateway-row' }), ...cells);
     function render() {
         root.replaceChildren();
+        const stats = document.getElementById('syndamorph-gateway-stats');
+        if (stats) {
+            const counts = {
+                customers: overview.customers.length,
+                packages: overview.packages.length,
+                leases: overview.leases.filter(l => l.effectiveStatus === 'active').length,
+            };
+            for (const [key, value] of Object.entries(counts)) {
+                const target = stats.querySelector('[data-stat="' + key + '"]');
+                if (target) target.textContent = String(value).padStart(2, '0');
+            }
+        }
         const picker = section('Clients');
         const create = field('New client name');
         const createRow = row(create.wrapper, button('Register client', async () => {
@@ -190,10 +202,5 @@
         if (!packages.length) packagesPanel.append(element('p', 'No packages yet.'));
         root.append(packagesPanel);
     }
-    if (cfg.configured) {
-        const style = element('style');
-        style.textContent = '#syndamorph-gateway-root{max-width:1040px;display:grid;gap:18px;margin-top:18px}.sm-gateway-panel{background:#fff;border:1px solid #c3c4c7;border-radius:8px;padding:18px;display:grid;gap:12px}.sm-gateway-panel h2,.sm-gateway-panel h3{margin:0}.sm-gateway-field{display:grid;gap:5px;min-width:200px;flex:1}.sm-gateway-field input,.sm-gateway-field select{width:100%;max-width:400px}.sm-gateway-row,.sm-gateway-actions{display:flex;flex-wrap:wrap;align-items:end;gap:12px}.sm-gateway-panel code{overflow-wrap:anywhere;padding:10px;background:#f6f7f7}.sm-gateway-panel p{margin:0}';
-        root.before(style);
-        refresh();
-    }
+    if (cfg.configured) refresh();
 })();
