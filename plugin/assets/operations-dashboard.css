@@ -906,3 +906,28 @@
         flex-wrap: wrap;
     }
 }
+
+/* Real AI reports share the existing Production Team Results workspace. */
+#syndamorph-production-team .sm-team-ai-results { display:grid; gap:12px; margin:18px 0 0; min-width:0; }
+#syndamorph-production-team .sm-team-ai-results[hidden] { display:none !important; }
+#syndamorph-production-team .sm-team-ai-summary {
+    margin:0; padding:13px 15px; border-radius:9px; background:#f7f9fc;
+    border:1px solid var(--sm-border); font-size:12px; font-weight:650; overflow-wrap:anywhere;
+}
+#syndamorph-production-team .sm-team-ai-agent-output {
+    border:1px solid var(--sm-border); border-radius:10px; background:#fff; min-width:0; overflow:hidden;
+}
+#syndamorph-production-team .sm-team-ai-agent-output summary {
+    cursor:pointer; padding:14px 16px; color:var(--sm-ink); font-size:12px; font-weight:750;
+    overflow-wrap:anywhere; background:#f8f9fc;
+}
+#syndamorph-production-team .sm-team-ai-agent-output summary:focus-visible {
+    outline:2px solid var(--sm-accent); outline-offset:-2px;
+}
+#syndamorph-production-team .sm-team-ai-agent-output pre {
+    padding:16px; margin:0; max-height:550px; overflow:auto; white-space:pre-wrap;
+    overflow-wrap:anywhere; font:12px/1.6 Consolas,Monaco,monospace; color:#2d394d;
+}
+#syndamorph-production-team .sm-team-actions button:disabled {
+    cursor:not-allowed; opacity:.55;
+}
