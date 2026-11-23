@@ -149,7 +149,9 @@ function syndamorph_team_sse_run( string $brief ): void {
         header( 'X-Content-Type-Options: nosniff' );
     }
     // Do not retain results in PHP output buffers between agent chunks.
-    while ( ob_get_level() > 0 ) { @ob_end_flush(); }
+    while ( ob_get_level() > 0 ) {
+        if ( ! @ob_end_flush() ) { break; }
+    }
     syndamorph_team_sse_emit( 'ready', array( 'roles' => array( 'boss', 'designer', 'developer', 'validator' ) ) );
     try {
         $result = syndamorph_team_real_run( $brief, true, 'syndamorph_team_sse_emit' );
