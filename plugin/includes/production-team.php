@@ -24,6 +24,9 @@ function syndamorph_team_render_tab(): void {
                         <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=ai' ) ); ?>">
                             <span class="dashicons dashicons-admin-network" aria-hidden="true"></span> AI Integration
                         </a>
+                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=gateway' ) ); ?>">
+                            <span class="dashicons dashicons-shield" aria-hidden="true"></span> Client Access Manager
+                        </a>
                     </nav>
                 </div>
                 <div class="sm-sidebar-footer">
