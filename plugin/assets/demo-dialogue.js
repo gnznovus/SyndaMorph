@@ -71,30 +71,151 @@
             ],
         },
     });
-    const FLOW = Object.freeze([
-        ['boss', 'intake', 'Kickoff'],
-        ['designer', 'direction', 'Design direction'],
-        ['developer', 'feasibility', 'Technical challenge'],
-        ['designer', 'respond', 'Design response'],
-        ['boss', 'mediate', 'Trade-off'],
-        ['designer', 'handoff', 'Design handoff'],
-        ['developer', 'approach', 'Implementation proposal'],
-        ['developer', 'confirm', 'Acknowledgement'],
-        ['boss', 'close', 'Wrap-up'],
-    ]);
-    function buildConversation( { kind = 'html', brief = '' } = {} ) {
-        const source = { url: 'URL section', html: 'HTML page', package: 'ZIP package' }[ kind ];
-        if ( !source ) throw new TypeError( 'Unsupported demo source type.' );
-        const seed = String( brief ).length + kind.length;
-        const scenario = seed % TOPICS.length;
-        return FLOW.map( ( [ agent, intent, type ] ) => {
-            const lines = POOLS[ agent ][ intent ];
-            const chosen = lines[ scenario ];
-            return Object.freeze( {
-                agent, name: NAMES[ agent ], intent, type, topic: TOPICS[ scenario ],
-                action: chosen.replaceAll( '{source}', source ),
-            } );
-        } );
+    const META = Object.freeze({
+        spacing: { keywords: ['spacing', 'padding', 'margin', 'gap', 'whitespace', 'rhythm'] },
+        responsive: { keywords: ['mobile', 'responsive', 'breakpoint', 'stack', 'column', 'viewport'] },
+        interaction: { keywords: ['animation', 'button', 'hover', 'click', 'javascript', 'interaction', 'cta'] },
+    });
+    const OBJECTIONS = Object.freeze({
+        spacing: [
+            'One more concern: using the same gap everywhere will flatten the hierarchy. Should the inner group remain tighter?',
+            'Hold on. What happens when the text wraps? Fixed heights would make that section spacing fragile.',
+        ],
+        responsive: [
+            'One more concern: stacking alone may put the supporting image ahead of the headline. Can we commit to semantic order?',
+            'Before we agree, what happens to the call-to-action when those two columns collapse?',
+        ],
+        interaction: [
+            'One more concern: keyboard users must reach the action without depending on hover. Can we promise that?',
+            'Before signing off, how will the button behave without JavaScript enabled?',
+        ],
+    });
+    const ANSWERS = Object.freeze({
+        spacing: [
+            'Yes, inner content gets a smaller gap than section boundaries. No fixed heights are needed.',
+            'Good catch. The spacing rule will follow content flow, so wrapped text can grow naturally.',
+        ],
+        responsive: [
+            'Agreed. Headline and action stay first in document order; imagery follows when the layout stacks.',
+            'The call-to-action stays with the main text column, before the supporting image.',
+        ],
+        interaction: [
+            'Agreed. The native button keeps a clear focus state and works without a hover gesture.',
+            'No JavaScript dependency for the primary action. The link works even when scripts are disabled.',
+        ],
+    });
+    const CLARIFY = Object.freeze({
+        spacing: 'Designer, can we express the two spacing levels as editable Group settings rather than manual offsets?',
+        responsive: 'Designer, confirm the content order so Developer can use the native column stack.',
+        interaction: 'Developer, confirm that a core Button meets the interaction requirement before we add custom behavior.',
+    });
+    const MAX_TURNS = 16;
+    function pickTopic(brief, seed) {
+        const words = String(brief).toLowerCase().match(/[a-z]+/g) || [];
+        const scores = TOPICS.map(topic => META[topic].keywords.reduce((score, key) => score + words.filter(word => word === key).length, 0));
+        const best = Math.max(...scores);
+        return best ? TOPICS[scores.indexOf(best)] : TOPICS[seed % TOPICS.length];
     }
-    return Object.freeze( { buildConversation, POOLS, FLOW, TOPICS } );
+    function hashSeed(value) {
+        let hash = 2166136261;
+        for (const char of String(value)) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+        return hash >>> 0;
+    }
+    function seededRandom(seed) {
+        let state = (seed >>> 0) || 1;
+        return () => {
+            state ^= state << 13;
+            state ^= state >>> 17;
+            state ^= state << 5;
+            return (state >>> 0) / 4294967296;
+        };
+    }
+    // A session generates the NEXT response from the current branch and shared
+    // topic. Randomness decides whether new objections appear, never the topic.
+    function createSession({ kind = 'html', brief = '', seed, random } = {}) {
+        const source = { url: 'URL section', html: 'HTML page', package: 'ZIP package' }[kind];
+        if (!source) throw new TypeError('Unsupported demo source type.');
+        const startSeed = seed === undefined ? hashSeed(String(brief) + Date.now() + Math.random()) : seed;
+        if (!Number.isSafeInteger(startSeed) || startSeed < 0) throw new TypeError('Invalid seed.');
+        const rng = random === undefined ? seededRandom(startSeed) : random;
+        if (typeof rng !== 'function') throw new TypeError('Random function required.');
+        const topic = pickTopic(brief, startSeed);
+        const topicIndex = TOPICS.indexOf(topic);
+        const state = { topic, turnCount: 0, tension: 1, objections: 0, aligned: false, resolved: false, forced: false, phase: 'intake' };
+        const used = new Set();
+        let pending = [];
+        let last = null;
+        const scripted = (agent, intent, type) => ({ agent, intent, type, action: POOLS[agent][intent][topicIndex] });
+        function branch() {
+            const n = Number(rng());
+            const chance = Number.isFinite(n) ? Math.max(0, Math.min(0.999999, n)) : 0.5;
+            // At least one objection is possible; no endless dispute.
+            if (state.objections < 2 && chance < (state.objections ? 0.28 : 0.58) && state.turnCount < MAX_TURNS - 6) {
+                const variant = state.objections;
+                state.objections++;
+                state.tension++;
+                return [
+                    {agent:'developer',intent:'challenge',type:'Follow-up objection',action:OBJECTIONS[topic][variant]},
+                    {agent:'designer',intent:'revise',type:'Revision',action:ANSWERS[topic][variant]},
+                    {agent:'boss',intent:'clarify',type:'Clarification',action:CLARIFY[topic]},
+                ];
+            }
+            state.aligned = true;
+            return [
+                scripted('boss','mediate','Trade-off'),
+                scripted('designer','handoff','Design handoff'),
+                scripted('developer','approach','Implementation proposal'),
+                scripted('developer','confirm','Acknowledgement'),
+                scripted('boss','close','Peace route'),
+            ];
+        }
+        pending = [
+            scripted('boss','intake','Kickoff'),
+            scripted('designer','direction','Design direction'),
+            scripted('developer','feasibility','Technical challenge'),
+            scripted('designer','respond','Design response'),
+        ];
+        function next() {
+            if (state.resolved) return null;
+            if (!pending.length) pending = branch();
+            if (state.turnCount >= MAX_TURNS - 1 && !state.aligned) {
+                pending = [{agent:'boss',intent:'close',type:'Unresolved — review required',
+                    action:'We have reached the demo conversation limit without agreement. Escalating for real review; no work has been validated.'}];
+                state.forced = true;
+            }
+            const step = pending.shift();
+            if (!step) return null;
+            const action = step.action.replaceAll('{source}', source);
+            // A repeated clarification can be intentional, but never repeat an
+            // identical line: distinguish follow-up context without inventing work.
+            const utterance = used.has(action) ? 'Following up on the same concern: ' + action : action;
+            used.add(action);
+            const message = Object.freeze({
+                agent:step.agent, name:NAMES[step.agent], intent:step.intent, type:step.type,
+                topic, action:utterance,
+            });
+            last = message;
+            state.turnCount++;
+            if (step.intent === 'revise') state.tension = Math.max(0, state.tension - 1);
+            if (step.intent === 'close') {
+                state.resolved = true;
+                state.tension = 0;
+            }
+            return message;
+        }
+        return Object.freeze({
+            next,
+            get state() { return Object.freeze({ ...state, lastSpeaker:last?.agent || null }); },
+        });
+    }
+    // Convenience for deterministic testing; the UI consumes the live session
+    // one turn at a time instead.
+    function buildConversation(options = {}) {
+        const session = createSession(options);
+        const transcript = [];
+        let message;
+        while ((message = session.next())) transcript.push(message);
+        return transcript;
+    }
+    return Object.freeze({ buildConversation, createSession, POOLS, TOPICS, META, MAX_TURNS });
 } );
