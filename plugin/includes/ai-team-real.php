@@ -15,6 +15,19 @@ function syndamorph_team_real_run( string $brief ) {
         return new WP_Error( 'sm_team_model', 'Selected model is no longer available; refresh the catalog.', array( 'status' => 400 ) );
     }
 
+    $input_rate = (float) ( $settings['inputPrice'] ?? 0 );
+    $output_rate = (float) ( $settings['outputPrice'] ?? 0 );
+    $budget = (float) ( $settings['maxJobUsd'] ?? 0 );
+    if ( $input_rate <= 0 || $output_rate <= 0 || $budget <= 0 ) {
+        return new WP_Error( 'sm_team_budget', 'Configure verified positive token rates and a job budget first.', array( 'status' => 400 ) );
+    }
+    // Approximate preflight; provider pricing, caching and input usage can differ.
+    $estimated_upper = 4 * ( 16000 * $input_rate + 1200 * $output_rate ) / 1000000;
+    if ( $estimated_upper > $budget ) {
+        return new WP_Error( 'sm_team_budget', 'Estimated maximum job usage exceeds configured budget; choose a cheaper model or raise the limit.', array( 'status' => 400 ) );
+    }
+    if ( function_exists( 'set_time_limit' ) ) { @set_time_limit( 240 ); }
+
     $roles = array(
         'boss' => 'You are the project manager. Turn the brief into a concise section plan and 3-5 specific, testable acceptance criteria. Do not assert completion.',
         'designer' => 'You are the designer. Given the user brief and project manager handoff, describe the visual hierarchy, responsive layout, typography, and color direction. Do not invent external assets.',
@@ -27,6 +40,11 @@ function syndamorph_team_real_run( string $brief ) {
     $started = microtime( true );
 
     foreach ( $roles as $role => $instruction ) {
+        $estimated_spent = ( $usage['inputTokens'] * $input_rate + $usage['outputTokens'] * $output_rate ) / 1000000;
+        $call_allowance = ( 16000 * $input_rate + 1200 * $output_rate ) / 1000000;
+        if ( $estimated_spent + $call_allowance > $budget ) {
+            return new WP_Error( 'sm_team_budget', 'Estimated job budget reached before the next agent.', array( 'status' => 429 ) );
+        }
         // Limit chain length and cost: four bounded calls, no automatic retries.
         $input = wp_json_encode( array(
             'brief' => $brief,
@@ -75,6 +93,7 @@ function syndamorph_team_real_run( string $brief ) {
         'events' => $events, 'outputs' => $handoffs, 'checks' => $checks, 'usage' => $usage,
         'estimatedCostUsd' => $cost, 'pricingSource' => $settings['pricingSource'] ?? 'unknown',
         'elapsedMs' => (int) round( ( microtime( true ) - $started ) * 1000 ),
+        'budgetUsd' => $budget, 'budgetIsEstimate' => true,
         'published' => false, 'renderedInBrowser' => false,
     );
 }
