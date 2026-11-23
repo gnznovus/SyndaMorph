@@ -180,22 +180,21 @@ add_action( 'rest_api_init', static function (): void {
             if ( ! is_numeric( $budget ) || (float) $budget <= 0 || (float) $budget > 100 ) {
                 return new WP_Error( 'sm_model_budget', 'Enter a positive per-job budget up to USD 100.', array( 'status' => 400 ) );
             }
-            $input = $request->get_param( 'inputPrice' );
-            $output = $request->get_param( 'outputPrice' );
-            if ( ! is_numeric( $input ) || ! is_numeric( $output ) ||
-                (float) $input <= 0 || (float) $output <= 0 ||
-                (float) $input > 10000 || (float) $output > 10000 ) {
-                return new WP_Error( 'sm_model_price', 'Enter valid nonnegative USD rates per million tokens.', array( 'status' => 400 ) );
+            // Published standard pricing is authoritative for this POC.
+            // Reject missing-rate models instead of trusting browser-submitted prices.
+            $rate = 'anthropic' === $provider ? syndamorph_anthropic_pricing( $id ) : null;
+            if ( null === $rate ) {
+                return new WP_Error( 'sm_model_price', 'Pricing is unavailable for this model; paid execution is disabled.', array( 'status' => 400 ) );
             }
-            $published_rate = 'anthropic' === $provider ? syndamorph_anthropic_pricing( $id ) : null;
-            $uses_reference = null !== $published_rate &&
-                (float) $input === $published_rate['input'] &&
-                (float) $output === $published_rate['output'];
-            $settings = array( 'provider' => $provider, 'model' => $id,
-                'inputPrice' => (float) $input, 'outputPrice' => (float) $output,
+            $settings = array(
+                'provider' => $provider,
+                'model' => $id,
+                'inputPrice' => $rate['input'],
+                'outputPrice' => $rate['output'],
                 'maxJobUsd' => (float) $budget,
-                'pricingSource' => $uses_reference ? 'anthropic-standard-reference-2026-11-24' : 'administrator-entered',
-                'savedAt' => time() );
+                'pricingSource' => 'anthropic-standard-reference-2026-11-24',
+                'savedAt' => time(),
+            );
             update_option( 'syndamorph_ai_model_settings', $settings, false );
             return rest_ensure_response( $settings );
         },
