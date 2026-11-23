@@ -64,11 +64,13 @@ test('download is one-time, revocation checked again on use, metadata has no sto
     const f = fixture();
     try {
         const a = f.gateway.customer({ name: 'Client A' });
+        const key = f.gateway.issueKey(a.id);
+        const principal = f.gateway.authenticate('Bearer ' + key.token);
         const pkg = f.gateway.registerPackage(a.id, { name: 'Project' });
         const bytes = Buffer.from('PK\x03\x04test-archive');
         const checksum = crypto.createHash('sha256').update(bytes).digest('hex');
         f.gateway.publishVersion(a.id, pkg.id, { version: '1.0.0', sha256: checksum, size: bytes.length, storageKey: 'artifact.zip' });
-        assert.throws(() => f.gateway.authorizeDownload(a, pkg.id, '1.0.0'), { status: 403 });
+        assert.throws(() => f.gateway.authorizeDownload(principal, pkg.id, '1.0.0'), { status: 403 });
         const lease = f.gateway.lease(a.id, pkg.id, {});
         const version = f.gateway.versionsFor(a, pkg.id)[0];
         assert.equal(version.sha256, checksum);
@@ -79,6 +81,10 @@ test('download is one-time, revocation checked again on use, metadata has no sto
         const newer = f.gateway.authorizeDownload(a, pkg.id, '1.0.0');
         f.gateway.updateLease(a.id, lease.id, { status: 'revoked' });
         assert.throws(() => f.gateway.consumeDownload(newer.grant), { status: 403 });
+        const nextLease = f.gateway.lease(a.id, pkg.id, {});
+        const grantAfterLease = f.gateway.authorizeDownload(principal, pkg.id, '1.0.0');
+        f.gateway.revokeKey(a.id, key.id);
+        assert.throws(() => f.gateway.consumeDownload(grantAfterLease.grant), { status: 403 });
     } finally { f.cleanup(); }
 });
 
