@@ -43,6 +43,25 @@ function syndamorph_team_render_tab(): void {
                 <h1 class="sm-page-title">AI Production Team</h1>
                 <p class="sm-page-description">Inspect and convert source content with the existing Gutenberg engine, review results, or try the separate AI team simulation. Agent orchestration is not connected yet.</p>
 
+                <section class="sm-card" aria-labelledby="sm-real-poc-title" style="margin-bottom:24px">
+                    <div class="sm-card-header">
+                        <h2 class="sm-card-title" id="sm-real-poc-title">Real AI Production Team · POC #1</h2>
+                        <p class="sm-card-caption">Four sequential Claude calls: Boss → Designer → Developer → Validator. Runs independently of the existing mock simulation; no publishing or script execution.</p>
+                    </div>
+                    <div class="sm-card-body" style="display:grid;gap:14px">
+                        <div class="sm-field">
+                            <label class="sm-field-label" for="syndamorph-real-brief">Production brief</label>
+                            <textarea class="sm-control" id="syndamorph-real-brief" rows="3" maxlength="2000">Create a responsive, premium hotel hero section with a welcoming headline, short introduction, and clear call-to-action. Use a self-contained layout without external assets.</textarea>
+                        </div>
+                        <div>
+                            <button type="button" class="sm-primary" id="syndamorph-real-run">Run real AI team</button>
+                            <a href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=ai' ) ); ?>">Configure AI model</a>
+                        </div>
+                        <p class="sm-hint" id="syndamorph-real-status" role="status" aria-live="polite">Ready · Four paid API calls per run. The configured model and token rates determine estimated cost.</p>
+                        <pre class="sm-console" id="syndamorph-real-output" style="max-height:480px;overflow:auto;white-space:pre-wrap">No real job executed yet.</pre>
+                    </div>
+                </section>
+
                 <nav class="sm-team-tabs" aria-label="Production workflow stages" role="tablist">
                     <button type="button" id="sm-team-tab-setup" role="tab" aria-controls="sm-team-panel-setup" aria-selected="true" tabindex="0" data-panel="setup">01 <strong>Setup</strong><span>Prepare job</span></button>
                     <button type="button" id="sm-team-tab-production" role="tab" aria-controls="sm-team-panel-production" aria-selected="false" tabindex="-1" data-panel="production">02 <strong>Production</strong><span>Live activity</span></button>
@@ -268,6 +287,11 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
         'packageScanUrl' => rest_url( 'syndamorph/v1/package-scan' ),
         'packagePageUrl' => rest_url( 'syndamorph/v1/package-page' ),
         'packageCommitUrl' => rest_url( 'syndamorph/v1/package-commit' ),
+    ) ) . ';', 'before' );
+    wp_enqueue_script( 'syndamorph-real-team', plugin_dir_url( __DIR__ ) . 'assets/ai-team-real.js', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/ai-team-real.js' ), true );
+    wp_add_inline_script( 'syndamorph-real-team', 'window.SyndaMorphRealTeam=' . wp_json_encode( array(
+        'nonce' => wp_create_nonce( 'wp_rest' ),
+        'url' => rest_url( 'syndamorph/v1/ai/team-poc' ),
     ) ) . ';', 'before' );
     wp_enqueue_script( 'syndamorph-team-migration', plugin_dir_url( __DIR__ ) . 'assets/production-workflow.js',
         array( 'syndamorph-team', 'syndamorph-import' ),
