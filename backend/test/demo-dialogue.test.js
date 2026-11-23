@@ -65,3 +65,13 @@ test('unsupported source, invalid seed and invalid random adapters fail', () => 
 test('selected topic has keyword metadata', () => {
     for (const topic of TOPICS) assert.ok(META[topic].keywords.length >= 4);
 });
+
+test('safety cap stops unresolved branch without reporting peace', () => {
+    const session=createSession({kind:'html',brief:'spacing',seed:5,random:()=>0.01,maxTurns:6});
+    const transcript=[];
+    let line;
+    while ((line=session.next())) transcript.push(line);
+    assert.equal(transcript.length,6);
+    assert.equal(session.state.forced,true);
+    assert.equal(transcript.at(-1).type,'Unresolved — review required');
+});
