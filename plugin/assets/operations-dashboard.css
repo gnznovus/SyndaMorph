@@ -809,3 +809,26 @@
 @media (max-width: 600px) {
     #syndamorph-ai-integration .sm-ai-settings-tabs [role="tab"] { font-size: 11px; gap: 6px; }
 }
+
+
+/* Model configuration: one pricing source, with space between advisory text and actions. */
+#syndamorph-ai-integration #sm-ai-panel-model .sm-card-body {
+    row-gap: 22px !important;
+}
+#syndamorph-ai-integration #sm-ai-panel-model .sm-field {
+    gap: 10px;
+}
+#syndamorph-ai-integration #sm-ai-panel-model #syndamorph-model-status {
+    margin: 10px 0 0;
+    line-height: 1.65;
+}
+#syndamorph-ai-integration #sm-ai-panel-model .sm-model-refresh-row {
+    margin-top: 14px;
+}
+#syndamorph-ai-integration #sm-ai-panel-model .sm-model-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 360px);
+}
+#syndamorph-ai-integration #sm-ai-panel-model .sm-model-summary .sm-stat {
+    min-width: 0;
+}
