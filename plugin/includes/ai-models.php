@@ -127,9 +127,22 @@ function syndamorph_models_generate( string $provider, string $model, string $sy
             'system' => $system, 'messages' => array( array( 'role' => 'user', 'content' => $input ) ),
         ) ),
     ) );
-    if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
-        // Upstream bodies can contain sensitive input; never reflect them.
-        return new WP_Error( 'sm_generation_failed', 'Anthropic generation failed or timed out.', array( 'status' => 502 ) );
+    if ( is_wp_error( $response ) ) {
+        // Never echo transport errors: they can include server details or input.
+        return new WP_Error( 'sm_generation_transport', 'Anthropic connection failed or timed out. Check server connectivity and timeout logs.', array( 'status' => 502 ) );
+    }
+    $upstream_status = (int) wp_remote_retrieve_response_code( $response );
+    if ( 200 !== $upstream_status ) {
+        // Expose only upstream HTTP status and a fixed explanation, never response bodies.
+        $reason = match ( $upstream_status ) {
+            400 => 'Anthropic rejected the request parameters or selected model.',
+            401 => 'Anthropic rejected the API credential.',
+            403 => 'Anthropic denied access to the selected model.',
+            404 => 'Anthropic did not recognize the requested model.',
+            429 => 'Anthropic rate limit or quota was reached.',
+            default => 'Anthropic returned a non-success response.',
+        };
+        return new WP_Error( 'sm_generation_upstream', $reason . ' (Anthropic HTTP ' . $upstream_status . ').', array( 'status' => 502 ) );
     }
     $json = json_decode( wp_remote_retrieve_body( $response ), true );
     if ( ! is_array( $json ) || 'end_turn' !== ( $json['stop_reason'] ?? '' ) ||
