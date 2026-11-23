@@ -20,15 +20,27 @@
                 headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': cfg.nonce },
                 body: JSON.stringify({ brief: text }),
             });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.message || 'Real AI job failed.');
+            const raw = await response.text();
+            let data;
+            try { data = JSON.parse(raw); } catch (_) {
+                throw new Error('WordPress returned a non-JSON response (HTTP ' + response.status +
+                    '). This may be a PHP/server timeout; inspect the WordPress error log.');
+            }
+            if (!response.ok) {
+                const details = data.data && typeof data.data === 'object' ? data.data : {};
+                const role = typeof details.role === 'string' ? ' · Agent: ' + details.role : '';
+                const completed = Number.isInteger(details.completedCalls) ? ' · Completed calls: ' + details.completedCalls : '';
+                throw new Error((data.message || 'WordPress rejected this request.') +
+                    ' [HTTP ' + response.status + ' / ' + (data.code || 'unknown') + ']' + role + completed);
+            }
             status.textContent = data.status + ' · ' + data.model + ' · ' + data.elapsedMs + ' ms · ' +
                 (data.estimatedCostUsd === null ? 'Cost unknown' : 'Estimated $' + data.estimatedCostUsd.toFixed(6));
             // Model output is untrusted. Show as text, never as executable HTML.
             output.textContent = JSON.stringify(data, null, 2);
         } catch (error) {
             status.textContent = 'Execution failed: ' + error.message;
-            output.textContent = 'No content was published. Check the selected model and Anthropic credential.';
+            output.textContent = 'Execution error: ' + error.message +
+                '\\nNo content was published. Do not rerun until the cause is identified; prior API calls may have been billed.';
         } finally { button.disabled = false; }
     });
 })();
