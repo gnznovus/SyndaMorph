@@ -179,7 +179,7 @@
         function next() {
             if (state.resolved) return null;
             if (!pending.length) pending = branch();
-            if (state.turnCount >= maxTurns - 1 && !state.aligned) {
+            if (state.turnCount >= maxTurns - 1 && pending[0]?.intent !== 'close') {
                 pending = [{agent:'boss',intent:'close',type:'Unresolved — review required',
                     action:'We have reached the demo conversation limit without agreement. Escalating for real review; no work has been validated.'}];
                 state.forced = true;
