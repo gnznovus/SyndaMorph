@@ -1,5 +1,8 @@
 # Secure Gateway leasing V1 — isolated backend MVP
 
+
+> **Current project status (2026-11-24):** This document remains the **specific experimental Gateway leasing V1 contract**. See [Master Plan](master-plan.md) for broader production architecture and roadmap. The [Surgery v2 milestone](https://github.com/gnznovus/SyndaMorph/commit/54a1833354081a04421138b6e993b2c347ccdc1e) does **not** constitute end-to-end acceptance of Gateway → package → WordPress Unpacker delivery. Planned Production Campaigns may produce multiple approved section artifacts, but their overall budget, package ownership and lease authorization must be enforced independently. **Already installed content must continue to function after lease expiry/revocation.**
+
 This service belongs to **SyndaMorph**, not the SyndaMorph Unpacker plugin. It is an independent Node HTTP server in `backend/gateway/`. It does not modify the current AI Production Team, WordPress plugin, or publishing pipeline.
 
 ## Agreed access model
