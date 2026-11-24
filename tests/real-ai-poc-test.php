@@ -360,3 +360,8 @@ $learning=array_values(get_option('syndamorph_editor_learning_v1'))[0];
 expect($learning['verifiedCorrections']===1&&$learning['category']==='engineering','Verified engineering correction not tracked exactly once');
 expect(!str_contains($styled['content'],'style="gap:')&&str_contains($styled['preview'],'gap:1rem'),'Native/preview gap separation failed');
 echo "PASS: persistent editor engineering observations and preview-only layout CSS\n";
+
+$ctaPlan=$richPlan;
+$ctaPlan['blocks'][0]['children'][2]['children'][0]['style']['fontSize']='1rem';
+$ctaArtifact=syndamorph_compile_block_plan(wp_json_encode($ctaPlan));
+expect(!is_wp_error($ctaArtifact)&&str_contains($ctaArtifact['content'],'has-custom-font-size wp-element-button'),'GEN9 custom button typography support class missing');

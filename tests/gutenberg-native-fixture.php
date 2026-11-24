@@ -12,9 +12,33 @@ $plan=array('version'=>1,'blocks'=>array(array('type'=>'group','style'=>array('g
     ))
 ))));
 $artifact=syndamorph_compile_block_plan(wp_json_encode($plan));
+$fixtures=array();
+$add=static function(string $name,array $children,array $rootStyle=array())use(&$fixtures){
+    $compiled=syndamorph_compile_block_plan(wp_json_encode(array('version'=>1,'blocks'=>array(array('type'=>'group','style'=>$rootStyle,'children'=>$children)))));
+    if(is_wp_error($compiled)){http_response_code(500);exit($name.': '.$compiled->get_error_message());}
+    $fixtures[$name]=$compiled;
+};
+$heading=array('type'=>'heading','text'=>'Fixture heading');
+$paragraph=array('type'=>'paragraph','text'=>'Plain & editable.');
+$button=array('type'=>'button','text'=>'CTA label','href'=>'#reservations');
+$wrap=static fn(array $child,array $style=array())=>array('type'=>'buttons','style'=>$style,'children'=>array($child));
+$add('GEN9 custom CTA font',array($heading,$wrap(array_merge($button,array('style'=>array('color'=>'#18283a','background'=>'#c9a86a','fontSize'=>'1rem','fontWeight'=>600,'lineHeight'=>1.25,'padding'=>array('top'=>'0.875rem','right'=>'1.5rem','bottom'=>'0.875rem','left'=>'1.5rem'),'borderRadius'=>'0.25rem'))))));
+$add('plain all types',array($heading,$paragraph,$wrap($button),array('type'=>'columns','children'=>array(array('type'=>'column','children'=>array($paragraph)),array('type'=>'column','children'=>array($heading))))));
+$typography=array('color'=>'#123456','background'=>'#abcdef','fontSize'=>'1.25rem','fontWeight'=>700,'lineHeight'=>1.4,'letterSpacing'=>'-0.02em');
+foreach(array('heading','paragraph') as $type){
+    $leaf=$type==='heading'?$heading:$paragraph;
+    foreach(array('left','center','right') as $align)$add($type.' '.$align,array($heading,array_merge($leaf,array('style'=>$typography+array('align'=>$align,'margin'=>array('top'=>'0','bottom'=>'1rem'))))));
+}
+foreach(range(1,6) as $level)$add('heading level '.$level,array(array_merge($heading,array('level'=>$level))));
+foreach(array('left','center','right') as $align)$add('buttons '.$align,array($heading,$wrap(array_merge($button,array('style'=>$typography+array('padding'=>'1rem','borderRadius'=>'4px'))),array('justifyContent'=>$align,'gap'=>'1rem'))));
+$add('button gradient',array($heading,$wrap(array_merge($button,array('style'=>array('gradient'=>'linear-gradient(90deg,#123456,#abcdef)','color'=>'#ffffff','fontSize'=>'clamp(1rem,2vw,2rem)'))))));
+$add('columns gap and column styles',array($heading,array('type'=>'columns','style'=>array('gap'=>'clamp(1rem,2vw,2rem)'),'children'=>array(array('type'=>'column','style'=>array('color'=>'#123456','background'=>'#abcdef','padding'=>'1rem'),'children'=>array($paragraph)),array('type'=>'column','style'=>array('gradient'=>'linear-gradient(90deg,#123456,#abcdef)','padding'=>array('left'=>'2rem')),'children'=>array($heading))))));
+foreach(array('left','center','right','stretch') as $align)$add('group '.$align,array($heading,$paragraph),array('color'=>'#123456','background'=>'#abcdef','padding'=>'1rem','gap'=>'1rem','minHeight'=>'30vh','justifyContent'=>$align,'verticalAlignment'=>'bottom'));
+$add('constrained group',array($heading,$paragraph),array('contentWidth'=>'36rem','gap'=>'1rem'));
+
 if(is_wp_error($artifact)){http_response_code(500);exit($artifact->get_error_message());}
 header('Content-Type: text/html; charset=utf-8');
 ?><!doctype html><html><head><meta charset="utf-8"><?php
 wp_enqueue_script('wp-block-library');
 wp_print_scripts(array('wp-block-library'));
-?></head><body><script src="/wp-content/plugins/syndamorph/assets/production-ai-export.js"></script><script>window.nativeFixture=<?php echo wp_json_encode($artifact,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;</script></body></html>
+?></head><body><script src="/wp-content/plugins/syndamorph/assets/production-ai-export.js"></script><script>window.nativeFixture=<?php echo wp_json_encode($artifact,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeFixtures=<?php echo wp_json_encode($fixtures,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;</script></body></html>

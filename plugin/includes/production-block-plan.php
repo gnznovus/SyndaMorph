@@ -127,7 +127,7 @@ function syndamorph_compile_block_plan( string $raw ) {
                 else{
                     $field = $path . '.href'; $href=$node['href']??'';
                     if(!is_string($href)||!preg_match('~^(?:#[A-Za-z][\w-]*|/(?!/)[A-Za-z0-9/_#?=&.%-]*)$~D',$href))throw new InvalidArgumentException('Invalid local CTA URL.');
-                    $link_classes=array_merge(array('wp-block-button__link'),array_values(array_diff($classes,array('wp-block-button'))),array('wp-element-button'));
+                    $link_classes=array_merge(array('wp-block-button__link'),array_values(array_diff($classes,array('wp-block-button'))),isset($attrs['style']['typography']['fontSize'])?array('has-custom-font-size'):array(),array('wp-element-button'));
                     $markup='<div class="wp-block-button"><a'.$appearance($link_classes,$style_parts).' href="'.$escape($href).'">'.$body.'</a></div>';
                 }
             }
