@@ -4,6 +4,7 @@ if (!defined('ABSPATH')) { exit; }
 require_once __DIR__.'/production-job-memory.php';
 require_once __DIR__.'/production-learning.php';
 require_once __DIR__.'/production-repair.php';
+require_once __DIR__.'/production-visual-qa.php';
 require_once __DIR__.'/production-surgery.php';
 require_once __DIR__.'/production-tools.php';
 
@@ -149,7 +150,7 @@ function syndamorph_collab_viewports(string $brief) {
     rsort($widths, SORT_NUMERIC);
     return $widths;
 }
-function syndamorph_collab_inspect(string $html,array $viewports) {
+function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,375)) {
     $endpoint = defined('SYNDAMORPH_RENDERER_INSPECT_URL') ? SYNDAMORPH_RENDERER_INSPECT_URL : 'http://renderer:3000/inspect';
     // Network target is configured by deployment, never read from model output.
     if (!is_string($endpoint) || !preg_match('~^http://[a-zA-Z0-9.-]+:[0-9]{2,5}/inspect$~D', $endpoint)) {
@@ -182,27 +183,27 @@ function syndamorph_collab_compare(array $reference,array $native) {
 function syndamorph_collab_evidence(array $reference, array $native): array {
     $findings=array();
     foreach (array_keys($native) as $i) {
-        $ref=$reference[$i]['snapshot']??array(); $out=$native[$i]['snapshot']??array();$width=(int)($native[$i]['width']??0);
-        if (($out['overflow']??true)) $findings[] = array('id'=>'overflow-'.$width,'component'=>'blocks[0]','severity'=>'high','detail'=>'Native output has horizontal overflow at '.$width.'px.');
+        $out=$native[$i]['snapshot']??array();$width=(int)($native[$i]['width']??0);
+        $root=$out['elements'][0]['node']??'blocks[0]';
+        if (($out['overflow']??true)) $findings[] = array('id'=>'overflow-'.$width,'component'=>$root,'severity'=>'high',
+            'critical'=>true,'scoreGroup'=>'overflow|'.$root,'detail'=>'Native output has horizontal overflow at '.$width.'px.');
         foreach (($native[$i]['a11y']??array()) as $violation) {
             $rule=sanitize_key((string)($violation['id']??'unknown'));
             if(in_array($rule,array('document-title','html-has-lang','html-lang-valid','landmark-one-main','region','page-has-heading-one'),true))continue; // host page responsibilities
-            $findings[]=array('id'=>'axe-'.$rule.'-'.$width,'component'=>'blocks[0]','severity'=>'high',
+            $findings[]=array('id'=>'axe-'.$rule.'-'.$width,'component'=>$root,'severity'=>'high',
+                'critical'=>true,'scoreGroup'=>'axe|'.$rule.'|'.$root,
                 'detail'=>'axe-core '.($violation['impact']??'issue').': '.mb_substr((string)($violation['description']??$rule),0,200));
         }
         foreach (($out['elements']??array()) as $index=>$el) {
+            $owner=$el['node']??(($el['id']??'')?:$root);
+            $locator=$el['node']??(($el['id']??'')?:$index);
             if(!empty($el['clipped'])) {
-                $findings[]=array('id'=>'clip-'.$width.'-'.$index,'component'=>$el['id']?:'blocks[0]','severity'=>'high','detail'=>'Content is clipped at '.$width.'px.');
+                $findings[]=array('id'=>'clip-'.$width.'-'.$locator,'component'=>$owner,'severity'=>'high',
+                    'critical'=>true,'scoreGroup'=>'clip|'.$locator,'detail'=>'Content is clipped at '.$width.'px.');
             }
             if (!empty($el['missingAlt']) || !empty($el['unnamedControl'])) {
-                $findings[] = array('id'=>'a11y-'.$width.'-'.$index,'component'=>$el['id']?:'blocks[0]','severity'=>'high','detail'=>'Element has missing accessible name or image alt.');
-            }
-        }
-        $a=$ref['elements']??array();$b=$out['elements']??array();
-        if ($a && $b) {
-            $ra=$a[0]['rect']??array();$rb=$b[0]['rect']??array();
-            if (count($ra)===4 && count($rb)===4 && abs($ra[3]-$rb[3])>max(80,$ra[3]*0.3)) {
-                $findings[] = array('id'=>'height-'.$width,'component'=>'blocks[0]','severity'=>'medium','detail'=>'Root section height differs substantially at '.$width.'px.');
+                $findings[] = array('id'=>'a11y-'.$width.'-'.$locator,'component'=>$owner,'severity'=>'high',
+                    'critical'=>true,'scoreGroup'=>'a11y|'.$locator,'detail'=>'Element has missing accessible name or image alt.');
             }
         }
     }
@@ -212,7 +213,7 @@ function syndamorph_collab_evidence(array $reference, array $native): array {
 function syndamorph_collab_block_issues(array $artifact): array {
     $issues=array();
     foreach($artifact['checks']??array() as $key=>$passed) {
-        if($passed!==true) $issues[]=array('id'=>'native-'.sanitize_key((string)$key),'component'=>'blocks[0]',
+        if($passed!==true) $issues[]=array('id'=>'native-'.sanitize_key((string)$key),'component'=>'blocks[0]','critical'=>true,
             'severity'=>'high','detail'=>'Mandatory native block check failed: '.$key);
     }
     return $issues;
@@ -270,7 +271,7 @@ function syndamorph_collab_style_findings(array $reference,array $native,array $
         foreach($pairs as $pair) {
             $source=$pair['reference'];$el=$pair['native'];$changes=array();
             $text=syndamorph_evidence_text($el['text']??'');
-            foreach(array('fontSize','fontWeight','color','letterSpacing') as $key) {
+            foreach(array('fontSize','fontWeight','color','letterSpacing','textTransform') as $key) {
                 if (($source['styles'][$key]??null)!==($el['styles'][$key]??null)) $changes[]=$key;
             }
             if (count($source['textRect']??array())===4 && count($el['textRect']??array())===4) {
@@ -278,12 +279,15 @@ function syndamorph_collab_style_findings(array $reference,array $native,array $
             }
             if($changes) {
                 $id=$pair['owner'];
-                $issues[]=array('id'=>'style-'.substr(hash('sha256',$width.$text),0,12),'component'=>$id,
-                    'severity'=>'medium','detail'=>'Measured '.implode(', ',$changes).' differs from HTML reference at '.$width.'px for '.mb_substr($text,0,70));
+                if(!isset($issues[$id]))$issues[$id]=array('id'=>'style-'.substr(hash('sha256',$id),0,12),'component'=>$id,
+                    'category'=>'typography','group'=>'typography|'.$id,'source'=>'browser','measurement'=>true,
+                    'severity'=>'medium','detail'=>'Measured text appearance differs from the HTML reference for '.mb_substr($text,0,70),
+                    'views'=>array());
+                $issues[$id]['views'][$width]=$changes;
             }
         }
     }
-    return array_slice($issues,0,50);
+    return array_slice(array_values($issues),0,50);
 }
 /** Use matching visible text to locate affected regions in both cached images. Fall back to full evidence if matching is ambiguous. */
 function syndamorph_collab_scoped_images(array $reference,array $native,array $texts): array {
@@ -493,7 +497,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $comparison=syndamorph_production_tool('boss','playwright.compare',array('reference'=>$inspectReference,'native'=>$inspectNative));
     if(is_wp_error($comparison)) return $comparison;
     $evidence=array('reference'=>$inspectReference,'native'=>$inspectNative);
-    $issues=array_merge(syndamorph_collab_block_issues($artifact),syndamorph_collab_evidence($inspectReference,$inspectNative),syndamorph_collab_style_findings($inspectReference,$inspectNative,$plan));
+    $visualMetrics=syndamorph_visual_metrics($inspectReference,$inspectNative,$plan);
+    $issues=array_merge(syndamorph_collab_block_issues($artifact),syndamorph_collab_evidence($inspectReference,$inspectNative),
+        syndamorph_collab_style_findings($inspectReference,$inspectNative,$plan),syndamorph_visual_geometry_issues($visualMetrics));
     $best=array('plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'score'=>count($issues),'evidence'=>$inspectNative,'comparison'=>$comparison);
     $evidenceSummary=static function(array $samples)use($viewports,$visionViewports):array {
         $imageWidths=array_intersect_key($viewports,array_flip($visionViewports));
@@ -512,7 +518,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             $screenshots[]=array('media_type'=>'image/jpeg','data'=>$encoded);
         }
     }
-    $review=$call('boss','Assess visual fidelity, accessible names, content, responsiveness and native Gutenberg limits based only on the provided real browser measurements. Provide ONLY JSON: {"decision":"approved|changes_requested","issues":[{"id":"...","component":"existing component id","severity":"high|medium|low","detail":"...","kind":"implementation","status":"open"}],"summary":"..."}. Explicitly approve only when no actionable issues remain and actual evidence supports the result. Compiler checks are authoritative for accepted schema. Do not report speculative invalid gradients or unsupported attributes if compilation passed; report measured appearance differences instead. Return ONLY actionable implementation defects in issues. Include kind=implementation and status=open. Passes, host responsibilities, unsupported capabilities and pending editor verification belong in separate notes, never issues. Design itself is frozen. Use existing issue IDs for known findings. Evidence limits must be explicit.',
+    $review=$call('boss','Assess the frozen design and browser evidence for the implementation. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"measurable defect and suggested correction","kind":"implementation","status":"open"}],"summary":"..."}. Reuse deterministic issue IDs where applicable. Compiler checks are authoritative. Put host responsibilities, unsupported capabilities and pending editor verification in notes. Approve only with no actionable defects.',
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$modelEvidence($inspectReference),'native'=>$modelEvidence($inspectNative),'deterministicIssues'=>$issues,'pixelComparison'=>$comparison,'componentPlan'=>$plan,'compilerChecks'=>$artifact['checks'],'imageOrder'=>array('desktop-reference','desktop-gutenberg','mobile-reference','mobile-gutenberg')),16384,$screenshots,'validation');
     if (is_wp_error($review)) return $review;$outputs['validator']=$review;
     $parsed=json_decode(syndamorph_native_json_text($review),true);
@@ -537,7 +543,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $issues[]=array('id'=>'boss-approval-pending','component'=>'boss','severity'=>'high',
             'detail'=>'Boss has not approved the implementation.','source'=>'process');
     $issues=syndamorph_issue_merge($issues);
-    $registry=array();foreach($issues as $issue)$registry[$issue['component'].'|'.$issue['id']]=array_merge($issue,array('status'=>'open'));
+    $registry=array();foreach($issues as $issue)$registry[syndamorph_issue_key($issue)]=array_merge($issue,array('status'=>'open'));
     $best['issues']=$issues;$best['score']=syndamorph_issue_score($issues);
     $terminationReason='quality_pending';
     // Keep 20% for final issue reporting. No fixed QA attempt or stagnation cutoff.
@@ -604,7 +610,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         // Root/ancestor changes affect all descendants. Reinspect all widths, but avoid additional full-model review.
         $newComparison=syndamorph_production_tool('boss','playwright.compare',array('reference'=>$inspectReference,'native'=>$newEvidence));
         if(is_wp_error($newComparison)) { $terminationReason='visual_compare_blocked'; $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Pixel comparison unavailable');break; }
-        $newIssues=array_merge(syndamorph_collab_block_issues($candidate['artifact']),syndamorph_collab_evidence($inspectReference,$newEvidence),syndamorph_collab_style_findings($inspectReference,$newEvidence,$candidate['plan']));
+        $newMetrics=syndamorph_visual_metrics($inspectReference,$newEvidence,$candidate['plan']);
+        $newIssues=array_merge(syndamorph_collab_block_issues($candidate['artifact']),syndamorph_collab_evidence($inspectReference,$newEvidence),
+            syndamorph_collab_style_findings($inspectReference,$newEvidence,$candidate['plan']),syndamorph_visual_geometry_issues($newMetrics));
         // A child spacing change affects ancestor layout metrics, even when the
         // ancestor's own attributes and fingerprint are unchanged.
         $reviewIds=syndamorph_collab_review_scope($candidate['plan'],$impact);
@@ -615,11 +623,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         // Each repair receives a fresh vision review of its changed component,
         // not the entire design report. Unaffected model findings are retained.
         $targetReview=$call('boss',
-            'Inspect ONLY the changed component and affected descendants using the four browser screenshots. Compare against reference. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"...","component":"existing id","severity":"high|medium|low","detail":"..."}]}. Approve only when the changed component has no remaining actionable defects. Do not re-review approved siblings. Compiler validity is authoritative; never report speculative schema failures for compiled markup. Return only open, actionable implementation defects. Never put passes, resolved issues, host responsibilities or unsupported capabilities in issues. Reuse previous IDs. Include kind=implementation and status=open.',
+            'Inspect changed components and affected layout with the browser evidence. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"reference, previous and candidate evidence"}]}. Reuse issue IDs. A newly noticed defect does not imply a regression. Report only open actionable issues; compiler checks are authoritative.',
             array('id'=>$id,'changedNodes'=>syndamorph_surgery_context(
                     syndamorph_collab_find($candidate['plan']['blocks'],$id)),
                 'previousIssues'=>array_values(array_filter($issues,static fn($issue)=>isset($affected[$issue['component']??'']))),
                 'impact'=>$impact,'reviewScope'=>$reviewIds,'compilerChecks'=>$candidate['artifact']['checks'],'imageScope'=>$scope['mode'],
+                'previousGeometry'=>$visualMetrics,'candidateGeometry'=>$newMetrics,
                 'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id))),
                 'measurements'=>syndamorph_memory_measurements($newEvidence,syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id))),'previousAttempts'=>$memory->feedback($id),'pixelComparison'=>$newComparison,'imageOrder'=>array('desktop-reference','desktop-updated','mobile-reference','mobile-updated')),16384,$scopedScreenshots,'revision_validation');
         if (is_wp_error($targetReview)) { $terminationReason='validator_blocked'; $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Scoped visual validation unavailable');break; }
@@ -641,21 +650,15 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             $newIssues[]=array('id'=>'boss-approval-pending','component'=>'boss','severity'=>'high',
                 'detail'=>'Boss did not approve this revised component.','source'=>'process');
         $newIssues=syndamorph_issue_merge($newIssues);
-        $oldKeys=array_fill_keys(array_map(static fn($item)=>
-            ($item['component']??'').'|'.($item['id']??''),$issues),true);
-        $introduced=array_values(array_filter($newIssues,static fn($item)=>
-            !isset($oldKeys[($item['component']??'').'|'.($item['id']??'')]))); 
-        $oldScore=syndamorph_issue_score($issues);$newScore=syndamorph_issue_score($newIssues);
-        $oldPixel=array_sum(array_column($comparison,'pixelDifferenceRatio'))/count($comparison);
-        $newPixel=array_sum(array_column($newComparison,'pixelDifferenceRatio'))/count($newComparison);
-        // Model approval alone is insufficient: deterministic checks remain
-        // authoritative, and the global screenshots must not materially regress.
-        $accepted=(!$introduced && ($newScore<$oldScore || ($newScore===$oldScore && $newPixel<$oldPixel))) &&
-            $newPixel<=$oldPixel+0.01 &&
-            !(($parsedTarget['decision']??'')==='changes_requested' && !$newIssues);
+        $verdict=syndamorph_visual_decision($issues,$newIssues,$visualMetrics,$newMetrics,
+            $comparison,$newComparison,$focus,$parsedTarget['decision']==='approved');
+        $oldScore=$verdict['beforeScore'];$newScore=$verdict['afterScore'];$accepted=$verdict['accepted'];
         $revisions[]=array('round'=>$round,'id'=>$id,'delegation'=>array('designerNeeded'=>$delegated['designerNeeded'],'reason'=>mb_substr((string)($delegated['reason']??''),0,160)),'route'=>$route,'impact'=>$impact,'reviewScope'=>$reviewIds,
             'changedFields'=>$patch['changes'],'imageScope'=>$scope['mode'],'accepted'=>$accepted,'before'=>count($issues),'after'=>count($newIssues),'scoreBefore'=>$oldScore,'scoreAfter'=>$newScore,
-            'introducedIssues'=>array_column($introduced,'id'),'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
+            'introducedIssues'=>$verdict['introducedIssues'],'discoveredIssues'=>$verdict['discoveredIssues'],
+            'reason'=>$verdict['reason'],'defectStates'=>$verdict['states'],'focusScoreBefore'=>$verdict['focusBefore'],
+            'focusScoreAfter'=>$verdict['focusAfter'],'pixelDeltas'=>$verdict['pixelDeltas'],
+            'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
         $memory->record($id,array_merge(end($revisions),
             array('changes'=>$patch['changes'],'touched'=>$candidate['touched']??array(),
                 'remainingIssues'=>array_slice($newIssues,0,8))));
@@ -672,14 +675,15 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             if($newScore===0 && ($parsedTarget['decision']??'')==='approved')$bossQaApproved=true;
             $memory->reopen(array_values(array_diff($reviewIds,$impact['changed'])));
             $plan=$candidate['plan'];$artifact=$candidate['artifact'];$inspectNative=$newEvidence;$comparison=$newComparison;
+            $visualMetrics=$newMetrics;
             // Only accepted, browser-verified QA candidates update persistent draft.
             syndamorph_surgery_save($plan,$workingId);
             $surgery['qaAccepted']=($surgery['qaAccepted']??0)+1;
             foreach($registry as &$record)$record['status']='resolved';unset($record);
-            foreach($newIssues as $issue)$registry[$issue['component'].'|'.$issue['id']]=array_merge($issue,array('status'=>'open'));
+            foreach($newIssues as $issue)$registry[syndamorph_issue_key($issue)]=array_merge($issue,array('status'=>'open',
+                'change'=>$verdict['states'][syndamorph_issue_key($issue)]??'unresolved'));
             $issues=$newIssues;
-            $bestPixel=array_sum(array_column($best['comparison'],'pixelDifferenceRatio'))/count($best['comparison']);
-            if($newScore<$best['score'] || ($newScore===$best['score'] && $newPixel<$bestPixel)) $best=array('plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'score'=>$newScore,'evidence'=>$inspectNative,'comparison'=>$comparison);
+            $best=array('plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'score'=>$newScore,'evidence'=>$inspectNative,'comparison'=>$comparison);
         }
         if($on_event) $on_event('revision',end($revisions));
         if($accepted && $newScore===0) { $terminationReason='quality_resolved';break; }
@@ -736,7 +740,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             'browserQa'=>($best['score']===0&&$bossQaApproved)?'passed':'blocked',
             'wordpressEditor'=>'pending',
             'blockerIds'=>array_values(array_unique(array_column($best['issues'],'id')))),
-        'quality'=>array('escalation'=>$escalation,'capabilityNotes'=>$capabilityNotes,'issueRegistry'=>array_values($registry),'score'=>$best['score'],'issues'=>$best['issues'],'revisions'=>$revisions,'terminationReason'=>$terminationReason,'evidence'=>array(
+        'quality'=>array('escalation'=>$escalation,'capabilityNotes'=>$capabilityNotes,'issueRegistry'=>array_values($registry),'score'=>$best['score'],'scoringVersion'=>2,'viewportWidths'=>$viewports,'issues'=>$best['issues'],'revisions'=>$revisions,'terminationReason'=>$terminationReason,'evidence'=>array(
             'reference'=>$evidenceSummary($inspectReference),'native'=>$evidenceSummary($best['evidence'])),
             'pixelComparison'=>$best['comparison'],
             'browserInspected'=>true,'visionInspected'=>true,'bossApproved'=>$bossQaApproved,'nativeEditorVerified'=>false),

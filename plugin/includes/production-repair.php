@@ -14,15 +14,31 @@ function syndamorph_repair_route(array $issues): string {
     return 'developer';
 }
 function syndamorph_issue_score(array $issues): int {
-    return array_sum(array_map(static fn($i)=>array('high'=>10,'medium'=>4,'low'=>1)[$i['severity']??'medium']??4,$issues));
+    $weights=array();
+    foreach($issues as $issue) {
+        $key=$issue['scoreGroup']??$issue['group']??count($weights);
+        $weight=array('high'=>10,'medium'=>4,'low'=>1)[$issue['severity']??'medium']??4;
+        $weights[$key]=max($weights[$key]??0,$weight);
+    }
+    return array_sum($weights);
+}
+function syndamorph_issue_key(array $issue): string {
+    return $issue['group']??(($issue['component']??'').'|'.($issue['id']??''));
 }
 function syndamorph_issue_merge(array $issues): array {
     $out=array();
     foreach($issues as $issue) {
         if(!is_array($issue)||!is_string($issue['detail']??null))continue;
         if(isset($issue['status']) && $issue['status']!=='open')continue;
-        $key=($issue['component']??'').'|'.($issue['id']??'');
-        if(!isset($out[$key])||syndamorph_issue_score(array($issue))>syndamorph_issue_score(array($out[$key])))$out[$key]=$issue;
+        $key=syndamorph_issue_key($issue);
+        if(!isset($out[$key])) {
+            $out[$key]=$issue;
+            continue;
+        }
+        if(isset($out[$key]['measurement']) && ($issue['source']??'')==='model')continue;
+        if(isset($issue['measurement']) || syndamorph_issue_score(array($issue))>syndamorph_issue_score(array($out[$key]))) {
+            $out[$key]=$issue;
+        }
     }
     return array_values($out);
 }
@@ -34,7 +50,22 @@ function syndamorph_issue_model(array $issue,array $plan): ?array {
     if(!is_string($id)||syndamorph_collab_find($plan['blocks'],$id)===null)return null;
     $key=sanitize_key((string)($issue['id']??''));
     if($key==='')return null;
-    return array('id'=>$key,'component'=>$id,'severity'=>in_array($issue['severity']??'',array('high','medium','low'),true)?$issue['severity']:'medium','detail'=>$issue['detail'],'source'=>'model');
+    $category=$issue['category']??'';
+    $root=$plan['blocks'][0]['id']??'blocks[0]';
+    // Support older QA responses while current prompts name the measured categories.
+    if($category==='' && preg_match('/^(?:layout-root-.*centering|spacing-root-(?:gap-collapse|min-height))$/D',$key)) {
+        $category=str_contains($key,'centering')?'alignment':(str_contains($key,'min-height')?'height':'spacing');
+        $issue['scope']='section';
+    }
+    $normalized=array('id'=>$key,'component'=>$id,
+        'severity'=>in_array($issue['severity']??'',array('high','medium','low'),true)?$issue['severity']:'medium',
+        'detail'=>$issue['detail'],'source'=>'model');
+    if(in_array($category,array('alignment','height','spacing','typography','wrapping'),true)) {
+        $owner=($issue['scope']??'')==='section'?$root:$id;
+        $normalized['group']=$category.'|'.$owner;
+        $normalized['category']=$category;
+    }
+    return $normalized;
 }
 /** Safe measured leaf repair: only a value stable at every inspected width,
  * unique matching text, and a supported property. Never infer responsive CSS

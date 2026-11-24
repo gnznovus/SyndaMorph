@@ -445,6 +445,33 @@ expect(str_contains($gen015Preview['preview'],'margin-left:auto!important;margin
 $matched=syndamorph_collab_pairs($gen015['evidence']['reference'][0]['snapshot']['elements'],
     $gen015['evidence']['baseline'][0]['snapshot']['elements'],$gen015['plan']);
 expect(in_array('sm-hero-intro',array_column($matched,'owner'),true),'Multiline reference intro was not matched');
+$referenceEvidence=$gen015['evidence']['reference'];
+$beforeMetrics=syndamorph_visual_metrics($referenceEvidence,$gen015['evidence']['baseline'],$gen015['plan']);
+$afterMetrics=syndamorph_visual_metrics($referenceEvidence,$gen015['evidence']['round3'],$gen015['plan']);
+$centering='alignment|sm-hero-root';
+expect($beforeMetrics[$centering]['views'][1440]['error']===$afterMetrics[$centering]['views'][1440]['error'],
+    'Archived centering defect predates the candidate');
+$beforeIssues=array_values(array_filter(syndamorph_visual_geometry_issues($beforeMetrics),
+    static fn($issue)=>$issue['group']!==$centering)); // Original QA had not reported centering.
+$reportedCentering=syndamorph_issue_model($gen015Round3['review']['issues'][0],$gen015['plan']);
+expect($reportedCentering['group']===$centering,'Model ownership drift split a section-level issue');
+$afterIssues=syndamorph_issue_merge(array_merge(syndamorph_visual_geometry_issues($afterMetrics),array($reportedCentering)));
+$assessment=syndamorph_visual_decision($beforeIssues,$afterIssues,$beforeMetrics,$afterMetrics,
+    $gen015['baseline']['pixels'],$gen015Round3['pixels'],$beforeIssues,false);
+expect($assessment['accepted'] && $assessment['states'][$centering]==='pre_existing' &&
+    !$assessment['introducedIssues'],'GEN-015 improvement still rejected due to discovery of unchanged centering');
+$worseEvidence=$gen015['evidence']['round3'];
+$worseEvidence[2]['snapshot']['overflow']=true;
+$regressive=syndamorph_visual_decision($beforeIssues,
+    array_merge($afterIssues,syndamorph_collab_evidence($referenceEvidence,$worseEvidence)),
+    $beforeMetrics,$afterMetrics,$gen015['baseline']['pixels'],$gen015Round3['pixels'],$beforeIssues,false);
+expect(!$regressive['accepted'] && in_array('overflow-390',$regressive['introducedIssues'],true),
+    'Global improvement hid a genuine mobile overflow regression');
+$styles=syndamorph_collab_style_findings($referenceEvidence,$gen015['evidence']['baseline'],$gen015['plan']);
+$cta=array_values(array_filter($styles,static fn($issue)=>$issue['component']==='sm-hero-cta'));
+expect(count($cta)===1 && count($cta[0]['views'])===3 && syndamorph_issue_score($cta)===4,
+    'A single CTA typography defect was counted separately by viewport');
+echo "PASS: GEN-015 partial repair retention, stable defect identity and genuine regression veto\n";
 // GEN-013 reproduction: issue is owned by an ancestor but repair changes a leaf.
 $fixtureBeforeParent=$GLOBALS['native_fixture'];
 $parentPlan=json_decode($GLOBALS['native_fixture'],true);

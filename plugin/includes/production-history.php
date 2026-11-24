@@ -210,7 +210,7 @@ add_action( 'rest_api_init', static function (): void {
             global $wpdb;
             list($jobs,$events)=syndamorph_history_tables();
             $id=(int)$request['id'];
-            $job=$wpdb->get_row($wpdb->prepare("SELECT category,status FROM $jobs WHERE id=%d",$id),ARRAY_A);
+            $job=$wpdb->get_row($wpdb->prepare("SELECT category,status,context FROM $jobs WHERE id=%d",$id),ARRAY_A);
             if(!$job||$job['category']!=='GEN'||!in_array($job['status'],array('needs_review','uncompleted'),true))
                 return new WP_Error('sm_recompile_status','Job is not eligible for recovery.',array('status'=>409));
             $raw=$wpdb->get_var($wpdb->prepare("SELECT payload FROM $events WHERE job_id=%d AND event_type='job_complete' ORDER BY id DESC LIMIT 1",$id));
@@ -231,13 +231,18 @@ add_action( 'rest_api_init', static function (): void {
             require_once __DIR__.'/production-collaboration.php';
             $reference=$final['referenceHtml']??null;
             if(!is_string($reference))return new WP_Error('sm_recompile_reference','Archived reference unavailable.',array('status'=>409));
-            $ref=syndamorph_collab_inspect($reference);
-            $native=syndamorph_collab_inspect($artifact['preview']);
+            $context=json_decode($job['context']??'',true);
+            $viewports=syndamorph_collab_viewports($context['brief']??'');
+            if(is_wp_error($viewports))return $viewports;
+            $ref=syndamorph_collab_inspect($reference,$viewports);
+            $native=syndamorph_collab_inspect($artifact['preview'],$viewports);
             if(is_wp_error($ref)||is_wp_error($native))return new WP_Error('sm_recompile_qa','Browser reinspection unavailable.',array('status'=>503));
             $comparison=syndamorph_collab_compare($ref,$native);
             if(is_wp_error($comparison))return $comparison;
             $decoded=json_decode(syndamorph_native_json_text($plan),true);
-            $issues=syndamorph_issue_merge(array_merge(syndamorph_collab_block_issues($artifact),syndamorph_collab_evidence($ref,$native),syndamorph_collab_style_findings($ref,$native,$decoded)));
+            $issues=array_merge(syndamorph_collab_block_issues($artifact),syndamorph_collab_evidence($ref,$native),
+                syndamorph_collab_style_findings($ref,$native,$decoded),
+                syndamorph_visual_geometry_issues(syndamorph_visual_metrics($ref,$native,$decoded)));
             // Keep outstanding original model issues; a deterministic recompile
             // cannot assert that a previous visual judgment has been resolved.
             foreach($final['quality']['issues']??array() as $issue)if(($issue['source']??'')==='model')$issues[]=$issue;
@@ -246,6 +251,8 @@ add_action( 'rest_api_init', static function (): void {
             $final['checks']=$artifact['checks'];
             $final['quality']['issues']=$issues;
             $final['quality']['score']=syndamorph_issue_score($issues);
+            $final['quality']['scoringVersion']=2;
+            $final['quality']['viewportWidths']=$viewports;
             $final['quality']['pixelComparison']=$comparison;
             $final['quality']['evidence']=array('reference'=>$ref,'native'=>$native);
             $final['quality']['nativeEditorVerified']=false;

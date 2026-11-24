@@ -16,6 +16,7 @@ on:
       - 'plugin/assets/production-ai-export.js'
       - 'plugin/includes/ai-team-real.php'
       - 'plugin/includes/production-collaboration.php'
+      - 'plugin/includes/production-visual-qa.php'
       - 'plugin/includes/production-surgery.php'
       - 'plugin/includes/production-tools.php'
       - 'plugin/includes/production-block-plan.php'
@@ -35,6 +36,8 @@ on:
       - '.github/workflows/mvp-pipeline-check.yml'
   pull_request:
     paths:
+      - 'plugin/includes/production-collaboration.php'
+      - 'plugin/includes/production-visual-qa.php'
       - 'backend/**'
       - 'compose.yaml'
       - 'plugin/includes/production-team.php'
@@ -84,6 +87,7 @@ jobs:
           php -l plugin/includes/ai-team-real.php
           php -l plugin/includes/production-block-plan.php
           php -l plugin/includes/production-collaboration.php
+          php -l plugin/includes/production-visual-qa.php
           php -l plugin/includes/production-surgery.php
           php -l plugin/includes/production-tools.php
           php -l plugin/includes/production-repair.php
