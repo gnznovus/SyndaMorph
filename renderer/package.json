@@ -4,6 +4,7 @@
   "private": true,
   "description": "Development-only isolated inline JavaScript to DOM renderer",
   "dependencies": {
-    "playwright": "1.64.1"
+    "playwright": "1.64.1",
+    "jpeg-js": "0.4.4"
   }
 }
