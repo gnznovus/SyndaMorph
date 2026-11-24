@@ -115,10 +115,10 @@
         if(final?.outputs) Object.entries(final.outputs).forEach(([role,value])=>outputs.set(role,value));
         for(const [role,value] of outputs) section(role,value,role==='developer'?'html':'markdown');
         if(final?.outputs?.developer) {
-            preview(final.outputs.developer);
+            if(final.outputType !== 'gutenberg') preview(final.outputs.developer);
             if(record.category==='GEN' && ['completed','needs_review'].includes(record.status)) {
                 const receipts=events.filter(e=>e.type==='export_receipt').map(e=>e.data);
-                exportControl=window.SyndaMorphAIExport.mount(detail,{html:final.outputs.developer,identity:record,receipts});
+                exportControl=window.SyndaMorphAIExport.mount(detail,{html:final.outputType === 'gutenberg' ? null : final.outputs.developer,artifact:final.artifact,identity:record,receipts});
             }
         }
         if(final?.usage) section('Metrics and validation',JSON.stringify({usage:final.usage,agentMetrics:final.agentMetrics,checks:final.checks,estimatedCostUsd:final.estimatedCostUsd,elapsedMs:final.elapsedMs},null,2),'html');
