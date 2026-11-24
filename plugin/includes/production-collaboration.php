@@ -5,6 +5,7 @@ require_once __DIR__.'/production-job-memory.php';
 require_once __DIR__.'/production-learning.php';
 require_once __DIR__.'/production-repair.php';
 require_once __DIR__.'/production-surgery.php';
+require_once __DIR__.'/production-tools.php';
 
 /** Shared maximum output reservation for every native AI-team task. */
 function syndamorph_collab_output_cap(): int { return 16384; }
@@ -287,7 +288,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             return new WP_Error('sm_reference_unsafe','Designer reference failed HTML safety checks.',
                 array('stage'=>'design','designRound'=>$designRound));
         $capabilityNotes=syndamorph_reference_capability_notes($reference);
-        $inspectReference=syndamorph_collab_inspect($reference);
+        $inspectReference=syndamorph_production_tool('designer','playwright.inspect',array('html'=>$reference));
         if(is_wp_error($inspectReference))return $inspectReference;
         $referenceImages=array_map(static fn($sample)=>array('media_type'=>'image/jpeg','data'=>$sample['screenshot']),
             array($inspectReference[0],$inspectReference[2]));
@@ -395,9 +396,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $outputs['developer']=wp_json_encode($plan);
     $memory->remember($plan);
     
-    $inspectNative=syndamorph_collab_inspect($artifact['preview']);
+    $inspectNative=syndamorph_production_tool('developer','playwright.inspect',array('html'=>$artifact['preview']));
     if (is_wp_error($inspectReference) || is_wp_error($inspectNative)) return new WP_Error('sm_quality_blocked','Real browser inspection could not complete; job cannot be approved.');
-    $comparison=syndamorph_collab_compare($inspectReference,$inspectNative);
+    $comparison=syndamorph_production_tool('boss','playwright.compare',array('reference'=>$inspectReference,'native'=>$inspectNative));
     if(is_wp_error($comparison)) return $comparison;
     $evidence=array('reference'=>$inspectReference,'native'=>$inspectNative);
     $issues=array_merge(syndamorph_collab_block_issues($artifact),syndamorph_collab_evidence($inspectReference,$inspectNative),syndamorph_collab_style_findings($inspectReference,$inspectNative,$plan));
@@ -461,7 +462,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if($patch!==null) {
             $route='engine';
         } else {
-            $repairScope=syndamorph_collab_scoped_images($inspectReference,$inspectNative,syndamorph_memory_texts($node));
+            $repairScope=syndamorph_production_tool('developer','playwright.crop',array('reference'=>$inspectReference,'native'=>$inspectNative,'texts'=>syndamorph_memory_texts($node)));
             $repair=$call('developer','Repair only the specified native component against the frozen HTML reference. Inspect the reference/current screenshot pairs and measurements, including ancestor constraints. Return exactly JSON {"id":"existing id","replacement":{...full valid node with same id and type...}}. Preserve text, links and approved siblings. Do not redesign. Fix schema errors using the supported contract. Never repeat rejected attempts.',
                 array('issueFocus'=>$focus,'component'=>$node,'id'=>$id,'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts($node)),'nativeMeasurements'=>syndamorph_memory_measurements($inspectNative,syndamorph_memory_texts($node)),'previousAttempts'=>$memory->feedback($id),'learnedRules'=>syndamorph_learning_retrieve('repair',(string)($node['type']??'')),'imageScope'=>$repairScope['mode'],'imageOrder'=>array('desktop-reference','desktop-current','mobile-reference','mobile-current')),16384,$repairScope['images'],'repair');
             if(is_wp_error($repair)) { $terminationReason=$repair->get_error_code()==='sm_team_budget'?'budget_80_percent':'developer_blocked';break; }
@@ -476,15 +477,15 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if($memory->seen($candidate['plan'])) { $entry=array('round'=>$round,'id'=>$id,'status'=>'duplicate','accepted'=>false,'detail'=>'Equivalent candidate already attempted; skipped browser and AI QA.','before'=>count($issues),'after'=>count($issues));$memory->record($id,$entry);$revisions[]=$entry;if($on_event)$on_event('revision',$entry);continue; }
         $memory->remember($candidate['plan']);
         $impact=syndamorph_collab_impact($plan,$candidate['plan']);
-        $newEvidence=syndamorph_collab_inspect($candidate['artifact']['preview']);
+        $newEvidence=syndamorph_production_tool('developer','playwright.inspect',array('html'=>$candidate['artifact']['preview']));
         if (is_wp_error($newEvidence)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Browser revalidation unavailable');break; }
         // Root/ancestor changes affect all descendants. Reinspect all widths, but avoid additional full-model review.
-        $newComparison=syndamorph_collab_compare($inspectReference,$newEvidence);
+        $newComparison=syndamorph_production_tool('boss','playwright.compare',array('reference'=>$inspectReference,'native'=>$newEvidence));
         if(is_wp_error($newComparison)) { $terminationReason='visual_compare_blocked'; $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Pixel comparison unavailable');break; }
         $newIssues=array_merge(syndamorph_collab_block_issues($candidate['artifact']),syndamorph_collab_evidence($inspectReference,$newEvidence),syndamorph_collab_style_findings($inspectReference,$newEvidence,$candidate['plan']));
         $affected=array_fill_keys($impact['affected'],true);
         $otherIssues=array_values(array_filter($issues,static fn($issue)=>!isset($affected[$issue['component']??''])));
-        $scope=syndamorph_collab_scoped_images($inspectReference,$newEvidence,syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id)));
+        $scope=syndamorph_production_tool('boss','playwright.crop',array('reference'=>$inspectReference,'native'=>$newEvidence,'texts'=>syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id))));
         $scopedScreenshots=$scope['images'];
         // Each repair receives a fresh vision review of its changed component,
         // not the entire design report. Unaffected model findings are retained.
