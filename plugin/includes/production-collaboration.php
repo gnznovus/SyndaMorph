@@ -579,7 +579,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         foreach(array_slice($parsedTarget['issues'],0,10) as $issue) {
             if(!is_array($issue))continue;
             $normalized=syndamorph_issue_model($issue,$candidate['plan']);
-            if($normalized && isset($affected[$normalized['component']]))$newIssues[]=$normalized;
+            // Include newly discovered regression findings even when the model
+            // assigns them to an adjacent sibling of a layout-affected parent.
+            if($normalized)$newIssues[]=$normalized;
         }
         // Recompute deterministic findings globally; retain only unaffected model findings.
         foreach($otherIssues as $issue) if(($issue['source']??'')==='model')$newIssues[]=$issue;
@@ -626,7 +628,40 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if($on_event) $on_event('revision',end($revisions));
         if($accepted && $newScore===0) { $terminationReason='quality_resolved';break; }
     }
-    if($best['score']===0) $terminationReason='quality_resolved';
+    // Stalled visual repairs are a coordination problem. Escalate once to Boss
+    // with compact evidence, never silently broaden Developer's edit authority.
+    $escalation=null;
+    if($best['score']>0 && in_array($terminationReason,
+        array('no_progress_or_editable_targets','global_no_progress','revision_limit_or_unresolved'),true)){
+        $blocked=array_slice(array_map(static fn($issue)=>array(
+            'id'=>(string)($issue['id']??''),'component'=>(string)($issue['component']??''),
+            'severity'=>(string)($issue['severity']??'medium'),
+            'detail'=>mb_substr((string)($issue['detail']??''),0,200)),$best['issues']),0,5);
+        $escalation=array('state'=>'blocked','reason'=>$terminationReason,
+            'issueIds'=>array_column($blocked,'id'),'attemptCount'=>count($revisions),
+            'owner'=>'boss','decision'=>'pending','nextAction'=>'scope_review');
+        if($on_event)$on_event('repair_escalation',$escalation);
+        $briefing=array('designApproval'=>$designMemo,'openIssues'=>$blocked,
+            'attempts'=>array_slice(array_map(static fn($entry)=>array_intersect_key($entry,
+                array_flip(array('round','id','status','route','accepted','scoreBefore','scoreAfter'))),
+                $revisions),-4),'compilerValid'=>true,'editorVerified'=>false);
+        $reserve=((ceil(strlen(wp_json_encode($briefing))/3)+512)*$in+2048*$out)/1000000;
+        if(syndamorph_collab_cost($usage,$in,$out)+$reserve<=$cutoff){
+            $response=$call('boss','Resolve a stalled QA handoff without changing the approved design. Return JSON {"decision":"engineering_blocked|design_review_required|manual_review_required","summary":"precise unresolved blocker","nextAction":"concrete action"}. Never approve a defect, rewrite a design or ask Developer to retry the same patch without new evidence.',
+                $briefing,2048,array(),'scope_resolution');
+            if(!is_wp_error($response)){
+                $decision=json_decode(syndamorph_native_json_text($response),true);
+                if(is_array($decision)&&in_array($decision['decision']??'',
+                    array('engineering_blocked','design_review_required','manual_review_required'),true)){
+                    $escalation['decision']=$decision['decision'];
+                    $escalation['summary']=mb_substr((string)($decision['summary']??''),0,240);
+                    $escalation['nextAction']=mb_substr((string)($decision['nextAction']??''),0,200);
+                    if($on_event)$on_event('repair_escalation',$escalation);
+                }
+            }
+        }else $escalation['nextAction']='budget_review';
+    }
+    if($best['score']===0 && $bossQaApproved) $terminationReason='quality_resolved';
     elseif($terminationReason==='quality_pending') $terminationReason='revision_limit_or_unresolved';
     $artifact=$best['artifact'];
     $outputs['developer']=wp_json_encode($best['plan']);
@@ -641,7 +676,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         'usage'=>$usage,'agentMetrics'=>$metrics,'estimatedCostUsd'=>$cost,'pricingSource'=>$settings['pricingSource']??'unknown',
         'elapsedMs'=>(int)((microtime(true)-$started)*1000),'budgetUsd'=>$max,'budgetIsEstimate'=>true,
         'jobMemory'=>$memory->snapshot(),'surgery'=>$surgery,'designApproval'=>$designMemo,'handoffs'=>$handoffs,
-        'quality'=>array('capabilityNotes'=>$capabilityNotes,'issueRegistry'=>array_values($registry),'score'=>$best['score'],'issues'=>$best['issues'],'revisions'=>$revisions,'terminationReason'=>$terminationReason,'evidence'=>array(
+        'stageStatus'=>array('design'=>'approved','compilation'=>'passed',
+            'browserQa'=>($best['score']===0&&$bossQaApproved)?'passed':'blocked',
+            'wordpressEditor'=>'pending',
+            'blockerIds'=>array_values(array_unique(array_column($best['issues'],'id')))),
+        'quality'=>array('escalation'=>$escalation,'capabilityNotes'=>$capabilityNotes,'issueRegistry'=>array_values($registry),'score'=>$best['score'],'issues'=>$best['issues'],'revisions'=>$revisions,'terminationReason'=>$terminationReason,'evidence'=>array(
             'reference'=>$evidenceSummary($inspectReference),'native'=>$evidenceSummary($best['evidence'])),
             'pixelComparison'=>$best['comparison'],
             'browserInspected'=>true,'visionInspected'=>true,'bossApproved'=>$bossQaApproved,'nativeEditorVerified'=>false),
