@@ -3,7 +3,7 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 function syndamorph_block_plan_contract(): string {
-    return 'Return a JSON object {"version":1,"blocks":[...]} with exactly one root group. Each node has type, a stable unique id and optional style. Supported nodes: group (children), columns (children of type column, 2–4), column (children), heading (text, level 1–6), paragraph (text), buttons (children of type button), button (text, href: #fragment or /local-path). Only group/column may contain ordinary content blocks. Styles: color, background (six-digit hex), fontSize, fontWeight (100–900), lineHeight (1–2.5), letterSpacing (px/rem/em), padding (single length or object with top/right/bottom/left lengths on group/column/button), margin (single length or sides on heading/paragraph), gap (group/columns/buttons), borderRadius (button), gradient (group/column/button, safe two-color linear-gradient), minHeight (group), align (heading/paragraph left/center/right). All lengths positive px/rem/em or clamp(length,length,length) with vw allowed. Use a heading and meaningful CTA. No HTML, arbitrary CSS, remote URLs, custom blocks or invented attributes. Use native columns mobile stacking; no fixed widths. Example {"version":1,"blocks":[{"type":"group","style":{"background":"#18283a","padding":"clamp(2rem,5vw,5rem)"},"children":[{"type":"heading","level":2,"text":"Welcome","style":{"color":"#ffffff","fontSize":"clamp(2rem,5vw,4rem)"}},{"type":"paragraph","text":"Discover our hotel","style":{"color":"#ffffff"}},{"type":"buttons","children":[{"type":"button","text":"Explore","href":"#explore"}]}]}]}.';
+    return 'Return a JSON object {"version":1,"blocks":[...]} with exactly one root group. Each node has type, a stable unique id and optional style. Supported nodes: group (children), columns (children of type column, 2–4), column (children), heading (text, level 1–6), paragraph (text), buttons (children of type button), button (text, href: #fragment or /local-path). Only group/column may contain ordinary content blocks. Styles: color, background (six-digit hex), fontSize, fontWeight (100–900, integer or numeric string), lineHeight (1–2.5, number or numeric string), letterSpacing (px/rem/em), padding (single length or object with top/right/bottom/left lengths on group/column/button), margin (single length or sides on heading/paragraph), gap (group/columns/buttons), borderRadius (button), gradient (group/column/button, safe two-color linear-gradient), minHeight (group), align (heading/paragraph left/center/right). All lengths positive px/rem/em or clamp(length,length,length) with vw allowed. Use a heading and meaningful CTA. No HTML, arbitrary CSS, remote URLs, custom blocks or invented attributes. Use native columns mobile stacking; no fixed widths. Example {"version":1,"blocks":[{"type":"group","style":{"background":"#18283a","padding":"clamp(2rem,5vw,5rem)"},"children":[{"type":"heading","level":2,"text":"Welcome","style":{"color":"#ffffff","fontSize":"clamp(2rem,5vw,4rem)"}},{"type":"paragraph","text":"Discover our hotel","style":{"color":"#ffffff"}},{"type":"buttons","children":[{"type":"button","text":"Explore","href":"#explore"}]}]}]}.';
 }
 
 function syndamorph_compile_block_plan( string $raw ) {
@@ -18,6 +18,7 @@ function syndamorph_compile_block_plan( string $raw ) {
         $escape = static fn( string $s ): string => htmlspecialchars( $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' );
         $length = static function ( $v ): string {
             $unit = '[0-9]{1,3}(?:\.[0-9]{1,3})?(?:px|rem|em|vw)';
+            if ($v === 0 || $v === 0.0) $v='0';
             if ( ! is_string( $v ) || ! preg_match( '~^(?:0|' . $unit . '|clamp\(\s*' . $unit . '\s*,\s*' . $unit . '\s*,\s*' . $unit . '\s*\))$~D', $v ) ) { throw new InvalidArgumentException( 'Invalid length.' ); }
             return $v === '0' ? '0px' : $v;
         };
@@ -61,9 +62,11 @@ function syndamorph_compile_block_plan( string $raw ) {
                     } else { $sides=array_fill_keys(array('top','right','bottom','left'),$value); }
                     foreach($sides as $side=>$v) { $attrs['style']['spacing'][$key][$side]=$css[$key.'-'.$side]=$length($v); }
                 } elseif ( $key==='fontWeight' && in_array($type,array('heading','paragraph','button'),true) ) {
+                    if(is_int($value)) $value=(string)$value;
                     if(!is_string($value)||!preg_match('/^[1-9]00$/D',$value))throw new InvalidArgumentException('Invalid font weight.');
                     $attrs['style']['typography']['fontWeight']=$value;$css['font-weight']=$value;
                 } elseif ( $key==='lineHeight' && in_array($type,array('heading','paragraph','button'),true) ) {
+                    if(is_int($value)||is_float($value)) $value=(string)$value;
                     if(!is_string($value)||!preg_match('/^(?:1(?:\\.[0-9]{1,2})?|2(?:\\.[0-5])?)$/D',$value))throw new InvalidArgumentException('Invalid unitless line height.');
                     $attrs['style']['typography']['lineHeight']=$value;$css['line-height']=$value;
                 } elseif ( $key==='letterSpacing' && in_array($type,array('heading','paragraph','button'),true) ) {
