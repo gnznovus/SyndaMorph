@@ -256,7 +256,7 @@ function syndamorph_anthropic_sse_request( string $key, array $payload, ?callabl
 }
 
 /** Provider-neutral generation boundary; optional server-side streaming. */
-function syndamorph_models_generate( string $provider, string $model, string $system, string $input, int $max_tokens = 1200, bool $stream = false, ?callable $on_delta = null, array $images = array() ) {
+function syndamorph_models_generate( string $provider, string $model, string $system, string $input, int $max_tokens = 1200, bool $stream = false, ?callable $on_delta = null, array $images = array(), string $cache_prefix = '' ) {
     if ( 'anthropic' !== $provider ) {
         return new WP_Error( 'sm_provider_unsupported', 'This provider has no generation adapter yet.', array( 'status' => 501 ) );
     }
@@ -272,7 +272,7 @@ function syndamorph_models_generate( string $provider, string $model, string $sy
     }
     $payload = array(
         'model' => $model, 'max_tokens' => $max_tokens,
-        'system' => $system, 'messages' => array( array( 'role' => 'user', 'content' => $content ) ),
+        'system' => $cache_prefix !== '' ? array(array('type'=>'text','text'=>$cache_prefix,'cache_control'=>array('type'=>'ephemeral')),array('type'=>'text','text'=>$system)) : $system, 'messages' => array( array( 'role' => 'user', 'content' => $content ) ),
     );
     if ( $stream ) {
         $payload['stream'] = true;
