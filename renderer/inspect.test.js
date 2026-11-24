@@ -25,6 +25,11 @@ test('actual Chromium inspection provides independent responsive screenshots and
         assert.ok(e.snapshot.elements.some(el=>el.tag==='H2' && el.styles.color==='rgb(255, 255, 255)'));
         assert.ok(e.snapshot.elements.some(el=>el.missingAlt===true));
     }
+    const compared=await fetch(url+'/compare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reference:result.evidence,native:result.evidence}),signal:AbortSignal.timeout(10000)});
+    assert.equal(compared.status,200);
+    const metrics=(await compared.json()).comparison;
+    assert.deepEqual(metrics.map(x=>x.width),[1440,768,390]);
+    assert.ok(metrics.every(x=>x.pixelDifferenceRatio===0 && x.meanChannelDifference===0));
 });
 
 test('existing DOM render endpoint remains available',async()=>{
