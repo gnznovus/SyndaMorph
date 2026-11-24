@@ -177,7 +177,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $issues=array_merge(syndamorph_collab_evidence($inspectReference,$inspectNative),syndamorph_collab_style_findings($inspectReference,$inspectNative,$plan));
     $best=array('plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'score'=>count($issues),'evidence'=>$inspectNative);
     $evidenceSummary=static function(array $samples):array {
-        return array_map(static function($sample){return array('width'=>$sample['width'],'snapshot'=>$sample['snapshot'],'screenshotSha256'=>hash('sha256',base64_decode($sample['screenshot'],true)?:''));},$samples);
+        return array_map(static function($sample){return array('width'=>$sample['width'],'snapshot'=>$sample['snapshot'],
+                'screenshotSha256'=>hash('sha256',base64_decode($sample['screenshot'],true)?:''),
+                'screenshot'=>(in_array((int)$sample['width'],array(1440,390),true) && strlen($sample['screenshot'])<=180000) ? $sample['screenshot'] : null);},$samples);
     };
     $screenshots=array();
     foreach(array(0,2) as $viewport) {
