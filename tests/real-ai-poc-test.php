@@ -278,6 +278,7 @@ $GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=0.010;
 $cutoff=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
 expect(!is_wp_error($cutoff) && $cutoff['status']==='uncompleted','80% budget cutoff must preserve best artifact as Uncompleted');
 expect(count($GLOBALS['generations'])===5 && count($cutoff['quality']['revisions'])===0,'80% cutoff initiated unauthorized paid repair');
+expect($cutoff['quality']['terminationReason']==='budget_80_percent','Budget stop reason not archived');
 expect(isset($cutoff['artifact']['content']),'Uncompleted job lost the usable native artifact');
 unset($GLOBALS['revision_test']);
 echo "PASS: delegated component repair, scoped vision review, best artifact, reuse and 80-percent budget cutoff\\n";
