@@ -175,7 +175,7 @@
                     ![ 'header', 'footer', 'overlay' ].includes( item.kind ) &&
                     ( item.geometryAvailable === false || item.bounds.height > 0 ) );
                 if ( !sections.length ) throw new Error( 'No usable sections were detected. Try a different rendering mode.' );
-                inspected = { kind, sections, diagnostics: result.diagnostics };
+                inspected = { kind, sections, diagnostics: result.diagnostics, snapshot: result, url: raw };
                 sourceSummary.textContent = sections.length + ' usable section(s) of ' + all.length +
                     ' detected. Select the section to convert.';
                 if ( result.diagnostics ) {
@@ -190,7 +190,7 @@
                 form.append( 'package', file );
                 result = await request( SyndaMorphTeam.packageScanUrl, form, true );
                 if ( !Array.isArray( result.pages ) || !result.pages.length ) throw new Error( 'No HTML pages found inside the package.' );
-                inspected = { kind, token: result.token, pages: result.pages };
+                inspected = { kind, token: result.token, pages: result.pages, manifest: {pages:result.pages, images:result.images, assets:result.assets} };
                 sourceSummary.textContent = result.pages.length + ' HTML page(s), ' +
                     result.images + ' image(s), ' + result.assets + ' other asset(s). Package session expires in 60 minutes.';
             } else {
@@ -459,6 +459,8 @@
         savedDraftIds.length = 0;
         stage( 'production' );
         jobState.textContent = 'Converting';
+        let archive = null;
+        const archiveEvent = (type, data) => request(SyndaMorphTeam.historyUrl + '/' + archive.id + '/reference-event', {type,data});
         try {
             let pages = [];
             if ( kind === 'url' ) {
@@ -476,6 +478,22 @@
                 if ( names.length > 30 ) throw new Error( 'Batch import supports up to 30 selected pages.' );
                 pages = names.map( path => ( { path, title: titleFor( path ) } ) );
             }
+            const jobTitle = pages.length === 1 ? pages[0].title + ' — Gutenberg Conversion' :
+                pages.length + ' pages — Gutenberg Package Conversion';
+            const reference = {kind, selected: pages.map(p => p.path), jsMode};
+            if (kind === 'url') { reference.url = chosen.url; reference.capture = chosen.snapshot; }
+            if (kind === 'html') { reference.filename = pages[0].path; reference.html = pages[0].html; }
+            if (kind === 'package') {
+                reference.manifest = chosen.manifest;
+                const form = new FormData();
+                form.append('title', jobTitle);
+                form.append('reference', JSON.stringify(reference));
+                form.append('package', pick.file('package'));
+                archive = await request(SyndaMorphTeam.historyUrl + '/reference', form, true);
+            } else {
+                archive = await request(SyndaMorphTeam.historyUrl + '/reference', {title:jobTitle, reference});
+            }
+            currentJob.textContent = archive.jobId + ' : ' + archive.title;
             const next = [];
             for ( const page of pages ) {
                 if ( generation !== sourceGeneration ) return;
@@ -491,15 +509,16 @@
                     css = result.css || [];
                 }
                 const converted = await SyndaMorphConverter.prepareImport( source, jsMode );
-                next.push( { ...page, content: converted.content, preview: converted.preview,
-                    missing: [ ...missing, ...converted.missing ], css, stylesheets: converted.stylesheets } );
+                const artifact = { ...page, content: converted.content, preview: converted.preview,
+                    missing: [ ...missing, ...converted.missing ], css, stylesheets: converted.stylesheets };
+                await archiveEvent('reference_page', {path:page.path, title:page.title, source, artifact});
+                next.push(artifact);
 
             }
             if ( generation !== sourceGeneration ) return;
             prepared = next;
-            activeJob = { id: 'LOCAL-' + Date.now().toString( 36 ).toUpperCase(), kind, token: chosen.token, jsMode };
-            const jobTitle = pages.length === 1 ? pages[ 0 ].title + ' — Gutenberg Conversion' :
-                pages.length + ' pages — Gutenberg Package Conversion';
+            await archiveEvent('job_complete', {status:'converted', pageCount:next.length, aiCalls:0});
+            activeJob = { id: archive.jobId, archiveId:archive.id, kind, token: chosen.token, jsMode };
             const label = activeJob.id + ' : ' + jobTitle;
             resultsTitle.textContent = label;
             currentJob.textContent = label;
@@ -520,6 +539,7 @@
             viewResult.textContent = prepared.length > 1 ? 'View Results' : 'View Result';
             viewResult.hidden = false;
         } catch ( error ) {
+            if (archive) { try { await archiveEvent('job_error', {message:error.message || String(error)}); } catch (_) {} }
             showError( convertError, 'Conversion failed: ' + ( error.message || String( error ) ) );
             jobState.textContent = 'Conversion error';
             outputState.textContent = 'Not ready';
@@ -594,6 +614,10 @@
                 } );
                 createdDraftIds = [ Number( result.id ) ].filter( Number.isSafeInteger );
                 statusMessage = 'Draft saved. Open it through the WordPress Pages screen.';
+            }
+            if (activeJob.archiveId) {
+                try { await request(SyndaMorphTeam.historyUrl + '/' + activeJob.archiveId + '/reference-event', {type:'reference_saved', data:{mode, result, message:statusMessage}}); }
+                catch (_) { statusMessage += ' History save receipt could not be recorded.'; }
             }
             if ( mode === 'draft' ) savedDraftIds.push( ...createdDraftIds );
             savedModes.set( mode, statusMessage );
