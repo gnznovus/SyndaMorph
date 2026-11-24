@@ -10,7 +10,7 @@ function syndamorph_learning_rows(): array {
     return is_array($rows)?$rows:array();
 }
 function syndamorph_learning_pattern(string $field): array {
-    $name=preg_replace('/^.*[.\\]]/','',$field);
+    $parts=explode('.',$field);$name=(string)end($parts);
     $safe=array('align','contentWidth','gap','padding','margin','fontSize','fontWeight','lineHeight','letterSpacing','gradient','minHeight','justifyContent','verticalAlignment','borderRadius','background','color','href','text','level','children','plan');
     if(!in_array($name,$safe,true))$name='plan';
     return array($name,$name==='plan'?'plan':(str_contains($field,'.style.')?'style':'node'));
@@ -49,7 +49,8 @@ function syndamorph_learning_record(string $category,string $task,string $block,
         'compilerRevision'=>$revision,'firstSeen'=>gmdate('c'),'occurrences'=>0,'verifiedCount'=>0,'sources'=>array(),'status'=>'observed');
     // A revision change makes the old lesson ineligible until it is reverified.
     if($item['compilerRevision']!==$revision){
-        $item['compilerRevision']=$revision;$item['status']='observed';$item['verifiedCount']=0;$item['sources']=array();$item['occurrences']=0;
+        $wasDisabled=$item['status']==='disabled';
+        $item['compilerRevision']=$revision;$item['status']=$wasDisabled?'disabled':'observed';$item['verifiedCount']=0;$item['sources']=array();$item['occurrences']=0;
     }
     if(!isset($item['sources'][$source])){
         $item['sources'][$source]=array('verified'=>$verified);
@@ -83,11 +84,23 @@ function syndamorph_learning_repair(array $before,array $after,int $oldScore,int
         syndamorph_learning_record('agent','repair',$type,$key,'For '.$type.' visual fidelity issues, inspect measured '.$key.' and adjust only after comparing reference and native evidence.',$source,true);
     }
 }
+/** Capability gaps are observations, not instructions to invent unsupported blocks. */
+function syndamorph_learning_capability(array $notes,string $source): void {
+    $known=array(
+        'Leaf max-width requires a constrained group layout; verify wrapping.'=>array('constrained_layout','Native leaf max-width is not supported; use a constrained group.'),
+        'Reference contains layout effects outside current native block capabilities.'=>array('advanced_layout','Absolute positioning, transforms and named grids are outside the native contract.'),
+        'Reference contains elements outside current native block schema.'=>array('unsupported_elements','Images, lists, tables and vector elements need an explicit compiler capability before native export.')
+    );
+    foreach(array_unique($notes) as $note)if(isset($known[$note])){
+        list($pattern,$rule)=$known[$note];
+        syndamorph_learning_record('capability','developer','*',$pattern,$rule,$source,false);
+    }
+}
 function syndamorph_learning_retrieve(string $task,string $block='*',int $limit=3): array {
     $revision=syndamorph_learning_revision();$result=array();
     foreach(syndamorph_learning_rows() as $item){
         if(($item['category']??'')!=='agent'||($item['status']??'')!=='verified'||($item['compilerRevision']??'')!==$revision ||
-            !in_array($task==='developer'?$item['task']??'':$task,$task==='developer'?array('schema_repair'):array($task),true))continue;
+            !in_array($item['task']??'',$task==='developer'?array('schema_repair'):array($task),true))continue;
         if($item['block']!=='*' && $item['block']!==$block && !in_array($block,explode('|',$item['block']),true))continue;
         $result[]=array('rule'=>$item['rule'],'verifiedCount'=>$item['verifiedCount'],'occurrences'=>$item['occurrences']);
     }

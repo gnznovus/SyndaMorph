@@ -8,6 +8,8 @@ on:
       - 'plugin/includes/production-team.php'
       - 'plugin/includes/production-standards.php'
       - 'plugin/includes/production-job-memory.php'
+      - 'plugin/includes/production-learning.php'
+      - 'plugin/assets/production-learning.js'
       - 'plugin/includes/production-history.php'
       - 'plugin/assets/production-history.js'
       - 'plugin/assets/production-ai-export.js'
@@ -35,6 +37,8 @@ on:
       - 'plugin/includes/production-team.php'
       - 'plugin/includes/production-standards.php'
       - 'plugin/includes/production-job-memory.php'
+      - 'plugin/includes/production-learning.php'
+      - 'plugin/assets/production-learning.js'
       - 'plugin/includes/production-history.php'
       - 'plugin/assets/production-history.js'
       - 'plugin/assets/production-ai-export.js'
@@ -69,6 +73,8 @@ jobs:
           php -l plugin/includes/production-standards.php
           php -l plugin/includes/production-history.php
           node --check plugin/assets/production-history.js
+          node --check plugin/assets/production-learning.js
+          php -l plugin/includes/production-learning.php
           node --check plugin/assets/production-ai-export.js
           php -l plugin/includes/ai-models.php
           php -l plugin/includes/ai-team-real.php

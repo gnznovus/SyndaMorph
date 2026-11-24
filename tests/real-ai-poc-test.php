@@ -365,3 +365,40 @@ $ctaPlan=$richPlan;
 $ctaPlan['blocks'][0]['children'][2]['children'][0]['style']['fontSize']='1rem';
 $ctaArtifact=syndamorph_compile_block_plan(wp_json_encode($ctaPlan));
 expect(!is_wp_error($ctaArtifact)&&str_contains($ctaArtifact['content'],'has-custom-font-size wp-element-button'),'GEN9 custom button typography support class missing');
+
+require_once dirname(__DIR__).'/plugin/includes/production-learning.php';
+$GLOBALS['options'][SYNDAMORPH_LEARNING_OPTION]=array();
+expect(syndamorph_learning_pattern('blocks[0].children[0].contentWidth')[0]==='contentWidth','Schema path normalization failed');
+syndamorph_learning_schema('blocks[0].children[0].contentWidth','Unsupported node field.','test:rejected',false);
+expect(syndamorph_learning_retrieve('developer')===array(),'Unverified schema error leaked into developer context');
+syndamorph_learning_schema('blocks[0].children[0].contentWidth','Unsupported node field.','test:rejected',true);
+syndamorph_learning_schema('blocks[0].children[0].contentWidth','Unsupported node field.','test:rejected',true);
+$rules=syndamorph_learning_retrieve('developer');
+expect(count($rules)===1&&str_contains($rules[0],'contentWidth'),'Verified schema lesson not retrieved');
+$snapshot=syndamorph_learning_snapshot();
+expect($snapshot['counts']['verified']===1&&$snapshot['lessons'][0]['occurrences']===1,'Repeated observations not deduplicated');
+$lessonId=$snapshot['lessons'][0]['id'];
+expect(syndamorph_learning_manage($lessonId,'disable')&&syndamorph_learning_retrieve('developer')===array(),'Disabled learning remains active');
+expect(syndamorph_learning_manage($lessonId,'enable')&&count(syndamorph_learning_retrieve('developer'))===1,'Enabling verified learning failed');
+expect(syndamorph_learning_retrieve('repair','button')===array(),'Schema lesson leaked into unrelated task');
+$before=array('type'=>'button','style'=>array('fontSize'=>'1rem'),'text'=>'Explore','href'=>'#rooms');
+$after=$before;$after['style']['fontSize']='1.25rem';
+syndamorph_learning_repair($before,$after,10,4,'test:repair');
+expect(count(syndamorph_learning_retrieve('repair','button'))===1,'QA-accepted scoped repair did not produce lesson');
+syndamorph_learning_repair($before,$after,10,10,'test:rejected');
+expect(count(syndamorph_learning_retrieve('repair','button'))===1,'Rejected repair changed learning');
+$historyEvents=array(
+    array('type'=>'schema_repair','data'=>array('attempt'=>1,'status'=>'required','field'=>'blocks[0].align','message'=>'Alignment belongs inside style.align.')),
+    array('type'=>'schema_repair','data'=>array('attempt'=>1,'status'=>'resolved','field'=>'blocks[0].align'))
+);
+expect(syndamorph_learning_bootstrap($historyEvents,'GEN0009')===1,'Verified history bootstrap failed');
+expect(syndamorph_learning_bootstrap($historyEvents,'GEN0009')===1,'Idempotent bootstrap should recognize same evidence');
+$rules=syndamorph_learning_retrieve('developer');
+expect(count($rules)===2,'Historical verified lessons were not indexed');
+syndamorph_learning_capability(array('Reference contains elements outside current native block schema.'),'test:capability');
+$snapshot=syndamorph_learning_snapshot();
+expect($snapshot['counts']['capability']===1&&$snapshot['counts']['observed']>=1,'Capability gap classification missing');
+expect(!in_array('Images, lists, tables and vector elements need an explicit compiler capability before native export.',syndamorph_learning_retrieve('developer'),true),'Capability observation injected into agent prompt');
+expect(syndamorph_learning_manage($lessonId,'delete'),'Learning deletion failed');
+expect(count(syndamorph_learning_retrieve('developer'))===1,'Deleted rule remained in retrieval');
+echo "PASS: persistent verified lessons, scope, deduplication, archive bootstrap, capability classification and management\n";

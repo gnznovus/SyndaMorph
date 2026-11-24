@@ -234,6 +234,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     if ($in<=0 || $out<=0 || $max<=0) return new WP_Error('sm_team_budget','Configure verified token rates and maximum job cost.');
     $usage=array('inputTokens'=>0,'outputTokens'=>0,'cacheReadTokens'=>0,'cacheWriteTokens'=>0);
     $metrics=array();$outputs=array();$events=array();$issues=array();$revisions=array();$evidence=array();$best=null;
+    $learningSource='job:'.bin2hex(random_bytes(8));
     $started=microtime(true);$calls=0;$cutoff=$max*0.8;$memory=new SyndaMorph_Job_Memory($brief);
     if (function_exists('set_time_limit')) @set_time_limit(1200);
     $call=static function(string $role,string $instruction,array $context,int $cap,array $images=array(),string $stage='') use (&$usage,&$metrics,&$events,&$calls,$provider,$model,$in,$out,$max,$stream,$on_event) {
@@ -275,6 +276,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     }
     $outputs['reference']=$reference;
     $capabilityNotes=syndamorph_reference_capability_notes($reference);
+    syndamorph_learning_capability($capabilityNotes,$learningSource.':capability');
     if($on_event&&$capabilityNotes)$on_event('capability_preflight',array('notes'=>$capabilityNotes));
     $inspectReference=syndamorph_collab_inspect($reference);
     if(is_wp_error($inspectReference))return $inspectReference;
@@ -301,7 +303,6 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if(!in_array($diagnostic['code'],array('sm_block_plan_invalid','sm_component_identity'),true))break;
         if($on_event)$on_event('schema_repair',array_merge($diagnostic,array('attempt'=>$attempt,'status'=>'required','role'=>'developer')));
         $repairContext=array('rejectedPlan'=>$developer,'diagnostic'=>$diagnostic,'learnedRules'=>syndamorph_learning_retrieve('schema_repair'));
-        $beforeCorrection=$developer;
         // Preserve the 20% reserve and use the same conservative admission check as generation.
         $estimate=((ceil(strlen(wp_json_encode($repairContext))/3)+4096)*$in+16384*$out)/1000000;
         if(syndamorph_collab_cost($usage,$in,$out)+$estimate>$cutoff) {
@@ -312,7 +313,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if(is_wp_error($corrected)){$compiled=$corrected;break;}
         $developer=$corrected;
         $compiled=$compilePlan($developer);
-        syndamorph_learning_schema($diagnostic['field'],$diagnostic['message'],'job:'.substr(hash('sha256',$brief),0,16).':'.$attempt,!is_wp_error($compiled));
+        syndamorph_learning_schema($diagnostic['field'],$diagnostic['message'],$learningSource.':schema:'.$attempt,!is_wp_error($compiled));
         if($on_event)$on_event('schema_repair',array('attempt'=>$attempt,'status'=>is_wp_error($compiled)?'rejected':'resolved','role'=>'developer','field'=>$diagnostic['field']));
     }
     if(is_wp_error($compiled)) {
@@ -441,7 +442,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $accepted=($newScore<$oldScore || ($newScore===$oldScore && $newPixel<$oldPixel)) && $newPixel<=$oldPixel+0.08;
         $revisions[]=array('round'=>$round,'id'=>$id,'delegation'=>array('designerNeeded'=>$delegated['designerNeeded'],'reason'=>mb_substr((string)($delegated['reason']??''),0,160)),'route'=>$route,'impact'=>$impact,'imageScope'=>$scope['mode'],'accepted'=>$accepted,'before'=>count($issues),'after'=>count($newIssues),'scoreBefore'=>$oldScore,'scoreAfter'=>$newScore,'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
         $memory->record($id,array_merge(end($revisions),array('replacement'=>$patch['replacement'],'remainingIssues'=>array_slice($newIssues,0,8))));
-        if($accepted && $route==='developer')syndamorph_learning_repair($node,$patch['replacement'],$oldScore,$newScore,'job:'.substr(hash('sha256',$brief),0,16).':'.$round);
+        if($accepted && $route==='developer')syndamorph_learning_repair($node,$patch['replacement'],$oldScore,$newScore,$learningSource.':repair:'.$round);
         if($accepted) {
             $stagnation=0;
             $memory->reopen(array_values(array_diff($impact['affected'],$impact['changed'])));

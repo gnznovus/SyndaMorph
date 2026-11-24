@@ -47,3 +47,11 @@ The dashboard initializes the actual core block registry before validating nativ
 ## Core support serialization audit (R53–R55)
 
 Custom button typography emits the Gutenberg-specific `has-custom-font-size` support class on the anchor (not the wrapper). The real WordPress CI matrix covers all seven supported block types, plain and styled content, heading levels, text alignment, container justification, gradients, fluid typography, spacing and the GEN9 custom-font CTA regression. The original GEN10 gap regression remains mandatory. Existing archived plans can be recompiled without provider calls; successful editor validation does not imply renewed visual approval.
+
+## Adaptive Learning Engine (R39–R46)
+
+Persistent learning records are stored in the local WordPress option `syndamorph_learning_v1`, independently of job-local `SyndaMorph_Job_Memory`. Categories: agent, engineering, capability. Classification accepts only allowlisted compiler diagnostics, validated native style keys, and explicit capability preflight notes. No raw prompts, personal copy, HTML, screenshots, credentials or full model transcripts enter the store. Schema lessons require successful recompilation; targeted repair lessons require actual browser and scoped QA acceptance with reduced issue score. A model's assertion alone is never sufficient. Identical evidence is deduplicated; limits are 150 rules, 40 evidence IDs per rule, 3 recalled rules by default.
+
+Retrieval applies only to Developer schema creation/schema repair and matching Developer component repairs. Engineering and capability observations never become AI instructions. Compiler source checksum versions the lessons; stale lessons are automatically excluded when the compiler changes. The History tab has a Learning panel with counts, verified/observed/stale status, enable/disable/delete controls and an explicit bootstrap action. Bootstrap reads only bounded historical `schema_repair` events from finished GEN jobs and requires matched required/resolved records; it is idempotent and does not infer improvements from unsupported historical model claims.
+
+R39–R46 are learning infrastructure, *not* self-modifying code. Compiler Self-Healing (R56–R63) remains a separate future phase. Existing native compilation, HTML production, source import, cost gates and WordPress save semantics remain unchanged.
