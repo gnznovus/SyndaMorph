@@ -1,5 +1,8 @@
 # Real AI Production Team — POC #1 and live production streaming
 
+
+> **Current project status (2026-11-24):** This is the archived first real-AI team POC and historical streaming contract. For current milestones see [Master Plan](master-plan.md). The later Native Gutenberg collaboration pipeline now includes **implemented Adaptive Surgery v2**, but savings reported from deterministic fixtures are **not measured live-provider savings**. The original sequential Boss → Designer → Developer → Validator workflow remains distinct from **planned independent queues and queued bidirectional steering**. Do not read the historical per-agent 16,384 output cap as the current task-specific Surgery v2 repair cap.
+
 **Status:** Four-agent proof of concept completed with real Claude Haiku 5.5 calls. Administrator-only, explicitly initiated, paid generation. No automatic publishing. HTML preview runs in a sandboxed, script-disabled iframe.
 
 ## Architecture and boundaries
