@@ -116,6 +116,26 @@
             const pre=document.createElement('pre');pre.textContent=JSON.stringify({issues:data.quality.issues,revisions:data.quality.revisions,browserInspected:data.quality.browserInspected,visionInspected:data.quality.visionInspected,nativeEditorVerified:data.quality.nativeEditorVerified},null,2);
             qa.append(h,pre);results.append(qa);
         }
+        if (data.quality?.evidence) {
+            const gallery=document.createElement('details');
+            gallery.className='sm-team-ai-agent-output';
+            const heading=document.createElement('summary');heading.textContent='QA browser screenshots (desktop and mobile)';
+            gallery.append(heading);
+            for(const kind of ['reference','native']) {
+                for(const sample of data.quality.evidence[kind] || []) {
+                    if(!sample.screenshot || !/^[A-Za-z0-9+/=]+$/.test(sample.screenshot)) continue;
+                    const figure=document.createElement('figure');
+                    const img=document.createElement('img');
+                    img.alt=kind+' screenshot at '+sample.width+'px';
+                    img.src='data:image/jpeg;base64,'+sample.screenshot;
+                    img.loading='lazy';img.style.maxWidth='100%';img.style.height='auto';
+                    const caption=document.createElement('figcaption');
+                    caption.textContent=kind+' · '+sample.width+'px';
+                    figure.append(img,caption);gallery.append(figure);
+                }
+            }
+            results.append(gallery);
+        }
         if (data.outputType !== 'gutenberg' && typeof data.outputs?.developer === 'string') {
             const heading = document.createElement('h3');
             heading.textContent = 'HTML preview · isolated / review only';
