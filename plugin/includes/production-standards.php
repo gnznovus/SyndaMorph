@@ -4,13 +4,14 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 function syndamorph_production_standards(): array {
     return array(
-        'version' => '1.1.0',
+        'version' => '1.2.0',
         'deliverable' => 'One independently embeddable semantic HTML section with a single scoped style element. Not a full HTML document. The host owns document language, title, metadata, viewport, page heading hierarchy and page-level structured data. Do not add document wrappers or demand them in review.',
         'skills' => array(
             'boss' => 'Requirement analysis, scope control, acceptance criteria, dependency planning and delivery contracts.',
+            'reference' => 'Isolated HTML and scoped CSS as the visual target for later editable native block production.',
             'designer' => 'Visual hierarchy, responsive composition, accessible typography, contrast, design tokens and interaction states.',
             'developer' => 'Semantic HTML, fluid CSS, Grid/Flexbox, responsive layout, accessibility, maintainability and native Gutenberg compatibility planning.',
-            'validator' => 'Evidence-based static review, accessibility, semantic SEO, responsive CSS, security, performance and explicit verification limits.',
+            'validator' => 'Evidence-based browser screenshot, DOM and computed style comparison, accessibility and responsive issue isolation, independent block validation and explicit unverified limitations. Evidence-based static review, accessibility, semantic SEO, responsive CSS, security, performance and explicit verification limits.',
         ),
         'techniques' => array(
             'semantic' => 'Use semantic elements, meaningful heading order, descriptive links, readable text and truthful content; avoid fabricated schema, metadata or business claims.',
@@ -37,7 +38,7 @@ function syndamorph_production_standards(): array {
 function syndamorph_production_context( string $role, string $format = 'html' ): string {
     $s = syndamorph_production_standards();
     if ($format === 'gutenberg') {
-        $s['deliverable'] = 'Native editable Gutenberg block plan; no intermediate HTML or arbitrary CSS. Host owns page metadata.';
+        $s['deliverable'] = 'Native editable Gutenberg block plan as final deliverable, accompanied by a separate HTML/CSS reference artifact for visual comparison. No arbitrary CSS in the native plan. Host owns page metadata.';
         $s['techniques']['tokens'] = 'Use supported native block style attributes, repeated literal design values and native layout containers.';
         $s['techniques']['gutenberg'] = 'Respect the versioned block-plan schema, nesting, block supports and native responsive columns. No custom HTML blocks.';
         $s['criteria']['WP-01'] = 'Only supported native blocks and schema fields; distinguish compiler structural checks from actual editor validation.';
@@ -50,6 +51,8 @@ function syndamorph_production_context( string $role, string $format = 'html' ):
     $lines[] = 'Never claim browser, SEO ranking, accessibility compliance, performance or Gutenberg verification without actual evidence. Distinguish static findings from pending runtime tests.';
     $lines[] = 'For non-Developer roles use readable Markdown headings, short paragraphs, lists and tables. Optional diagrams use fenced mermaid blocks with simple flowchart TD or LR, node IDs and arrows. Developer returns HTML only.';
     if ($format === 'gutenberg') { $lines[count($lines)-1] = 'Use concise Markdown for non-developer reports. Developer returns JSON only. ' . syndamorph_block_plan_contract(); }
+    if ($role === 'reference') { $lines[count($lines)-1] = 'Reference agent returns only one self-contained semantic HTML section with scoped CSS, no Markdown or external dependencies.'; }
+    if ($format === 'gutenberg') { $lines[] = 'Use stable IDs. Fix only pending or impacted components in revisions. Preserve approved siblings. Browser and visual evidence are required for quality claims; a structural block parse is not editor verification.'; }
     if ($role !== 'validator') { $lines[] = 'Apply mandatory standards silently; do not repeat the full checklist. Report only role-specific decisions.'; }
     return implode( "\n", $lines );
 }
