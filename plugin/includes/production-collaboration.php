@@ -132,6 +132,9 @@ function syndamorph_collab_evidence(array $reference, array $native): array {
                 'detail'=>'axe-core '.($violation['impact']??'issue').': '.mb_substr((string)($violation['description']??$rule),0,200));
         }
         foreach (($out['elements']??array()) as $index=>$el) {
+            if(!empty($el['clipped'])) {
+                $findings[]=array('id'=>'clip-'.$width.'-'.$index,'component'=>$el['id']?:'blocks[0]','severity'=>'high','detail'=>'Content is clipped at '.$width.'px.');
+            }
             if (!empty($el['missingAlt']) || !empty($el['unnamedControl'])) {
                 $findings[] = array('id'=>'a11y-'.$width.'-'.$index,'component'=>$el['id']?:'blocks[0]','severity'=>'high','detail'=>'Element has missing accessible name or image alt.');
             }
