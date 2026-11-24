@@ -76,6 +76,17 @@ function wp_remote_post($url,$args) {
             6 => '{"decision":"approved","issues":[],"summary":"No measured defects"}',
             default => throw new RuntimeException('Unexpected surgery paid model call '.$i),
         };
+    } elseif (!empty($GLOBALS['stall_test'])) {
+        $text=match($i){
+            1 => '{"title":"Stalled QA fixture","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid blocks"]}',
+            2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
+            3 => '{"decision":"approved","issues":[]}',
+            4 => $GLOBALS['native_fixture'],
+            5 => '{"decision":"changes_requested","issues":[{"id":"heading-fidelity","component":"blocks[0].children[0]","severity":"medium","detail":"Typography mismatch"}]}',
+            6,7,8 => '{"id":"blocks[0].children[0]","changes":[{"path":"style.notAllowed","value":"1px"}]}',
+            9 => '{"decision":"engineering_blocked","summary":"Repeated surgical changes were outside schema","nextAction":"Review repair scope and evidence"}',
+            default => throw new RuntimeException('Unexpected paid stalled QA call '.$i),
+        };
     } elseif (!empty($GLOBALS['parent_issue_test'])) {
         $text=match($i){
             1 => '{"title":"Parent issue fixture","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid blocks"]}',
@@ -420,6 +431,20 @@ expect(!str_contains(wp_json_encode($GLOBALS['generations'][5]['messages'][0]['c
     '"replacement"'),'QA model was prompted with full replacement rather than compact patch');
 unset($GLOBALS['parent_issue_test']);
 $GLOBALS['native_fixture']=$fixtureBeforeParent;
+$GLOBALS['stall_test']=true;
+$GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
+$stalled=syndamorph_team_real_run('Stop invalid repeated QA repairs and ask Boss.',false,null,'gutenberg');
+expect(!is_wp_error($stalled) && $stalled['status']==='uncompleted',
+    'Exhausted repairs must preserve artifact and report Uncompleted');
+expect(count($GLOBALS['generations'])===9 && count($stalled['quality']['revisions'])===3,
+    'Stalled correction did not escalate after exactly three rejected surgical attempts');
+expect(($stalled['quality']['escalation']['decision']??null)==='engineering_blocked' &&
+    $stalled['stageStatus']['browserQa']==='blocked' &&
+    $stalled['stageStatus']['compilation']==='passed',
+    'Stalled QA did not communicate accurate blocker to Boss');
+expect($stalled['surgery']['qaAccepted']??0===0,
+    'Stalled repairs unexpectedly changed accepted working artifact');
+unset($GLOBALS['stall_test']);
 // New helper-level assertions for protected sibling edits and review propagation.
 $planForSurgery=syndamorph_collab_ids(json_decode($GLOBALS['native_fixture'],true));
 $cross=syndamorph_surgery_apply($planForSurgery,
