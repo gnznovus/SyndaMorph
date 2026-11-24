@@ -444,10 +444,16 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             $screenshots[]=array('media_type'=>'image/jpeg','data'=>$encoded);
         }
     }
-    $review=$call('boss','Assess visual fidelity, accessible names, content, responsiveness and native Gutenberg limits based only on the provided real browser measurements. Provide JSON: {"issues":[{"id":"...","component":"existing component id","severity":"high|medium|low","detail":"..."}],"summary":"..."}. Compiler checks are authoritative for accepted schema. Do not report speculative invalid gradients or unsupported attributes if compilation passed; report measured appearance differences instead. Return ONLY actionable implementation defects in issues. Include kind=implementation and status=open. Passes, host responsibilities, unsupported capabilities and pending editor verification belong in separate notes, never issues. Design itself is frozen. Use existing issue IDs for known findings. Evidence limits must be explicit.',
+    $review=$call('boss','Assess visual fidelity, accessible names, content, responsiveness and native Gutenberg limits based only on the provided real browser measurements. Provide ONLY JSON: {"decision":"approved|changes_requested","issues":[{"id":"...","component":"existing component id","severity":"high|medium|low","detail":"...","kind":"implementation","status":"open"}],"summary":"..."}. Explicitly approve only when no actionable issues remain and actual evidence supports the result. Compiler checks are authoritative for accepted schema. Do not report speculative invalid gradients or unsupported attributes if compilation passed; report measured appearance differences instead. Return ONLY actionable implementation defects in issues. Include kind=implementation and status=open. Passes, host responsibilities, unsupported capabilities and pending editor verification belong in separate notes, never issues. Design itself is frozen. Use existing issue IDs for known findings. Evidence limits must be explicit.',
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$modelEvidence($inspectReference),'native'=>$modelEvidence($inspectNative),'deterministicIssues'=>$issues,'pixelComparison'=>$comparison,'componentPlan'=>$plan,'compilerChecks'=>$artifact['checks'],'imageOrder'=>array('desktop-reference','desktop-gutenberg','mobile-reference','mobile-gutenberg')),16384,$screenshots,'validation');
     if (is_wp_error($review)) return $review;$outputs['validator']=$review;
     $parsed=json_decode(syndamorph_native_json_text($review),true);
+    $bossQaApproved=is_array($parsed)&&($parsed['decision']??'')==='approved';
+    if($on_event)$on_event('handoff',array('from'=>'boss','to'=>'developer','type'=>'qa_review',
+        'decision'=>$bossQaApproved?'approved':'changes_requested',
+        'issueIds'=>array_slice(array_values(array_filter(array_map(
+            static fn($i)=>is_array($i)?sanitize_key((string)($i['id']??'')):'',
+            (array)($parsed['issues']??array())))),0,12)));
     if (!is_array($parsed) || !is_array($parsed['issues']??null)) {
         $issues[]=array('id'=>'validator-format','component'=>'blocks[0]','severity'=>'medium','detail'=>'Validator did not return structured findings.');
     } else {
@@ -457,6 +463,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             if($normalized)$issues[]=$normalized;
         }
     }
+    // A valid finding-free model report is still not permission to advance
+    // unless Boss explicitly approved the implementation.
+    if(!$bossQaApproved && is_array($parsed) && empty($parsed['issues']) && !$issues)
+        $issues[]=array('id'=>'boss-approval-pending','component'=>'boss','severity'=>'high',
+            'detail'=>'Boss has not approved the implementation.','source'=>'process');
     $issues=syndamorph_issue_merge($issues);
     $registry=array();foreach($issues as $issue)$registry[$issue['component'].'|'.$issue['id']]=array_merge($issue,array('status'=>'open'));
     $best['issues']=$issues;$best['score']=syndamorph_issue_score($issues);
@@ -515,14 +526,15 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         // Each repair receives a fresh vision review of its changed component,
         // not the entire design report. Unaffected model findings are retained.
         $targetReview=$call('boss',
-            'Inspect ONLY the changed component and affected descendants using the four browser screenshots. Compare against reference. Return JSON {"issues":[{"id":"...","component":"existing id","severity":"high|medium|low","detail":"..."}]}. Do not re-review approved siblings. Compiler validity is authoritative; never report speculative schema failures for compiled markup. Return only open, actionable implementation defects. Never put passes, resolved issues, host responsibilities or unsupported capabilities in issues. Reuse previous IDs. Include kind=implementation and status=open.',
+            'Inspect ONLY the changed component and affected descendants using the four browser screenshots. Compare against reference. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"...","component":"existing id","severity":"high|medium|low","detail":"..."}]}. Approve only when the changed component has no remaining actionable defects. Do not re-review approved siblings. Compiler validity is authoritative; never report speculative schema failures for compiled markup. Return only open, actionable implementation defects. Never put passes, resolved issues, host responsibilities or unsupported capabilities in issues. Reuse previous IDs. Include kind=implementation and status=open.',
             array('id'=>$id,'changedComponent'=>syndamorph_collab_find($candidate['plan']['blocks'],$id),
                 'previousIssues'=>array_values(array_filter($issues,static fn($issue)=>isset($affected[$issue['component']??'']))),
                 'impact'=>$impact,'compilerChecks'=>$candidate['artifact']['checks'],'imageScope'=>$scope['mode'],
                 'measurements'=>syndamorph_memory_measurements($newEvidence,syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id))),'previousAttempts'=>$memory->feedback($id),'pixelComparison'=>$newComparison,'imageOrder'=>array('desktop-reference','desktop-updated','mobile-reference','mobile-updated')),16384,$scopedScreenshots,'revision_validation');
         if (is_wp_error($targetReview)) { $terminationReason='validator_blocked'; $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Scoped visual validation unavailable');break; }
         $parsedTarget=json_decode(syndamorph_native_json_text($targetReview),true);
-        if (!is_array($parsedTarget) || !is_array($parsedTarget['issues']??null)) {
+        if (!is_array($parsedTarget) || !is_array($parsedTarget['issues']??null) ||
+            !in_array($parsedTarget['decision']??'',array('approved','changes_requested'),true)) {
             $entry=array('round'=>$round,'id'=>$id,'status'=>'rejected','detail'=>'Scoped Validator response invalid');$memory->record($id,$entry);$revisions[]=$entry;continue;
         }
         foreach(array_slice($parsedTarget['issues'],0,10) as $issue) {
@@ -532,6 +544,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         }
         // Recompute deterministic findings globally; retain only unaffected model findings.
         foreach($otherIssues as $issue) if(($issue['source']??'')==='model')$newIssues[]=$issue;
+        if(($parsedTarget['decision']??'')!=='approved' && !$newIssues)
+            $newIssues[]=array('id'=>'boss-approval-pending','component'=>'boss','severity'=>'high',
+                'detail'=>'Boss did not approve this revised component.','source'=>'process');
         $newIssues=syndamorph_issue_merge($newIssues);
         $oldScore=syndamorph_issue_score($issues);$newScore=syndamorph_issue_score($newIssues);
         $oldPixel=array_sum(array_column($comparison,'pixelDifferenceRatio'))/3;
@@ -541,6 +556,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $memory->record($id,array_merge(end($revisions),array('replacement'=>$patch['replacement'],'remainingIssues'=>array_slice($newIssues,0,8))));
         if($accepted && $route==='developer')syndamorph_learning_repair($node,$patch['replacement'],$oldScore,$newScore,$learningSource.':repair:'.$round);
         if($accepted) {
+            if($newScore===0 && ($parsedTarget['decision']??'')==='approved')$bossQaApproved=true;
             $stagnation=0;
             $memory->reopen(array_values(array_diff($impact['affected'],$impact['changed'])));
             $plan=$candidate['plan'];$artifact=$candidate['artifact'];$inspectNative=$newEvidence;$comparison=$newComparison;
@@ -563,7 +579,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $artifact['contentSha256']=hash('sha256',$artifact['content']);
     $cost=round(syndamorph_collab_cost($usage,$in,$out),6);
     // A zero-count heuristic is not proof of visual or Gutenberg editor validity.
-    $status=$best['score']===0 ? 'needs_review' : 'uncompleted';
+    $status=($best['score']===0 && $bossQaApproved) ? 'needs_review' : 'uncompleted';
+    if($best['score']===0 && !$bossQaApproved)$terminationReason='boss_approval_pending';
     return array('provider'=>$provider,'model'=>$model,'standardsVersion'=>syndamorph_production_standards()['version'],
         'outputType'=>'gutenberg','artifact'=>$artifact,'referenceHtml'=>$reference,'status'=>$status,
         'events'=>$events,'outputs'=>$outputs,'checks'=>$artifact['checks'],
@@ -573,6 +590,6 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         'quality'=>array('capabilityNotes'=>$capabilityNotes,'issueRegistry'=>array_values($registry),'score'=>$best['score'],'issues'=>$best['issues'],'revisions'=>$revisions,'terminationReason'=>$terminationReason,'evidence'=>array(
             'reference'=>$evidenceSummary($inspectReference),'native'=>$evidenceSummary($best['evidence'])),
             'pixelComparison'=>$best['comparison'],
-            'browserInspected'=>true,'visionInspected'=>true,'nativeEditorVerified'=>false),
+            'browserInspected'=>true,'visionInspected'=>true,'bossApproved'=>$bossQaApproved,'nativeEditorVerified'=>false),
         'published'=>false,'renderedInBrowser'=>true);
 }
