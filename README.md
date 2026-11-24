@@ -379,3 +379,7 @@ The first POC was validated in `gnznovus/syndacast-layout-engine` on branch `poc
 ## Production standards and rich reports
 
 The team now uses shared versioned skills, techniques and nine default criteria, plus a local Markdown and limited Mermaid flowchart renderer for live and final agent messages. The section contract explicitly delegates document metadata to the host. See [production standards and readable communication](docs/production-standards.md) for supported formats, verification boundaries and acceptance steps.
+
+## AI-first architecture decision
+
+AI Production is the primary development and workspace path. Deterministic Source Import is retained as an explicit, collapsed fallback, not removed. The current AI path remains prompt-only HTML generation. Native Gutenberg block-plan compilation and reference-conditioned AI generation are pending; do not claim these are implemented. Retain capture, extraction, asset management, history, previews and save endpoints. Benchmark AI-native Gutenberg against the fallback on Fidelity > Editable > Reusable before considering retirement. No changes to the stable release.
