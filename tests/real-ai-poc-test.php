@@ -61,7 +61,19 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    $text= !empty($GLOBALS['native_mode']) ? match($i) {
+    if (!empty($GLOBALS['revision_test'])) {
+        $text=match($i) {
+            1 => 'Job title: Hotel hero',
+            2 => 'Use elegant typography and native blocks.',
+            3 => '<section><h2>Welcome &amp; enjoy</h2></section>',
+            4 => $GLOBALS['native_fixture'],
+            5 => '{"issues":[{"id":"heading-fidelity","component":"blocks[0].children[0]","severity":"medium","detail":"Font size needs refinement"}],"summary":"Review heading"}',
+            6 => '{"designerNeeded":false,"reason":"Existing design specification sufficient"}',
+            7 => json_encode(array('id'=>'blocks[0].children[0]','replacement'=>array('id'=>'blocks[0].children[0]','type'=>'heading','text'=>'Welcome & enjoy','level'=>2,'style'=>array('color'=>'#ffffff','fontSize'=>'2.5rem')))),
+            8 => '{"issues":[]}',
+            default => throw new RuntimeException('Unexpected extra paid revision call '.$i),
+        };
+    } else $text= !empty($GLOBALS['native_mode']) ? match($i) {
         1 => 'Job title: Premium hotel hero',
         2 => 'Fluid hero design with strong contrast and clear CTA.',
         3 => '<section class="hero"><style>.hero{padding:3rem}</style><h2>Welcome &amp; enjoy</h2></section>',
@@ -247,3 +259,25 @@ $patch['replacement']['id']='different';
 expect(is_wp_error(syndamorph_collab_patch($withIds,$patch)),'Cross-component patch was allowed');
 expect(str_contains($export,'if (native) { void preparePreview(); }'),'Native auto-preview missing');
 echo "PASS: screenshot-grounded dual artifact QA, stable IDs and targeted revision isolation\\n";
+
+$GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
+$GLOBALS['revision_test']=true;
+$GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=1.0;
+$revised=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
+expect(!is_wp_error($revised),'Targeted collaborative revision failed: '.(is_wp_error($revised)?$revised->get_error_message():'unknown'));
+expect(count($GLOBALS['generations'])===8,'Boss, Developer and scoped Validator revision should make exactly three incremental calls');
+expect($revised['status']==='needs_review' && count($revised['quality']['revisions'])===1 && $revised['quality']['revisions'][0]['accepted'],
+    'Successful targeted revision did not resolve the issue');
+expect(str_contains($revised['artifact']['content'],'font-size:2.5rem'),'Best native artifact did not keep the repaired heading');
+expect(str_contains($revised['artifact']['content'],'A premium hotel experience.'),'Revision destroyed approved sibling');
+expect(!$revised['quality']['revisions'][0]['delegation']['designerNeeded'],'Boss delegated unnecessary full design work');
+expect(in_array('blocks[0].children[1]',$revised['quality']['revisions'][0]['impact']['reused'],true),'Unchanged sibling evidence not reused');
+
+$GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
+$GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=0.010;
+$cutoff=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
+expect(!is_wp_error($cutoff) && $cutoff['status']==='uncompleted','80% budget cutoff must preserve best artifact as Uncompleted');
+expect(count($GLOBALS['generations'])===5 && count($cutoff['quality']['revisions'])===0,'80% cutoff initiated unauthorized paid repair');
+expect(isset($cutoff['artifact']['content']),'Uncompleted job lost the usable native artifact');
+unset($GLOBALS['revision_test']);
+echo "PASS: delegated component repair, scoped vision review, best artifact, reuse and 80-percent budget cutoff\\n";
