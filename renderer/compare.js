@@ -14,7 +14,6 @@ function compareScreenshots(reference,native) {
     if (!Array.isArray(reference) || !Array.isArray(native) || reference.length!==3 || native.length!==3) throw new Error('Three matched responsive viewports required.');
     return reference.map((ref,i)=>{
         const result=native[i],width=ref?.width;
-        if (![1440,768,390][i]!==false) {} // viewport validation below is authoritative
         if(width!==[1440,768,390][i] || result?.width!==width)throw new Error('Viewport evidence mismatch.');
         const a=decode(ref),b=decode(result);
         if(a.width!==b.width||a.height!==b.height)throw new Error('Screenshot dimensions mismatch.');
