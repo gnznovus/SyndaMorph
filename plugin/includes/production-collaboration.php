@@ -94,9 +94,10 @@ function syndamorph_collab_patch(array $plan, array $patch) {
     $target = $patch['replacement'];
     $unique=syndamorph_collab_validate_ids($plan);
     if(is_wp_error($unique)){$target=$before;return $unique;}
-    $compiled = syndamorph_compile_block_plan(wp_json_encode($plan));
-    if (is_wp_error($compiled)) { $target = $before; return $compiled; }
-    return array('plan'=>$plan,'artifact'=>$compiled);
+    // Shared transactional verifier is also used by compiler/schema surgery.
+    $verified=syndamorph_surgery_verify(array('blocks'=>array($before)),$plan);
+    if(is_wp_error($verified)){$target=$before;return $verified;}
+    return array('plan'=>$verified['plan'],'artifact'=>$verified['artifact']);
 }
 function syndamorph_collab_inspect(string $html) {
     $endpoint = defined('SYNDAMORPH_RENDERER_INSPECT_URL') ? SYNDAMORPH_RENDERER_INSPECT_URL : 'http://renderer:3000/inspect';
@@ -517,6 +518,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             $stagnation=0;
             $memory->reopen(array_values(array_diff($impact['affected'],$impact['changed'])));
             $plan=$candidate['plan'];$artifact=$candidate['artifact'];$inspectNative=$newEvidence;$comparison=$newComparison;
+            // Only accepted, browser-verified QA candidates update persistent draft.
+            syndamorph_surgery_save($plan,$workingId);
+            $surgery['qaAccepted']=($surgery['qaAccepted']??0)+1;
             foreach($registry as &$record)$record['status']='resolved';unset($record);
             foreach($newIssues as $issue)$registry[$issue['component'].'|'.$issue['id']]=array_merge($issue,array('status'=>'open'));
             $issues=$newIssues;
