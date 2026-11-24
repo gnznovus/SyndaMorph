@@ -52,26 +52,7 @@ function syndamorph_team_render_tab(): void {
 
                 <section id="sm-team-panel-setup" class="sm-team-panel" role="tabpanel" aria-labelledby="sm-team-tab-setup" data-panel="setup">
                     <div class="sm-team-layout sm-team-setup-grid">
-                        <section class="sm-card" aria-labelledby="sm-team-brief-title">
-                            <div class="sm-card-header">
-                                <h2 class="sm-card-title" id="sm-team-brief-title">AI Production · Primary engine</h2>
-                                <p class="sm-card-caption">Describe the desired output for Boss → Designer → Developer → Validator. Currently supports prompt-only HTML generation.</p>
-                            </div>
-                            <div class="sm-card-body">
-                                <div class="sm-field">
-                                    <label class="sm-field-label" for="syndamorph-team-brief">Task instructions</label>
-                                    <textarea class="sm-control sm-team-brief" id="syndamorph-team-brief" rows="7" maxlength="2000">Create a responsive, premium hotel hero section with a welcoming headline, short introduction, and clear call-to-action. Use a self-contained layout without external assets.</textarea>
-                                </div>
-                                <div class="sm-team-actions">
-                                    <button type="button" class="sm-primary" id="syndamorph-real-run">Start Production <span aria-hidden="true">→</span></button>
-                                    <button type="button" class="sm-team-secondary" id="syndamorph-team-reset">Reset</button>
-                                </div>
-                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">AI is the primary production path. Live agent messages appear in Production. Reference-conditioned AI and native Gutenberg generation are upcoming.</p>
-                            </div>
-                        </section>
-                        <details class="sm-card sm-team-fallback" id="sm-team-fallback">
-                            <summary class="sm-card-header"><strong class="sm-card-title">Manual conversion · Fallback</strong><span class="sm-card-caption">Optional deterministic URL, HTML and ZIP conversion. No AI calls.</span></summary>
-                            <section aria-labelledby="sm-team-source-title">
+                        <section class="sm-card" aria-labelledby="sm-team-source-title">
                             <div class="sm-card-header">
                                 <h2 class="sm-card-title" id="sm-team-source-title">Source import</h2>
                                 <p class="sm-card-caption">Select URL, HTML or ZIP. Inspect source content through the existing SyndaMorph pipeline before conversion.</p>
@@ -134,13 +115,29 @@ function syndamorph_team_render_tab(): void {
                                     <details id="syndamorph-team-source-diagnostics" hidden><summary>Capture diagnostics</summary><pre id="syndamorph-team-source-diagnostics-json"></pre></details>
                                 </div>
                                 <div class="sm-team-source-footer">
-                                    <p class="sm-team-note">This fallback does not use the AI Production Team. Reference jobs remain available in History.</p>
-                                    <button type="button" class="sm-team-secondary" id="syndamorph-team-convert">Convert &amp; Preview <span aria-hidden="true">→</span></button>
+                                    <p class="sm-team-note">Convert &amp; Preview uses the manual converter without AI calls. AI reference generation will use this source panel when wired.</p>
+                                    <button type="button" class="sm-primary" id="syndamorph-team-convert">Convert &amp; Preview <span aria-hidden="true">→</span></button>
                                     <p class="sm-team-action-feedback" id="syndamorph-team-convert-error" role="alert" hidden></p>
                                 </div>
                             </div>
                         </section>
-                        </details>
+                        <section class="sm-card" aria-labelledby="sm-team-brief-title">
+                            <div class="sm-card-header">
+                                <h2 class="sm-card-title" id="sm-team-brief-title">Production brief</h2>
+                                <p class="sm-card-caption">Describe the desired output for Boss → Designer → Developer → Validator. Currently supports prompt-only HTML generation.</p>
+                            </div>
+                            <div class="sm-card-body">
+                                <div class="sm-field">
+                                    <label class="sm-field-label" for="syndamorph-team-brief">Task instructions</label>
+                                    <textarea class="sm-control sm-team-brief" id="syndamorph-team-brief" rows="7" maxlength="2000">Create a responsive, premium hotel hero section with a welcoming headline, short introduction, and clear call-to-action. Use a self-contained layout without external assets.</textarea>
+                                </div>
+                                <div class="sm-team-actions">
+                                    <button type="button" class="sm-primary" id="syndamorph-real-run">Start Production <span aria-hidden="true">→</span></button>
+                                    <button type="button" class="sm-team-secondary" id="syndamorph-team-reset">Reset</button>
+                                </div>
+                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">AI is the primary production path. Live agent messages appear in Production. Reference-conditioned AI and native Gutenberg generation are upcoming.</p>
+                            </div>
+                        </section>
                     </div>
                 </section>
 
