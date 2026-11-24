@@ -24,12 +24,13 @@
         if (!response.ok) throw new Error(result.message || 'Save failed (HTTP '+response.status+').');
         return result;
     }
-    function mount(parent, {html, identity, receipts=[]}) {
-        if (!window.SyndaMorphConverter || typeof html !== 'string' || !html.trim()) return;
+    function mount(parent, {html, artifact, identity, receipts=[]}) {
+        const native = artifact?.schemaVersion === 1 && typeof artifact.content === 'string' && typeof artifact.preview === 'string';
+        if (!native && (!window.SyndaMorphConverter || typeof html !== 'string' || !html.trim())) return;
         const panel = el('section',undefined,'sm-ai-export');
         const heading = el('h3','Save to WordPress');
-        const help = el('p','Convert the generated section into Gutenberg blocks and review the converted preview before saving. No additional AI calls.','sm-hint');
-        const prepare = button('Convert & Preview','sm-primary');
+        const help = el('p',native ? 'Review the compiled native Gutenberg blocks before saving. No conversion or additional AI calls.' : 'Convert the generated section into Gutenberg blocks and review the converted preview before saving. No additional AI calls.','sm-hint');
+        const prepare = button(native ? 'Preview Gutenberg' : 'Convert & Preview','sm-primary');
         const status = el('p','','sm-hint');
         status.setAttribute('role','status');
         const preview = el('iframe');
@@ -68,10 +69,10 @@
         prepare.addEventListener('click',async()=>{
             if(busy||disposed)return;
             prepared=null; preview.hidden=true; controls.hidden=true;
-            busy=true;refresh();status.textContent='Converting HTML into Gutenberg blocks…';
+            busy=true;refresh();status.textContent=native ? 'Preparing native block preview…' : 'Converting HTML into Gutenberg blocks…';
             try {
                 // Do not execute model-generated JavaScript during conversion.
-                const result=await window.SyndaMorphConverter.prepareImport(html,false);
+                const result=native ? artifact : await window.SyndaMorphConverter.prepareImport(html,false);
                 if(disposed)return;
                 if(typeof result.content!=='string'||!result.content.includes('<!-- wp:')) throw new Error('No Gutenberg blocks were generated.');
                 prepared=result;
@@ -81,10 +82,10 @@
                     for(const a of [...n.attributes]) if(/^on|^(?:src|srcset|href|action|formaction|ping|poster|data)$/i.test(a.name))n.removeAttribute(a.name);
                 });
                 preview.srcdoc='<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:"><meta name="viewport" content="width=device-width,initial-scale=1">'+template.innerHTML;
-                preview.hidden=false;controls.hidden=false;prepare.textContent='Reconvert & Preview';
+                preview.hidden=false;controls.hidden=false;prepare.textContent=native ? 'Refresh Preview' : 'Reconvert & Preview';
                 const missing=Array.isArray(result.missing)?result.missing.length:0;
                 const styles=Array.isArray(result.stylesheets)?result.stylesheets.length:(result.stylesheets?.missing?.length||0)+(result.stylesheets?.unverified?.length||0);
-                status.textContent='Review the converted output before saving. '+(missing?missing+' missing asset(s). ':'')+(styles?styles+' stylesheet notice(s). ':'')+'Visual fidelity and editor validity are not automatically certified.';
+                status.textContent=(native ? 'Review the native output before saving. ' : 'Review the converted output before saving. ')+(missing?missing+' missing asset(s). ':'')+(styles?styles+' stylesheet notice(s). ':'')+'Visual fidelity and editor validity are not automatically certified.';
             }catch(e){if(!disposed)status.textContent=e.message;}
             finally{busy=false;if(!disposed)refresh();}
         });
