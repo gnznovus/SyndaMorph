@@ -134,7 +134,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $encoded=wp_json_encode($context);
         if (!is_string($encoded) || strlen($encoded)>160000) return new WP_Error('sm_team_context','Agent context exceeds safe limit.');
         // Estimate actual context bytes conservatively and reserve the full output cap before a paid call.
-        $allowance=(ceil(strlen($encoded)/3)*$in+$cap*$out)/1000000;
+        $allowance=((ceil(strlen($encoded)/3)+count($images)*2000)*$in+$cap*$out)/1000000;
         if (syndamorph_collab_cost($usage,$in,$out)+$allowance>$max) return new WP_Error('sm_team_budget','No safe budget for another model call.');
         if ($on_event) $on_event('agent_start',array('role'=>$role));
         $start=microtime(true);
@@ -175,7 +175,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     if (is_wp_error($inspectReference) || is_wp_error($inspectNative)) return new WP_Error('sm_quality_blocked','Real browser inspection could not complete; job cannot be approved.');
     $evidence=array('reference'=>$inspectReference,'native'=>$inspectNative);
     $issues=array_merge(syndamorph_collab_evidence($inspectReference,$inspectNative),syndamorph_collab_style_findings($inspectReference,$inspectNative,$plan));
-    $best=array('plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'score'=>count($issues));
+    $best=array('plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'score'=>count($issues),'evidence'=>$inspectNative);
     $evidenceSummary=static function(array $samples):array {
         return array_map(static function($sample){return array('width'=>$sample['width'],'snapshot'=>$sample['snapshot'],'screenshotSha256'=>hash('sha256',base64_decode($sample['screenshot'],true)?:''));},$samples);
     };
@@ -224,16 +224,45 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if (is_wp_error($newEvidence)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Browser revalidation unavailable');break; }
         // Root/ancestor changes affect all descendants. Reinspect all widths, but avoid additional full-model review.
         $newIssues=array_merge(syndamorph_collab_evidence($inspectReference,$newEvidence),syndamorph_collab_style_findings($inspectReference,$newEvidence,$candidate['plan']));
+        $otherIssues=array_values(array_filter($issues,static fn($issue)=>($issue['component']??'')!==$id));
+        $scopedScreenshots=array();
+        foreach(array(0,2) as $viewport) {
+            foreach(array($inspectReference,$newEvidence) as $samples) {
+                $scopedScreenshots[]=array('media_type'=>'image/jpeg','data'=>$samples[$viewport]['screenshot']);
+            }
+        }
+        // Each repair receives a fresh vision review of its changed component,
+        // not the entire design report. Unaffected model findings are retained.
+        $targetReview=$call('validator',
+            'Inspect ONLY the changed component and affected descendants using the four browser screenshots. Compare against reference. Return JSON {"issues":[{"id":"...","component":"existing id","severity":"high|medium|low","detail":"..."}]}. Do not re-review approved siblings.',
+            array('id'=>$id,'changedComponent'=>syndamorph_collab_find($candidate['plan']['blocks'],$id),
+                'previousIssues'=>array_values(array_filter($issues,static fn($issue)=>($issue['component']??'')===$id)),
+                'measurements'=>$evidenceSummary($newEvidence),'imageOrder'=>array('desktop-reference','desktop-updated','mobile-reference','mobile-updated')),2400,$scopedScreenshots);
+        if (is_wp_error($targetReview)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Scoped visual validation unavailable');break; }
+        $parsedTarget=json_decode($targetReview,true);
+        if (!is_array($parsedTarget) || !is_array($parsedTarget['issues']??null)) {
+            $revisions[]=array('round'=>$round,'status'=>'rejected','detail'=>'Scoped Validator response invalid');continue;
+        }
+        foreach(array_slice($parsedTarget['issues'],0,10) as $issue) {
+            if (!is_array($issue) || !is_string($issue['detail']??null)) continue;
+            $newIssues[]=array('id'=>sanitize_key((string)($issue['id']??'visual')),'component'=>$id,
+                'severity'=>in_array($issue['severity']??'',array('high','medium','low'),true)?$issue['severity']:'medium',
+                'detail'=>mb_substr($issue['detail'],0,1000));
+        }
+        // Preserve unresolved findings outside the change's impact scope.
+        foreach($otherIssues as $issue) {
+            if (!in_array($issue['id'],array_column($newIssues,'id'),true)) $newIssues[]=$issue;
+        }
         $oldScore=count($issues);$newScore=count($newIssues);
-        $accepted=$newScore<=$oldScore;
+        $accepted=$newScore<$oldScore || ($newScore===$oldScore && wp_json_encode($issues)!==wp_json_encode($newIssues));
         $revisions[]=array('round'=>$round,'id'=>$id,'accepted'=>$accepted,'before'=>$oldScore,'after'=>$newScore,'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
         if($accepted) {
             $plan=$candidate['plan'];$artifact=$candidate['artifact'];$inspectNative=$newEvidence;
             $issues=$newIssues;
-            if($newScore<$best['score']) $best=array('plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'score'=>$newScore);
+            if($newScore<$best['score']) $best=array('plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'score'=>$newScore,'evidence'=>$inspectNative);
         }
         if($on_event) $on_event('revision',end($revisions));
-        if($newScore===0) break;
+        if($accepted && $newScore===0) break;
     }
     $artifact=$best['artifact'];
     $cost=round(syndamorph_collab_cost($usage,$in,$out),6);
@@ -245,7 +274,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         'usage'=>$usage,'agentMetrics'=>$metrics,'estimatedCostUsd'=>$cost,'pricingSource'=>$settings['pricingSource']??'unknown',
         'elapsedMs'=>(int)((microtime(true)-$started)*1000),'budgetUsd'=>$max,'budgetIsEstimate'=>true,
         'quality'=>array('issues'=>$best['issues'],'revisions'=>$revisions,'evidence'=>array(
-            'reference'=>$evidenceSummary($inspectReference),'native'=>$evidenceSummary($inspectNative)),
+            'reference'=>$evidenceSummary($inspectReference),'native'=>$evidenceSummary($best['evidence'])),
             'browserInspected'=>true,'visionInspected'=>true,'nativeEditorVerified'=>false),
         'published'=>false,'renderedInBrowser'=>true);
 }
