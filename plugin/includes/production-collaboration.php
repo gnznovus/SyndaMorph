@@ -149,6 +149,15 @@ function syndamorph_collab_evidence(array $reference, array $native): array {
     }
     return $findings;
 }
+/** Compiler-required checks are blocking QA findings, not informational badges. */
+function syndamorph_collab_block_issues(array $artifact): array {
+    $issues=array();
+    foreach($artifact['checks']??array() as $key=>$passed) {
+        if($passed!==true) $issues[]=array('id'=>'native-'.sanitize_key((string)$key),'component'=>'blocks[0]',
+            'severity'=>'high','detail'=>'Mandatory native block check failed: '.$key);
+    }
+    return $issues;
+}
 /** Map a rendered leaf to its native-plan owner, without injecting custom block markup. */
 function syndamorph_collab_owner(array $nodes, string $text, string $fallback='blocks[0]'): string {
     foreach($nodes as $node) {
@@ -249,7 +258,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $comparison=syndamorph_collab_compare($inspectReference,$inspectNative);
     if(is_wp_error($comparison)) return $comparison;
     $evidence=array('reference'=>$inspectReference,'native'=>$inspectNative);
-    $issues=array_merge(syndamorph_collab_evidence($inspectReference,$inspectNative),syndamorph_collab_style_findings($inspectReference,$inspectNative,$plan));
+    $issues=array_merge(syndamorph_collab_block_issues($artifact),syndamorph_collab_evidence($inspectReference,$inspectNative),syndamorph_collab_style_findings($inspectReference,$inspectNative,$plan));
     $best=array('plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'score'=>count($issues),'evidence'=>$inspectNative,'comparison'=>$comparison);
     $evidenceSummary=static function(array $samples):array {
         return array_map(static function($sample){return array('width'=>$sample['width'],'snapshot'=>$sample['snapshot'],
@@ -330,7 +339,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         // Root/ancestor changes affect all descendants. Reinspect all widths, but avoid additional full-model review.
         $newComparison=syndamorph_collab_compare($inspectReference,$newEvidence);
         if(is_wp_error($newComparison)) { $terminationReason='visual_compare_blocked'; $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Pixel comparison unavailable');break; }
-        $newIssues=array_merge(syndamorph_collab_evidence($inspectReference,$newEvidence),syndamorph_collab_style_findings($inspectReference,$newEvidence,$candidate['plan']));
+        $newIssues=array_merge(syndamorph_collab_block_issues($candidate['artifact']),syndamorph_collab_evidence($inspectReference,$newEvidence),syndamorph_collab_style_findings($inspectReference,$newEvidence,$candidate['plan']));
         $affected=array_fill_keys($impact['affected'],true);
         $otherIssues=array_values(array_filter($issues,static fn($issue)=>!isset($affected[$issue['component']??''])));
         $scopedScreenshots=array();
