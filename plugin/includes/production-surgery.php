@@ -29,9 +29,12 @@ function syndamorph_surgery_extract(array $plan,array $diagnostic): ?array {
     $node=$plan['blocks'][0]??null;
     foreach($indices[1] as $index){$node=$node['children'][(int)$index]??null;}
     if(!is_array($node)||!is_string($node['id']??null))return null;
+    // The target may be the root group of a large five-section design.
+    // Surgical context must never drag the complete descendants into a model call.
+    $local=$node;$childCount=count($local['children']??array());unset($local['children']);
     return array('id'=>$node['id'],'field'=>$field,'property'=>$matches[2]??'',
         'code'=>(string)($diagnostic['code']??''),'message'=>mb_substr((string)($diagnostic['message']??''),0,180),
-        'node'=>$node);
+        'node'=>$local,'childCount'=>$childCount);
 }
 /** Only native style attributes are patchable; content, IDs and siblings are immutable. */
 function syndamorph_surgery_apply(array $plan,array $proposal) {
