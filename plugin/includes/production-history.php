@@ -169,6 +169,64 @@ add_action( 'rest_api_init', static function (): void {
             return rest_ensure_response( array( 'recorded' => true ) );
         },
     ) );
+    // Recompile only the archived best plan. Keep original evidence immutable.
+    register_rest_route('syndamorph/v1','/history/(?P<id>[0-9]+)/recompile-native',array(
+        'methods'=>'POST','permission_callback'=>$permission,
+        'callback'=>static function(WP_REST_Request $request){
+            global $wpdb;
+            list($jobs,$events)=syndamorph_history_tables();
+            $id=(int)$request['id'];
+            $job=$wpdb->get_row($wpdb->prepare("SELECT category,status FROM $jobs WHERE id=%d",$id),ARRAY_A);
+            if(!$job||$job['category']!=='GEN'||!in_array($job['status'],array('needs_review','uncompleted'),true))
+                return new WP_Error('sm_recompile_status','Job is not eligible for recovery.',array('status'=>409));
+            $raw=$wpdb->get_var($wpdb->prepare("SELECT payload FROM $events WHERE job_id=%d AND event_type='job_complete' ORDER BY id DESC LIMIT 1",$id));
+            $final=is_string($raw)?json_decode($raw,true):null;
+            $old=$final['artifact']['content']??null;
+            $plan=$final['outputs']['developer']??null;
+            $checksum=(string)$request->get_param('contentSha256');
+            if(($final['outputType']??'')!=='gutenberg'||!is_string($old)||!is_string($plan)||!hash_equals(hash('sha256',$old),$checksum))
+                return new WP_Error('sm_recompile_plan','Archived native plan missing or artifact changed. Reopen History.',array('status'=>409));
+            require_once __DIR__.'/production-block-plan.php';
+            $artifact=syndamorph_compile_block_plan($plan);
+            if(is_wp_error($artifact))return $artifact;
+            $artifact['contentSha256']=hash('sha256',$artifact['content']);
+            if(hash_equals($checksum,$artifact['contentSha256']) && $artifact['preview']===$final['artifact']['preview'])
+                return rest_ensure_response(array('artifact'=>$artifact,'changed'=>false));
+            // Old QA remains historical evidence. Recovery requires fresh browser
+            // inspection before completion, and never silently promotes a job.
+            require_once __DIR__.'/production-collaboration.php';
+            $reference=$final['referenceHtml']??null;
+            if(!is_string($reference))return new WP_Error('sm_recompile_reference','Archived reference unavailable.',array('status'=>409));
+            $ref=syndamorph_collab_inspect($reference);
+            $native=syndamorph_collab_inspect($artifact['preview']);
+            if(is_wp_error($ref)||is_wp_error($native))return new WP_Error('sm_recompile_qa','Browser reinspection unavailable.',array('status'=>503));
+            $comparison=syndamorph_collab_compare($ref,$native);
+            if(is_wp_error($comparison))return $comparison;
+            $decoded=json_decode(syndamorph_native_json_text($plan),true);
+            $issues=syndamorph_issue_merge(array_merge(syndamorph_collab_block_issues($artifact),syndamorph_collab_evidence($ref,$native),syndamorph_collab_style_findings($ref,$native,$decoded)));
+            // Keep outstanding original model issues; a deterministic recompile
+            // cannot assert that a previous visual judgment has been resolved.
+            foreach($final['quality']['issues']??array() as $issue)if(($issue['source']??'')==='model')$issues[]=$issue;
+            $issues=syndamorph_issue_merge($issues);
+            $final['artifact']=$artifact;
+            $final['checks']=$artifact['checks'];
+            $final['quality']['issues']=$issues;
+            $final['quality']['score']=syndamorph_issue_score($issues);
+            $final['quality']['pixelComparison']=$comparison;
+            $final['quality']['evidence']=array('reference'=>$ref,'native'=>$native);
+            $final['quality']['nativeEditorVerified']=false;
+            // Fresh model-based visual approval is not implied by a recompile.
+            $final['quality']['visionInspected']=false;
+            $final['quality']['browserInspected']=true;
+            $final['quality']['terminationReason']='recompiled_requires_visual_review';
+            $final['status']='needs_review';
+            try{
+                syndamorph_history_append($id,'native_recompiled',array('previousSha256'=>$checksum,'contentSha256'=>$artifact['contentSha256'],'aiCalls'=>0));
+                syndamorph_history_append($id,'job_complete',$final);
+            }catch(Throwable $error){return new WP_Error('sm_history_write','Could not archive recovered artifact.',array('status'=>503));}
+            return rest_ensure_response(array('artifact'=>$artifact,'changed'=>true,'issues'=>$issues));
+        },
+    ));
     register_rest_route( 'syndamorph/v1', '/history/(?P<id>[0-9]+)/validate-native', array(
         'methods' => 'POST', 'permission_callback' => $permission,
         'callback' => static function ( WP_REST_Request $request ) {
@@ -177,6 +235,20 @@ add_action( 'rest_api_init', static function (): void {
             $id=(int)$request['id'];
             $checksum=(string)$request->get_param('contentSha256');
             $count=(int)$request->get_param('blockCount');
+            if(false===$request->get_param('valid')){
+                $job=$wpdb->get_row($wpdb->prepare("SELECT category,status FROM $jobs WHERE id=%d",$id),ARRAY_A);
+                $raw=$wpdb->get_var($wpdb->prepare("SELECT payload FROM $events WHERE job_id=%d AND event_type='job_complete' ORDER BY id DESC LIMIT 1",$id));
+                $final=is_string($raw)?json_decode($raw,true):null;
+                if(!$job||$job['category']!=='GEN'||!is_string($final['artifact']['content']??null)||!hash_equals(hash('sha256',$final['artifact']['content']),$checksum))
+                    return new WP_Error('sm_native_validation','Invalid archived artifact.',array('status'=>409));
+                $kind=(string)$request->get_param('failureKind');
+                if(!in_array($kind,array('registry','parser','serialization','unknown'),true))$kind='unknown';
+                $block=(string)$request->get_param('blockName');
+                if(!preg_match('~^core/[a-z-]+$~D',$block))$block='';
+                try{syndamorph_history_append($id,'editor_validation',array('passed'=>false,'contentSha256'=>$checksum,'failureKind'=>$kind,'blockName'=>$block,'verifiedLesson'=>false));}
+                catch(Throwable $error){return new WP_Error('sm_history_write','Could not record editor failure.',array('status'=>503));}
+                return rest_ensure_response(array('status'=>$job['status'],'recorded'=>true));
+            }
             if(!preg_match('/^[a-f0-9]{64}$/D',$checksum) || $count<1 || $count>200 || true!==$request->get_param('valid'))
                 return new WP_Error('sm_native_validation','Invalid native editor verification.',array('status'=>400));
             $job=$wpdb->get_row($wpdb->prepare("SELECT category,status FROM $jobs WHERE id=%d",$id),ARRAY_A);
