@@ -34,6 +34,11 @@ final class SyndaMorph_Job_Memory {
                 $delta['attemptedStyle']=$entry['replacement']['style']??array();
                 $delta['candidateFingerprint']=self::fingerprint($entry['replacement']);
             }
+            if(isset($entry['changes'])&&is_array($entry['changes'])){
+                $delta['attemptedChanges']=array_slice($entry['changes'],0,3);
+                $delta['candidateFingerprint']=hash('sha256',wp_json_encode(self::canonical($entry['changes'])));
+                $delta['touched']=array_slice((array)($entry['touched']??array()),0,8);
+            }
             $delta['remainingIssueIds']=array_column($entry['remainingIssues']??array(),'id');
             return $delta;
         },array_slice($this->attempts[$id]??array(),-3));
