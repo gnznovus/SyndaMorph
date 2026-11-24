@@ -932,6 +932,9 @@
     cursor:not-allowed; opacity:.55;
 }
 
+/* Consistent report-body inset in Results and History. */
+#syndamorph-production-team .sm-team-ai-agent-output > .sm-rich-content {padding:12px 16px;box-sizing:border-box;}
+#syndamorph-production-team .sm-team-ai-agent-output > figure {margin:12px 16px;}
 /* Shared rich agent content — scoped to the production workspace. */
 #syndamorph-production-team .sm-rich-content {min-width:0;overflow-wrap:anywhere;color:#243348;font-size:14px;line-height:1.65;}
 #syndamorph-production-team .sm-rich-toolbar,
