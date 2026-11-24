@@ -286,6 +286,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if($accepted && $newScore===0) break;
     }
     $artifact=$best['artifact'];
+    $artifact['contentSha256']=hash('sha256',$artifact['content']);
     $cost=round(syndamorph_collab_cost($usage,$in,$out),6);
     // A zero-count heuristic is not proof of visual or Gutenberg editor validity.
     $status=$best['score']===0 && empty($parsed['issues']) ? 'needs_review' : 'uncompleted';
