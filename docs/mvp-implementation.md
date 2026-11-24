@@ -1,5 +1,8 @@
 # SyndaMorph demo MVP — implementation track
 
+
+> **Status update (2026-11-24):** This document records the earlier demo MVP foundation. The **canonical current implementation/roadmap** is [Master Plan](master-plan.md). Adaptive Surgery v2 was implemented in the later WordPress collaborative pipeline at [`54a1833`](https://github.com/gnznovus/SyndaMorph/commit/54a1833354081a04421138b6e993b2c347ccdc1e). The historical `backend/mvp/loop.js` five-repair bound below describes **that older isolated MVP contract**, **not** the active Surgery v2 correction policy. Real live-provider repeatability, custom interactive blocks, campaigns and parallel queues remain unaccepted future gates.
+
 Target: **demo**, not a production-ready remote deployment platform.
 
 ## Outcome
