@@ -25,6 +25,8 @@ on:
       - 'plugin/assets/production-rich-content.js'
       - 'plugin/assets/ai-team-real.js'
       - 'tests/real-ai-poc-test.php'
+      - 'tests/adaptive-surgery-benchmark.*'
+      - 'tests/fixtures/gen-015-repair.json'
       - 'tests/gutenberg-native-*'
       - 'plugin/includes/production-editor-learning.php'
       - 'plugin/includes/ai-integration.php'
@@ -53,6 +55,8 @@ on:
       - 'plugin/assets/production-rich-content.js'
       - 'plugin/assets/ai-team-real.js'
       - 'tests/real-ai-poc-test.php'
+      - 'tests/adaptive-surgery-benchmark.*'
+      - 'tests/fixtures/gen-015-repair.json'
       - 'tests/gutenberg-native-*'
       - 'plugin/includes/production-editor-learning.php'
       - 'plugin/includes/ai-integration.php'
@@ -124,6 +128,7 @@ jobs:
           trap 'docker rm -f syndamorph-inspection-test >/dev/null 2>&1 || true' EXIT
           for i in $(seq 1 30); do if curl -fsS -o /dev/null http://127.0.0.1:3999/ 2>/dev/null || [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3999/ 2>/dev/null)" = 404 ]; then break; fi; sleep 1; done
           node --test renderer/inspect.test.js
+          node tests/adaptive-surgery-benchmark.cjs
       - name: Real WordPress Gutenberg serialization gate
         run: |
           docker compose up -d db wordpress

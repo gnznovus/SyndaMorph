@@ -163,15 +163,20 @@ function syndamorph_collab_patch(array $plan, array $patch) {
 }
 function syndamorph_collab_viewports(string $brief) {
     $widths = array();
-    preg_match_all('/\b(\d{2,5}(?:\s*(?:,\s*(?:and\s+)?|\/|\band\b)\s*\d{2,5})*)\s*(?:CSS\s*)?px\b/i', $brief, $matches);
-    foreach ($matches[1] as $value) {
-        // A bare CSS length is not a viewport requirement unless the brief
-        // identifies it as one. Explicit lists identify acceptance widths.
-        if (!preg_match('/\D/', $value) && !preg_match('/\b(?:viewport|screen|breakpoint|desktop|tablet|mobile|at)\b[^.;]{0,28}\b'.preg_quote($value,'/').'\s*(?:CSS\s*)?px\b/i', $brief)) {
-            continue;
-        }
+    $numberList='\d{2,5}(?:\s*(?:,\s*(?:and\s+)?|\/|\band\b)\s*\d{2,5})*';
+    preg_match_all('/\b('.$numberList.')\s*(?:CSS\s*)?px\b/i',$brief,$matches,PREG_OFFSET_CAPTURE);
+    foreach($matches[1] as [$value,$offset]) {
+        $before=substr($brief,max(0,$offset-64),min(64,$offset));
+        $after=substr($brief,$offset+strlen($value),36);
+        $intent='/\b(?:viewports?|screen(?:s| widths?)?|breakpoints?|desktop|tablet|mobile|test|render|verify|check|measure)\b[^.;]*$/i';
+        if(!preg_match($intent,$before) && !preg_match('/^(?:\s*CSS)?\s*px\s+(?:wide|viewports?|screen|desktop|tablet|mobile)\b/i',$after))continue;
         preg_match_all('/\d+/', $value, $numbers);
         foreach ($numbers[0] as $number) $widths[] = (int)$number;
+    }
+    preg_match_all('/\b(?:viewports?|screen widths?|test widths?)\s*[:=]?\s*('.$numberList.')\b/i',$brief,$unitless);
+    foreach($unitless[1] as $value) {
+        preg_match_all('/\d+/',$value,$numbers);
+        foreach($numbers[0] as $number)$widths[]=(int)$number;
     }
     $widths = array_values(array_unique($widths));
     if (!$widths) return array(1440,768,375);

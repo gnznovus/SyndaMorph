@@ -40,11 +40,29 @@ $add('constrained layout geometry',array(
     array_merge($paragraph,array('style'=>array('margin'=>array('bottom'=>'1rem'),'align'=>'center'))),
     $wrap($button,array('justifyContent'=>'center')),
 ),array('padding'=>'1rem','contentWidth'=>'36rem','gap'=>'1.5rem'));
+$add('scoped reconstruction',array(array('type'=>'group',
+    'style'=>array('justifyContent'=>'stretch','gap'=>'1.5rem'),
+    'children'=>array(
+        $heading,
+        $paragraph,
+        $wrap(array_merge($button,array('style'=>array('fontSize'=>'1rem','fontWeight'=>600,'lineHeight'=>1.2))),
+            array('justifyContent'=>'center')),
+    ),
+)),array('contentWidth'=>'42rem','minHeight'=>'clamp(26.5rem, 20rem + 20vw, 38rem)'));
 $parity=$fixtures['constrained layout geometry'];
 $nativeHtml=do_blocks($parity['content']);
 $baseCss='*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,sans-serif}.wp-block-button__link{display:inline-block}.has-text-align-center{text-align:center}';
 $parity['frontend']='<style>'.wp_get_global_stylesheet().
     wp_style_engine_get_stylesheet_from_context('block-supports').$baseCss.'</style>'.$nativeHtml;
+$parity['flex']=array('preview'=>$fixtures['group center']['preview']);
+$nativeFlex=do_blocks($fixtures['group center']['content']);
+$parity['flex']['frontend']='<style>'.wp_get_global_stylesheet().
+    wp_style_engine_get_stylesheet_from_context('block-supports').$baseCss.'</style>'.$nativeFlex;
+$parity['columns']=array('preview'=>$fixtures['columns gap and column styles']['preview']);
+$nativeColumns=do_blocks($fixtures['columns gap and column styles']['content']);
+$columnCss=file_get_contents(ABSPATH.WPINC.'/blocks/columns/style.min.css');
+$parity['columns']['frontend']='<style>'.wp_get_global_stylesheet().$columnCss.
+    wp_style_engine_get_stylesheet_from_context('block-supports').$baseCss.'</style>'.$nativeColumns;
 
 if(is_wp_error($artifact)){http_response_code(500);exit($artifact->get_error_message());}
 header('Content-Type: text/html; charset=utf-8');

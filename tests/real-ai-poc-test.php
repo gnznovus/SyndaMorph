@@ -149,7 +149,8 @@ function wp_remote_post($url,$args) {
         4 => 'Review: headline and section pass; test contrast and responsiveness in browser before shipping.',
         default => throw new RuntimeException('Too many AI calls'),
     };
-    $mockInput=!empty($GLOBALS['cutoff_fixture']) && str_contains($req['system'][1]['text']??'','Task: validation.')?86000:1200;
+    $mockInput=!empty($GLOBALS['cutoff_fixture']) && str_contains($req['system'][1]['text']??'','Task: validation.')?
+        $GLOBALS['cutoff_fixture']:1200;
     return array('status'=>200,'body'=>json_encode(array(
         'model'=>'claude-dynamic-test-1','stop_reason'=>'end_turn',
         'content'=>array(array('type'=>'text','text'=>$text)),
@@ -430,7 +431,8 @@ expect(in_array('blocks[0].children[1]',$revised['quality']['revisions'][0]['imp
 
 $GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
 // Admit initial screenshot QA with the cached contract overhead, but not the full revision reserve.
-$GLOBALS['cutoff_fixture']=true;
+$GLOBALS['cutoff_fixture']=74000;
+$cropsBeforeCutoff=$GLOBALS['crop_calls'];
 $GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=0.015;
 $cutoff=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
 unset($GLOBALS['cutoff_fixture']);
@@ -441,6 +443,7 @@ $cutoffTasks=array_map(static function(array $request): string {
 },$GLOBALS['generations']);
 expect($cutoffTasks===array('boss','designer','final_approval','developer','validation','scope_resolution') &&
     count($cutoff['quality']['revisions'])===0,'80% budget admission must reserve only the final Boss summary');
+expect($GLOBALS['crop_calls']===$cropsBeforeCutoff+1,'Budget fixture must exercise admission of the Developer and QA pair');
 expect($cutoff['quality']['escalation']['decision']==='manual_review_required','Reserved Boss summary was not recorded');
 $escalationInput=json_decode($GLOBALS['generations'][5]['messages'][0]['content'][0]['text'],true);
 expect($escalationInput['blockerType']==='implementation' &&
@@ -463,6 +466,8 @@ expect(array_column($gen015Round3['pixels'],'pixelDifferenceRatio')===array(0.06
 expect(syndamorph_collab_viewports('Responsive section.')===array(1440,768,375),
     'Production did not default to the required 375px mobile width');
 expect(syndamorph_collab_viewports('Test at 360/820/1600 CSS px.')===array(1600,820,360) &&
+    syndamorph_collab_viewports('Viewports: 360/820/1600.')===array(1600,820,360) &&
+    syndamorph_collab_viewports('Apply padding at 24px and border radius at 32px.')===array(1440,768,375) &&
     is_wp_error(syndamorph_collab_viewports('Test at 240/820/1600 CSS px.')),
     'Explicit viewport requests must be honored or rejected visibly');
 $gen015Preview=syndamorph_compile_block_plan(wp_json_encode($gen015['plan']));
