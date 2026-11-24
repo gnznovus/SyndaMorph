@@ -25,6 +25,7 @@
     let running = false;
     let completed = 0;
     let currentIdentity = null;
+    let activeFormat = 'html';
     let replaying = false;
     const messages = new Map();
     const reportRenderers = [];
@@ -57,7 +58,7 @@
         name.textContent = labels[role] + ' · Generating';
         const body = document.createElement('div');
         body.className = 'sm-team-stream-text';
-        const renderer = window.SyndaMorphRichContent.mount(body, role === 'developer' ? 'html' : 'markdown');
+        const renderer = window.SyndaMorphRichContent.mount(body, role === 'developer' ? (activeFormat === 'gutenberg' ? 'json' : 'html') : 'markdown');
         const metric = document.createElement('small');
         item.append(stamp, name, body, metric);
         timeline.append(item);
@@ -94,7 +95,7 @@
             const metric = (data.agentMetrics || []).find(item => item.role === role);
             heading.textContent = labels[role] + (metric ? ' — ' + formatMetric(metric) : '');
             const body = document.createElement('div');
-            const renderer = window.SyndaMorphRichContent.mount(body, role === 'developer' ? 'html' : 'markdown');
+            const renderer = window.SyndaMorphRichContent.mount(body, role === 'developer' ? (data.outputType === 'gutenberg' ? 'json' : 'html') : 'markdown');
             renderer.update(data.outputs?.[role] || 'No output', true);
             reportRenderers.push(renderer);
             details.append(heading, body);
@@ -127,6 +128,7 @@
     }
     function onEvent(type, data) {
         if (type === 'ready') {
+            activeFormat = data.outputType || 'html';
             if (data.jobId) {
                 currentIdentity = data;
                 const label = data.jobId + ' : ' + data.title;
@@ -263,6 +265,7 @@
     run.addEventListener('click', async () => {
         if (running || replaying || exportControl?.busy()) return;
         const prompt = brief.value.trim();
+        activeFormat = format?.value || 'html';
         if (prompt.length < 12 || prompt.length > 2000) {
             text(notice, 'Enter a production brief between 12 and 2000 characters.');
             return;
@@ -292,7 +295,7 @@
             const response = await fetch(cfg.url, {
                 method:'POST', credentials:'same-origin',
                 headers:{'Content-Type':'application/json', 'X-WP-Nonce':cfg.nonce, 'Accept':'text/event-stream'},
-                body:JSON.stringify({brief:prompt,outputType:format?.value || 'html'}),
+                body:JSON.stringify({brief:prompt,outputType:activeFormat}),
             });
             await readEvents(response);
         } catch(error) {
