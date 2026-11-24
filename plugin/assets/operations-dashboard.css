@@ -965,3 +965,6 @@
 #syndamorph-production-team .sm-history-preview {width:100%;min-height:440px;border:1px solid #dce3ea;margin:12px 0;}
 #syndamorph-production-team #sm-history-detail {margin-top:20px;padding-top:16px;border-top:1px solid #dce3ea;}
 @media(max-width:782px){#syndamorph-production-team .sm-history-toolbar {grid-template-columns:1fr 1fr;}}
+
+#syndamorph-production-team .sm-ai-export {margin-top:20px;padding-top:16px;border-top:1px solid #dce3ea;}
+#syndamorph-production-team .sm-ai-export .sm-team-export-actions[hidden],#syndamorph-production-team .sm-ai-export [hidden] {display:none!important;}
