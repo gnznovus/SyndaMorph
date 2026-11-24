@@ -28,6 +28,14 @@ final class SyndaMorph_Job_Memory {
     public function reopen(array $ids): void { foreach($ids as $id) unset($this->stalled[$id]); }
     // Attempts remain diagnostic only: paid retries are governed by the job budget.
     public function eligible(string $id): bool { return true; }
+    public function operationsOn(string $artifact,array $group): array {
+        $matching=array();
+        foreach($this->attempts as $entries)foreach($entries as $entry) {
+            if(($entry['baselineFingerprint']??null)===$artifact && ($group[0]??null)===($entry['issueGroup'][0]??null))
+                $matching[]=$entry;
+        }
+        return $matching;
+    }
     public function feedback(string $id,array $related=array(),int $limit=3): array {
         $targets=array_fill_keys(array_merge(array($id),$related),true);
         $attempts=array();
@@ -38,7 +46,7 @@ final class SyndaMorph_Job_Memory {
         usort($attempts,static fn($a,$b)=>($a['round']??0)<=>($b['round']??0));
         return array_map(static function(array $entry):array {
             $delta=array_intersect_key($entry,array_flip(array('round','id','status','accepted','detail','reason','scoreBefore','scoreAfter',
-                'focusScoreBefore','focusScoreAfter','route','issueGroup','diagnosis','validation','nextDirection','pixelDeltas','introducedIssues')));
+                'focusScoreBefore','focusScoreAfter','route','issueGroup','diagnosis','strategy','wraps','validation','nextDirection','pixelDeltas','introducedIssues')));
             if(isset($entry['geometryDeltas']))$delta['geometryDeltas']=array_slice($entry['geometryDeltas'],0,4,true);
             if(isset($entry['replacement'])) {
                 $delta['attemptedStyle']=$entry['replacement']['style']??array();

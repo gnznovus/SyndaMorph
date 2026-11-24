@@ -565,23 +565,26 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         // Reserve worst-case Developer and scoped visual QA calls.
         $projected=(25000*$in+32768*$out)/1000000;
         if (syndamorph_collab_cost($usage,$in,$out)+$projected>$cutoff) { $terminationReason='budget_80_percent';break; }
-        $pending=array_values(array_filter($issues,static fn($issue)=>$memory->eligible($issue['component']) && syndamorph_collab_find($plan['blocks'],$issue['component'])!==null));
-        if (!$pending) { $terminationReason='no_progress_or_editable_targets';break; }
-        $pending=syndamorph_repair_prioritize($pending);
-        $id=$pending[0]['component'];
-        $focus=array_slice(array_values(array_filter($pending,static fn($issue)=>$issue['component']===$id)),0,3);
-        $node=syndamorph_collab_find($plan['blocks'],$id);
+        $assignment=syndamorph_repair_assignment($plan,$issues,$memory);
+        if(!$assignment) { $terminationReason='no_new_repair_strategy';break; }
+        $id=$assignment['id'];$focus=$assignment['focus'];$node=$assignment['node'];
+        $repair=null;
         $related=syndamorph_collab_review_scope($plan,array('changed'=>array($id),
-            'affected'=>array_column(syndamorph_surgery_context($node),'id')));
-        $focusKeys=array_map('syndamorph_issue_key',$focus);
+            'affected'=>$assignment['nodes']));
+        $editableNodes=array_values(array_filter(syndamorph_surgery_context($node,121),
+            static fn($item)=>in_array($item['id'],$assignment['nodes'],true)));
         $route=syndamorph_repair_route($focus);
         $delegated=array('designerNeeded'=>false,'reason'=>'Frozen reference: implementation repair only.');
-        $deterministic=syndamorph_repair_container($node,$inspectReference,$inspectNative)??
-            syndamorph_repair_measured($node,$inspectReference,$inspectNative);
+        $deterministic=$assignment['strategy']==='style' && count($assignment['group'])===1 ?
+            (syndamorph_repair_container($node,$inspectReference,$inspectNative)??
+                syndamorph_repair_measured($node,$inspectReference,$inspectNative)) : null;
         $patch=$deterministic===null?null:syndamorph_surgery_from_replacement($node,$deterministic);
+        $candidate=null;
         if($patch!==null){
-            $probe=syndamorph_surgery_apply($plan,$patch);
-            if(is_wp_error($probe)||is_wp_error($probe['error'])||$memory->seen($probe['plan']))$patch=null;
+            $candidate=syndamorph_surgery_operation($plan,$patch,$assignment);
+            if(is_wp_error($candidate)||is_wp_error($candidate['error'])||$memory->seen($candidate['plan'])) {
+                $candidate=null;$patch=null;
+            }
         }
         if($patch!==null){
             $route='engine';
@@ -591,7 +594,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
                     'texts'=>syndamorph_memory_texts($node)));
             if(is_wp_error($repairScope)){$terminationReason='visual_crop_blocked';break;}
             $repairContext=array('issueFocus'=>$focus,'id'=>$id,
-                'editableNodes'=>syndamorph_surgery_context($node),
+                'strategy'=>$assignment['strategy'],'authorizedNodes'=>$assignment['nodes'],
+                'wrapParents'=>$assignment['mode']==='structure'?$assignment['wrapParents']:array(),
+                'editableNodes'=>$editableNodes,
                 'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts($node)),
                 'nativeMeasurements'=>syndamorph_memory_measurements($inspectNative,syndamorph_memory_texts($node)),
                 'previousAttempts'=>$memory->feedback($id,$related),
@@ -599,17 +604,23 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
                 'learnedRules'=>syndamorph_learning_retrieve('repair',(string)($node['type']??'')),
                 'imageScope'=>$repairScope['mode'],
                 'imageOrder'=>array('desktop-reference','desktop-current','mobile-reference','mobile-current'));
-            $repair=$call('developer','Repair the current persisted native plan with MINIMAL STYLE-ONLY SURGERY. Return ONLY JSON {"id":"assigned issue owner","changes":[{"target":"existing child id when needed","path":"style.margin.bottom","value":"1rem"}]}. Each change may target the assigned node or an EXISTING descendant; never change text, links, block types, IDs, siblings or structure. Change at most 3 supported style properties and use the compiler contract. For spacing, distinguish parent gap from leaf margin; edit the actual source of mismatch. Use reference/current viewport measurements and previous rejected attempts. Never return a full node or full plan. '.syndamorph_block_plan_contract(),
+            $instruction='Diagnose the related visual defects using the aligned reference, prior attempts and current geometry. Return only JSON {"id":"assigned owner","diagnosis":"cause with evidence","changes":[{"target":"authorized id","path":"style.margin.bottom","value":"1rem"}]}. Apply up to eight combined edits only to the explicit authorized nodes. Omit unused changes. Preserve text, links, block types, existing IDs and unrelated siblings. Never return a full node or plan. If a supported repair is impossible, use {"id":"assigned owner","blocked":"capability|design_constraint|missing_evidence","diagnosis":"why"}.';
+            if($assignment['strategy']==='contract_correction')$instruction.=' Correct the specific contract failure in previousAttempts before trying new style values.';
+            if($assignment['mode']==='structure')$instruction.=' Use a different strategy: include wraps:[{"parent":"authorized parent","children":["consecutive child id","next child id"],"id":"new-group-id","style":{"justifyContent":"center","gap":"1rem"}}]. Preserve the same child order. Wrap at most twice and combine with style edits in one operation.';
+            $repair=$call('developer',$instruction,
                 $repairContext,2048,$repairScope['images'],'repair');
             if(is_wp_error($repair)) {
                 $terminationReason=$repair->get_error_code()==='sm_team_budget'?'budget_80_percent':'developer_blocked';
                 $patch=null;
             }else $patch=json_decode(syndamorph_native_json_text($repair),true);
         }
-        if($on_event)$on_event('repair_route',array('round'=>$round,'id'=>$id,'route'=>$route));
+        if($on_event)$on_event('repair_route',array('round'=>$round,'id'=>$id,'route'=>$route,'mode'=>$assignment['mode']));
         $proposedChanges=is_array($patch['changes']??null)?array_slice($patch['changes'],0,8):array();
-        $attempt=array('round'=>$round,'id'=>$id,'route'=>$route,'issueGroup'=>$focusKeys,'affectedComponents'=>array($id),
-            'diagnosis'=>mb_substr((string)($focus[0]['detail']??''),0,260),'scoreBefore'=>syndamorph_issue_score($issues),
+        $wraps=is_array($patch['wraps']??null)?array_slice($patch['wraps'],0,2):array();
+        $attempt=array('round'=>$round,'id'=>$id,'route'=>$route,'issueGroup'=>$assignment['group'],'affectedComponents'=>array($id),
+            'strategy'=>$assignment['strategy'],'mode'=>$assignment['mode'],'baselineFingerprint'=>$assignment['baselineFingerprint'],
+            'diagnosis'=>mb_substr(is_string($patch['diagnosis']??null)?$patch['diagnosis']:(string)($focus[0]['detail']??''),0,260),
+            'scoreBefore'=>syndamorph_issue_score($issues),'wraps'=>strlen(wp_json_encode($wraps))<=5000?$wraps:array(),
             'changes'=>strlen(wp_json_encode($proposedChanges))<=5000?$proposedChanges:array(),
             'touched'=>array_values(array_filter(array_column($proposedChanges,'target'),static fn($target)=>is_string($target)&&strlen($target)<=100)),
             'remainingIssues'=>array_slice(syndamorph_repair_prioritize($focus),0,5));
@@ -626,11 +637,16 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             if($terminationReason!=='budget_80_percent')$reject($repair->get_error_message(),'blocked','developer_response');
             break;
         }
-        if(!is_array($patch)||($patch['id']??null)!==$id||!is_array($patch['changes']??null)){
+        if(!is_array($patch)||($patch['id']??null)!==$id){
             $reject('Invalid or out-of-scope surgical JSON patch');continue;
         }
-        if(count($patch['changes'])>3){$reject('QA surgery exceeds three field changes');continue;}
-        $candidate=syndamorph_surgery_apply($plan,$patch);
+        if(in_array($patch['blocked']??null,array('capability','design_constraint','missing_evidence'),true)) {
+            $reject($attempt['diagnosis'],'blocked',$patch['blocked']);continue;
+        }
+        if($assignment['mode']==='structure' && !$wraps) {
+            $reject('Structural repair requires an authorized wrap or a blocker reason.');continue;
+        }
+        $candidate=$candidate??syndamorph_surgery_operation($plan,$patch,$assignment);
         if(is_wp_error($candidate)){$reject($candidate->get_error_message());continue;}
         if(is_wp_error($candidate['error'])){$reject($candidate['error']->get_error_message(),'rejected','compiler');continue;}
         if($memory->seen($candidate['plan'])) {
@@ -698,7 +714,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             $comparison,$newComparison,$focus,$parsedTarget['decision']==='approved');
         $oldScore=$verdict['beforeScore'];$newScore=$verdict['afterScore'];$accepted=$verdict['accepted'];
         $revisions[]=array_merge($attempt,array('status'=>$accepted?'accepted':'rejected','delegation'=>array('designerNeeded'=>$delegated['designerNeeded'],'reason'=>mb_substr((string)($delegated['reason']??''),0,160)),'impact'=>$impact,'reviewScope'=>$reviewIds,
-            'changedFields'=>$patch['changes'],'imageScope'=>$scope['mode'],'accepted'=>$accepted,'before'=>count($issues),'after'=>count($newIssues),'scoreBefore'=>$oldScore,'scoreAfter'=>$newScore,
+            'changedFields'=>$patch['changes']??array(),'imageScope'=>$scope['mode'],'accepted'=>$accepted,'before'=>count($issues),'after'=>count($newIssues),'scoreBefore'=>$oldScore,'scoreAfter'=>$newScore,
             'introducedIssues'=>$verdict['introducedIssues'],'discoveredIssues'=>$verdict['discoveredIssues'],
             'reason'=>$verdict['reason'],'defectStates'=>$verdict['states'],'focusScoreBefore'=>$verdict['focusBefore'],
             'focusScoreAfter'=>$verdict['focusAfter'],'pixelDeltas'=>$verdict['pixelDeltas'],
@@ -747,7 +763,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             'category'=>$issue['category']??'other','views'=>$issue['views']??array()),$prioritized),0,5);
         $escalation=array('state'=>'blocked','reason'=>$terminationReason,
             'issueIds'=>array_column($blocked,'id'),'attemptCount'=>count($revisions),
-            'blockerType'=>syndamorph_repair_blocker_type($terminationReason,$prioritized),
+            'blockerType'=>syndamorph_repair_blocker_type($terminationReason,$prioritized,$revisions),
             'owner'=>'boss','decision'=>'pending','nextAction'=>'scope_review');
         if($on_event)$on_event('repair_escalation',$escalation);
         $blockerOwners=array_values(array_unique(array_column($blocked,'component')));

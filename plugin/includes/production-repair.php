@@ -27,10 +27,67 @@ function syndamorph_repair_prioritize(array $issues): array {
     return $issues;
 }
 
-function syndamorph_repair_blocker_type(string $reason,array $issues): string {
+function syndamorph_repair_blocker_type(string $reason,array $issues,array $attempts=array()): string {
     if(in_array($reason,array('browser_blocked','visual_compare_blocked','visual_crop_blocked','validator_blocked'),true))return 'missing_evidence';
     foreach($issues as $issue)if(($issue['blockerType']??'')==='capability')return 'capability';
+    foreach(array_reverse($attempts) as $attempt) {
+        if(in_array($attempt['validation']??null,array('capability','design_constraint','missing_evidence'),true))
+            return $attempt['validation'];
+    }
     return $reason==='design_review_required'?'design_constraint':'implementation';
+}
+
+function syndamorph_repair_assignment(array $plan,array $issues,SyndaMorph_Job_Memory $memory): ?array {
+    $editable=array_values(array_filter(syndamorph_repair_prioritize($issues),
+        static fn($issue)=>syndamorph_collab_find($plan['blocks'],$issue['component'])!==null));
+    $fingerprint=SyndaMorph_Job_Memory::fingerprint($plan);
+    foreach($editable as $lead) {
+        $owner=$lead['component'];
+        $node=syndamorph_collab_find($plan['blocks'],$owner);
+        $focus=array();
+        $nodes=array($owner);
+        $layoutCategories=array('spacing','alignment','height','wrapping');
+        $layout=in_array($lead['category']??'', $layoutCategories,true) ||
+            preg_match('/spacing|layout|align|position|wrap/i',$lead['id']??'');
+        $descendants=array_column(syndamorph_surgery_context($node,121),'id');
+        foreach($editable as $issue) {
+            $related=$issue['component']===$owner ||
+                ($layout && in_array($issue['component'],$descendants,true) &&
+                    in_array($issue['category']??'',array_merge($layoutCategories,array('typography')),true));
+            if(!$related)continue;
+            $focus[]=$issue;
+            $nodes[]=$issue['component'];
+            array_push($nodes,...array_intersect($issue['components']??array(),$descendants));
+            if(count($focus)>=6)break;
+        }
+        $wrapParents=array();
+        $directChildren=array_column($node['children']??array(),'id');
+        if($layout && in_array($node['type'],array('group','column'),true)) {
+            // Expose direct layout participants. Descendants of unrelated
+            // branches remain protected unless a finding names them.
+            array_push($nodes,...$directChildren);
+            if(count($directChildren)>=2 && count($directChildren)<=12)$wrapParents[]=$owner;
+        }
+        $group=array_map('syndamorph_issue_key',$focus);
+        $attempts=$memory->operationsOn($fingerprint,$group);
+        $used=array_column($attempts,'strategy');
+        $strategy='style';
+        if(in_array($strategy,$used,true)) {
+            $failures=array_column($attempts,'validation');
+            if((in_array('patch_contract',$failures,true)||in_array('compiler',$failures,true)) &&
+                !in_array('contract_correction',$used,true)) {
+                $strategy='contract_correction';
+            }elseif($wrapParents && !in_array('structure',$used,true)) {
+                $strategy='structure';
+            }else {
+                continue;
+            }
+        }
+        return array('id'=>$owner,'node'=>$node,'focus'=>$focus,'group'=>$group,'strategy'=>$strategy,
+            'mode'=>$strategy==='structure'?'structure':'style','nodes'=>array_slice(array_values(array_unique($nodes)),0,24),
+            'wrapParents'=>$wrapParents,'baselineFingerprint'=>$fingerprint);
+    }
+    return null;
 }
 function syndamorph_issue_score(array $issues): int {
     $weights=array();

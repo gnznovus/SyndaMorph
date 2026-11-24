@@ -41,7 +41,7 @@ function syndamorph_surgery_extract(array $plan,array $diagnostic): ?array {
  * Field-only transaction. QA may edit a descendant of an issue-owning group,
  * but never a node outside that group's existing subtree.
  */
-function syndamorph_surgery_apply(array $plan,array $proposal) {
+function syndamorph_surgery_apply(array $plan,array $proposal,?array $authorized=null) {
     $owner=$proposal['id']??null;$changes=$proposal['changes']??null;
     if(!is_string($owner)||!is_array($changes)||!array_is_list($changes)||
         count($changes)<1||count($changes)>8)
@@ -62,6 +62,8 @@ function syndamorph_surgery_apply(array $plan,array $proposal) {
             return new WP_Error('sm_surgery_scope','Surgery may only update supported native style properties.');
         $id=$change['target']??$owner;
         if(!is_string($id))return new WP_Error('sm_surgery_scope','Invalid patch target.');
+        if($authorized!==null && !in_array($id,$authorized,true))
+            return new WP_Error('sm_surgery_scope','Patch target was not authorized for this operation.');
         // Resolve against the assigned subtree first; global lookup alone would
         // allow unrelated siblings and approved design components to be edited.
         $within=array($scope);
@@ -71,10 +73,13 @@ function syndamorph_surgery_apply(array $plan,array $proposal) {
         if($target===null)return new WP_Error('sm_surgery_target','Patch target missing.');
         $remove=($change['op']??'set')==='remove';
         if(isset($m[2])){
-            if(!is_array($target['style'][$m[1]]??null))
-                return new WP_Error('sm_surgery_scope','Side edits require existing spacing object.');
+            $spacing=$target['style'][$m[1]]??null;
+            if(!is_array($spacing)) {
+                $target['style'][$m[1]]=$spacing===null?array():array_fill_keys(array('top','right','bottom','left'),$spacing);
+            }
             if($remove)unset($target['style'][$m[1]][$m[2]]);
             else $target['style'][$m[1]][$m[2]]=$change['value'];
+            if(!$target['style'][$m[1]])unset($target['style'][$m[1]]);
         }elseif($remove)unset($target['style'][$m[1]]);
         else $target['style'][$m[1]]=$change['value'];
         $touches[$id]=true;
@@ -88,6 +93,68 @@ function syndamorph_surgery_apply(array $plan,array $proposal) {
     return array('plan'=>$plan,'artifact'=>is_wp_error($compile)?null:$compile,
         'error'=>is_wp_error($compile)?$compile:null,
         'impact'=>syndamorph_collab_impact($base,$plan),'touched'=>array_keys($touches));
+}
+
+/** Apply one authorized style or layout operation to an isolated copy. */
+function syndamorph_surgery_operation(array $plan,array $proposal,array $authority) {
+    $id=$authority['id'];
+    $authorized=$authority['nodes'];
+    $changes=$proposal['changes']??array();
+    $wraps=$proposal['wraps']??array();
+    if(($proposal['id']??null)!==$id || !is_array($changes)||!array_is_list($changes) ||
+        !is_array($wraps)||!array_is_list($wraps) || count($wraps)>2 ||
+        count($changes)+count($wraps)<1 || count($changes)+count($wraps)>8) {
+        return new WP_Error('sm_surgery_contract','Expected one to eight scoped style changes or authorized wraps.');
+    }
+    if($wraps && ($authority['mode']??'style')!=='structure') {
+        return new WP_Error('sm_surgery_scope','Structural changes require a structural repair assignment.');
+    }
+    if(!$wraps)return syndamorph_surgery_apply($plan,array('id'=>$id,'changes'=>$changes),$authorized);
+
+    $candidate=$plan;
+    $structureTargets=array();
+    foreach($wraps as $wrap) {
+        if(!is_array($wrap) || array_diff(array_keys($wrap),array('parent','children','id','style'))) {
+            return new WP_Error('sm_surgery_structure','A wrap must specify parent, children, new group id and style.');
+        }
+        $parentId=$wrap['parent']??null;$groupId=$wrap['id']??null;
+        $children=$wrap['children']??null;$style=$wrap['style']??array();
+        if(!is_string($parentId)||!in_array($parentId,$authority['wrapParents']??array(),true) ||
+            !is_string($groupId)||!preg_match('/^[a-zA-Z0-9_-]{1,80}$/D',$groupId) ||
+            syndamorph_collab_find($candidate['blocks'],$groupId)!==null ||
+            !is_array($children)||!array_is_list($children)||count($children)<2||count($children)>12 ||
+            !is_array($style)||array_diff(array_keys($style),array('contentWidth','justifyContent','verticalAlignment','gap','minHeight','padding'))) {
+            return new WP_Error('sm_surgery_structure','Wrap exceeds the assigned native layout scope.');
+        }
+        foreach($children as $child)if(!is_string($child)||!in_array($child,$authorized,true)) {
+            return new WP_Error('sm_surgery_structure','Wrap would move an unauthorized block.');
+        }
+        $parent=&syndamorph_collab_find($candidate['blocks'],$parentId);
+        if($parent===null||!in_array($parent['type'],array('group','column'),true)) {
+            return new WP_Error('sm_surgery_structure','Wrap parent must be an existing group or column.');
+        }
+        $childIds=array_column($parent['children'],'id');
+        $start=array_search($children[0],$childIds,true);
+        if($start===false||array_slice($childIds,$start,count($children))!==$children) {
+            return new WP_Error('sm_surgery_structure','A wrap must preserve the order of consecutive direct children.');
+        }
+        $group=array('id'=>$groupId,'type'=>'group','style'=>$style,
+            'children'=>array_slice($parent['children'],$start,count($children)));
+        array_splice($parent['children'],$start,count($children),array($group));
+        unset($parent);
+        array_push($structureTargets,$parentId,$groupId,...$children);
+    }
+    // Only the combined structure and final styles are compiled.
+    $operation=$changes ? syndamorph_surgery_apply($candidate,array('id'=>$id,'changes'=>$changes),$authorized):
+        syndamorph_surgery_verify($plan,$candidate);
+    if(is_wp_error($operation)||is_wp_error($operation['error']??null))return $operation;
+    if(syndamorph_repair_content_signature($plan['blocks'][0])!==syndamorph_repair_content_signature($operation['plan']['blocks'][0])) {
+        return new WP_Error('sm_surgery_content','Structural surgery changed approved content or its order.');
+    }
+    $operation['error']=null;
+    $operation['touched']=array_values(array_unique(array_merge($operation['touched']??array(),$structureTargets)));
+    $operation['impact']=syndamorph_collab_impact($plan,$operation['plan']);
+    return $operation;
 }
 /**
  * Convert a safe deterministic old-style replacement to field-only surgery.

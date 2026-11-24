@@ -99,6 +99,18 @@ function wp_remote_post($url,$args) {
             7 => '{"decision":"approved","issues":[]}',
             default => throw new RuntimeException('Unexpected paid parent repair call '.$i),
         };
+    } elseif (!empty($GLOBALS['adaptive_test'])) {
+        $text=match($i) {
+            1 => '{"title":"Adaptive fixture","sections":["Hero"],"constraints":["Native layout"],"acceptance":["Suitable layout"]}',
+            2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
+            3 => '{"decision":"approved","issues":[]}',
+            4 => $GLOBALS['native_fixture'],
+            5,7 => '{"decision":"changes_requested","issues":[{"id":"layout-spacing","component":"blocks[0]","category":"spacing","scope":"section","severity":"high","detail":"Text leaves need a shared vertical layout."}]}',
+            6 => '{"id":"blocks[0]","diagnosis":"Try explicit style first","changes":[{"path":"style.gap","value":"2rem"}]}',
+            8 => '{"id":"blocks[0]","diagnosis":"An inner flex group can preserve content and apply consistent gap","wraps":[{"parent":"blocks[0]","children":["blocks[0].children[0]","blocks[0].children[1]"],"id":"text-stack","style":{"justifyContent":"center","gap":"1rem"}}],"changes":[{"path":"style.contentWidth","value":"36rem"},{"target":"blocks[0].children[0]","path":"style.margin.bottom","value":"1rem"},{"target":"blocks[0].children[0]","path":"style.align","value":"center"},{"target":"blocks[0].children[1]","path":"style.align","value":"center"}]}',
+            9 => '{"decision":"approved","issues":[]}',
+            default => throw new RuntimeException('Unexpected adaptive repair call '.$i),
+        };
     } elseif (!empty($GLOBALS['revision_test'])) {
         if (str_contains($req['system'][1]['text'] ?? '', 'Task: scope_resolution.')) {
             $resolution = array('decision'=>'manual_review_required','summary'=>'Repair reserve reached','nextAction'=>'Review the retained artifact');
@@ -487,6 +499,29 @@ expect(syndamorph_repair_prioritize(array(array('id'=>'first','severity'=>'mediu
     'Boss escalation did not prioritize a high-impact blocker');
 $notes=syndamorph_reference_capability_notes('<section><style>.k{text-transform:uppercase}</style></section>');
 expect(count($notes)===1 && str_contains($notes[0],'typography'),'Text transform was misclassified as an advanced layout effect');
+$GLOBALS['adaptive_test']=true;
+$GLOBALS['generations']=array();
+$GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=1.0;
+$adaptive=syndamorph_team_real_run('Repair the native layout with a scoped coordinated operation.',false,null,'gutenberg');
+expect(!is_wp_error($adaptive) && array_column($adaptive['quality']['revisions'],'accepted')===array(false,true) &&
+    array_column($adaptive['quality']['revisions'],'mode')===array('style','structure'),
+    'Scheduler did not switch strategy after a failed style repair');
+$adaptivePlan=json_decode($adaptive['outputs']['developer'],true);
+expect($adaptivePlan['blocks'][0]['children'][0]['id']==='text-stack' &&
+    $adaptivePlan['blocks'][0]['children'][1]['id']==='blocks[0].children[2]' &&
+    count($adaptive['quality']['revisions'][1]['changedFields'])===4 &&
+    syndamorph_surgery_load($adaptive['surgery']['workingPlanId'])['revision']===2,
+    'Combined structural and four style changes did not commit atomically with sibling preservation');
+$adaptiveRequest=json_decode($GLOBALS['generations'][7]['messages'][0]['content'][0]['text'],true);
+expect(($adaptiveRequest['previousAttempts'][0]['reason']??'')==='No verified improvement in the affected region',
+    'Structural diagnosis did not receive failed style validation');
+$unauthorized=array('id'=>'sm-hero-root','wraps'=>array(array('parent'=>'sm-hero-root',
+    'children'=>array('sm-hero-title','sm-hero-eyebrow'),'id'=>'reordered')));
+expect(is_wp_error(syndamorph_surgery_operation($gen015['plan'],$unauthorized,array('id'=>'sm-hero-root','mode'=>'structure',
+    'nodes'=>array('sm-hero-root','sm-hero-eyebrow','sm-hero-title'),'wrapParents'=>array('sm-hero-root')))),
+    'Structural surgery accepted reordered protected children');
+unset($GLOBALS['adaptive_test']);
+echo "PASS: adaptive repair switches to scoped structural surgery and persists a combined operation atomically\n";
 // GEN-013 reproduction: issue is owned by an ancestor but repair changes a leaf.
 $fixtureBeforeParent=$GLOBALS['native_fixture'];
 $parentPlan=json_decode($GLOBALS['native_fixture'],true);
