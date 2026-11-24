@@ -37,7 +37,8 @@
                 if (count>200 || !block?.name?.startsWith('core/') || !api.getBlockType(block.name))
                     throw new Error('Unknown or unsupported Gutenberg block.');
                 const check=api.validateBlock(block);
-                if(!check || check.isValid!==true) throw new Error('Gutenberg serialization invalid for '+block.name+'. Check generated block attributes.');
+                const valid=Array.isArray(check) ? check[0] === true : check?.isValid === true;
+                if(!valid) throw new Error('Gutenberg serialization invalid for '+block.name+'. Check generated block attributes.');
                 if (block.innerBlocks?.length) visit(block.innerBlocks);
             }
         }
