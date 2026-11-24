@@ -86,6 +86,7 @@ function syndamorph_history_append( int $id, string $event, array $data ): void 
     $update = array( 'updated_at' => gmdate( 'Y-m-d H:i:s' ) );
     if ( 'job_complete' === $event ) { $update['status'] = 'generated' === ($data['status'] ?? '') ? 'completed' : (in_array(($data['status'] ?? ''),array('uncompleted','needs_review','failed','completed'),true) ? $data['status'] : 'needs_review'); }
     if ( 'job_error' === $event ) { $update['status'] = 'failed'; }
+    if ( 'editor_validation' === $event && !empty($data['passed']) ) { $update['status'] = 'completed'; }
     if ( 'job_title' === $event ) { $update['title'] = mb_substr( sanitize_text_field( (string) ( $data['title'] ?? '' ) ), 0, 200 ); }
     if ( false === $wpdb->update( $jobs, $update, array( 'id' => $id ) ) ) {
         throw new RuntimeException( 'History job metadata could not be updated.' );
@@ -168,6 +169,46 @@ add_action( 'rest_api_init', static function (): void {
             return rest_ensure_response( array( 'recorded' => true ) );
         },
     ) );
+    register_rest_route( 'syndamorph/v1', '/history/(?P<id>[0-9]+)/validate-native', array(
+        'methods' => 'POST', 'permission_callback' => $permission,
+        'callback' => static function ( WP_REST_Request $request ) {
+            global $wpdb;
+            list($jobs,$events)=syndamorph_history_tables();
+            $id=(int)$request['id'];
+            $checksum=(string)$request->get_param('contentSha256');
+            $count=(int)$request->get_param('blockCount');
+            if(!preg_match('/^[a-f0-9]{64}$/D',$checksum) || $count<1 || $count>200 || true!==$request->get_param('valid'))
+                return new WP_Error('sm_native_validation','Invalid native editor verification.',array('status'=>400));
+            $job=$wpdb->get_row($wpdb->prepare("SELECT category,status FROM $jobs WHERE id=%d",$id),ARRAY_A);
+            if(!$job || $job['category']!=='GEN' || !in_array($job['status'],array('needs_review','completed'),true))
+                return new WP_Error('sm_native_validation','Job is not eligible for completed status.',array('status'=>409));
+            $raw=$wpdb->get_var($wpdb->prepare("SELECT payload FROM $events WHERE job_id=%d AND event_type='job_complete' ORDER BY id DESC LIMIT 1",$id));
+            $final=is_string($raw)?json_decode($raw,true):null;
+            if(!is_array($final) || ($final['outputType']??'')!=='gutenberg' ||
+                !is_string($final['artifact']['content']??null) ||
+                !hash_equals(hash('sha256',$final['artifact']['content']),$checksum) ||
+                !empty($final['quality']['issues']) ||
+                !($final['quality']['visionInspected']??false) ||
+                !($final['quality']['browserInspected']??false))
+                return new WP_Error('sm_native_validation','Artifact or quality evidence is not eligible for completion.',array('status'=>409));
+            $parsed=parse_blocks($final['artifact']['content']);
+            $actual=0;
+            $verify=static function(array $nodes) use (&$verify,&$actual): bool {
+                foreach($nodes as $node) {
+                    if(!is_string($node['blockName']??null) || !str_starts_with($node['blockName'],'core/'))return false;
+                    $actual++;
+                    if($actual>200 || !$verify($node['innerBlocks']??array()))return false;
+                }
+                return true;
+            };
+            if(!is_array($parsed) || !$verify($parsed) || $actual!==$count)
+                return new WP_Error('sm_native_validation','Native block structure differs from the registered editor result.',array('status'=>422));
+            if($job['status']==='completed')return rest_ensure_response(array('status'=>'completed','recorded'=>true));
+            try { syndamorph_history_append($id,'editor_validation',array('passed'=>true,'contentSha256'=>$checksum,'blockCount'=>$count)); }
+            catch(Throwable $error){return new WP_Error('sm_history_write','Editor verification could not be archived.',array('status'=>503));}
+            return rest_ensure_response(array('status'=>'completed','recorded'=>true));
+        },
+    ) );
     register_rest_route( 'syndamorph/v1', '/history/(?P<id>[0-9]+)/export-receipt', array(
         'methods' => 'POST', 'permission_callback' => $permission,
         'callback' => static function ( WP_REST_Request $request ) {
@@ -181,7 +222,7 @@ add_action( 'rest_api_init', static function (): void {
             $post_id = (int) ( $json['id'] ?? 0 );
             $post = get_post( $post_id );
             $job = $wpdb->get_row( $wpdb->prepare( "SELECT category,status FROM $jobs WHERE id=%d", $id ), ARRAY_A );
-            if ( ! $job || 'GEN' !== $job['category'] || ! in_array( $job['status'], array( 'completed', 'needs_review' ), true ) ||
+            if ( ! $job || 'GEN' !== $job['category'] || ! in_array( $job['status'], array( 'completed', 'needs_review', 'uncompleted' ), true ) ||
                 ! in_array( $mode, array( 'draft', 'pattern' ), true ) || ! $post || ! current_user_can( 'edit_post', $post_id ) ||
                 ( 'draft' === $mode && ( 'page' !== $post->post_type || 'draft' !== $post->post_status ) ) ||
                 ( 'pattern' === $mode && ( 'wp_block' !== $post->post_type || 'unsynced' !== get_post_meta( $post_id, 'wp_pattern_sync_status', true ) ) ) ) {
