@@ -79,7 +79,7 @@ function syndamorph_compile_block_plan( string $raw ) {
             }
             // Keep core support classes in the order emitted by Gutenberg.
             $classes = array_values(array_unique($classes));
-            $base = array_values(array_filter($classes,static fn($c)=>strpos($c,'wp-block-')===0 || strpos($c,'has-text-align-')===0));
+            $base = array_values(array_filter($classes,static fn($c)=>strpos($c,'wp-block-')===0 || strpos($c,'has-text-align-')===0 || $c==='is-layout-flex'));
             foreach(array('has-text-color','has-background') as $c) { if(in_array($c,$classes,true))$base[]=$c; }
             $classes=$base;
             $style_parts=array(); foreach($css as $k=>$v)$style_parts[]=$k.':'.$v;
