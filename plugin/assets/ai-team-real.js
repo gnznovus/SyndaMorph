@@ -20,14 +20,14 @@
     const title = $('syndamorph-team-result-title');
     if (!cfg || !root || !run || !brief || !timeline || !results) return;
 
-    const roles = ['boss', 'designer', 'reference', 'developer', 'validator'];
-    const initialRoles = () => activeFormat === 'gutenberg' ? roles : roles.filter(r => r !== 'reference');
+    const roles = ['boss', 'designer', 'developer'];
+    const taskRoles = {reference:'developer',validator:'boss',validation:'boss',revision_validation:'boss'};
+    const taskLabels = {reference:'HTML reference',validation:'QA validation',validator:'QA validation',revision_validation:'Scoped QA validation'};
+    const initialRoles = () => roles;
+    const requiredTasks = () => activeFormat === 'gutenberg' ? ['boss','designer','reference','developer','validation'] : ['boss','designer','developer','validator'];
     const completedRoles = new Set();
     const labels = {boss:'Boss', designer:'Designer', reference:'HTML Reference', developer:'Developer', validator:'Validator'};
-    const syncRoster = () => {
-        const reference = root.querySelector('[data-agent="reference"]');
-        if (reference) reference.hidden = activeFormat !== 'gutenberg';
-    };
+    const syncRoster = () => {};
     format?.addEventListener('change', () => {
         if (!running && !replaying) { activeFormat = format.value; syncRoster(); }
     });
@@ -41,7 +41,7 @@
     let exportControl = null;
     let exportReceipts = [];
     const clearReports = () => { if (exportControl) exportControl.destroy(); exportControl = null; reportRenderers.splice(0).forEach(renderer => renderer.destroy()); results.replaceChildren(); };
-    const clearMessages = () => { messages.forEach(message => message.renderer.destroy()); messages.clear(); };
+    const clearMessages = () => { timeline.querySelectorAll('.sm-team-stream-text').forEach(body=>body.replaceChildren()); messages.forEach(message => message.renderer.destroy()); messages.clear(); };
     const text = (node, value) => { if (node) node.textContent = value; };
     const tab = name => {
         const button = root.querySelector('.sm-team-tabs [data-panel="' + name + '"]');
@@ -57,21 +57,21 @@
         pill.dataset.state = state;
         pill.textContent = {running:'Generating', success:'Completed', error:'Failed'}[state] || 'Standing by';
     }
-    function addMessage(role) {
+    function addMessage(role, task=role) {
         const item = document.createElement('li');
         item.className = 'sm-team-step';
         const stamp = document.createElement('span');
         stamp.className = 'sm-team-step-count';
         stamp.textContent = 'LIVE';
         const name = document.createElement('strong');
-        name.textContent = labels[role] + ' · Generating';
+        name.textContent = labels[role] + (taskLabels[task]?' · '+taskLabels[task]:'') + ' · Generating';
         const body = document.createElement('div');
         body.className = 'sm-team-stream-text';
-        const renderer = window.SyndaMorphRichContent.mount(body, role === 'reference' ? 'html' : role === 'developer' ? (activeFormat === 'gutenberg' ? 'json' : 'html') : 'markdown');
+        const renderer = window.SyndaMorphRichContent.mount(body, task === 'reference' ? 'html' : role === 'developer' ? (activeFormat === 'gutenberg' ? 'json' : 'html') : 'markdown');
         const metric = document.createElement('small');
         item.append(stamp, name, body, metric);
         timeline.append(item);
-        messages.set(role, {name, body, metric, renderer, value:''});
+        messages.set(role, {name, body, metric, renderer, value:'',task});
     }
     function setReview(heading, description) {
         if (!review) return;
@@ -96,13 +96,13 @@
             (data.usage.inputTokens + data.usage.outputTokens) + ' tokens · est. $' +
             Number(data.estimatedCostUsd).toFixed(6) + ' (not guaranteed billing)';
         results.append(summary);
-        initialRoles().forEach(role => {
+        ['boss','designer','developer','validator'].forEach(role => {
             const details = document.createElement('details');
             details.className = 'sm-team-ai-agent-output';
             details.open = role === 'developer';
             const heading = document.createElement('summary');
-            const metric = (data.agentMetrics || []).find(item => item.role === role);
-            heading.textContent = labels[role] + (metric ? ' — ' + formatMetric(metric) : '');
+            const metric = (data.agentMetrics || []).find(item => (item.task || item.role) === role || (role==='validator' && item.task==='validation'));
+            heading.textContent = (role==='validator'?'Boss · QA validation':labels[role]) + (metric ? ' — ' + formatMetric(metric) : '');
             const body = document.createElement('div');
             const renderer = window.SyndaMorphRichContent.mount(body, role === 'reference' ? 'html' : role === 'developer' ? (data.outputType === 'gutenberg' ? 'json' : 'html') : 'markdown');
             renderer.update(data.outputs?.[role] || 'No output', true);
@@ -182,7 +182,7 @@
         const reason = document.createElement('p');
         reason.textContent = message;
         const diagnostics = document.createElement('p');
-        diagnostics.textContent = [data.code && 'Code: '+data.code, role && 'Role: '+labels[role], data.field && 'Field: '+data.field, data.stopReason && 'Stop reason: '+data.stopReason, Number.isInteger(data.outputTokens) && 'Output tokens: '+data.outputTokens].filter(Boolean).join(' · ');
+        diagnostics.textContent = [data.code && 'Code: '+data.code, role && 'Agent: '+labels[role], data.task && 'Task: '+(taskLabels[data.task]||data.task), data.field && 'Field: '+data.field, data.stopReason && 'Stop reason: '+data.stopReason, Number.isInteger(data.outputTokens) && 'Output tokens: '+data.outputTokens].filter(Boolean).join(' · ');
         const recovery = document.createElement('p');
         recovery.textContent = generated ? 'Model generation completed; its output was rejected by the system. Previous handoffs and generated output remain in the recorded feed. Remaining agents were not started. Inspect History before retrying.' : 'Production stopped. Inspect the recorded output and History before retrying; do not assume failed calls were free.';
         item.append(heading,reason,diagnostics,recovery);
@@ -218,6 +218,9 @@
         timeline.scrollTop = timeline.scrollHeight;
     }
     function onEvent(type, data) {
+        const task=data.task || data.role;
+        if (taskRoles[data.role]) data={...data,role:taskRoles[data.role],task};
+        if (task==='validator' && activeFormat==='gutenberg') data={...data,task:'validation'};
         if (type === 'ready') {
             activeFormat = data.outputType || 'html';
             syncRoster();
@@ -233,7 +236,7 @@
             text(current, label); text(title, label);
         } else if (type === 'agent_start' && roles.includes(data.role)) {
             setAgent(data.role, 'running');
-            addMessage(data.role);
+            addMessage(data.role,data.task || data.role);
             setFeed(labels[data.role] + ' generating', 'running');
         } else if (type === 'agent_delta' && messages.has(data.role) && typeof data.text === 'string') {
             const message = messages.get(data.role);
@@ -245,11 +248,12 @@
         } else if (type === 'agent_complete' && messages.has(data.role)) {
             const message = messages.get(data.role);
             message.renderer.update(message.value, true);
-            message.name.textContent = labels[data.role] + ' · Completed';
+            message.name.textContent = labels[data.role] + (taskLabels[message.task]?' · '+taskLabels[message.task]:'') + ' · Completed';
             message.metric.textContent = data.metric ? formatMetric(data.metric) : '';
             setAgent(data.role, 'success');
-            if (!completedRoles.has(data.role)) { completedRoles.add(data.role); completed++; }
-            text(handoffs, completed + ' / ' + initialRoles().length + ' initial roles completed');
+            const finishedTask=data.task || data.role;
+            if (requiredTasks().includes(finishedTask) && !completedRoles.has(finishedTask)) { completedRoles.add(finishedTask); completed++; }
+            text(handoffs, completed + ' / ' + requiredTasks().length + ' initial tasks completed');
         } else if (type === 'revision') {
             const item=document.createElement('li');item.className='sm-team-step';
             item.textContent='Revision '+data.round+' · '+data.id+' · '+(data.accepted?'Accepted':'Not accepted')+' · findings '+data.before+' → '+data.after;
@@ -260,11 +264,11 @@
             error.reported = true;
             throw error;
         } else if (type === 'job_complete') {
-            if (initialRoles().some(role => !completedRoles.has(role))) throw new Error('Incomplete initial agent handoffs: ' + completed + ' / ' + initialRoles().length + '.');
+            if (requiredTasks().some(role => !completedRoles.has(role))) throw new Error('Incomplete initial agent handoffs: ' + completed + ' / ' + requiredTasks().length + '.');
             text(job, data.status === 'uncompleted' ? 'Uncompleted' : data.status === 'needs_review' ? 'Review needed' : 'Generated');
             text(output, 'Review output');
             text(notice, 'Production finished. Review every agent output; nothing was published.');
-            setFeed(initialRoles().length+' initial roles finished · '+(data.status || 'review'), data.status === 'uncompleted' ? 'error' : 'success');
+            setFeed(initialRoles().length+' initial tasks finished · '+(data.status || 'review'), data.status === 'uncompleted' ? 'error' : 'success');
             setReview(data.status === 'uncompleted' ? 'Production uncompleted · best artifact preserved' : 'Generation complete · review required',
                 data.quality ? 'Browser and vision evidence recorded. WordPress editor validation remains pending.' : 'AI output is available below; visual fidelity remains unverified.');
             appendReport(data);
@@ -379,7 +383,7 @@
             text(notice, 'Enter a production brief between 12 and 2000 characters.');
             return;
         }
-        if (!window.confirm(activeFormat === 'gutenberg' ? 'Start five initial paid AI calls and optional budget-limited revisions? Nothing will be published.' : 'Start four paid AI agent calls? Nothing will be published.')) return;
+        if (!window.confirm(activeFormat === 'gutenberg' ? 'Start three agents with five initial paid tasks and optional budget-limited revisions? Nothing will be published.' : 'Start three agents with four paid tasks? Nothing will be published.')) return;
         running = true;
         run.disabled = true;
         if (reset) reset.disabled = true;
