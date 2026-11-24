@@ -969,8 +969,10 @@
 #syndamorph-production-team .sm-ai-export {margin-top:20px;padding-top:16px;border-top:1px solid #dce3ea;}
 #syndamorph-production-team .sm-ai-export .sm-team-export-actions[hidden],#syndamorph-production-team .sm-ai-export [hidden] {display:none!important;}
 
-/* AI-first setup; the deterministic fallback stays available on demand. */
-#syndamorph-production-team #sm-team-panel-setup .sm-team-setup-grid {grid-template-columns:minmax(0,1fr);}
-#syndamorph-production-team .sm-team-fallback > summary {cursor:pointer;display:list-item;list-style-position:inside;}
-#syndamorph-production-team .sm-team-fallback > summary .sm-card-caption {display:block;margin-top:6px;}
-#syndamorph-production-team .sm-team-fallback:not([open]) > summary {border-bottom:0;}
+
+/* Shared Results / History conversion controls. */
+#syndamorph-production-team .sm-ai-export {display:flex;flex-direction:column;gap:12px;}
+#syndamorph-production-team .sm-ai-export > h3,
+#syndamorph-production-team .sm-ai-export > p {margin:0;}
+#syndamorph-production-team .sm-ai-convert-actions {display:flex;align-items:center;flex-wrap:wrap;gap:10px;}
+#syndamorph-production-team .sm-ai-convert-actions > button {box-sizing:border-box;height:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding:0 16px;font-size:12px;line-height:1.2;border-radius:9px;margin:0;}
