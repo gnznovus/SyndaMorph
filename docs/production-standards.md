@@ -1,6 +1,6 @@
 # Production standards and readable agent communication
 
-## Production standard v1.0.0
+## Production standard v1.2.0
 
 `plugin/includes/production-standards.php` is the shared, versioned source of truth. Role-specific skills, shared techniques and default acceptance criteria are injected into each agent's system instructions. The user still supplies only a brief.
 
@@ -18,7 +18,7 @@
 
 The deliverable remains an embeddable section with scoped CSS, not a standalone document. The preview host supplies viewport metadata. Page-level SEO belongs to the final host document. The Validator must report every criterion as Pass, Fail, N/A or Unverified with supporting evidence, and must not demand document wrappers in a section.
 
-These are prompt-level requirements, not proof that a criterion passed. The existing four structural checks remain independent and unchanged. Browser, accessibility, SEO and Gutenberg verification remain future work. The four-agent flow is still sequential.
+These are prompt-level requirements, not proof that a criterion passed. The existing four structural checks remain independent and unchanged. For native Gutenberg jobs, three-width browser snapshots, axe-core accessibility checks, screenshot similarity and vision reviews are collected by the collaborative engine; only affected components receive revision-specific AI reviews. WordPress registered-block validation is an independent client-side gate before completion. HTML-only jobs retain the original four-agent sequential flow and static checks.
 
 ## Shared report renderer
 
@@ -42,8 +42,8 @@ Run the MVP CI workflow for PHP/JS syntax and mocked orchestration checks. A liv
 
 ## AI-first architecture decision
 
-AI Production is the primary development and workspace path. Deterministic Source Import is retained as an explicit, collapsed fallback, not removed. The current AI path remains prompt-only HTML generation. Native Gutenberg block-plan compilation and reference-conditioned AI generation are pending; do not claim these are implemented. Retain capture, extraction, asset management, history, previews and save endpoints. Benchmark AI-native Gutenberg against the fallback on Fidelity > Editable > Reusable before considering retirement. No changes to the stable release.
+AI Production is the primary development and workspace path. Deterministic Source Import remains available as an explicit fallback. HTML mode is brief-only; Native Gutenberg mode generates a separate HTML/CSS design reference internally, then compiles a restricted native block plan and validates browser evidence. Source Import is **not yet** connected as an externally supplied AI design reference. Retain capture, extraction, asset management, history, previews and save endpoints. Benchmark AI-native Gutenberg against the fallback on Fidelity > Editable > Reusable before considering retirement. No changes to the stable release.
 
 ## Production failure diagnostics
 
-Terminal errors are displayed in the live feed and recorded in History. Model generation failure is distinct from successful generation followed by deterministic compiler rejection. The error payload includes stage, code, role, completed model calls and, where available, rejected field path, stop reason and usage metrics. Replay displays recorded failures without inference. Existing archived errors retain only the diagnostics originally recorded. No automatic retries or repair calls are made.
+Terminal errors are displayed in the live feed and recorded in History. Model generation failure is distinct from successful generation followed by deterministic compiler rejection. The error payload includes stage, code, role, completed model calls and, where available, rejected field path, stop reason and usage metrics. Replay displays recorded failures without inference. Existing archived errors retain only the diagnostics originally recorded. HTML mode makes no automatic repair calls. Gutenberg mode can make paid, budget-authorized, component-scoped repair calls after real QA evidence; see [collaborative production](collaborative-production.md).
