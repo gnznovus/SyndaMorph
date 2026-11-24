@@ -1,5 +1,8 @@
 # Hybrid engine POC — Local verification
 
+
+> **Current project status (2026-11-24):** This is an **historical local runbook for `poc/hybrid-engine`**, not a complete setup guide for the current `feat/secure-gateway-leasing-v1` AI production branch. Retain the commands/results for reproducibility; see [Master Plan](master-plan.md) for current architecture, implemented Surgery v2 and pending live-AI testing. The BKKGO site is a future full-site benchmark, **not yet an accepted finished conversion**.
+
 Branch: `poc/hybrid-engine`. V1 remains available under **Tools → SyndaMorph**.
 
 ## Start
