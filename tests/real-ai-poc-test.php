@@ -221,6 +221,7 @@ expect($native['artifact']['blockCount']===5 && $native['checks']['contains_head
 expect(str_contains($native['artifact']['content'],'<!-- wp:group') && str_contains($native['artifact']['content'],'Welcome &amp; enjoy'),'Native serialization failed');
 expect(count($GLOBALS['generations'])===5,'Native job must execute five initial calls');
 expect($GLOBALS['inspection_calls']===array('reference','native'),'Both browser artifacts must be inspected');
+expect(count($GLOBALS['generations'][3]['messages'][0]['content'])===3,'Initial native Developer lacks reference screenshots');
 expect(count($GLOBALS['generations'][4]['messages'][0]['content'])===5,'Vision validator must receive text and four screenshots');
 expect($native['quality']['browserInspected']===true && $native['quality']['visionInspected']===true,'Browser and vision evidence not recorded');
 expect(count($native['quality']['pixelComparison'])===3,'Real pixel-comparison metrics not recorded');
@@ -293,7 +294,8 @@ expect($revised['status']==='needs_review' && count($revised['quality']['revisio
 expect(str_contains($revised['artifact']['content'],'font-size:2.5rem'),'Best native artifact did not keep the repaired heading');
 expect(str_contains($revised['artifact']['content'],'A premium hotel experience.'),'Revision destroyed approved sibling');
 expect($revised['quality']['revisions'][0]['imageScope']==='component','Scoped review did not use crops');
-expect($GLOBALS['crop_calls']===1,'Crop endpoint not exercised');
+expect($GLOBALS['crop_calls']===2,'Developer and QA crop endpoints not exercised');
+expect(count($GLOBALS['generations'][5]['messages'][0]['content'])===5,'Developer repair lacks paired visual evidence');
 expect($revised['quality']['revisions'][0]['route']==='developer' && !$revised['quality']['revisions'][0]['delegation']['designerNeeded'],'Routine repair invoked unnecessary design work');
 expect(in_array('blocks[0].children[1]',$revised['quality']['revisions'][0]['impact']['reused'],true),'Unchanged sibling evidence not reused');
 
@@ -332,3 +334,16 @@ expect(!is_wp_error(syndamorph_compile_block_plan(wp_json_encode($richPlan))),'G
 $memory->record('delta',array('replacement'=>$withIds['blocks'][0],'remainingIssues'=>array(array('id'=>'example'))));
 expect(!isset($memory->feedback('delta')[0]['replacement'])&&$memory->feedback('delta')[0]['remainingIssueIds']===array('example'),'Repair memory leaks full historical node');
 echo "PASS: scope, issue registry, GEN8 compiler and compact memory regressions\n";
+
+$layoutPlan=$richPlan;
+$layoutPlan['blocks'][0]['style']=array('minHeight'=>'clamp(28rem,70vh,40rem)','justifyContent'=>'left','verticalAlignment'=>'center','gradient'=>'linear-gradient(180deg, #18283a, #0f1a27)');
+$layoutPlan['blocks'][0]['children'][2]['style']=array('justifyContent'=>'left');
+$layoutResult=syndamorph_compile_block_plan("```json\n".wp_json_encode($layoutPlan)."\n```");
+expect(!is_wp_error($layoutResult),'GEN9 layout and viewport height compilation failed');
+expect(str_contains($layoutResult['content'],'"verticalAlignment":"center"')&&str_contains($layoutResult['content'],'70vh')&&str_contains($layoutResult['content'],'linear-gradient(180deg,#18283a,#0f1a27)'),'Native layout serialization or gradient normalization failed');
+expect(str_contains($layoutResult['preview'],'align-items:flex-start')&&str_contains($layoutResult['preview'],'justify-content:center'),'Preview layout alignment absent');
+$layoutPlan['blocks'][0]['style']['contentWidth']='36rem';
+expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($layoutPlan))),'Conflicting layout types accepted');
+$memory->reopen(array('heading'));
+expect($memory->eligible('heading'),'Stalled descendant not reopened after ancestor change');
+echo "PASS: GEN9 native layout, viewport height, normalization and visual context regressions\n";
