@@ -358,6 +358,9 @@ syndamorph_editor_learning_confirm(10,str_repeat('a',64),str_repeat('b',64));
 syndamorph_editor_learning_confirm(10,str_repeat('a',64),str_repeat('b',64));
 $learning=array_values(get_option('syndamorph_editor_learning_v1'))[0];
 expect($learning['verifiedCorrections']===1&&$learning['category']==='engineering','Verified engineering correction not tracked exactly once');
+$sharedEngineering=syndamorph_learning_snapshot();
+expect($sharedEngineering['counts']['engineering']===1&&$sharedEngineering['counts']['verified']===1,'Confirmed editor recovery not promoted to unified verified engineering memory');
+expect(syndamorph_learning_retrieve('developer')===array(),'Compiler engineering lesson leaked into agent prompt');
 expect(!str_contains($styled['content'],'style="gap:')&&str_contains($styled['preview'],'gap:1rem'),'Native/preview gap separation failed');
 echo "PASS: persistent editor engineering observations and preview-only layout CSS\n";
 
