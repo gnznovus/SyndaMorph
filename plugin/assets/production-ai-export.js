@@ -131,7 +131,14 @@
                 const missing=Array.isArray(result.missing)?result.missing.length:0;
                 const styles=Array.isArray(result.stylesheets)?result.stylesheets.length:(result.stylesheets?.missing?.length||0)+(result.stylesheets?.unverified?.length||0);
                 status.textContent=(native ? 'WordPress registered-block validation passed ('+validatedBlocks+' blocks). '+archiveNote+' ' : 'Review the converted output before saving. ')+(missing?missing+' missing asset(s). ':'')+(styles?styles+' stylesheet notice(s). ':'')+(native ? 'Visual fidelity remains governed by recorded QA findings.' : 'Visual fidelity and editor validity are not automatically certified.');
-            }catch(e){if(!disposed){status.textContent=e.message;retry.hidden=!native;recover.hidden=!native||!identity?.id;}}
+             }catch(e){
+                if(!disposed){status.textContent=e.message;retry.hidden=!native;recover.hidden=!native||!identity?.id;}
+                if(native&&identity?.id&&activeArtifact?.contentSha256&&window.SyndaMorphTeam?.historyUrl){
+                    const match=String(e.message).match(/serialization invalid for (core\/[a-z-]+)/);
+                    const failureKind=match?'serialization':/registry|registration API/i.test(e.message)?'registry':/parser/i.test(e.message)?'parser':'unknown';
+                    try{await post(window.SyndaMorphTeam.historyUrl+'/'+identity.id+'/validate-native',{contentSha256:activeArtifact.contentSha256,valid:false,failureKind,blockName:match?.[1]||''});}catch(_){}
+                }
+            }
             finally{busy=false;if(!disposed)refresh();}
         };
         retry.addEventListener('click',()=>void preparePreview());
