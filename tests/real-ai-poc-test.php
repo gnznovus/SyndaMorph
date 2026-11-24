@@ -200,7 +200,7 @@ $GLOBALS['native_mode']=true;
 $GLOBALS['inspection_calls']=array();
 $GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=1.0;
 $native=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
-expect(is_array($native) && $native['outputType']==='gutenberg','Native pipeline failed');
+expect(is_array($native) && $native['outputType']==='gutenberg','Native pipeline failed: '.(is_wp_error($native) ? $native->get_error_code().' · '.$native->get_error_message() : gettype($native)));
 expect($native['artifact']['blockCount']===5 && $native['checks']['contains_heading'],'Native compilation failed');
 expect(str_contains($native['artifact']['content'],'<!-- wp:group') && str_contains($native['artifact']['content'],'Welcome &amp; enjoy'),'Native serialization failed');
 expect(count($GLOBALS['generations'])===5,'Native job must execute five initial calls');
