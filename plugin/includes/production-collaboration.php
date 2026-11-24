@@ -97,7 +97,7 @@ function syndamorph_collab_inspect(string $html) {
     if (!is_string($endpoint) || !preg_match('~^http://[a-zA-Z0-9.-]+:[0-9]{2,5}/inspect$~D', $endpoint)) {
         return new WP_Error('sm_inspect_config','Invalid isolated renderer endpoint.');
     }
-    $response = wp_remote_post($endpoint,array('timeout'=>35,'redirection'=>0,'headers'=>array('Content-Type'=>'application/json'),
+    $response = wp_remote_post($endpoint,array('timeout'=>75,'redirection'=>0,'headers'=>array('Content-Type'=>'application/json'),
         'body'=>wp_json_encode(array('html'=>$html)),'limit_response_size'=>9000000));
     if (is_wp_error($response)) { return new WP_Error('sm_inspect_unavailable','Browser inspection service unavailable.'); }
     if (wp_remote_retrieve_response_code($response)!==200) { return new WP_Error('sm_inspect_failed','Browser inspection service rejected the request.'); }
