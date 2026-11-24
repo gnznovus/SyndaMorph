@@ -126,6 +126,48 @@ add_action( 'rest_api_init', static function (): void {
             return rest_ensure_response( array( 'jobs' => array_map( 'syndamorph_history_summary', array_slice( $rows, 0, 50 ) ), 'more' => count( $rows ) > 50 ) );
         },
     ) );
+    // Source Import is currently deterministic. Preserve its input separately
+    // from AI events; no provider is contacted by these endpoints.
+    register_rest_route( 'syndamorph/v1', '/history/reference', array(
+        'methods' => 'POST', 'permission_callback' => $permission,
+        'callback' => static function ( WP_REST_Request $request ) {
+            $context = $request->get_param( 'reference' );
+            if ( is_string( $context ) ) { $context = json_decode( $context, true ); }
+            if ( ! is_array( $context ) || ! in_array( $context['kind'] ?? '', array( 'url', 'html', 'package' ), true ) ) {
+                return new WP_Error( 'sm_history_reference', 'Invalid reference.', array( 'status' => 400 ) );
+            }
+            $files = $request->get_file_params();
+            // Multipart requests contain the original ZIP and JSON metadata.
+            if ( 'package' === $context['kind'] ) {
+                $file = $files['package'] ?? null;
+                if ( ! is_array( $file ) || UPLOAD_ERR_OK !== $file['error'] || $file['size'] > 32 * 1024 * 1024 ||
+                    ! is_uploaded_file( $file['tmp_name'] ) ) {
+                    return new WP_Error( 'sm_history_reference', 'Original ZIP is required for archive.', array( 'status' => 400 ) );
+                }
+                $bytes = file_get_contents( $file['tmp_name'] );
+                if ( false === $bytes ) { return new WP_Error( 'sm_history_reference', 'Cannot read ZIP.', array( 'status' => 400 ) ); }
+                $context['package'] = array( 'filename' => sanitize_file_name( $file['name'] ), 'sha256' => hash( 'sha256', $bytes ), 'base64' => base64_encode( $bytes ) );
+            }
+            return syndamorph_history_create( 'REF', (string) $request->get_param( 'title' ), array( 'workflow' => 'source-import', 'reference' => $context ) );
+        },
+    ) );
+    register_rest_route( 'syndamorph/v1', '/history/(?P<id>[0-9]+)/reference-event', array(
+        'methods' => 'POST', 'permission_callback' => $permission,
+        'callback' => static function ( WP_REST_Request $request ) {
+            global $wpdb;
+            list( $jobs ) = syndamorph_history_tables();
+            $id = (int) $request['id'];
+            $type = (string) $request->get_param( 'type' );
+            $data = $request->get_param( 'data' );
+            if ( ! in_array( $type, array( 'reference_page', 'job_complete', 'job_error', 'reference_saved' ), true ) || ! is_array( $data ) ||
+                'REF' !== $wpdb->get_var( $wpdb->prepare( "SELECT category FROM $jobs WHERE id=%d", $id ) ) ) {
+                return new WP_Error( 'sm_history_reference', 'Invalid reference event.', array( 'status' => 400 ) );
+            }
+            try { syndamorph_history_append( $id, $type, $data ); }
+            catch ( Throwable $error ) { return new WP_Error( 'sm_history_write', 'Could not record reference event.', array( 'status' => 503 ) ); }
+            return rest_ensure_response( array( 'recorded' => true ) );
+        },
+    ) );
     register_rest_route( 'syndamorph/v1', '/history/(?P<id>[0-9]+)', array(
         'methods' => 'GET', 'permission_callback' => $permission,
         'callback' => static function ( WP_REST_Request $request ) {
