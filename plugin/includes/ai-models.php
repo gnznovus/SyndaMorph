@@ -256,7 +256,7 @@ function syndamorph_anthropic_sse_request( string $key, array $payload, ?callabl
 }
 
 /** Provider-neutral generation boundary; optional server-side streaming. */
-function syndamorph_models_generate( string $provider, string $model, string $system, string $input, int $max_tokens = 1200, bool $stream = false, ?callable $on_delta = null ) {
+function syndamorph_models_generate( string $provider, string $model, string $system, string $input, int $max_tokens = 1200, bool $stream = false, ?callable $on_delta = null, array $images = array() ) {
     if ( 'anthropic' !== $provider ) {
         return new WP_Error( 'sm_provider_unsupported', 'This provider has no generation adapter yet.', array( 'status' => 501 ) );
     }
@@ -264,9 +264,15 @@ function syndamorph_models_generate( string $provider, string $model, string $sy
     if ( '' === $key ) {
         return new WP_Error( 'sm_provider_key', 'Anthropic credential is missing.', array( 'status' => 400 ) );
     }
+    $content = array( array('type'=>'text','text'=>$input) );
+    if (count($images)>4) return new WP_Error('sm_vision_limit','Too many inspection screenshots.');
+    foreach($images as $item) {
+        if (!is_array($item) || !in_array($item['media_type']??'',array('image/jpeg','image/png'),true) || !is_string($item['data']??null) || strlen($item['data'])>2000000 || !base64_decode($item['data'],true)) return new WP_Error('sm_vision_invalid','Invalid screenshot evidence.');
+        $content[]=array('type'=>'image','source'=>array('type'=>'base64','media_type'=>$item['media_type'],'data'=>$item['data']));
+    }
     $payload = array(
         'model' => $model, 'max_tokens' => $max_tokens,
-        'system' => $system, 'messages' => array( array( 'role' => 'user', 'content' => $input ) ),
+        'system' => $system, 'messages' => array( array( 'role' => 'user', 'content' => $content ) ),
     );
     if ( $stream ) {
         $payload['stream'] = true;
