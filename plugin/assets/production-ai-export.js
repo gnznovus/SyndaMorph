@@ -49,7 +49,9 @@
         const save=button('Save Draft','sm-team-secondary');
         const open=button('Save & Open Editor','sm-primary');
         controls.append(mode,save,open);
-        panel.append(heading,help,prepare,preview,controls,status);
+        panel.append(heading,help);
+        if (!native) panel.append(prepare);
+        panel.append(preview,controls,status);
         parent.append(panel);
         const saved=new Map();
         for(const item of receipts) if(item?.id && ['draft','pattern'].includes(item.mode)) saved.set(item.mode,item);
@@ -66,7 +68,7 @@
             open.disabled=busy||!prepared;
             open.textContent=receipt?'Open Editor':'Save & Open Editor';
         }
-        prepare.addEventListener('click',async()=>{
+        const preparePreview = async()=>{
             if(busy||disposed)return;
             prepared=null; preview.hidden=true; controls.hidden=true;
             busy=true;refresh();status.textContent=native ? 'Preparing native block preview…' : 'Converting HTML into Gutenberg blocks…';
@@ -88,7 +90,9 @@
                 status.textContent=(native ? 'Review the native output before saving. ' : 'Review the converted output before saving. ')+(missing?missing+' missing asset(s). ':'')+(styles?styles+' stylesheet notice(s). ':'')+'Visual fidelity and editor validity are not automatically certified.';
             }catch(e){if(!disposed)status.textContent=e.message;}
             finally{busy=false;if(!disposed)refresh();}
-        });
+        };
+        if (native) { void preparePreview(); }
+        else prepare.addEventListener('click',()=>void preparePreview());
         async function persist(openEditor) {
             if(busy||!prepared||disposed)return;
             const kind=mode.value;
