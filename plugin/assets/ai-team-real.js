@@ -285,6 +285,12 @@
             const item=document.createElement('li');item.className='sm-team-step';
             item.textContent='Developer working plan persisted · revision '+(data.revision||1);
             timeline.append(item);followLatest();
+        } else if (type === 'repair_escalation') {
+            const item=document.createElement('li');item.className='sm-team-step';
+            item.textContent='Boss escalation · '+(data.decision || data.state || 'blocked')+
+                ' · '+(Array.isArray(data.issueIds)?data.issueIds.slice(0,3).join(', '):'')+
+                (data.nextAction?' · '+data.nextAction:'');
+            timeline.append(item);followLatest();
         } else if (type === 'schema_repair') {
             const item=document.createElement('li');item.className='sm-team-step';
             item.textContent='Schema repair '+data.attempt+' · '+data.status+' · '+(data.field||'')+(data.message?' · '+data.message:'');timeline.append(item);
@@ -303,8 +309,17 @@
             text(output, 'Review output');
             text(notice, 'Production finished. Review every agent output; nothing was published.');
             setFeed(requiredTasks().length+' initial tasks finished · '+(data.status || 'review'), data.status === 'uncompleted' ? 'error' : 'success');
-            setReview(data.status === 'uncompleted' ? 'Production uncompleted · best artifact preserved' : 'Generation complete · review required',
-                data.quality ? 'Browser and vision evidence recorded. WordPress editor validation remains pending.' : 'AI output is available below; visual fidelity remains unverified.');
+            const stages=data.stageStatus;
+            const qaBlocked=stages?.browserQa === 'blocked';
+            const blockers=Array.isArray(stages?.blockerIds)?stages.blockerIds.slice(0,5).join(', '):'';
+            const reason=data.quality?.terminationReason || 'quality review pending';
+            const detail=qaBlocked
+                ? 'Design approved · Native compilation passed · Visual QA blocked ('+reason+
+                    (blockers?' · '+blockers:'')+'). Last accepted artifact preserved. WordPress editor review remains pending.'
+                : stages ? 'Design approved · Native compilation passed · Browser QA passed · WordPress editor review pending.'
+                    : data.quality?'Browser and vision evidence recorded; WordPress editor validation pending.':'AI output available; visual fidelity unverified.';
+            setReview(data.status === 'uncompleted' ? 'Production uncompleted · visual QA needs work' : 'Generation complete · review required',detail);
+            text(notice,qaBlocked?detail:'Production finished. Review every agent output; nothing was published.');
             appendReport(data);
             if (!replaying) tab('results');
         }
