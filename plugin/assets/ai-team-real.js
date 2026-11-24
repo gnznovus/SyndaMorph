@@ -7,6 +7,7 @@
     const run = $('syndamorph-real-run');
     const reset = $('syndamorph-team-reset');
     const brief = $('syndamorph-team-brief');
+    const format = $('syndamorph-team-output-type');
     const timeline = $('syndamorph-team-timeline');
     const results = $('syndamorph-real-results');
     const review = $('syndamorph-team-review');
@@ -81,7 +82,7 @@
         results.hidden = false;
         const summary = document.createElement('p');
         summary.className = 'sm-team-ai-summary';
-        summary.textContent = data.model + ' · ' + (data.elapsedMs / 1000).toFixed(1) + 's · ' +
+        summary.textContent = (data.outputType === 'gutenberg' ? 'Native Gutenberg' : 'HTML / CSS') + ' · ' + data.model + ' · ' + (data.elapsedMs / 1000).toFixed(1) + 's · ' +
             (data.usage.inputTokens + data.usage.outputTokens) + ' tokens · est. $' +
             Number(data.estimatedCostUsd).toFixed(6) + ' (not guaranteed billing)';
         results.append(summary);
@@ -99,7 +100,7 @@
             details.append(heading, body);
             results.append(details);
         });
-        if (typeof data.outputs?.developer === 'string') {
+        if (data.outputType !== 'gutenberg' && typeof data.outputs?.developer === 'string') {
             const heading = document.createElement('h3');
             heading.textContent = 'HTML preview · isolated / review only';
             const frame = document.createElement('iframe');
@@ -118,10 +119,10 @@
         checks.textContent = 'Structural checks: ' +
             Object.values(data.checks || {}).filter(Boolean).length + '/' +
             Object.keys(data.checks || {}).length +
-            '. No Gutenberg conversion, browser QA, or publishing has occurred.';
+            (data.outputType === 'gutenberg' ? '. Native plan compiled; editor validation and browser QA remain pending.' : '. No Gutenberg conversion, browser QA, or publishing has occurred.');
         results.append(checks);
         if (typeof data.outputs?.developer === 'string') {
-            exportControl = window.SyndaMorphAIExport.mount(results, {html:data.outputs.developer, identity:currentIdentity, receipts:exportReceipts});
+            exportControl = window.SyndaMorphAIExport.mount(results, {html:data.outputType === 'gutenberg' ? null : data.outputs.developer, artifact:data.artifact, identity:currentIdentity, receipts:exportReceipts});
         }
     }
     function onEvent(type, data) {
@@ -184,7 +185,7 @@
             const next = await reader.read();
             if (next.done) break;
             buffer += decoder.decode(next.value, {stream:true}).replace(/\r\n/g, '\n');
-            if (buffer.length > 300000) throw new Error('Stream frame exceeded the client limit.');
+            if (buffer.length > 2000000) throw new Error('Stream frame exceeded the client limit.');
             let boundary;
             while ((boundary = buffer.indexOf('\n\n')) !== -1) {
                 const frame = buffer.slice(0, boundary);
@@ -291,7 +292,7 @@
             const response = await fetch(cfg.url, {
                 method:'POST', credentials:'same-origin',
                 headers:{'Content-Type':'application/json', 'X-WP-Nonce':cfg.nonce, 'Accept':'text/event-stream'},
-                body:JSON.stringify({brief:prompt}),
+                body:JSON.stringify({brief:prompt,outputType:format?.value || 'html'}),
             });
             await readEvents(response);
         } catch(error) {
