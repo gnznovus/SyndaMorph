@@ -124,7 +124,7 @@ function syndamorph_team_render_tab(): void {
                         <section class="sm-card" aria-labelledby="sm-team-brief-title">
                             <div class="sm-card-header">
                                 <h2 class="sm-card-title" id="sm-team-brief-title">Production brief</h2>
-                                <p class="sm-card-caption">HTML uses four roles; native Gutenberg adds an HTML Reference agent, browser/vision QA, and targeted revisions within the cost budget. Source Import is not yet an AI input.</p>
+                                <p class="sm-card-caption">Three agents collaborate: Boss, Designer and Developer. Native Gutenberg adds browser/vision QA and targeted revisions within the cost budget. Source Import is not yet an AI input.</p>
                             </div>
                             <div class="sm-card-body">
                                 <div class="sm-field">
@@ -164,11 +164,9 @@ function syndamorph_team_render_tab(): void {
                         <section class="sm-card" aria-labelledby="sm-team-roster-title">
                             <div class="sm-card-header"><h2 class="sm-card-title" id="sm-team-roster-title">Agent roster</h2><p class="sm-card-caption">Agent status follows real model generation and handoffs.</p></div>
                             <div class="sm-card-body">
-                                <div class="sm-team-agent" data-agent="boss"><span class="sm-team-avatar">B</span><div><strong>PM / Boss Agent</strong><p>Job classification, delegation and approval</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
+                                <div class="sm-team-agent" data-agent="boss"><span class="sm-team-avatar">B</span><div><strong>PM / Boss Agent</strong><p>Classification, delegation, QA validation and approval</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
                                 <div class="sm-team-agent" data-agent="designer"><span class="sm-team-avatar">D</span><div><strong>Designer Agent</strong><p>Design architecture and visual fidelity</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
-                                <div class="sm-team-agent" data-agent="reference" hidden><span class="sm-team-avatar">H</span><div><strong>HTML Reference Agent</strong><p>Visual design target for native Gutenberg</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
-                                <div class="sm-team-agent" data-agent="developer"><span class="sm-team-avatar">C</span><div><strong>Developer Agent</strong><p>HTML/CSS section implementation</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
-                                <div class="sm-team-agent" data-agent="validator"><span class="sm-team-avatar">V</span><div><strong>Validator Agent</strong><p>Implementation review and findings</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
+                                <div class="sm-team-agent" data-agent="developer"><span class="sm-team-avatar">C</span><div><strong>Developer Agent</strong><p>HTML/CSS reference, native Gutenberg and targeted fixes</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
                                 <div class="sm-team-note">Native Gutenberg includes isolated browser/vision QA and WordPress block validation; HTML-only production remains review-only. Nothing publishes automatically.</div>
                                 <button type="button" class="sm-team-secondary sm-team-view-result" id="syndamorph-team-view-result" hidden>View Result</button>
                             </div>
