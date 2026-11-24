@@ -60,6 +60,7 @@ process.stdin.on('end', async () => {
                             return { tag: el.tagName, id: el.id, text: el.children.length ? '' : el.textContent.slice(0, 250),
                                 rect: [r.x,r.y,r.width,r.height].map(Math.round),
                                 styles: Object.fromEntries(['color','backgroundColor','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','padding','margin','gap','display','textAlign','borderRadius'].map(k => [k,s[k]])),
+                                clipped: /^(?:hidden|clip)$/.test(s.overflowX) && el.scrollWidth > el.clientWidth + 2,
                                 missingAlt: el.tagName === 'IMG' && !el.hasAttribute('alt'),
                                 unnamedControl: ['A','BUTTON'].includes(el.tagName) && !(el.textContent.trim() || el.getAttribute('aria-label') || el.querySelector('img[alt]:not([alt=""])'))
                             };
