@@ -43,3 +43,7 @@ Run the MVP CI workflow for PHP/JS syntax and mocked orchestration checks. A liv
 ## AI-first architecture decision
 
 AI Production is the primary development and workspace path. Deterministic Source Import is retained as an explicit, collapsed fallback, not removed. The current AI path remains prompt-only HTML generation. Native Gutenberg block-plan compilation and reference-conditioned AI generation are pending; do not claim these are implemented. Retain capture, extraction, asset management, history, previews and save endpoints. Benchmark AI-native Gutenberg against the fallback on Fidelity > Editable > Reusable before considering retirement. No changes to the stable release.
+
+## Production failure diagnostics
+
+Terminal errors are displayed in the live feed and recorded in History. Model generation failure is distinct from successful generation followed by deterministic compiler rejection. The error payload includes stage, code, role, completed model calls and, where available, rejected field path, stop reason and usage metrics. Replay displays recorded failures without inference. Existing archived errors retain only the diagnostics originally recorded. No automatic retries or repair calls are made.
