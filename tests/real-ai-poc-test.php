@@ -121,6 +121,7 @@ $GLOBALS['options']['syndamorph_ai_model_settings']=array(
 );
 $result=syndamorph_team_real_run('Create a premium hotel hero with clear CTA.', false);
 expect(is_array($result),'Real team pipeline failed');
+expect(syndamorph_collab_output_cap()===16384,'Native AI team output cap must be 16384 for every role and task');
 expect(array_keys($result['outputs'])===array('boss','designer','developer','validator'),'Role execution order wrong');
 expect(count($GLOBALS['generations'])===4,'Expected four paid calls');
 expect($result['usage']['inputTokens']===4800 && $result['usage']['outputTokens']===600,'Token usage not aggregated');

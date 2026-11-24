@@ -5,6 +5,9 @@ require_once __DIR__.'/production-job-memory.php';
 require_once __DIR__.'/production-learning.php';
 require_once __DIR__.'/production-repair.php';
 
+/** Shared maximum output reservation for every native AI-team task. */
+function syndamorph_collab_output_cap(): int { return 16384; }
+
 function syndamorph_collab_cost(array $usage, float $input, float $output): float {
     return ((($usage['inputTokens'] ?? 0)+($usage['cacheReadTokens']??0)*0.1+($usage['cacheWriteTokens']??0)*1.25) * $input + ($usage['outputTokens'] ?? 0) * $output) / 1000000;
 }
@@ -240,7 +243,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $call=static function(string $role,string $instruction,array $context,int $cap,array $images=array(),string $stage='') use (&$usage,&$metrics,&$events,&$calls,$provider,$model,$in,$out,$max,$stream,$on_event) {
         $stage=$stage ?: $role;
         if(!syndamorph_agent_scope($role,$stage))return new WP_Error('sm_agent_scope','Task outside agent scope.');
-        $cap=in_array($stage,array('boss','designer','repair','revision_validation','validation'),true)?min(16384,max(2048,$cap)):16384;
+        // Every role and task receives the same maximum output budget; safety/cost gates still apply.
+        $cap=syndamorph_collab_output_cap();
         $encoded=wp_json_encode($context);
         if (!is_string($encoded) || strlen($encoded)>160000) return new WP_Error('sm_team_context','Agent context exceeds safe limit.',array('stage'=>'context','role'=>$role,'task'=>$stage,'completedCalls'=>$calls));
         // Estimate actual context bytes conservatively and reserve the full output cap before a paid call.
@@ -262,10 +266,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if ($on_event) $on_event('agent_complete',array('role'=>$role,'task'=>$stage,'metric'=>$metric));
         return $result['text'];
     };
-    $boss=$call('boss','First line must be Job title: <short title>. Then a compact requirements and component responsibility memo, at most 350 words. When copy is unspecified, authorize original generic marketing copy and a descriptive provisional local CTA; never require placeholder text or invent hotel facts. Do not generate HTML, CSS, native JSON, design tokens or validation reports; those belong to subsequent tasks.',array('brief'=>$brief),2500);
+    $boss=$call('boss','First line must be Job title: <short title>. Then a compact requirements and component responsibility memo, at most 350 words. When copy is unspecified, authorize original generic marketing copy and a descriptive provisional local CTA; never require placeholder text or invent hotel facts. Do not generate HTML, CSS, native JSON, design tokens or validation reports; those belong to subsequent tasks.',array('brief'=>$brief),16384);
     if (is_wp_error($boss)) return $boss; $outputs['boss']=$boss;
     if ($on_event && preg_match('/Job title:\s*([^\r\n]+)/i',$boss,$match)) $on_event('job_title',array('title'=>trim($match[1])));
-    $designer=$call('designer','Respect native capabilities in the shared contract; design only implementable native layouts. Return a compact design specification (at most 450 words): hierarchy, layout, palette, responsive tokens, typography and implementation limitations. Allow original generic copy without factual claims. Do not require placeholder labels. Do not generate code or a full criteria review.',array('brief'=>$brief,'boss'=>$boss),3500);
+    $designer=$call('designer','Respect native capabilities in the shared contract; design only implementable native layouts. Return a compact design specification (at most 450 words): hierarchy, layout, palette, responsive tokens, typography and implementation limitations. Allow original generic copy without factual claims. Do not require placeholder labels. Do not generate code or a full criteria review.',array('brief'=>$brief,'boss'=>$boss),16384);
     if (is_wp_error($designer)) return $designer;$outputs['designer']=$designer;
     $reference=$call('developer','Produce one complete self-contained HTML section and scoped CSS using only design capabilities representable in the native contract. Use system-ui, matching native layout behavior and supported length expressions. Write finished generic headline, introduction and CTA copy where unspecified; no bracket placeholders. No Markdown fences. No JavaScript, external URLs, scripts or external assets. Return only HTML.',array('brief'=>$brief,'boss'=>$boss,'design'=>$designer),16384,array(),'reference');
     if (is_wp_error($reference)) return $reference;
@@ -282,7 +286,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     if(is_wp_error($inspectReference))return $inspectReference;
     $referenceImages=array_map(static fn($s)=>array('media_type'=>'image/jpeg','data'=>$s['screenshot']),array($inspectReference[0],$inspectReference[2]));
     $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON, preserving content and visual intent. Return JSON only. Use stable unique ids on each node, and do not invent unsupported styles. '.syndamorph_block_plan_contract(),
-        array('brief'=>$brief,'design'=>$designer,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,'imageOrder'=>array('desktop-reference','mobile-reference'),'learnedRules'=>syndamorph_learning_retrieve('developer')),9000,$referenceImages);
+        array('brief'=>$brief,'design'=>$designer,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,'imageOrder'=>array('desktop-reference','mobile-reference'),'learnedRules'=>syndamorph_learning_retrieve('developer')),16384,$referenceImages);
     if (is_wp_error($developer)) return $developer;
     // Recover model-generated schema mistakes without restarting production.
     // Never bypass the compiler or send rejected markup to the renderer.
@@ -392,7 +396,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         } else {
             $repairScope=syndamorph_collab_scoped_images($inspectReference,$inspectNative,syndamorph_memory_texts($node));
             $repair=$call('developer','Repair only the specified native component against the frozen HTML reference. Inspect the reference/current screenshot pairs and measurements, including ancestor constraints. Return exactly JSON {"id":"existing id","replacement":{...full valid node with same id and type...}}. Preserve text, links and approved siblings. Do not redesign. Fix schema errors using the supported contract. Never repeat rejected attempts.',
-                array('issueFocus'=>$focus,'component'=>$node,'id'=>$id,'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts($node)),'nativeMeasurements'=>syndamorph_memory_measurements($inspectNative,syndamorph_memory_texts($node)),'previousAttempts'=>$memory->feedback($id),'learnedRules'=>syndamorph_learning_retrieve('repair',(string)($node['type']??'')),'imageScope'=>$repairScope['mode'],'imageOrder'=>array('desktop-reference','desktop-current','mobile-reference','mobile-current')),4000,$repairScope['images'],'repair');
+                array('issueFocus'=>$focus,'component'=>$node,'id'=>$id,'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts($node)),'nativeMeasurements'=>syndamorph_memory_measurements($inspectNative,syndamorph_memory_texts($node)),'previousAttempts'=>$memory->feedback($id),'learnedRules'=>syndamorph_learning_retrieve('repair',(string)($node['type']??'')),'imageScope'=>$repairScope['mode'],'imageOrder'=>array('desktop-reference','desktop-current','mobile-reference','mobile-current')),16384,$repairScope['images'],'repair');
             if(is_wp_error($repair)) { $terminationReason=$repair->get_error_code()==='sm_team_budget'?'budget_80_percent':'developer_blocked';break; }
             $patch=json_decode(syndamorph_native_json_text($repair),true);
         }
