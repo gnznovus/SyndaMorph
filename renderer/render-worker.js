@@ -17,6 +17,7 @@ process.stdin.on('data', (chunk) => input.push(chunk));
 process.stdin.on('end', async () => {
     let browser;
     let crashed = false;
+    const evidence = [];
     try {
         const { html, inspect, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
@@ -59,7 +60,6 @@ process.stdin.on('end', async () => {
             a11yPage.on('crash', () => { crashed = true; });
             await a11yPage.setContent(safeMarkup, {waitUntil:'domcontentloaded',timeout:5000});
             await a11yPage.evaluate(axe.source);
-            const evidence = [];
             for (const width of viewports) {
                 await page.setViewportSize({ width, height: HEIGHT });
                 const snapshot = await page.evaluate(() => {
@@ -116,7 +116,9 @@ process.stdin.on('end', async () => {
         const category = error instanceof RendererError ? error.code :
             error.name === 'TimeoutError' ? 'browser_timeout' :
                 (crashed || !browser || !browser.isConnected()) ? 'browser_crash' : 'worker_failure';
-        process.stdout.write(JSON.stringify({ error: category }));
+        if (evidence.length && ['browser_timeout','browser_crash'].includes(category))
+            process.stdout.write(JSON.stringify({ evidence }));
+        else process.stdout.write(JSON.stringify({ error: category }));
     } finally {
         if (browser) { await browser.close().catch(() => {}); }
     }

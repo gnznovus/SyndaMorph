@@ -137,7 +137,8 @@ add_action( 'rest_api_init', static function (): void {
             $id=(int)$request['id'];
             $raw=$wpdb->get_var($wpdb->prepare(
                 "SELECT e.payload FROM $events e INNER JOIN $jobs j ON j.id=e.job_id
-                 WHERE j.id=%d AND j.category='GEN' AND j.status='failed' AND e.event_type='job_error' ORDER BY e.id DESC LIMIT 1",$id));
+                 WHERE j.id=%d AND j.category='GEN' AND j.status IN ('failed','uncompleted')
+                   AND e.event_type IN ('job_error','job_complete') ORDER BY e.id DESC LIMIT 1",$id));
             $failure=is_string($raw)?json_decode($raw,true):null;
             $checkpoint=$failure['referenceCheckpoint']??null;
             if(!is_string($checkpoint))

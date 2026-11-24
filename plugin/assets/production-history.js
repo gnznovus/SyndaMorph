@@ -101,6 +101,24 @@
             }
         }
         const events=record.events||[], outputs=new Map();
+        const inspectionRecord=[...events].reverse().find(event=>
+            (event.type==='job_error'||event.type==='job_complete')&&event.data?.referenceCheckpoint);
+        if(inspectionRecord) {
+            const retry=button('Retry browser inspection',async()=>{
+                retry.disabled=true;
+                status.textContent='Inspecting the saved artifact…';
+                try {
+                    const response=await fetch(cfg.historyUrl+'/'+record.id+'/reinspect-reference',{
+                        method:'POST',credentials:'same-origin',headers:{'X-WP-Nonce':cfg.nonce},
+                    });
+                    const result=await response.json();
+                    if(!response.ok)throw new Error(result.message || 'Browser inspection failed.');
+                    status.textContent='Browser inspection passed at '+result.widths.join(', ')+' CSS px. Visual approval remains pending.';
+                }catch(e){status.textContent=e.message;}
+                finally{retry.disabled=false;}
+            });
+            actions.append(retry);
+        }
         for(const event of events) {
             const d=event.data||{};
             if(event.type==='agent_delta') outputs.set(d.role,(outputs.get(d.role)||'')+d.text);
@@ -113,22 +131,6 @@
             if(event.type==='job_error') {
                 const { referenceCheckpoint, ...error } = d;
                 section('Recorded error',JSON.stringify(error,null,2),'json').open=true;
-                if(referenceCheckpoint) {
-                    const retry=button('Retry browser inspection',async()=>{
-                        retry.disabled=true;
-                        status.textContent='Inspecting the saved reference…';
-                        try {
-                            const response=await fetch(cfg.historyUrl+'/'+record.id+'/reinspect-reference',{
-                                method:'POST',credentials:'same-origin',headers:{'X-WP-Nonce':cfg.nonce},
-                            });
-                            const result=await response.json();
-                            if(!response.ok)throw new Error(result.message || 'Browser inspection failed.');
-                            status.textContent='Browser inspection passed at '+result.widths.join(', ')+' CSS px. The job remains archived.';
-                        }catch(e){status.textContent=e.message;}
-                        finally{retry.disabled=false;}
-                    });
-                    actions.append(retry);
-                }
             }
         }
         const final=[...events].reverse().find(e=>e.type==='job_complete')?.data;

@@ -67,6 +67,7 @@ function wp_remote_post($url,$args) {
         $native=str_contains($input['html'],'<!-- wp:');
         $GLOBALS['inspection_calls'][]=$native?'native':'reference';
         $GLOBALS['inspection_sent_hashes'][]=hash('sha256',$input['html']);
+        $GLOBALS['inspection_sent_widths'][]=$input['viewports'];
         if(!empty($GLOBALS['inspection_failures']))return array_shift($GLOBALS['inspection_failures']);
         return inspection_reply(array('evidence'=>array_map(
             static fn($width)=>array('width'=>$width,'screenshot'=>inspection_fixture_jpeg($width),'a11y'=>array(),'snapshot'=>array(
@@ -136,7 +137,8 @@ function wp_remote_post($url,$args) {
         };
     } elseif (!empty($GLOBALS['revision_test'])) {
         if (str_contains($req['system'][1]['text'] ?? '', 'Task: scope_resolution.')) {
-            $resolution = array('decision'=>'manual_review_required','summary'=>'Repair reserve reached','nextAction'=>'Review the retained artifact');
+            $resolution = array('decision'=>$GLOBALS['inspection_escalation_test']??'manual_review_required',
+                'summary'=>'Repair reserve reached','nextAction'=>'Review the retained artifact');
             return array('status'=>200,'body'=>json_encode(array(
                 'model'=>'claude-dynamic-test-1','stop_reason'=>'end_turn',
                 'content'=>array(array('type'=>'text','text'=>json_encode($resolution))),
@@ -795,6 +797,28 @@ $exhausted=syndamorph_collab_inspect('<section>Saved reference</section>',$width
 expect(is_wp_error($exhausted)&&$exhausted->get_error_data()['attempts']===3&&count($GLOBALS['inspection_failures'])===1,
     'Renderer retries exceeded the configured bound');
 $GLOBALS['inspection_failures']=array();
+$GLOBALS['inspection_sent_widths']=array();
+$GLOBALS['inspection_failures']=array(inspection_reply(array('evidence'=>array_reverse($fixtureEvidence))));
+$ordered=syndamorph_collab_inspect('<section>Reorder fixture</section>',$widths);
+expect(!is_wp_error($ordered)&&array_column($ordered,'width')===$widths&&$GLOBALS['inspection_sent_widths']===array($widths),
+    'Complete evidence was not reordered without another request');
+$GLOBALS['inspection_sent_widths']=array();
+$GLOBALS['inspection_failures']=array(inspection_reply(array('evidence'=>array($fixtureEvidence[1],$fixtureEvidence[0]))));
+$filled=syndamorph_collab_inspect('<section>Partial fixture</section>',$widths);
+expect(!is_wp_error($filled)&&array_column($filled,'width')===$widths&&
+    $GLOBALS['inspection_sent_widths']===array($widths,array(375)),
+    'Renderer did not recover only the missing required width');
+$GLOBALS['inspection_sent_widths']=array();
+$badWidth=syndamorph_collab_inspect('<section>Unsupported fixture</section>',array(1440,3000));
+expect(is_wp_error($badWidth)&&$badWidth->get_error_code()==='sm_inspect_request_invalid'&&
+    $GLOBALS['inspection_sent_widths']===array(),'Unsupported width was changed or sent to Chromium');
+$GLOBALS['inspection_failures']=array(inspection_reply(array('evidence'=>array_slice($fixtureEvidence,0,2))),
+    inspection_reply(array('evidence'=>array())),inspection_reply(array('evidence'=>array())));
+$pending=syndamorph_collab_inspect('<section>Required width still missing</section>',$widths);
+expect(is_wp_error($pending)&&$pending->get_error_code()==='sm_inspect_missing_evidence'&&
+    $pending->get_error_data()['retainedWidths']===array(1440,768)&&$pending->get_error_data()['missingWidths']===array(375)&&
+    $GLOBALS['inspection_sent_widths']===array($widths,array(375),array(375)),
+    'Unrecoverable viewport evidence did not preserve useful diagnostic information');
 $saved=syndamorph_inspection_checkpoint($exhausted,'<section>Saved reference</section>',$widths);
 $wire=syndamorph_team_failure_payload($saved);
 expect(isset($wire['referenceCheckpoint'])&&!str_contains(wp_json_encode($wire),'Saved reference'),'Checkpoint exposed private HTML');
@@ -803,14 +827,29 @@ expect(!is_wp_error($receipt)&&$receipt['widths']===$widths&&$receipt['aiCalls']
     'Saved reference could not be inspected without a new generation');
 $GLOBALS['revision_test']=true;
 $GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=1.0;
+$GLOBALS['inspection_escalation_test']='approved';
 $GLOBALS['inspection_failures']=array(inspection_reply(array('evidence'=>$duplicate)));
-$designFailure=syndamorph_collab_run('Archive the approved-for-inspection reference.',false,static function(){});
-$designWire=syndamorph_team_failure_payload($designFailure);
-expect($designWire['code']==='sm_inspect_viewport_mismatch'&&$designWire['stage']==='design_inspection'&&
-    $designWire['role']==='designer'&&$designWire['completedCalls']===2&&count($GLOBALS['generations'])===2&&
-    isset($designWire['referenceCheckpoint']),'Designer inspection error lost the reference or used another paid call');
-$designReceipt=syndamorph_inspection_recheck($designWire['referenceCheckpoint']);
-expect(!is_wp_error($designReceipt)&&$designReceipt['aiCalls']===0&&count($GLOBALS['generations'])===2,
+$designPending=syndamorph_collab_run('Archive the approved-for-inspection reference.',false,static function(){});
+expect($designPending['status']==='uncompleted'&&$designPending['stageStatus']['browserQa']==='pending'&&
+    !$designPending['quality']['bossApproved']&&$designPending['quality']['escalation']['decision']==='await_renderer'&&
+    $designPending['quality']['inspection']['stage']==='design_inspection'&&count($GLOBALS['generations'])===3&&
+    $designPending['usage']['inputTokens']===3600&&isset($designPending['referenceCheckpoint']),
+    'Pending Designer inspection lost the artifact, hid usage, or accepted the Boss approval claim');
+$bossInput=json_decode($GLOBALS['generations'][2]['messages'][0]['content'][0]['text'],true);
+expect($bossInput['inspection']['returnedBatches']===array(array(1440,768,768))&&
+    $bossInput['inspection']['expectedWidths']===$widths,'Boss did not receive the exact viewport diagnostics');
+$designReceipt=syndamorph_inspection_recheck($designPending['referenceCheckpoint']);
+expect(!is_wp_error($designReceipt)&&$designReceipt['aiCalls']===0&&count($GLOBALS['generations'])===3,
     'Rechecking the failed Designer artifact called a paid agent');
+$GLOBALS['generations']=array();
+$GLOBALS['inspection_escalation_test']='continue_independent';
+$GLOBALS['inspection_failures']=array($valid,inspection_reply(array('evidence'=>$duplicate)));
+$nativePending=syndamorph_collab_run('Keep the compiled native draft if inspection is pending.',false,null);
+expect($nativePending['stageStatus']['design']==='approved'&&$nativePending['stageStatus']['compilation']==='passed'&&
+    $nativePending['stageStatus']['browserQa']==='pending'&&$nativePending['checks']['valid_plan']===true&&
+    isset($nativePending['artifact']['contentSha256'],$nativePending['surgery']['workingPlanId'],$nativePending['referenceCheckpoint'])&&
+    $nativePending['quality']['escalation']['decision']==='continue_independent'&&count($GLOBALS['generations'])===5,
+    'Pending native inspection did not retain independent valid output and usage');
+unset($GLOBALS['inspection_escalation_test']);
 unset($GLOBALS['revision_test']);
 echo "PASS: inspection diagnostics, stale runtime gate, bounded retry and saved reference recovery\n";

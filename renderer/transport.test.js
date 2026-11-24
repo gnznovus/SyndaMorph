@@ -96,6 +96,15 @@ test('comparison has its own bounded upload limit and rejects oversized requests
     assert.deepEqual(await response.json(), {error:'request_limit'});
 });
 
+test('worker can return verified-width subsets for client recovery', async t => {
+    const url = await serve(t,(html,widths,signal)=>runBrowserWorker(html,widths,signal,{
+        workerArgs:['-e','console.log(JSON.stringify({evidence:[{width:768},{width:1440}]}))'],
+    }));
+    const response = await inspect(url);
+    assert.equal(response.status,200);
+    assert.deepEqual((await response.json()).evidence.map(sample=>sample.width),[768,1440]);
+});
+
 test('aborting a real Chromium inspection releases its browser processes', {skip:process.platform!=='linux'}, async () => {
     const browsers = () => readdirSync('/proc').filter(name => /^\d+$/.test(name)).filter(pid => {
         try { return /^(?:chrome|chromium)/.test(readFileSync('/proc/'+pid+'/comm','utf8')); }

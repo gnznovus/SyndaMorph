@@ -76,9 +76,10 @@ function runBrowserWorker(html, viewports, signal, options = {}) {
                 return reject(new RendererError(code, workerErrors[code]));
             }
             if (inspect) {
-                if (!Array.isArray(result?.evidence) || result.evidence.length !== viewports.length)
+                if (!Array.isArray(result?.evidence) || result.evidence.length === 0)
                     return reject(new RendererError('missing_evidence', 502));
-                if (result.evidence.some((sample, i) => sample?.width !== viewports[i]))
+                const widths = result.evidence.map(sample => sample?.width);
+                if (!validViewports(widths) || widths.some(width => !viewports.includes(width)))
                     return reject(new RendererError('viewport_mismatch', 502));
                 return resolve(result.evidence);
             }

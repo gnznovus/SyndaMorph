@@ -55,5 +55,39 @@ foreach($responses as $response) {
     inspection_assert($response['bytes']===$response['declared']&&$response['bytes']<=SYNDAMORPH_INSPECTION_RESPONSE_BYTES&&
         $response['status']===200&&$response['build']===$ready['build'],'Evidence transport framing or renderer build changed');
 }
+
+// Exercise recovery with otherwise real Chromium results. The filter mutates
+// only the first successful WordPress response in each individual test.
+$receivedRequests=array();
+$fault=null;
+$inject=static function($response,$args,$url)use(&$fault,&$receivedRequests){
+    if(!str_ends_with($url,'/inspect'))return $response;
+    $input=json_decode($args['body'],true);
+    $receivedRequests[]=$input['viewports'];
+    if($fault===null)return $response;
+    $payload=json_decode($response['body'],true);
+    if($fault==='reorder')$payload['evidence']=array_reverse($payload['evidence']);
+    elseif($fault==='missing')array_pop($payload['evidence']);
+    elseif($fault==='unrecoverable')$payload['evidence']=array_values(array_filter($payload['evidence'],
+        static fn($sample)=>$sample['width']!==375));
+    if($fault!=='unrecoverable')$fault=null;
+    $response['body']=wp_json_encode($payload);
+    $response['headers']['content-length']=(string)strlen($response['body']);
+    return $response;
+};
+add_filter('http_response',$inject,10,3);
+$fault='reorder';
+$reordered=inspection_require_result(syndamorph_collab_inspect($ordinary,$default));
+inspection_assert(array_column($reordered,'width')===$default && $receivedRequests===array($default),'Reordering required another browser pass');
+$fault='missing';$receivedRequests=array();
+$recovered=inspection_require_result(syndamorph_collab_inspect($ordinary,$default));
+inspection_assert(array_column($recovered,'width')===$default&&$receivedRequests===array($default,array(375)),
+    'Recovery did not inspect just the missing viewport');
+$fault='unrecoverable';$receivedRequests=array();
+$pending=syndamorph_collab_inspect($ordinary,$default);
+inspection_assert(is_wp_error($pending)&&syndamorph_inspection_diagnostic($pending)['missingWidths']===array(375)&&
+    $receivedRequests===array($default,array(375),array(375)),'Unrecoverable viewport was accepted or substituted');
+remove_filter('http_response',$inject,10);
 echo wp_json_encode(array('renderer'=>$ready,'responses'=>$responses,'heavyScreenshotBytes'=>$shots,
-    'comparisonUploadBase64Bytes'=>2*array_sum($shots[0]),'phpPeakBytes'=>memory_get_peak_usage(true))).PHP_EOL;
+    'comparisonUploadBase64Bytes'=>2*array_sum($shots[0]),'phpPeakBytes'=>memory_get_peak_usage(true),
+    'recoveryCases'=>array('reordered','missing','unrecoverable'))).PHP_EOL;

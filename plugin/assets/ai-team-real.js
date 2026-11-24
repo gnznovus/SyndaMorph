@@ -172,11 +172,13 @@
             results.append(heading, frame);
         }
         const checks = document.createElement('p');
+        const qaPending = data.stageStatus?.browserQa === 'pending';
         checks.className = 'sm-hint';
         checks.textContent = 'Structural checks: ' +
             Object.values(data.checks || {}).filter(Boolean).length + '/' +
             Object.keys(data.checks || {}).length +
-            (data.outputType === 'gutenberg' ? '. Browser and vision QA collected; native editor validation is not certified.' : '. No Gutenberg conversion, browser QA, or publishing has occurred.');
+            (qaPending ? '. Required visual QA is pending.' :
+                data.outputType === 'gutenberg' ? '. Browser and vision QA collected; native editor validation is not certified.' : '. No Gutenberg conversion, browser QA, or publishing has occurred.');
         results.append(checks);
         if (typeof data.outputs?.developer === 'string') {
             exportControl = window.SyndaMorphAIExport.mount(results, {html:data.outputType === 'gutenberg' ? null : data.outputs.developer, artifact:data.artifact, identity:currentIdentity, receipts:exportReceipts});
@@ -304,7 +306,9 @@
             error.reported = true;
             throw error;
         } else if (type === 'job_complete') {
-            if (requiredTasks().some(role => !completedRoles.has(role))) throw new Error('Incomplete initial agent handoffs: ' + completed + ' / ' + requiredTasks().length + '.');
+            const qaPending=data.status==='uncompleted' && data.stageStatus?.browserQa==='pending' &&
+                !!data.quality?.inspection && data.quality?.bossApproved===false;
+            if (!qaPending && requiredTasks().some(role => !completedRoles.has(role))) throw new Error('Incomplete initial agent handoffs: ' + completed + ' / ' + requiredTasks().length + '.');
             text(job, data.status === 'uncompleted' ? 'Uncompleted' : data.status === 'needs_review' ? 'Review needed' : 'Generated');
             text(output, 'Review output');
             text(notice, 'Production finished. Review every agent output; nothing was published.');
@@ -313,13 +317,16 @@
             const qaBlocked=stages?.browserQa === 'blocked';
             const blockers=Array.isArray(stages?.blockerIds)?stages.blockerIds.slice(0,5).join(', '):'';
             const reason=data.quality?.terminationReason || 'quality review pending';
-            const detail=qaBlocked
+            const detail=qaPending
+                ? (stages.compilation==='passed' ? 'Native draft compiled. ' : 'Design checkpoint saved. ') +
+                    'Required visual QA is pending. Review the inspection diagnostics in History.'
+                : qaBlocked
                 ? 'Design approved · Native compilation passed · Visual QA blocked ('+reason+
                     (blockers?' · '+blockers:'')+'). Last accepted artifact preserved. WordPress editor review remains pending.'
                 : stages ? 'Design approved · Native compilation passed · Browser QA passed · WordPress editor review pending.'
                     : data.quality?'Browser and vision evidence recorded; WordPress editor validation pending.':'AI output available; visual fidelity unverified.';
             setReview(data.status === 'uncompleted' ? 'Production uncompleted · visual QA needs work' : 'Generation complete · review required',detail);
-            text(notice,qaBlocked?detail:'Production finished. Review every agent output; nothing was published.');
+            text(notice,(qaPending||qaBlocked)?detail:'Production finished. Review every agent output; nothing was published.');
             appendReport(data);
             if (!replaying) tab('results');
         }

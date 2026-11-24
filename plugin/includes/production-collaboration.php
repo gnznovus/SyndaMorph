@@ -406,6 +406,54 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         if ($on_event) $on_event('agent_complete',array('role'=>$role,'task'=>$stage,'metric'=>$metric));
         return $result['text'];
     };
+    $deferInspection=static function(WP_Error $error,string $html,string $stage,string $role,array $capabilityNotes,
+        ?array $artifact=null,array $surgery=array(),array $designMemo=array())use(
+            &$usage,&$metrics,&$events,&$outputs,&$handoffs,&$calls,$provider,$model,$settings,$in,$out,$max,
+            $started,$memory,$viewports,$call,$on_event
+        ):array {
+        $marked=syndamorph_inspection_with_stage($error,$stage,$role,$calls);
+        $diagnostic=syndamorph_inspection_diagnostic($marked);
+        $saved=syndamorph_inspection_checkpoint($marked,$html,$viewports);
+        $checkpoint=$saved->get_error_data()['referenceCheckpoint']??null;
+        // Continue independent checks and accounting while the visual gate stays closed.
+        $checks=$artifact['checks']??array();
+        $issues=$artifact?syndamorph_collab_block_issues($artifact):array();
+        if($artifact)$artifact['contentSha256']=hash('sha256',$artifact['content']);
+        $escalation=array('state'=>'pending','reason'=>'inspection_pending','blockerType'=>'missing_evidence',
+            'owner'=>'boss','decision'=>'await_renderer','nextAction'=>'Retry the missing visual QA on the saved artifact.');
+        if($on_event)$on_event('inspection_error',$diagnostic);
+        $reply=$call('boss','The required visual gate is Pending. Choose one bounded next action. Return only JSON {"decision":"await_renderer|manual_review_required|continue_independent","nextAction":"specific safe action"}. Continue only independent static work. Do not approve, invent evidence, replace requested widths, or regenerate the saved artifact.',
+            array('inspection'=>$diagnostic,'completedIndependentChecks'=>$checks,'capabilityNotes'=>$capabilityNotes,
+                'compiledDraftAvailable'=>$artifact!==null,'referenceCheckpointAvailable'=>$checkpoint!==null),
+            2048,array(),'scope_resolution');
+        if(!is_wp_error($reply)) {
+            $decision=json_decode(syndamorph_native_json_text($reply),true);
+            if(is_array($decision)&&in_array($decision['decision']??null,array('await_renderer','manual_review_required','continue_independent'),true)) {
+                $escalation['decision']=$decision['decision'];
+                // Use application-owned actions, never model prose as a workflow instruction.
+                $escalation['nextAction']=array(
+                    'await_renderer'=>'Retry the exact required widths on the saved artifact.',
+                    'manual_review_required'=>'Inspect the diagnostic and restore the renderer before visual approval.',
+                    'continue_independent'=>'Review the available static checks and draft while visual QA remains pending.',
+                )[$decision['decision']];
+            }
+        }
+        if($on_event)$on_event('repair_escalation',$escalation);
+        return array('provider'=>$provider,'model'=>$model,'standardsVersion'=>syndamorph_production_standards()['version'],
+            'outputType'=>'gutenberg','artifact'=>$artifact,'status'=>'uncompleted','referenceCheckpoint'=>$checkpoint,
+            'events'=>$events,'outputs'=>$outputs,'checks'=>$checks,'handoffs'=>$handoffs,'surgery'=>$surgery,
+            'designApproval'=>$designMemo,'usage'=>$usage,'agentMetrics'=>$metrics,
+            'estimatedCostUsd'=>round(syndamorph_collab_cost($usage,$in,$out),6),
+            'pricingSource'=>$settings['pricingSource']??'unknown','elapsedMs'=>(int)((microtime(true)-$started)*1000),
+            'budgetUsd'=>$max,'budgetIsEstimate'=>true,'jobMemory'=>$memory->snapshot(),
+            'stageStatus'=>array('design'=>$designMemo?'approved':'pending','compilation'=>$artifact?'passed':'pending',
+                'browserQa'=>'pending','wordpressEditor'=>'pending','blockerIds'=>array($error->get_error_code())),
+            'quality'=>array('escalation'=>$escalation,'inspection'=>$diagnostic,'capabilityNotes'=>$capabilityNotes,
+                'score'=>null,'issues'=>$issues,'viewportWidths'=>$viewports,'revisions'=>array(),
+                'terminationReason'=>'inspection_pending','browserInspected'=>false,'visionInspected'=>false,
+                'bossApproved'=>false,'nativeEditorVerified'=>false),
+            'published'=>false,'renderedInBrowser'=>false);
+    };
     $boss=$call('boss','Classify the job into a concise work order. Return ONLY JSON {"title":"short job title","sections":["..."],"constraints":["..."],"acceptance":["..."]}. Use the supplied acceptance viewport widths exactly. Include concrete requested sections, implementability constraints and testable acceptance criteria. Maximum 12 short strings per list, no speculative objections, markdown or HTML. If unspecified, permit generic marketing copy and provisional local CTAs without invented real-world facts.',
         array('brief'=>$brief,'viewportWidths'=>$viewports),2048);
     if(is_wp_error($boss))return $boss;
@@ -434,8 +482,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $capabilityNotes=syndamorph_reference_capability_notes($reference);
         $inspectReference=syndamorph_production_tool('designer','playwright.inspect',array('html'=>$reference,'viewports'=>$viewports));
         if(is_wp_error($inspectReference)) {
-            $error=syndamorph_inspection_with_stage($inspectReference,'design_inspection','designer',$calls);
-            return $on_event?syndamorph_inspection_checkpoint($error,$reference,$viewports):$error;
+            $outputs['designer']='A native compatibility check was completed. The saved design is pending visual QA.';
+            return $deferInspection($inspectReference,$reference,'design_inspection','designer',$capabilityNotes);
         }
         $referenceImages=array_map(static fn($sample)=>array('media_type'=>'image/jpeg','data'=>$sample['screenshot']),
             array_values(array_intersect_key($inspectReference,array_flip($visionViewports))));
@@ -556,7 +604,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $memory->remember($plan);
     
     $inspectNative=syndamorph_production_tool('developer','playwright.inspect',array('html'=>$artifact['preview'],'viewports'=>$viewports));
-    if(is_wp_error($inspectNative))return syndamorph_inspection_with_stage($inspectNative,'implementation_inspection','developer',$calls);
+    if(is_wp_error($inspectNative))
+        return $deferInspection($inspectNative,$artifact['preview'],'implementation_inspection','developer',$capabilityNotes,
+            $artifact,$surgery,$designMemo);
     $comparison=syndamorph_production_tool('boss','playwright.compare',array('reference'=>$inspectReference,'native'=>$inspectNative));
     if(is_wp_error($comparison)) return $comparison;
     $evidence=array('reference'=>$inspectReference,'native'=>$inspectNative);
@@ -612,6 +662,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $registry=array();foreach($issues as $issue)$registry[syndamorph_issue_key($issue)]=array_merge($issue,array('status'=>'open'));
     $best['issues']=$issues;$best['score']=syndamorph_issue_score($issues);
     $terminationReason='quality_pending';
+    $inspectionPending=null;
+    $inspectionCheckpoint=null;
     $reviewCap=4096;
     // Reserve the maximum size of the future QA request, including its one
     // image pair and cached/task instructions, before paying for Developer.
@@ -733,7 +785,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         if (is_wp_error($newEvidence)) {
             $terminationReason='browser_blocked';
             $error=syndamorph_inspection_with_stage($newEvidence,'revision_inspection','developer',$calls);
-            if($on_event)$on_event('inspection_error',syndamorph_inspection_diagnostic($error));
+            $inspectionPending=syndamorph_inspection_diagnostic($error);
+            $saved=syndamorph_inspection_checkpoint($error,$candidate['artifact']['preview'],$viewports);
+            $inspectionCheckpoint=$saved->get_error_data()['referenceCheckpoint']??null;
+            if($on_event)$on_event('inspection_error',$inspectionPending);
             $reject($error->get_error_message(),'blocked','browser');break;
         }
         // Root/ancestor changes affect all descendants. Reinspect all widths, but avoid additional full-model review.
@@ -849,6 +904,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'blockerType'=>$escalation['blockerType'],'nativeLayoutNotes'=>$best['artifact']['layoutNotes']??array(),
             'attempts'=>$memory->feedback($blockerOwners[0],$blockerOwners,4),
             'compilerValid'=>true,'editorVerified'=>false);
+        if($inspectionPending!==null)$briefing['inspection']=$inspectionPending;
         $response=$call('boss','Resolve a stalled QA handoff without changing the approved design. Return JSON {"decision":"engineering_blocked|design_review_required|manual_review_required","summary":"precise unresolved blocker","nextAction":"concrete action"}. Never approve a defect, rewrite a design or ask Developer to retry the same patch without new evidence.',
             $briefing,2048,array(),'scope_resolution');
         if(is_wp_error($response)) {
@@ -874,15 +930,16 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if($best['score']===0 && !$bossQaApproved)$terminationReason='boss_approval_pending';
     return array('provider'=>$provider,'model'=>$model,'standardsVersion'=>syndamorph_production_standards()['version'],
         'outputType'=>'gutenberg','artifact'=>$artifact,'referenceHtml'=>$reference,'status'=>$status,
+        'referenceCheckpoint'=>$inspectionCheckpoint,
         'events'=>$events,'outputs'=>$outputs,'checks'=>$artifact['checks'],
         'usage'=>$usage,'agentMetrics'=>$metrics,'estimatedCostUsd'=>$cost,'pricingSource'=>$settings['pricingSource']??'unknown',
         'elapsedMs'=>(int)((microtime(true)-$started)*1000),'budgetUsd'=>$max,'budgetIsEstimate'=>true,
         'jobMemory'=>$memory->snapshot(),'surgery'=>$surgery,'designApproval'=>$designMemo,'handoffs'=>$handoffs,
         'stageStatus'=>array('design'=>'approved','compilation'=>'passed',
-            'browserQa'=>($best['score']===0&&$bossQaApproved)?'passed':'blocked',
+            'browserQa'=>$inspectionPending!==null?'pending':(($best['score']===0&&$bossQaApproved)?'passed':'blocked'),
             'wordpressEditor'=>'pending',
             'blockerIds'=>array_values(array_unique(array_column($best['issues'],'id')))),
-        'quality'=>array('escalation'=>$escalation,'capabilityNotes'=>$capabilityNotes,'issueRegistry'=>array_values($registry),'score'=>$best['score'],
+        'quality'=>array('escalation'=>$escalation,'inspection'=>$inspectionPending,'capabilityNotes'=>$capabilityNotes,'issueRegistry'=>array_values($registry),'score'=>$best['score'],
             'scoringVersion'=>2,'viewportWidths'=>$viewports,'issues'=>$best['issues'],'revisions'=>$revisions,
             'repairSummary'=>syndamorph_repair_summary($revisions,$metrics,$in,$out),'terminationReason'=>$terminationReason,'evidence'=>array(
             'reference'=>$evidenceSummary($inspectReference),'native'=>$evidenceSummary($best['evidence'])),
