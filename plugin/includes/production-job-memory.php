@@ -1,0 +1,50 @@
+<?php
+/** Job-local structured memory; never append full transcripts to model context. */
+if (!defined('ABSPATH')) exit;
+final class SyndaMorph_Job_Memory {
+    private array $attempts=array();
+    private array $seen=array();
+    private array $stalled=array();
+    public function __construct(private string $brief) {}
+    public static function canonical($value, string $key='') {
+        if (is_array($value)) {
+            if (!array_is_list($value)) ksort($value);
+            foreach($value as $k=>$v) $value[$k]=self::canonical($v,is_string($k)?$k:$key);
+            return $value;
+        }
+        if (is_string($value) && preg_match('/^0(?:\.0+)?(?:px|rem|em|vw)?$/D',$value)) return '0';
+        if (in_array($key,array('fontWeight','lineHeight'),true) && is_numeric($value)) return (string)(float)$value;
+        return $value;
+    }
+    public static function fingerprint(array $plan): string {
+        return hash('sha256',wp_json_encode(self::canonical($plan)));
+    }
+    public function remember(array $plan): void { $this->seen[self::fingerprint($plan)]=true; }
+    public function seen(array $plan): bool { return isset($this->seen[self::fingerprint($plan)]); }
+    public function record(string $id,array $attempt): void {
+        $this->attempts[$id][]=$attempt;
+        $this->stalled[$id]=!empty($attempt['accepted'])?0:($this->stalled[$id]??0)+1;
+    }
+    public function eligible(string $id): bool { return ($this->stalled[$id]??0)<3; }
+    public function feedback(string $id): array { return array_slice($this->attempts[$id]??array(),-3); }
+    public function snapshot(): array { return array('version'=>1,'brief'=>$this->brief,'attempts'=>$this->attempts,'uniqueCandidates'=>count($this->seen),'stalled'=>$this->stalled); }
+}
+/** Compact data for a task. Full evidence remains in the private archive. */
+function syndamorph_memory_measurements(array $samples, array $texts=array()): array {
+    return array_map(static function(array $sample)use($texts):array {
+        $elements=array();
+        foreach($sample['snapshot']['elements']??array() as $el) {
+            $text=trim((string)($el['text']??''));
+            if($texts && !in_array($text,$texts,true))continue;
+            if(!$texts && $text==='' && count($elements)>0)continue;
+            $elements[]=array('text'=>mb_substr($text,0,160),'rect'=>$el['rect']??array(),'styles'=>array_intersect_key($el['styles']??array(),array_flip(array('fontSize','fontFamily','fontWeight','color','lineHeight','letterSpacing','padding','margin','gap','textAlign'))));
+            if(count($elements)>=24)break;
+        }
+        return array('width'=>$sample['width'],'overflow'=>$sample['snapshot']['overflow']??null,'elements'=>$elements);
+    },$samples);
+}
+function syndamorph_memory_texts(array $node): array {
+    $texts=isset($node['text'])?array(trim((string)$node['text'])):array();
+    foreach($node['children']??array() as $child) if(is_array($child)) $texts=array_merge($texts,syndamorph_memory_texts($child));
+    return $texts;
+}
