@@ -46,7 +46,7 @@ function wp_remote_post($url,$args) {
     $text= match($i) {
         1 => 'Job plan: build premium hotel hero with heading and CTA. Criteria: semantic section, responsive layout.',
         2 => 'Visual design: responsive grid, strong typography, accessible contrast and clear CTA.',
-        3 => '<section class="hero"><style>.hero{padding:3rem}</style><h1>Welcome to our Hotel</h1><p>Stay with us.</p></section>',
+        3 => isset($GLOBALS['native_fixture']) ? $GLOBALS['native_fixture'] : '<section class="hero"><style>.hero{padding:3rem}</style><h1>Welcome to our Hotel</h1><p>Stay with us.</p></section>',
         4 => 'Review: headline and section pass; test contrast and responsiveness in browser before shipping.',
         default => throw new RuntimeException('Too many AI calls'),
     };
@@ -124,7 +124,7 @@ expect(!str_contains($ui, 'id="syndamorph-real-brief"') &&
     'Legacy POC or simulator controls still exposed');
 expect(str_contains($client, "byId(") === false || str_contains($client, "const brief = $('syndamorph-team-brief')"),
     'The real client must use the Production Brief');
-expect(str_contains($client, 'JSON.stringify({brief:prompt})') &&
+expect(str_contains($client, 'JSON.stringify({brief:prompt,outputType:format?.value || 'html'})') &&
     !str_contains($client, 'validateSource(') &&
     str_contains($client, 'response.body.getReader()') &&
     str_contains($client, 'agent_delta') &&
@@ -161,3 +161,32 @@ $archive = file_get_contents(dirname(__DIR__) . '/plugin/includes/production-his
 expect(str_contains($archive, 'UNIQUE KEY category_sequence') && str_contains($archive, 'ORDER BY id ASC'), 'Job identity or event ordering missing');
 
 echo "PASS: live model catalog cache/refresh, no hardcoded models, four role handoff, usage, deterministic checks and spending gate\n";
+
+$GLOBALS['native_fixture'] = json_encode(array('version'=>1,'blocks'=>array(
+    array('type'=>'group','style'=>array('background'=>'#18283a','padding'=>'clamp(2rem,5vw,5rem)'),'children'=>array(
+        array('type'=>'heading','text'=>'Welcome & enjoy','level'=>2,'style'=>array('color'=>'#ffffff')),
+        array('type'=>'paragraph','text'=>'A premium hotel experience.'),
+        array('type'=>'buttons','children'=>array(array('type'=>'button','text'=>'Explore','href'=>'/explore')))
+    ))
+)));
+$GLOBALS['generations']=array();
+$GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=1.0;
+$native=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
+expect(is_array($native) && $native['outputType']==='gutenberg','Native pipeline failed');
+expect($native['artifact']['blockCount']===5 && $native['checks']['contains_heading'],'Native compilation failed');
+expect(str_contains($native['artifact']['content'],'<!-- wp:group') && str_contains($native['artifact']['content'],'Welcome &amp; enjoy'),'Native serialization failed');
+expect(count($GLOBALS['generations'])===4,'Native job must make four calls');
+expect(str_contains($GLOBALS['generations'][2]['system'],'JSON only'),'Native developer contract missing');
+foreach(array(
+    '{"version":2,"blocks":[]}',
+    '{"version":1,"blocks":[{"type":"html","text":"bad"}]}',
+    str_replace('/explore','javascript:alert(1)',$GLOBALS['native_fixture']),
+    str_replace('#ffffff','red;position:fixed',$GLOBALS['native_fixture']),
+    str_replace('"type":"heading"','"type":"column"',$GLOBALS['native_fixture'])
+) as $bad) expect(is_wp_error(syndamorph_compile_block_plan($bad)),'Invalid plan accepted');
+expect(str_contains($ui,'syndamorph-team-output-type'),'Output selector missing');
+$export=file_get_contents(dirname(__DIR__).'/plugin/assets/production-ai-export.js');
+expect(str_contains($export,'native ? artifact : await window.SyndaMorphConverter.prepareImport'),'Native export must bypass manual conversion');
+$history=file_get_contents(dirname(__DIR__).'/plugin/assets/production-history.js');
+expect(str_contains($history,'artifact:final.artifact'),'Archived native artifact not passed to shared export');
+echo "PASS: native pipeline, compiler rejection cases, output selector and shared export integration\n";
