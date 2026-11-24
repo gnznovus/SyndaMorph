@@ -116,11 +116,13 @@
         for(const [role,value] of outputs) section(role,value,role==='developer'?((final?.outputType||context.outputType)==='gutenberg'?'json':'html'):'markdown');
         if(final?.outputs?.developer) {
             if(final.outputType !== 'gutenberg') preview(final.outputs.developer);
-            if(record.category==='GEN' && ['completed','needs_review'].includes(record.status)) {
+            if(record.category==='GEN' && ['completed','needs_review','uncompleted'].includes(record.status)) {
                 const receipts=events.filter(e=>e.type==='export_receipt').map(e=>e.data);
                 exportControl=window.SyndaMorphAIExport.mount(detail,{html:final.outputType === 'gutenberg' ? null : final.outputs.developer,artifact:final.artifact,identity:record,receipts});
             }
         }
+        if(final?.referenceHtml) section('HTML design reference',final.referenceHtml,'html');
+        if(final?.quality) section('QA findings and revision history',JSON.stringify(final.quality,null,2),'json').open=true;
         if(final?.usage) section('Metrics and validation',JSON.stringify({usage:final.usage,agentMetrics:final.agentMetrics,checks:final.checks,estimatedCostUsd:final.estimatedCostUsd,elapsedMs:final.elapsedMs},null,2),'html');
         section('Recorded event metadata',JSON.stringify(events.filter(e=>e.type!=='agent_delta').map(e=>({type:e.type,at:e.at,role:e.data?.role})),null,2),'html');
         detail.scrollIntoView({block:'nearest'});
