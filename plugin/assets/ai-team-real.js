@@ -24,7 +24,7 @@
     const taskRoles = {reference:'developer',validator:'boss',validation:'boss',revision_validation:'boss'};
     const taskLabels = {reference:'HTML reference',validation:'QA validation',validator:'QA validation',revision_validation:'Scoped QA validation',repair:'Technical repair',schema_repair:'Schema repair',final_approval:'Final approval'};
     const initialRoles = () => roles;
-    const requiredTasks = () => activeFormat === 'gutenberg' ? ['boss','designer','reference','developer','validation'] : ['boss','designer','developer','validator'];
+    const requiredTasks = () => activeFormat === 'gutenberg' ? ['boss','designer','final_approval','developer','validation'] : ['boss','designer','developer','validator'];
     const completedRoles = new Set();
     const labels = {boss:'Boss', designer:'Designer', reference:'HTML Reference', developer:'Developer', validator:'Validator'};
     const syncRoster = () => {};
@@ -267,6 +267,19 @@
         } else if (type === 'repair_route') {
             const item=document.createElement('li');item.className='sm-team-step';
             item.textContent='Repair '+data.round+' · '+data.id+' · '+(data.route==='engine'?'Deterministic engine':'Developer');timeline.append(item);followLatest();
+        } else if (type === 'handoff') {
+            const item=document.createElement('li');item.className='sm-team-step';
+            const label=data.type==='assignment'?'Work order assigned':
+                data.type==='design_review'?'Design '+(data.decision==='approved'?'approved':'revision requested'):
+                data.type==='approved_design'?'Approved design handed to Developer':
+                data.type==='qa_review'?'Boss QA '+(data.decision==='approved'?'approved':'changes requested'):'Team handoff';
+            item.textContent=label+' · '+(data.from||'agent')+' → '+(data.to||'team')+
+                (Array.isArray(data.issues)&&data.issues.length?' · '+data.issues.length+' issues':'');
+            timeline.append(item);followLatest();
+        } else if (type === 'working_plan') {
+            const item=document.createElement('li');item.className='sm-team-step';
+            item.textContent='Developer working plan persisted · revision '+(data.revision||1);
+            timeline.append(item);followLatest();
         } else if (type === 'schema_repair') {
             const item=document.createElement('li');item.className='sm-team-step';
             item.textContent='Schema repair '+data.attempt+' · '+data.status+' · '+(data.field||'')+(data.message?' · '+data.message:'');timeline.append(item);
