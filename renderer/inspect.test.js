@@ -10,8 +10,9 @@ async function request(route, html) {
         body:JSON.stringify({html}),
         signal:AbortSignal.timeout(40000),
     });
-    assert.equal(response.status,200);
-    return response.json();
+    const payload=await response.json();
+    assert.equal(response.status,200,JSON.stringify(payload).slice(0,300));
+    return payload;
 }
 
 test('actual Chromium inspection provides independent responsive screenshots and computed geometry', async () => {
