@@ -231,7 +231,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $maxRevisions=3;
     for($round=1;$round<=$maxRevisions && count($issues)>0;$round++) {
         // 20% remains reserved for finalization. Never start a repair if projected spending crosses cutoff.
-        $projected=(18000*$in+8500*$out)/1000000;
+        // Reserve worst-case Boss, Designer, Developer and scoped visual Validator calls.
+        $projected=(25000*$in+12500*$out)/1000000;
         if (syndamorph_collab_cost($usage,$in,$out)+$projected>$cutoff) break;
         $pending=array_values(array_filter($issues,static fn($issue)=>syndamorph_collab_find($plan['blocks'],$issue['component'])!==null));
         if (!$pending) break;
@@ -239,8 +240,23 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $id=$pending[0]['component'];
         $focus=array_slice(array_values(array_filter($pending,static fn($issue)=>$issue['component']===$id)),0,3);
         $node=syndamorph_collab_find($plan['blocks'],$id);
+        $delegation=$call('boss',
+            'Decide whether a targeted design correction is needed before implementation. Return ONLY JSON {"designerNeeded":true|false,"reason":"brief explanation"}. Do not revisit approved components.',
+            array('componentId'=>$id,'pending'=>$focus,'currentNode'=>$node),650);
+        if(is_wp_error($delegation)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Boss delegation unavailable');break; }
+        $delegated=json_decode($delegation,true);
+        if(!is_array($delegated)||!is_bool($delegated['designerNeeded']??null)) {
+            $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Boss did not return a safe delegation decision');break;
+        }
+        $designCorrection=null;
+        if($delegated['designerNeeded']) {
+            $designCorrection=$call('designer',
+                'Revise design guidance ONLY for the supplied component and pending issues. Do not change or describe other sections.',
+                array('brief'=>$brief,'componentId'=>$id,'pending'=>$focus,'currentNode'=>$node,'originalDesign'=>$designer),1500);
+            if(is_wp_error($designCorrection)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Designer delegation unavailable');break; }
+        }
         $repair=$call('developer','Revise ONLY the specified component. Return exactly JSON {"id":"existing id","replacement":{...full valid node with same id and type...}}. Preserve approved siblings.',
-            array('brief'=>$brief,'issueFocus'=>$focus,'component'=>$node,'id'=>$id,'design'=>$designer),4000);
+            array('brief'=>$brief,'issueFocus'=>$focus,'component'=>$node,'id'=>$id,'design'=>$designCorrection ?? $designer),4000);
         if (is_wp_error($repair)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>$repair->get_error_message());break; }
         $patch=json_decode($repair,true);
         if (!is_array($patch)) { $revisions[]=array('round'=>$round,'status'=>'rejected','detail'=>'Invalid JSON patch');continue; }
@@ -285,7 +301,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $oldPixel=array_sum(array_column($comparison,'pixelDifferenceRatio'))/3;
         $newPixel=array_sum(array_column($newComparison,'pixelDifferenceRatio'))/3;
         $accepted=($newScore<$oldScore || ($newScore===$oldScore && $newPixel<$oldPixel)) && $newPixel<=$oldPixel+0.08;
-        $revisions[]=array('round'=>$round,'id'=>$id,'accepted'=>$accepted,'before'=>$oldScore,'after'=>$newScore,'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
+        $revisions[]=array('round'=>$round,'id'=>$id,'delegation'=>array('designerNeeded'=>$delegated['designerNeeded'],'reason'=>mb_substr((string)($delegated['reason']??''),0,160)),'accepted'=>$accepted,'before'=>$oldScore,'after'=>$newScore,'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
         if($accepted) {
             $plan=$candidate['plan'];$artifact=$candidate['artifact'];$inspectNative=$newEvidence;$comparison=$newComparison;
             $issues=$newIssues;
@@ -299,7 +315,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $artifact['contentSha256']=hash('sha256',$artifact['content']);
     $cost=round(syndamorph_collab_cost($usage,$in,$out),6);
     // A zero-count heuristic is not proof of visual or Gutenberg editor validity.
-    $status=$best['score']===0 && empty($parsed['issues']) ? 'needs_review' : 'uncompleted';
+    $status=$best['score']===0 ? 'needs_review' : 'uncompleted';
     return array('provider'=>$provider,'model'=>$model,'standardsVersion'=>syndamorph_production_standards()['version'],
         'outputType'=>'gutenberg','artifact'=>$artifact,'referenceHtml'=>$reference,'status'=>$status,
         'events'=>$events,'outputs'=>$outputs,'checks'=>$artifact['checks'],
