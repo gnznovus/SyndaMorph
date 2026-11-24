@@ -141,4 +141,17 @@ expect(str_contains($server, "syndamorph_team_sse_emit( 'job_complete'") &&
     str_contains($models, '$on_delta( $delta[\'text\'] )'),
     'Server-side incremental event delivery missing');
 
+$standards = syndamorph_production_standards();
+expect($result['standardsVersion'] === $standards['version'], 'Standards version missing from result');
+foreach ($GLOBALS['generations'] as $generation) {
+    foreach (array_keys($standards['criteria']) as $id) {
+        expect(str_contains($generation['system'], $id), 'Missing mandatory criterion ' . $id);
+    }
+    expect(str_contains($generation['system'], 'Not a full HTML document'), 'Section contract missing');
+}
+expect(str_contains($GLOBALS['generations'][3]['system'], 'Unverified'), 'Validator must distinguish unverified criteria');
+expect(str_contains($ui, 'syndamorph-rich-content') &&
+    substr_count($client, 'SyndaMorphRichContent.mount') === 2,
+    'Shared renderer must be used by live feed and results');
+
 echo "PASS: live model catalog cache/refresh, no hardcoded models, four role handoff, usage, deterministic checks and spending gate\n";
