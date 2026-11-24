@@ -22,7 +22,7 @@
 
     const roles = ['boss', 'designer', 'developer'];
     const taskRoles = {reference:'developer',validator:'boss',validation:'boss',revision_validation:'boss'};
-    const taskLabels = {reference:'HTML reference',validation:'QA validation',validator:'QA validation',revision_validation:'Scoped QA validation'};
+    const taskLabels = {reference:'HTML reference',validation:'QA validation',validator:'QA validation',revision_validation:'Scoped QA validation',repair:'Technical repair',schema_repair:'Schema repair',final_approval:'Final approval'};
     const initialRoles = () => roles;
     const requiredTasks = () => activeFormat === 'gutenberg' ? ['boss','designer','reference','developer','validation'] : ['boss','designer','developer','validator'];
     const completedRoles = new Set();
@@ -37,11 +37,20 @@
     let activeFormat = 'html';
     let replaying = false;
     const messages = new Map();
+    const messageRenderers = [];
+    let followFeed = true;
+    let followFrame = 0;
+    const nearBottom = () => timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 80;
+    const followLatest = () => { if (!followFeed || followFrame) return; followFrame = requestAnimationFrame(() => { followFrame = 0; if (followFeed) timeline.scrollTop = timeline.scrollHeight; }); };
+    timeline.addEventListener('scroll', () => { followFeed = nearBottom(); }, {passive:true});
+    const feedObserver = new MutationObserver(followLatest);
+    feedObserver.observe(timeline,{childList:true,subtree:true,characterData:true});
+    if (typeof ResizeObserver !== 'undefined') { const observer = new ResizeObserver(followLatest); observer.observe(timeline); }
     const reportRenderers = [];
     let exportControl = null;
     let exportReceipts = [];
     const clearReports = () => { if (exportControl) exportControl.destroy(); exportControl = null; reportRenderers.splice(0).forEach(renderer => renderer.destroy()); results.replaceChildren(); };
-    const clearMessages = () => { timeline.querySelectorAll('.sm-team-stream-text').forEach(body=>body.replaceChildren()); messages.forEach(message => message.renderer.destroy()); messages.clear(); };
+    const clearMessages = () => { messageRenderers.splice(0).forEach(renderer => renderer.destroy()); messages.clear(); followFeed=true; };
     const text = (node, value) => { if (node) node.textContent = value; };
     const tab = name => {
         const button = root.querySelector('.sm-team-tabs [data-panel="' + name + '"]');
@@ -71,7 +80,9 @@
         const metric = document.createElement('small');
         item.append(stamp, name, body, metric);
         timeline.append(item);
+        messageRenderers.push(renderer);
         messages.set(role, {name, body, metric, renderer, value:'',task});
+        followLatest();
     }
     function setReview(heading, description) {
         if (!review) return;
@@ -93,7 +104,7 @@
         const summary = document.createElement('p');
         summary.className = 'sm-team-ai-summary';
         summary.textContent = (data.outputType === 'gutenberg' ? 'Native Gutenberg' : 'HTML / CSS') + ' · ' + data.model + ' · ' + (data.elapsedMs / 1000).toFixed(1) + 's · ' +
-            (data.usage.inputTokens + data.usage.outputTokens) + ' tokens · est. $' +
+            (data.usage.inputTokens + (data.usage.cacheReadTokens||0) + (data.usage.cacheWriteTokens||0) + data.usage.outputTokens) + ' tokens · est. $' +
             Number(data.estimatedCostUsd).toFixed(6) + ' (not guaranteed billing)';
         results.append(summary);
         ['boss','designer','developer','validator'].forEach(role => {
@@ -120,7 +131,7 @@
         if (data.quality) {
             const qa=document.createElement('details');qa.className='sm-team-ai-agent-output';qa.open=true;
             const h=document.createElement('summary');h.textContent='Browser QA, issues and targeted revisions';
-            const pre=document.createElement('pre');pre.textContent=JSON.stringify({terminationReason:data.quality.terminationReason,issues:data.quality.issues,revisions:data.quality.revisions,pixelComparison:data.quality.pixelComparison,browserInspected:data.quality.browserInspected,visionInspected:data.quality.visionInspected,nativeEditorVerified:data.quality.nativeEditorVerified},null,2);
+            const pre=document.createElement('pre');pre.textContent=JSON.stringify({terminationReason:data.quality.terminationReason,score:data.quality.score,issueRegistry:data.quality.issueRegistry,issues:data.quality.issues,revisions:data.quality.revisions,pixelComparison:data.quality.pixelComparison,browserInspected:data.quality.browserInspected,visionInspected:data.quality.visionInspected,nativeEditorVerified:data.quality.nativeEditorVerified},null,2);
             qa.append(h,pre);results.append(qa);
         }
         if (data.quality?.evidence) {
@@ -243,8 +254,7 @@
             message.value += data.text;
             // Bound DOM text independently from provider-side output limits.
             message.renderer.update(message.value);
-            const nearBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 200;
-            if (nearBottom) timeline.scrollTop = timeline.scrollHeight;
+            followLatest();
         } else if (type === 'agent_complete' && messages.has(data.role)) {
             const message = messages.get(data.role);
             message.renderer.update(message.value, true);
@@ -254,6 +264,9 @@
             const finishedTask=data.task || data.role;
             if (requiredTasks().includes(finishedTask) && !completedRoles.has(finishedTask)) { completedRoles.add(finishedTask); completed++; }
             text(handoffs, completed + ' / ' + requiredTasks().length + ' initial tasks completed');
+        } else if (type === 'repair_route') {
+            const item=document.createElement('li');item.className='sm-team-step';
+            item.textContent='Repair '+data.round+' · '+data.id+' · '+(data.route==='engine'?'Deterministic engine':'Developer');timeline.append(item);followLatest();
         } else if (type === 'schema_repair') {
             const item=document.createElement('li');item.className='sm-team-step';
             item.textContent='Schema repair '+data.attempt+' · '+data.status+' · '+(data.field||'')+(data.message?' · '+data.message:'');timeline.append(item);
@@ -345,7 +358,7 @@
                 roles.forEach(role => setAgent(role, 'idle'));
                 text(current, record.jobId + ' : ' + record.title);
                 text(title, record.jobId + ' : ' + record.title);
-                text(handoffs, '0 / ' + initialRoles().length + ' completed');
+                text(handoffs, '0 / ' + requiredTasks().length + ' completed');
                 text(job, 'Replay');
                 text(output, 'Recorded output');
                 setFeed('Historical replay · no AI calls', 'running');
