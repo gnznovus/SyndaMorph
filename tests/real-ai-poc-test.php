@@ -73,7 +73,7 @@ function wp_remote_post($url,$args) {
             3 => '{"decision":"approved","issues":[]}',
             4 => $GLOBALS['native_fixture'],
             5 => '{"id":"blocks[0]","changes":[{"path":"style.background","op":"remove"},{"path":"style.gradient","value":"linear-gradient(135deg,#18283a,#203040)"}]}',
-            6 => '{"issues":[],"summary":"No measured defects"}',
+            6 => '{"decision":"approved","issues":[],"summary":"No measured defects"}',
             default => throw new RuntimeException('Unexpected surgery paid model call '.$i),
         };
     } elseif (!empty($GLOBALS['revision_test'])) {
@@ -82,9 +82,9 @@ function wp_remote_post($url,$args) {
             2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
             3 => '{"decision":"approved","issues":[],"summary":"Approved design"}',
             4 => $GLOBALS['native_fixture'],
-            5 => '{"issues":[{"id":"heading-fidelity","component":"blocks[0].children[0]","severity":"medium","detail":"Font size needs refinement"}],"summary":"Review heading"}',
+            5 => '{"decision":"changes_requested","issues":[{"id":"heading-fidelity","component":"blocks[0].children[0]","severity":"medium","detail":"Font size needs refinement"}],"summary":"Review heading"}',
             6 => json_encode(array('id'=>'blocks[0].children[0]','replacement'=>array('id'=>'blocks[0].children[0]','type'=>'heading','text'=>'Welcome & enjoy','level'=>2,'style'=>array('color'=>'#ffffff','fontSize'=>'2.5rem')))),
-            7 => '{"issues":[]}',
+            7 => '{"decision":"approved","issues":[]}',
             default => throw new RuntimeException('Unexpected extra paid revision call '.$i),
         };
     } else $text= !empty($GLOBALS['native_mode']) ? match($i) {
@@ -92,7 +92,7 @@ function wp_remote_post($url,$args) {
         2 => '<section class="hero"><style>.hero{padding:3rem}</style><h2>Welcome &amp; enjoy</h2></section>',
         3 => '{"decision":"approved","issues":[],"summary":"Approved design"}',
         4 => $GLOBALS['native_fixture'],
-        5 => '{"issues":[],"summary":"Measurements checked; editor still unverified."}',
+        5 => '{"decision":"approved","issues":[],"summary":"Measurements checked; editor still unverified."}'
         default => throw new RuntimeException('Too many native AI calls'),
     } : match($i) {
         1 => 'Job plan: build premium hotel hero with heading and CTA. Criteria: semantic section, responsive layout.',
@@ -237,6 +237,7 @@ expect(count($GLOBALS['generations'][4]['messages'][0]['content'])===5,'Vision v
 expect($native['quality']['browserInspected']===true && $native['quality']['visionInspected']===true,'Browser and vision evidence not recorded');
 expect(count($native['quality']['pixelComparison'])===3,'Real pixel-comparison metrics not recorded');
 expect($native['status']==='needs_review','Unverified Gutenberg editor must not be auto-approved');
+expect($native['quality']['bossApproved']===true,'Boss must explicitly approve native QA before handoff to editor review');
 expect($native['designApproval']['decision']==='approved'&&$native['designApproval']['reviewRounds']===1&&$native['handoffs'][0]['type']==='assignment'&&$native['handoffs'][1]['decision']==='approved','Designer reference crossed handoff without Boss approval');
 expect(count($GLOBALS['generations'][2]['messages'][0]['content'])===3,'Boss did not receive desktop/mobile visual evidence before Developer');
 expect(str_contains(wp_json_encode($GLOBALS['generations'][3]['system']),'JSON'),'Native developer contract missing');
