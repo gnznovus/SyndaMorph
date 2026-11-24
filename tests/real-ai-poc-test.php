@@ -135,7 +135,7 @@ expect(str_contains($ui, 'id="syndamorph-real-results"') &&
     'Safe HTML results panel is missing');
 $server = file_get_contents(dirname(__DIR__) . '/plugin/includes/ai-team-real.php');
 $models = file_get_contents(dirname(__DIR__) . '/plugin/includes/ai-models.php');
-expect(str_contains($server, "syndamorph_team_sse_emit( 'job_complete'") &&
+expect(str_contains($server, "\$emit( 'job_complete'") &&
     str_contains($server, "syndamorph_team_sse_emit( 'job_error'") &&
     str_contains($server, "'agent_delta'") &&
     str_contains($models, '$on_delta( $delta[\'text\'] )'),
@@ -153,5 +153,11 @@ expect(str_contains($GLOBALS['generations'][3]['system'], 'Unverified'), 'Valida
 expect(str_contains($ui, 'syndamorph-rich-content') &&
     substr_count($client, 'SyndaMorphRichContent.mount') === 2,
     'Shared renderer must be used by live feed and results');
+
+expect(syndamorph_history_label('GEN',1)==='GEN-000001', 'GEN ID format wrong');
+expect(syndamorph_history_label('REF',123)==='REF-000123', 'REF ID format wrong');
+expect(str_contains($ui, 'data-panel="history"') && str_contains($client, 'SyndaMorphProductionReplay'), 'History/replay integration missing');
+$archive = file_get_contents(dirname(__DIR__) . '/plugin/includes/production-history.php');
+expect(str_contains($archive, 'UNIQUE KEY category_sequence') && str_contains($archive, 'ORDER BY id ASC'), 'Job identity or event ordering missing');
 
 echo "PASS: live model catalog cache/refresh, no hardcoded models, four role handoff, usage, deterministic checks and spending gate\n";
