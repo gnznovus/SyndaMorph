@@ -264,6 +264,8 @@ $nestedPlan=syndamorph_collab_ids($nestedPlan);
 $nestedError=syndamorph_compile_block_plan(wp_json_encode($nestedPlan));
 expect(is_wp_error($nestedError),'Nested typography must fail before surgery');
 $diagnostic=array('code'=>$nestedError->get_error_code(),'message'=>$nestedError->get_error_message(),'field'=>$nestedError->get_error_data()['field']);
+$localFocus=syndamorph_surgery_extract($nestedPlan,$diagnostic);
+expect(is_array($localFocus)&&!isset($localFocus['node']['children']),'Surgical extract leaked complete descendants');
 $normalized=syndamorph_surgery_normalize($nestedPlan,$diagnostic);
 expect(is_array($normalized),'Nested typography normalization not detected');
 $resolved=syndamorph_surgery_verify($nestedPlan,$normalized['plan']);
@@ -304,6 +306,8 @@ $GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
 $case=syndamorph_team_real_run('Recover one invalid background without regenerating the entire plan.',false,null,'gutenberg');
 expect(!is_wp_error($case),'GEN-012-style compiler surgery failed: '.(is_wp_error($case)?$case->get_error_message():'unknown'));
 expect(count($GLOBALS['generations'])===6,'Surgery should require one paid field patch, not full-plan retries');
+expect(!str_contains(wp_json_encode($GLOBALS['generations'][4]['messages'][0]['content']), 'Welcome & enjoy'),
+    'Paid schema repair received unrelated descendant content');
 expect($case['surgery']['paidPatches']===1&&$case['surgery']['fullRegenerations']===0,
     'Surgery metrics do not distinguish patch calls from full generations');
 expect($case['surgery']['repairs'][0]['accepted']&&$case['surgery']['repairs'][0]['compiled'],
