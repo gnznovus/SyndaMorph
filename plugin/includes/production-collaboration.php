@@ -289,14 +289,15 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         }
     }
     $best['issues']=$issues;$best['score']=count($issues);
+    $terminationReason='quality_pending';
     $maxRevisions=3;
     for($round=1;$round<=$maxRevisions && count($issues)>0;$round++) {
         // 20% remains reserved for finalization. Never start a repair if projected spending crosses cutoff.
         // Reserve worst-case Boss, Designer, Developer and scoped visual Validator calls.
         $projected=(25000*$in+12500*$out)/1000000;
-        if (syndamorph_collab_cost($usage,$in,$out)+$projected>$cutoff) break;
+        if (syndamorph_collab_cost($usage,$in,$out)+$projected>$cutoff) { $terminationReason='budget_80_percent';break; }
         $pending=array_values(array_filter($issues,static fn($issue)=>syndamorph_collab_find($plan['blocks'],$issue['component'])!==null));
-        if (!$pending) break;
+        if (!$pending) { $terminationReason='no_editable_targets';break; }
         usort($pending,static fn($a,$b)=>array_search($a['severity'],array('high','medium','low'),true)<=>array_search($b['severity'],array('high','medium','low'),true));
         $id=$pending[0]['component'];
         $focus=array_slice(array_values(array_filter($pending,static fn($issue)=>$issue['component']===$id)),0,3);
@@ -304,21 +305,21 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $delegation=$call('boss',
             'Decide whether a targeted design correction is needed before implementation. Return ONLY JSON {"designerNeeded":true|false,"reason":"brief explanation"}. Do not revisit approved components.',
             array('componentId'=>$id,'pending'=>$focus,'currentNode'=>$node),650);
-        if(is_wp_error($delegation)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Boss delegation unavailable');break; }
+        if(is_wp_error($delegation)) { $terminationReason='delegation_blocked'; $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Boss delegation unavailable');break; }
         $delegated=json_decode($delegation,true);
         if(!is_array($delegated)||!is_bool($delegated['designerNeeded']??null)) {
-            $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Boss did not return a safe delegation decision');break;
+            $terminationReason='invalid_delegation';$revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Boss did not return a safe delegation decision');break;
         }
         $designCorrection=null;
         if($delegated['designerNeeded']) {
             $designCorrection=$call('designer',
                 'Revise design guidance ONLY for the supplied component and pending issues. Do not change or describe other sections.',
                 array('brief'=>$brief,'componentId'=>$id,'pending'=>$focus,'currentNode'=>$node,'originalDesign'=>$designer),1500);
-            if(is_wp_error($designCorrection)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Designer delegation unavailable');break; }
+            if(is_wp_error($designCorrection)) { $terminationReason='designer_blocked'; $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Designer delegation unavailable');break; }
         }
         $repair=$call('developer','Revise ONLY the specified component. Return exactly JSON {"id":"existing id","replacement":{...full valid node with same id and type...}}. Preserve approved siblings.',
             array('brief'=>$brief,'issueFocus'=>$focus,'component'=>$node,'id'=>$id,'design'=>$designCorrection ?? $designer),4000);
-        if (is_wp_error($repair)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>$repair->get_error_message());break; }
+        if (is_wp_error($repair)) { $terminationReason='developer_blocked'; $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>$repair->get_error_message());break; }
         $patch=json_decode($repair,true);
         if (!is_array($patch)) { $revisions[]=array('round'=>$round,'status'=>'rejected','detail'=>'Invalid JSON patch');continue; }
         $candidate=syndamorph_collab_patch($plan,$patch);
@@ -328,7 +329,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if (is_wp_error($newEvidence)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Browser revalidation unavailable');break; }
         // Root/ancestor changes affect all descendants. Reinspect all widths, but avoid additional full-model review.
         $newComparison=syndamorph_collab_compare($inspectReference,$newEvidence);
-        if(is_wp_error($newComparison)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Pixel comparison unavailable');break; }
+        if(is_wp_error($newComparison)) { $terminationReason='visual_compare_blocked'; $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Pixel comparison unavailable');break; }
         $newIssues=array_merge(syndamorph_collab_evidence($inspectReference,$newEvidence),syndamorph_collab_style_findings($inspectReference,$newEvidence,$candidate['plan']));
         $affected=array_fill_keys($impact['affected'],true);
         $otherIssues=array_values(array_filter($issues,static fn($issue)=>!isset($affected[$issue['component']??''])));
@@ -346,7 +347,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
                 'previousIssues'=>array_values(array_filter($issues,static fn($issue)=>isset($affected[$issue['component']??'']))),
                 'impact'=>$impact,
                 'measurements'=>$modelEvidence($newEvidence),'pixelComparison'=>$newComparison,'imageOrder'=>array('desktop-reference','desktop-updated','mobile-reference','mobile-updated')),2400,$scopedScreenshots);
-        if (is_wp_error($targetReview)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Scoped visual validation unavailable');break; }
+        if (is_wp_error($targetReview)) { $terminationReason='validator_blocked'; $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Scoped visual validation unavailable');break; }
         $parsedTarget=json_decode($targetReview,true);
         if (!is_array($parsedTarget) || !is_array($parsedTarget['issues']??null)) {
             $revisions[]=array('round'=>$round,'status'=>'rejected','detail'=>'Scoped Validator response invalid');continue;
@@ -373,8 +374,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             if($newScore<$best['score'] || ($newScore===$best['score'] && $newPixel<$bestPixel)) $best=array('plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'score'=>$newScore,'evidence'=>$inspectNative,'comparison'=>$comparison);
         }
         if($on_event) $on_event('revision',end($revisions));
-        if($accepted && $newScore===0) break;
+        if($accepted && $newScore===0) { $terminationReason='quality_resolved';break; }
     }
+    if($best['score']===0) $terminationReason='quality_resolved';
+    elseif($terminationReason==='quality_pending') $terminationReason='revision_limit_or_unresolved';
     $artifact=$best['artifact'];
     $artifact['contentSha256']=hash('sha256',$artifact['content']);
     $cost=round(syndamorph_collab_cost($usage,$in,$out),6);
@@ -385,7 +388,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         'events'=>$events,'outputs'=>$outputs,'checks'=>$artifact['checks'],
         'usage'=>$usage,'agentMetrics'=>$metrics,'estimatedCostUsd'=>$cost,'pricingSource'=>$settings['pricingSource']??'unknown',
         'elapsedMs'=>(int)((microtime(true)-$started)*1000),'budgetUsd'=>$max,'budgetIsEstimate'=>true,
-        'quality'=>array('issues'=>$best['issues'],'revisions'=>$revisions,'evidence'=>array(
+        'quality'=>array('issues'=>$best['issues'],'revisions'=>$revisions,'terminationReason'=>$terminationReason,'evidence'=>array(
             'reference'=>$evidenceSummary($inspectReference),'native'=>$evidenceSummary($best['evidence'])),
             'pixelComparison'=>$best['comparison'],
             'browserInspected'=>true,'visionInspected'=>true,'nativeEditorVerified'=>false),
