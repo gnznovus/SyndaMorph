@@ -260,12 +260,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if ($on_event) $on_event('agent_complete',array('role'=>$role,'task'=>$stage,'metric'=>$metric));
         return $result['text'];
     };
-    $boss=$call('boss','First line must be Job title: <short title>. Then a compact requirements and component responsibility memo, at most 350 words. Do not generate HTML, CSS, native JSON, design tokens or validation reports; those belong to subsequent tasks.',array('brief'=>$brief),2500);
+    $boss=$call('boss','First line must be Job title: <short title>. Then a compact requirements and component responsibility memo, at most 350 words. When copy is unspecified, authorize original generic marketing copy and a descriptive provisional local CTA; never require placeholder text or invent hotel facts. Do not generate HTML, CSS, native JSON, design tokens or validation reports; those belong to subsequent tasks.',array('brief'=>$brief),2500);
     if (is_wp_error($boss)) return $boss; $outputs['boss']=$boss;
     if ($on_event && preg_match('/Job title:\s*([^\r\n]+)/i',$boss,$match)) $on_event('job_title',array('title'=>trim($match[1])));
-    $designer=$call('designer','Respect native capabilities in the shared contract; design only implementable native layouts. Return a compact design specification (at most 450 words): hierarchy, layout, palette, responsive tokens, typography and implementation limitations. Do not generate code or a full criteria review.',array('brief'=>$brief,'boss'=>$boss),3500);
+    $designer=$call('designer','Respect native capabilities in the shared contract; design only implementable native layouts. Return a compact design specification (at most 450 words): hierarchy, layout, palette, responsive tokens, typography and implementation limitations. Allow original generic copy without factual claims. Do not require placeholder labels. Do not generate code or a full criteria review.',array('brief'=>$brief,'boss'=>$boss),3500);
     if (is_wp_error($designer)) return $designer;$outputs['designer']=$designer;
-    $reference=$call('developer','Produce one complete self-contained HTML section and scoped CSS using only design capabilities representable in the native contract. Use system-ui, matching native layout behavior and supported length expressions. No Markdown fences. No JavaScript, external URLs, scripts or external assets. Return only HTML.',array('brief'=>$brief,'boss'=>$boss,'design'=>$designer),16384,array(),'reference');
+    $reference=$call('developer','Produce one complete self-contained HTML section and scoped CSS using only design capabilities representable in the native contract. Use system-ui, matching native layout behavior and supported length expressions. Write finished generic headline, introduction and CTA copy where unspecified; no bracket placeholders. No Markdown fences. No JavaScript, external URLs, scripts or external assets. Return only HTML.',array('brief'=>$brief,'boss'=>$boss,'design'=>$designer),16384,array(),'reference');
     if (is_wp_error($reference)) return $reference;
     $reference=trim($reference);
     if(preg_match('/^```(?:html)?\s*([\s\S]*?)\s*```$/iD',$reference,$fenced))$reference=trim($fenced[1]);
@@ -275,13 +275,16 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $outputs['reference']=$reference;
     $capabilityNotes=syndamorph_reference_capability_notes($reference);
     if($on_event&&$capabilityNotes)$on_event('capability_preflight',array('notes'=>$capabilityNotes));
+    $inspectReference=syndamorph_collab_inspect($reference);
+    if(is_wp_error($inspectReference))return $inspectReference;
+    $referenceImages=array_map(static fn($s)=>array('media_type'=>'image/jpeg','data'=>$s['screenshot']),array($inspectReference[0],$inspectReference[2]));
     $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON, preserving content and visual intent. Return JSON only. Use stable unique ids on each node, and do not invent unsupported styles. '.syndamorph_block_plan_contract(),
-        array('brief'=>$brief,'design'=>$designer,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes),9000);
+        array('brief'=>$brief,'design'=>$designer,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,'imageOrder'=>array('desktop-reference','mobile-reference')),9000,$referenceImages);
     if (is_wp_error($developer)) return $developer;
     // Recover model-generated schema mistakes without restarting production.
     // Never bypass the compiler or send rejected markup to the renderer.
     $compilePlan=static function(string $raw) {
-        $plan=json_decode($raw,true,32);
+        $plan=json_decode(syndamorph_native_json_text($raw),true,32);
         if(!is_array($plan)||!is_array($plan['blocks']??null)) return new WP_Error('sm_block_plan_invalid','Expected valid native plan JSON.',array('field'=>'plan'));
         $plan=syndamorph_collab_ids($plan);
         $unique=syndamorph_collab_validate_ids($plan);
@@ -316,7 +319,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $plan=$compiled['plan'];$artifact=$compiled['artifact'];
     $outputs['developer']=wp_json_encode($plan);
     $memory->remember($plan);
-    $inspectReference=syndamorph_collab_inspect($reference);
+    
     $inspectNative=syndamorph_collab_inspect($artifact['preview']);
     if (is_wp_error($inspectReference) || is_wp_error($inspectNative)) return new WP_Error('sm_quality_blocked','Real browser inspection could not complete; job cannot be approved.');
     $comparison=syndamorph_collab_compare($inspectReference,$inspectNative);
@@ -340,10 +343,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             $screenshots[]=array('media_type'=>'image/jpeg','data'=>$encoded);
         }
     }
-    $review=$call('boss','Assess visual fidelity, accessible names, content, responsiveness and native Gutenberg limits based only on the provided real browser measurements. Provide JSON: {"issues":[{"id":"...","component":"existing component id","severity":"high|medium|low","detail":"..."}],"summary":"..."}. Return ONLY actionable implementation defects in issues. Include kind=implementation and status=open. Passes, host responsibilities, unsupported capabilities and pending editor verification belong in separate notes, never issues. Design itself is frozen. Use existing issue IDs for known findings. Evidence limits must be explicit.',
-        array('brief'=>$brief,'design'=>$designer,'reference'=>$modelEvidence($inspectReference),'native'=>$modelEvidence($inspectNative),'deterministicIssues'=>$issues,'pixelComparison'=>$comparison,'componentPlan'=>$plan,'imageOrder'=>array('desktop-reference','desktop-gutenberg','mobile-reference','mobile-gutenberg')),16384,$screenshots,'validation');
+    $review=$call('boss','Assess visual fidelity, accessible names, content, responsiveness and native Gutenberg limits based only on the provided real browser measurements. Provide JSON: {"issues":[{"id":"...","component":"existing component id","severity":"high|medium|low","detail":"..."}],"summary":"..."}. Compiler checks are authoritative for accepted schema. Do not report speculative invalid gradients or unsupported attributes if compilation passed; report measured appearance differences instead. Return ONLY actionable implementation defects in issues. Include kind=implementation and status=open. Passes, host responsibilities, unsupported capabilities and pending editor verification belong in separate notes, never issues. Design itself is frozen. Use existing issue IDs for known findings. Evidence limits must be explicit.',
+        array('brief'=>$brief,'design'=>$designer,'reference'=>$modelEvidence($inspectReference),'native'=>$modelEvidence($inspectNative),'deterministicIssues'=>$issues,'pixelComparison'=>$comparison,'componentPlan'=>$plan,'compilerChecks'=>$artifact['checks'],'imageOrder'=>array('desktop-reference','desktop-gutenberg','mobile-reference','mobile-gutenberg')),16384,$screenshots,'validation');
     if (is_wp_error($review)) return $review;$outputs['validator']=$review;
-    $parsed=json_decode($review,true);
+    $parsed=json_decode(syndamorph_native_json_text($review),true);
     if (!is_array($parsed) || !is_array($parsed['issues']??null)) {
         $issues[]=array('id'=>'validator-format','component'=>'blocks[0]','severity'=>'medium','detail'=>'Validator did not return structured findings.');
     } else {
@@ -375,7 +378,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $node=syndamorph_collab_find($plan['blocks'],$id);
         $route=syndamorph_repair_route($focus);
         $delegated=array('designerNeeded'=>false,'reason'=>'Frozen reference: implementation repair only.');
-        $patch=syndamorph_repair_measured($node,$inspectReference,$inspectNative);
+        $patch=syndamorph_repair_container($node,$inspectReference,$inspectNative)??syndamorph_repair_measured($node,$inspectReference,$inspectNative);
         if($patch!==null) {
             $probe=syndamorph_collab_patch($plan,$patch);
             if(is_wp_error($probe)||$memory->seen($probe['plan']))$patch=null;
@@ -383,10 +386,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if($patch!==null) {
             $route='engine';
         } else {
-            $repair=$call('developer','Repair only the specified native component against the frozen HTML reference. Return exactly JSON {"id":"existing id","replacement":{...full valid node with same id and type...}}. Preserve text, links and approved siblings. Do not redesign. Fix schema errors using the supported contract. Never repeat rejected attempts.',
-                array('issueFocus'=>$focus,'component'=>$node,'id'=>$id,'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts($node)),'nativeMeasurements'=>syndamorph_memory_measurements($inspectNative,syndamorph_memory_texts($node)),'previousAttempts'=>$memory->feedback($id)),4000,array(),'repair');
+            $repairScope=syndamorph_collab_scoped_images($inspectReference,$inspectNative,syndamorph_memory_texts($node));
+            $repair=$call('developer','Repair only the specified native component against the frozen HTML reference. Inspect the reference/current screenshot pairs and measurements, including ancestor constraints. Return exactly JSON {"id":"existing id","replacement":{...full valid node with same id and type...}}. Preserve text, links and approved siblings. Do not redesign. Fix schema errors using the supported contract. Never repeat rejected attempts.',
+                array('issueFocus'=>$focus,'component'=>$node,'id'=>$id,'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts($node)),'nativeMeasurements'=>syndamorph_memory_measurements($inspectNative,syndamorph_memory_texts($node)),'previousAttempts'=>$memory->feedback($id),'imageScope'=>$repairScope['mode'],'imageOrder'=>array('desktop-reference','desktop-current','mobile-reference','mobile-current')),4000,$repairScope['images'],'repair');
             if(is_wp_error($repair)) { $terminationReason=$repair->get_error_code()==='sm_team_budget'?'budget_80_percent':'developer_blocked';break; }
-            $patch=json_decode($repair,true);
+            $patch=json_decode(syndamorph_native_json_text($repair),true);
         }
         if($on_event)$on_event('repair_route',array('round'=>$round,'id'=>$id,'route'=>$route));
         if (!is_array($patch)) { $entry=array('round'=>$round,'id'=>$id,'status'=>'rejected','detail'=>'Invalid JSON patch');$memory->record($id,$entry);$revisions[]=$entry;if($on_event)$on_event('revision',$entry);continue; }
@@ -410,13 +414,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         // Each repair receives a fresh vision review of its changed component,
         // not the entire design report. Unaffected model findings are retained.
         $targetReview=$call('boss',
-            'Inspect ONLY the changed component and affected descendants using the four browser screenshots. Compare against reference. Return JSON {"issues":[{"id":"...","component":"existing id","severity":"high|medium|low","detail":"..."}]}. Do not re-review approved siblings. Return only open, actionable implementation defects. Never put passes, resolved issues, host responsibilities or unsupported capabilities in issues. Reuse previous IDs. Include kind=implementation and status=open.',
+            'Inspect ONLY the changed component and affected descendants using the four browser screenshots. Compare against reference. Return JSON {"issues":[{"id":"...","component":"existing id","severity":"high|medium|low","detail":"..."}]}. Do not re-review approved siblings. Compiler validity is authoritative; never report speculative schema failures for compiled markup. Return only open, actionable implementation defects. Never put passes, resolved issues, host responsibilities or unsupported capabilities in issues. Reuse previous IDs. Include kind=implementation and status=open.',
             array('id'=>$id,'changedComponent'=>syndamorph_collab_find($candidate['plan']['blocks'],$id),
                 'previousIssues'=>array_values(array_filter($issues,static fn($issue)=>isset($affected[$issue['component']??'']))),
-                'impact'=>$impact,'imageScope'=>$scope['mode'],
+                'impact'=>$impact,'compilerChecks'=>$candidate['artifact']['checks'],'imageScope'=>$scope['mode'],
                 'measurements'=>syndamorph_memory_measurements($newEvidence,syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id))),'previousAttempts'=>$memory->feedback($id),'pixelComparison'=>$newComparison,'imageOrder'=>array('desktop-reference','desktop-updated','mobile-reference','mobile-updated')),16384,$scopedScreenshots,'revision_validation');
         if (is_wp_error($targetReview)) { $terminationReason='validator_blocked'; $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Scoped visual validation unavailable');break; }
-        $parsedTarget=json_decode($targetReview,true);
+        $parsedTarget=json_decode(syndamorph_native_json_text($targetReview),true);
         if (!is_array($parsedTarget) || !is_array($parsedTarget['issues']??null)) {
             $entry=array('round'=>$round,'id'=>$id,'status'=>'rejected','detail'=>'Scoped Validator response invalid');$memory->record($id,$entry);$revisions[]=$entry;continue;
         }
@@ -436,6 +440,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $memory->record($id,array_merge(end($revisions),array('replacement'=>$patch['replacement'],'remainingIssues'=>array_slice($newIssues,0,8))));
         if($accepted) {
             $stagnation=0;
+            $memory->reopen(array_values(array_diff($impact['affected'],$impact['changed'])));
             $plan=$candidate['plan'];$artifact=$candidate['artifact'];$inspectNative=$newEvidence;$comparison=$newComparison;
             foreach($registry as &$record)$record['status']='resolved';unset($record);
             foreach($newIssues as $issue)$registry[$issue['component'].'|'.$issue['id']]=array_merge($issue,array('status'=>'open'));
