@@ -3,7 +3,7 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 function syndamorph_block_plan_contract(): string {
-    return 'Return a JSON object {"version":1,"blocks":[...]} with exactly one root group. Each node has type and optional style. Supported nodes: group (children), columns (children of type column, 2–4), column (children), heading (text, level 1–6), paragraph (text), buttons (children of type button), button (text, href: #fragment or /local-path). Only group/column may contain ordinary content blocks. Styles: color, background (hex RGB), fontSize, padding (all sides), gap (group/columns/buttons), align (heading/paragraph: left/center/right), all lengths positive px/rem/em or clamp(length,length,length) with vw allowed. Use a heading and meaningful CTA. No HTML, arbitrary CSS, remote URLs, custom blocks or invented attributes. Use native columns mobile stacking; no fixed widths. Example {"version":1,"blocks":[{"type":"group","style":{"background":"#18283a","padding":"clamp(2rem,5vw,5rem)"},"children":[{"type":"heading","level":2,"text":"Welcome","style":{"color":"#ffffff","fontSize":"clamp(2rem,5vw,4rem)"}},{"type":"paragraph","text":"Discover our hotel","style":{"color":"#ffffff"}},{"type":"buttons","children":[{"type":"button","text":"Explore","href":"#explore"}]}]}]}.';
+    return 'Return a JSON object {"version":1,"blocks":[...]} with exactly one root group. Each node has type, a stable unique id and optional style. Supported nodes: group (children), columns (children of type column, 2–4), column (children), heading (text, level 1–6), paragraph (text), buttons (children of type button), button (text, href: #fragment or /local-path). Only group/column may contain ordinary content blocks. Styles: color, background (hex RGB), fontSize, padding (all sides), gap (group/columns/buttons), align (heading/paragraph: left/center/right), all lengths positive px/rem/em or clamp(length,length,length) with vw allowed. Use a heading and meaningful CTA. No HTML, arbitrary CSS, remote URLs, custom blocks or invented attributes. Use native columns mobile stacking; no fixed widths. Example {"version":1,"blocks":[{"type":"group","style":{"background":"#18283a","padding":"clamp(2rem,5vw,5rem)"},"children":[{"type":"heading","level":2,"text":"Welcome","style":{"color":"#ffffff","fontSize":"clamp(2rem,5vw,4rem)"}},{"type":"paragraph","text":"Discover our hotel","style":{"color":"#ffffff"}},{"type":"buttons","children":[{"type":"button","text":"Explore","href":"#explore"}]}]}]}.';
 }
 
 function syndamorph_compile_block_plan( string $raw ) {
@@ -28,12 +28,13 @@ function syndamorph_compile_block_plan( string $raw ) {
             $allowed = array( 'root'=>array('group'), 'group'=>array('group','columns','heading','paragraph','buttons'), 'column'=>array('group','columns','heading','paragraph','buttons'), 'columns'=>array('column'), 'buttons'=>array('button') );
             if ( ! is_string( $type ) || ! in_array( $type, $allowed[$parent] ?? array(), true ) ) { throw new InvalidArgumentException( 'Unsupported block or nesting.' ); }
             $container = in_array( $type, array('group','columns','column','buttons'), true );
-            $keys = array_merge( array('type','style'), $container ? array('children') : array('text'), $type==='heading'?array('level'):array(), $type==='button'?array('href'):array() );
+            $keys = array_merge( array('type','style','id'), $container ? array('children') : array('text'), $type==='heading'?array('level'):array(), $type==='button'?array('href'):array() );
             if ( $unknown = array_diff( array_keys($node), $keys ) ) {
                 $key = (string) reset($unknown);
                 $field = $path . '.' . preg_replace('/[^a-zA-Z0-9_-]/', '?', substr($key,0,64));
                 throw new InvalidArgumentException( $key === 'align' ? 'Alignment belongs inside style.align.' : 'Unsupported node field.' );
             }
+            if (isset($node['id']) && (!is_string($node['id']) || !preg_match('/^[a-zA-Z0-9_.\\[\\]-]{1,100}$/D', $node['id']))) { $field=$path.'.id'; throw new InvalidArgumentException('Invalid component ID.'); }
             $style = $node['style'] ?? array();
             if ( ! is_array($style) ) { throw new InvalidArgumentException('Invalid style.'); }
             $attrs = array(); $css = array(); $classes = array();
