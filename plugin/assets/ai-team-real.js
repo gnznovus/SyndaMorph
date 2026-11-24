@@ -20,8 +20,10 @@
     const title = $('syndamorph-team-result-title');
     if (!cfg || !root || !run || !brief || !timeline || !results) return;
 
-    const roles = ['boss', 'designer', 'developer', 'validator'];
-    const labels = {boss:'Boss', designer:'Designer', developer:'Developer', validator:'Validator'};
+    const roles = ['boss', 'designer', 'reference', 'developer', 'validator'];
+    const initialRoles = () => activeFormat === 'gutenberg' ? roles : roles.filter(r => r !== 'reference');
+    const completedRoles = new Set();
+    const labels = {boss:'Boss', designer:'Designer', reference:'HTML Reference', developer:'Developer', validator:'Validator'};
     let running = false;
     let completed = 0;
     let currentIdentity = null;
@@ -87,7 +89,7 @@
             (data.usage.inputTokens + data.usage.outputTokens) + ' tokens · est. $' +
             Number(data.estimatedCostUsd).toFixed(6) + ' (not guaranteed billing)';
         results.append(summary);
-        roles.forEach(role => {
+        initialRoles().forEach(role => {
             const details = document.createElement('details');
             details.className = 'sm-team-ai-agent-output';
             details.open = role === 'developer';
@@ -101,6 +103,19 @@
             details.append(heading, body);
             results.append(details);
         });
+        if (data.referenceHtml) {
+            const ref=document.createElement('details');
+            ref.className='sm-team-ai-agent-output';
+            const h=document.createElement('summary');h.textContent='HTML design reference';
+            const pre=document.createElement('pre');pre.textContent=data.referenceHtml;
+            ref.append(h,pre);results.append(ref);
+        }
+        if (data.quality) {
+            const qa=document.createElement('details');qa.className='sm-team-ai-agent-output';qa.open=true;
+            const h=document.createElement('summary');h.textContent='Browser QA, issues and targeted revisions';
+            const pre=document.createElement('pre');pre.textContent=JSON.stringify({issues:data.quality.issues,revisions:data.quality.revisions,browserInspected:data.quality.browserInspected,visionInspected:data.quality.visionInspected,nativeEditorVerified:data.quality.nativeEditorVerified},null,2);
+            qa.append(h,pre);results.append(qa);
+        }
         if (data.outputType !== 'gutenberg' && typeof data.outputs?.developer === 'string') {
             const heading = document.createElement('h3');
             heading.textContent = 'HTML preview · isolated / review only';
@@ -120,7 +135,7 @@
         checks.textContent = 'Structural checks: ' +
             Object.values(data.checks || {}).filter(Boolean).length + '/' +
             Object.keys(data.checks || {}).length +
-            (data.outputType === 'gutenberg' ? '. Native plan compiled; editor validation and browser QA remain pending.' : '. No Gutenberg conversion, browser QA, or publishing has occurred.');
+            (data.outputType === 'gutenberg' ? '. Browser and vision QA collected; native editor validation is not certified.' : '. No Gutenberg conversion, browser QA, or publishing has occurred.');
         results.append(checks);
         if (typeof data.outputs?.developer === 'string') {
             exportControl = window.SyndaMorphAIExport.mount(results, {html:data.outputType === 'gutenberg' ? null : data.outputs.developer, artifact:data.artifact, identity:currentIdentity, receipts:exportReceipts});
@@ -205,21 +220,25 @@
             message.name.textContent = labels[data.role] + ' · Completed';
             message.metric.textContent = data.metric ? formatMetric(data.metric) : '';
             setAgent(data.role, 'success');
-            completed++;
-            text(handoffs, completed + ' / 4 completed');
+            if (!completedRoles.has(data.role)) { completedRoles.add(data.role); completed++; }
+            text(handoffs, completed + ' / ' + initialRoles().length + ' initial roles completed');
+        } else if (type === 'revision') {
+            const item=document.createElement('li');item.className='sm-team-step';
+            item.textContent='Revision '+data.round+' · '+data.id+' · '+(data.accepted?'Accepted':'Not accepted')+' · findings '+data.before+' → '+data.after;
+            timeline.append(item);
         } else if (type === 'job_error') {
             showFailure(data);
             const error = new Error(data.message || 'Production stream failed.');
             error.reported = true;
             throw error;
         } else if (type === 'job_complete') {
-            if (completed !== 4) throw new Error('Incomplete agent handoff: ' + completed + ' / 4.');
-            text(job, data.status === 'needs_review' ? 'Review needed' : 'Generated');
+            if (initialRoles().some(role => !completedRoles.has(role))) throw new Error('Incomplete initial agent handoffs: ' + completed + ' / ' + initialRoles().length + '.');
+            text(job, data.status === 'uncompleted' ? 'Uncompleted' : data.status === 'needs_review' ? 'Review needed' : 'Generated');
             text(output, 'Review output');
             text(notice, 'Production finished. Review every agent output; nothing was published.');
-            setFeed('4 / 4 agents completed', 'success');
-            setReview('Generation complete · review required',
-                'AI output is available below. Visual fidelity and Gutenberg block validity remain unverified.');
+            setFeed(initialRoles().length+' initial roles finished · '+(data.status || 'review'), data.status === 'uncompleted' ? 'error' : 'success');
+            setReview(data.status === 'uncompleted' ? 'Production uncompleted · best artifact preserved' : 'Generation complete · review required',
+                data.quality ? 'Browser and vision evidence recorded. WordPress editor validation remains pending.' : 'AI output is available below; visual fidelity remains unverified.');
             appendReport(data);
             if (!replaying) tab('results');
         }
@@ -265,7 +284,7 @@
         clearReports();
         results.hidden = true;
         clearMessages();
-        completed = 0;
+        completed = 0; completedRoles.clear();
     });
     // History uses the exact same event consumer and output renderer as live jobs.
     window.SyndaMorphProductionReplay = Object.freeze({
@@ -277,13 +296,14 @@
             if (reset) reset.disabled = true;
             try {
                 clearMessages(); clearReports(); timeline.replaceChildren();
-                results.hidden = true; completed = 0;
+                results.hidden = true; completed = 0; completedRoles.clear();
+                activeFormat = record.context?.outputType || 'html';
                 currentIdentity = record;
                 exportReceipts = (record.events || []).filter(e => e.type === 'export_receipt').map(e => e.data);
                 roles.forEach(role => setAgent(role, 'idle'));
                 text(current, record.jobId + ' : ' + record.title);
                 text(title, record.jobId + ' : ' + record.title);
-                text(handoffs, '0 / 4 completed');
+                text(handoffs, '0 / ' + initialRoles().length + ' completed');
                 text(job, 'Replay');
                 text(output, 'Recorded output');
                 setFeed('Historical replay · no AI calls', 'running');
@@ -318,12 +338,12 @@
             text(notice, 'Enter a production brief between 12 and 2000 characters.');
             return;
         }
-        if (!window.confirm('Start four paid AI agent calls? The Production Brief only will be sent; no content will be published.')) return;
+        if (!window.confirm(activeFormat === 'gutenberg' ? 'Start five initial paid AI calls and optional budget-limited revisions? Nothing will be published.' : 'Start four paid AI agent calls? Nothing will be published.')) return;
         running = true;
         run.disabled = true;
         if (reset) reset.disabled = true;
         clearMessages();
-        completed = 0;
+        completed = 0; completedRoles.clear();
         clearReports();
         results.hidden = true;
         timeline.replaceChildren();
