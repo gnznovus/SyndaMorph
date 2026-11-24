@@ -19,7 +19,7 @@ function syndamorph_compile_block_plan( string $raw ) {
         $length = static function ( $v ): string {
             $unit = '[0-9]{1,3}(?:\.[0-9]{1,3})?(?:px|rem|em|vw)';
             if ($v === 0 || $v === 0.0) $v='0';
-            if ( ! is_string( $v ) || ! preg_match( '~^(?:0|' . $unit . '|clamp\(\s*' . $unit . '\s*,\s*' . $unit . '\s*,\s*' . $unit . '\s*\))$~D', $v ) ) { throw new InvalidArgumentException( 'Invalid length.' ); }
+            if ( ! is_string( $v ) || ! preg_match( '~^(?:0|' . $unit . '|clamp\(\s*' . $unit . '\s*,\s*' . $unit . '(?:\s+\+\s+' . $unit . ')?\s*,\s*' . $unit . '\s*\))$~D', $v ) ) { throw new InvalidArgumentException( 'Invalid length.' ); }
             return $v === '0' ? '0px' : $v;
         };
         $build = static function ( $node, string $parent, int $depth, string $path ) use ( &$build, &$count, &$headings, &$field, $escape, $length ): string {
@@ -99,7 +99,6 @@ function syndamorph_compile_block_plan( string $raw ) {
                 if(!is_array($children)||!array_is_list($children)||!count($children)||($type==='columns'&&(count($children)<2||count($children)>4)))throw new InvalidArgumentException('Invalid children.');
                 $inner='';foreach($children as $i=>$child)$inner.=$build($child,$type,$depth+1,$path.'.children['.$i.']');
                 $markup='<div'.$appearance($classes,$style_parts).'>'.$inner.'</div>';
-                if(isset($style['contentWidth'])&&$type==='group') { /* layout is rendered by core, not inline CSS */ }
             } else {
                 $field = $path . '.text';
                 if(!is_string($node['text']??null)||trim($node['text'])===''||strlen($node['text'])>8000)throw new InvalidArgumentException('Invalid text.');
