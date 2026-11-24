@@ -149,10 +149,11 @@ function wp_remote_post($url,$args) {
         4 => 'Review: headline and section pass; test contrast and responsiveness in browser before shipping.',
         default => throw new RuntimeException('Too many AI calls'),
     };
+    $mockInput=!empty($GLOBALS['cutoff_fixture']) && str_contains($req['system'][1]['text']??'','Task: validation.')?86000:1200;
     return array('status'=>200,'body'=>json_encode(array(
         'model'=>'claude-dynamic-test-1','stop_reason'=>'end_turn',
         'content'=>array(array('type'=>'text','text'=>$text)),
-        'usage'=>array('input_tokens'=>1200,'output_tokens'=>150),
+        'usage'=>array('input_tokens'=>$mockInput,'output_tokens'=>150),
     )));
 }
 putenv('SYNDAMORPH_RENDERER_URL=http://renderer:3000/render');
@@ -415,7 +416,12 @@ expect(str_contains($revised['artifact']['content'],'font-size:2.5rem'),'Best na
 expect(str_contains($revised['artifact']['content'],'A premium hotel experience.'),'Revision destroyed approved sibling');
 expect($revised['quality']['revisions'][0]['imageScope']==='component','Scoped review did not use crops');
 expect($GLOBALS['crop_calls']===2,'Developer and QA crop endpoints not exercised');
-expect(count($GLOBALS['generations'][5]['messages'][0]['content'])===5,'Developer repair lacks paired visual evidence');
+expect(count($GLOBALS['generations'][5]['messages'][0]['content'])===3,'Developer repair lacks selected reference/native image pair');
+expect($GLOBALS['generations'][5]['max_tokens']===2048 && $GLOBALS['generations'][6]['max_tokens']===4096,
+    'Developer and Boss repair calls ignored task output limits');
+expect($revised['quality']['revisions'][0]['usage']['stages']===array('repair','revision_validation') &&
+    $revised['quality']['revisions'][0]['usage']['inputTokens']===2400 &&
+    $revised['quality']['revisions'][0]['retainedImprovement']===1.0,'Repair usage or retained improvement was not attributed');
 expect($revised['quality']['revisions'][0]['route']==='developer' && !$revised['quality']['revisions'][0]['delegation']['designerNeeded'],'Routine repair invoked unnecessary design work');
 expect(count($revised['quality']['revisions'][0]['changedFields']??array())===1 &&
     !isset($revised['quality']['revisions'][0]['changedFields'][0]['replacement']),
@@ -424,8 +430,10 @@ expect(in_array('blocks[0].children[1]',$revised['quality']['revisions'][0]['imp
 
 $GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
 // Admit initial screenshot QA with the cached contract overhead, but not the full revision reserve.
-$GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=0.020;
+$GLOBALS['cutoff_fixture']=true;
+$GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=0.015;
 $cutoff=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
+unset($GLOBALS['cutoff_fixture']);
 expect(!is_wp_error($cutoff) && $cutoff['status']==='uncompleted','80% working-budget cutoff must preserve best artifact as Uncompleted: '.(is_wp_error($cutoff)?$cutoff->get_error_code().' '.$cutoff->get_error_message():($cutoff['status']??'unknown')));
 $cutoffTasks=array_map(static function(array $request): string {
     preg_match('/^Task: ([a-z_]+)\./',$request['system'][1]['text']??'', $match);
@@ -517,6 +525,10 @@ expect($adaptivePlan['blocks'][0]['children'][0]['id']==='text-stack' &&
     count($adaptive['quality']['revisions'][1]['changedFields'])===4 &&
     syndamorph_surgery_load($adaptive['surgery']['workingPlanId'])['revision']===2,
     'Combined structural and four style changes did not commit atomically with sibling preservation');
+$groupSummary=$adaptive['quality']['repairSummary']['groups'][0];
+expect($groupSummary['attempts']===2 && $groupSummary['usage']['calls']===4 &&
+    $groupSummary['retainedImprovement']===1.0 && $adaptive['quality']['revisions'][0]['retainedImprovement']===0.0,
+    'Coordinated operation did not include failed work in its cost');
 $adaptiveRequest=json_decode($GLOBALS['generations'][7]['messages'][0]['content'][0]['text'],true);
 expect(($adaptiveRequest['previousAttempts'][0]['reason']??'')==='No verified improvement in the affected region',
     'Structural diagnosis did not receive failed style validation');

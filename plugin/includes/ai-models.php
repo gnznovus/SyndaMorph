@@ -247,10 +247,10 @@ function syndamorph_anthropic_sse_request( string $key, array $payload, ?callabl
         return new WP_Error( 'sm_generation_upstream', $reason . ' (Anthropic HTTP ' . $http . ').', array( 'status' => 502 ) );
     }
     if ( $overflow ) {
-        return new WP_Error( 'sm_generation_oversize', 'Streaming output exceeded the safety size bound.', array( 'status' => 502, 'outputTokens' => $usage['outputTokens'] ) );
+        return new WP_Error( 'sm_generation_oversize', 'Streaming output exceeded the safety size bound.', array( 'status' => 502, 'outputTokens' => $usage['outputTokens'], 'usage' => $saw_start ? $usage : null ) );
     }
     if ( false === $ok || $provider_error || ! $saw_start || ! $saw_stop ) {
-        return new WP_Error( 'sm_generation_transport', 'Anthropic streaming ended unexpectedly or timed out.', array( 'status' => 502, 'outputTokens' => $usage['outputTokens'] ) );
+        return new WP_Error( 'sm_generation_transport', 'Anthropic streaming ended unexpectedly or timed out.', array( 'status' => 502, 'outputTokens' => $usage['outputTokens'], 'usage' => $saw_start ? $usage : null ) );
     }
     return array( 'model' => $model, 'text' => $text, 'stop_reason' => $stop_reason, 'usage' => $usage );
 }
@@ -334,7 +334,7 @@ function syndamorph_models_generate( string $provider, string $model, string $sy
         return new WP_Error(
             'max_tokens' === $reason ? 'sm_generation_token_limit' : 'sm_generation_incomplete',
             $reasons[ $reason ] ?? 'Model stopped for an unrecognized reason.',
-            array( 'status' => 502, 'stopReason' => $reason, 'outputTokens' => (int) ( $json['usage']['outputTokens'] ?? 0 ) )
+            array( 'status' => 502, 'stopReason' => $reason, 'outputTokens' => (int) ( $json['usage']['outputTokens'] ?? 0 ), 'usage' => $json['usage'] )
         );
     }
     if ( '' === trim( (string) $json['text'] ) || strlen( $json['text'] ) > 120000 ) {

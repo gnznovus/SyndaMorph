@@ -26,8 +26,11 @@ function syndamorph_production_tool(string $role,string $name,array $args) {
         case 'playwright.crop':
             if(!is_array($args['reference']??null)||!is_array($args['native']??null)||!is_array($args['texts']??null))
                 return new WP_Error('sm_tool_input','Crop requires evidence and a text selector.');
+            $primary=$args['primary']??null;
+            if($primary!==null && (!is_int($primary) || !isset($args['reference'][$primary],$args['native'][$primary])))
+                return new WP_Error('sm_tool_input','Crop viewport is not present in the evidence.');
             return syndamorph_collab_scoped_images($args['reference'],$args['native'],
-                array_slice(array_filter($args['texts'],'is_string'),0,12));
+                array_slice(array_filter($args['texts'],'is_string'),0,12),$primary);
         case 'compiler.validate':
             if(!is_array($args['plan']??null))return new WP_Error('sm_tool_input','Native plan missing.');
             return syndamorph_compile_block_plan(wp_json_encode($args['plan']));

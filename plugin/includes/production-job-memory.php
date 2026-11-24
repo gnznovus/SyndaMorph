@@ -70,9 +70,9 @@ final class SyndaMorph_Job_Memory {
 function syndamorph_evidence_text(string $text): string {
     return trim(preg_replace('/\s+/u',' ',$text)??$text);
 }
-function syndamorph_memory_measurements(array $samples, array $texts=array()): array {
+function syndamorph_memory_measurements(array $samples,array $texts=array(),int $limit=24): array {
     $texts=array_map('syndamorph_evidence_text',$texts);
-    return array_map(static function(array $sample)use($texts):array {
+    return array_map(static function(array $sample)use($texts,$limit):array {
         $elements=array();
         $snapshot=$sample['snapshot']['elements']??array();
         foreach($snapshot as $el) {
@@ -88,7 +88,7 @@ function syndamorph_memory_measurements(array $samples, array $texts=array()): a
             if($parent)$item['parent']=array('node'=>$parent['node']??null,'rect'=>$parent['rect'],
                 'layout'=>array_intersect_key($parent['styles']??array(),array_flip(array('display','gap','alignItems','justifyContent'))));
             $elements[]=$item;
-            if(count($elements)>=24)break;
+            if(count($elements)>=$limit)break;
         }
         return array('width'=>$sample['width'],'overflow'=>$sample['snapshot']['overflow']??null,
             'rootRect'=>$snapshot[0]['rect']??null,'elements'=>$elements);
