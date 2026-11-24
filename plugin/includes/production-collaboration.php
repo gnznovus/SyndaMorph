@@ -273,8 +273,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         return new WP_Error('sm_reference_unsafe','HTML design reference failed safety or structure checks.');
     }
     $outputs['reference']=$reference;
+    $capabilityNotes=syndamorph_reference_capability_notes($reference);
+    if($on_event&&$capabilityNotes)$on_event('capability_preflight',array('notes'=>$capabilityNotes));
     $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON, preserving content and visual intent. Return JSON only. Use stable unique ids on each node, and do not invent unsupported styles. '.syndamorph_block_plan_contract(),
-        array('brief'=>$brief,'design'=>$designer,'reference'=>$reference),9000);
+        array('brief'=>$brief,'design'=>$designer,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes),9000);
     if (is_wp_error($developer)) return $developer;
     // Recover model-generated schema mistakes without restarting production.
     // Never bypass the compiler or send rejected markup to the renderer.
@@ -354,9 +356,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $issues=syndamorph_issue_merge($issues);
     $registry=array();foreach($issues as $issue)$registry[$issue['component'].'|'.$issue['id']]=array_merge($issue,array('status'=>'open'));
     $best['issues']=$issues;$best['score']=syndamorph_issue_score($issues);
+    $stagnation=0;
     $terminationReason='quality_pending';
     // Budget is the primary limit; retain a hard runtime safety guard and stop stalled targets.
     for($round=1;count($issues)>0;$round++) {
+        if($stagnation>=4) { $terminationReason='global_no_progress';break; }
+        $stagnation++;
         if(microtime(true)-$started>1000) { $terminationReason='runtime_limit';break; }
         // 20% remains reserved for finalization. Never start a repair if projected spending crosses cutoff.
         // Reserve worst-case Developer and scoped visual QA calls.
@@ -386,6 +391,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if($on_event)$on_event('repair_route',array('round'=>$round,'id'=>$id,'route'=>$route));
         if (!is_array($patch)) { $entry=array('round'=>$round,'id'=>$id,'status'=>'rejected','detail'=>'Invalid JSON patch');$memory->record($id,$entry);$revisions[]=$entry;if($on_event)$on_event('revision',$entry);continue; }
         if(($patch['id']??null)!==$id) { $entry=array('round'=>$round,'id'=>$id,'status'=>'rejected','detail'=>'Patch escaped assigned component');$memory->record($id,$entry);$revisions[]=$entry;continue; }
+        if(is_array($patch['replacement']??null)&&syndamorph_repair_content_signature($node)!==syndamorph_repair_content_signature($patch['replacement'])) { $entry=array('round'=>$round,'id'=>$id,'status'=>'rejected','detail'=>'Repair altered frozen content or links');$memory->record($id,$entry);$revisions[]=$entry;if($on_event)$on_event('revision',$entry);continue; }
         $candidate=syndamorph_collab_patch($plan,$patch);
         if (is_wp_error($candidate)) { $entry=array('round'=>$round,'id'=>$id,'status'=>'rejected','detail'=>$candidate->get_error_message());$memory->record($id,$entry);$revisions[]=$entry;if($on_event)$on_event('revision',$entry);continue; }
         if($memory->seen($candidate['plan'])) { $entry=array('round'=>$round,'id'=>$id,'status'=>'duplicate','accepted'=>false,'detail'=>'Equivalent candidate already attempted; skipped browser and AI QA.','before'=>count($issues),'after'=>count($issues));$memory->record($id,$entry);$revisions[]=$entry;if($on_event)$on_event('revision',$entry);continue; }
@@ -429,6 +435,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $revisions[]=array('round'=>$round,'id'=>$id,'delegation'=>array('designerNeeded'=>$delegated['designerNeeded'],'reason'=>mb_substr((string)($delegated['reason']??''),0,160)),'route'=>$route,'impact'=>$impact,'imageScope'=>$scope['mode'],'accepted'=>$accepted,'before'=>count($issues),'after'=>count($newIssues),'scoreBefore'=>$oldScore,'scoreAfter'=>$newScore,'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
         $memory->record($id,array_merge(end($revisions),array('replacement'=>$patch['replacement'],'remainingIssues'=>array_slice($newIssues,0,8))));
         if($accepted) {
+            $stagnation=0;
             $plan=$candidate['plan'];$artifact=$candidate['artifact'];$inspectNative=$newEvidence;$comparison=$newComparison;
             foreach($registry as &$record)$record['status']='resolved';unset($record);
             foreach($newIssues as $issue)$registry[$issue['component'].'|'.$issue['id']]=array_merge($issue,array('status'=>'open'));
@@ -442,6 +449,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     if($best['score']===0) $terminationReason='quality_resolved';
     elseif($terminationReason==='quality_pending') $terminationReason='revision_limit_or_unresolved';
     $artifact=$best['artifact'];
+    $outputs['developer']=wp_json_encode($best['plan']);
     $artifact['contentSha256']=hash('sha256',$artifact['content']);
     $cost=round(syndamorph_collab_cost($usage,$in,$out),6);
     // A zero-count heuristic is not proof of visual or Gutenberg editor validity.
@@ -452,7 +460,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         'usage'=>$usage,'agentMetrics'=>$metrics,'estimatedCostUsd'=>$cost,'pricingSource'=>$settings['pricingSource']??'unknown',
         'elapsedMs'=>(int)((microtime(true)-$started)*1000),'budgetUsd'=>$max,'budgetIsEstimate'=>true,
         'jobMemory'=>$memory->snapshot(),
-        'quality'=>array('issueRegistry'=>array_values($registry),'score'=>$best['score'],'issues'=>$best['issues'],'revisions'=>$revisions,'terminationReason'=>$terminationReason,'evidence'=>array(
+        'quality'=>array('capabilityNotes'=>$capabilityNotes,'issueRegistry'=>array_values($registry),'score'=>$best['score'],'issues'=>$best['issues'],'revisions'=>$revisions,'terminationReason'=>$terminationReason,'evidence'=>array(
             'reference'=>$evidenceSummary($inspectReference),'native'=>$evidenceSummary($best['evidence'])),
             'pixelComparison'=>$best['comparison'],
             'browserInspected'=>true,'visionInspected'=>true,'nativeEditorVerified'=>false),
