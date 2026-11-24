@@ -11,7 +11,7 @@ function &syndamorph_collab_find(array &$nodes, string $id, string $path = 'bloc
         $current = $path . '[' . $index . ']';
         if (($node['id'] ?? $current) === $id) { return $node; }
         if (isset($node['children']) && is_array($node['children'])) {
-            $found = syndamorph_collab_find($node['children'], $id, $current . '.children');
+            $found = &syndamorph_collab_find($node['children'], $id, $current . '.children');
             if ($found !== null) { return $found; }
         }
     }
@@ -197,7 +197,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $artifact=$best['artifact'];
     $cost=round(syndamorph_collab_cost($usage,$in,$out),6);
     // A zero-count heuristic is not proof of visual or Gutenberg editor validity.
-    $status=$best['score']===0 && !empty($parsed['issues'])===false ? 'needs_review' : 'uncompleted';
+    $status=$best['score']===0 && empty($parsed['issues']) ? 'needs_review' : 'uncompleted';
     return array('provider'=>$provider,'model'=>$model,'standardsVersion'=>syndamorph_production_standards()['version'],
         'outputType'=>'gutenberg','artifact'=>$artifact,'referenceHtml'=>$reference,'status'=>$status,
         'events'=>$events,'outputs'=>$outputs,'checks'=>$artifact['checks'],
