@@ -9,6 +9,8 @@ $GLOBALS['generations'] = array();
 class WP_Error {
     public function __construct(public string $code, public string $message, public array $args = array()) {}
     public function get_error_message(): string { return $this->message; }
+    public function get_error_code(): string { return $this->code; }
+    public function get_error_data(): array { return $this->args; }
 }
 function is_wp_error($v): bool { return $v instanceof WP_Error; }
 function add_action(...$args): void {}
@@ -124,7 +126,7 @@ expect(!str_contains($ui, 'id="syndamorph-real-brief"') &&
     'Legacy POC or simulator controls still exposed');
 expect(str_contains($client, "byId(") === false || str_contains($client, "const brief = $('syndamorph-team-brief')"),
     'The real client must use the Production Brief');
-expect(str_contains($client, 'JSON.stringify({brief:prompt,outputType:format?.value || 'html'})') &&
+expect(str_contains($client, 'JSON.stringify({brief:prompt,outputType:activeFormat})') &&
     !str_contains($client, 'validateSource(') &&
     str_contains($client, 'response.body.getReader()') &&
     str_contains($client, 'agent_delta') &&
@@ -190,3 +192,15 @@ expect(str_contains($export,'native ? artifact : await window.SyndaMorphConverte
 $history=file_get_contents(dirname(__DIR__).'/plugin/assets/production-history.js');
 expect(str_contains($history,'artifact:final.artifact'),'Archived native artifact not passed to shared export');
 echo "PASS: native pipeline, compiler rejection cases, output selector and shared export integration\n";
+
+$GLOBALS['native_fixture']=str_replace('"type":"heading"','"type":"heading","align":"left"',$GLOBALS['native_fixture']);
+$GLOBALS['generations']=array();
+$failure=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
+expect(is_wp_error($failure),'Invalid Developer plan accepted');
+$diagnostic=syndamorph_team_failure_payload($failure);
+expect($diagnostic['stage']==='compilation' && $diagnostic['role']==='developer','Failure stage or role lost');
+expect($diagnostic['generationCompleted']===true && $diagnostic['completedCalls']===3 && count($GLOBALS['generations'])===3,'Compiler rejection misclassified as model failure or Validator called');
+expect($diagnostic['field']==='blocks[0].children[0].align' && str_contains($diagnostic['message'],'style.align'),'Missing actionable field diagnostic');
+expect($diagnostic['metric']['outputTokens']===150,'Rejected output usage lost');
+expect(str_contains($client,'showFailure(event.data || {})') && str_contains($client,'timeline.append(item)'),'Shared live/replay failure display missing');
+echo "PASS: structured compiler rejection, usage and field diagnostics\n";
