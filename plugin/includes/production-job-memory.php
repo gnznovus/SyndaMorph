@@ -26,7 +26,17 @@ final class SyndaMorph_Job_Memory {
         $this->stalled[$id]=!empty($attempt['accepted'])?0:($this->stalled[$id]??0)+1;
     }
     public function eligible(string $id): bool { return ($this->stalled[$id]??0)<3; }
-    public function feedback(string $id): array { return array_slice($this->attempts[$id]??array(),-3); }
+    public function feedback(string $id): array {
+        return array_map(static function(array $entry):array {
+            $delta=array_intersect_key($entry,array_flip(array('round','status','accepted','detail','scoreBefore','scoreAfter','route')));
+            if(isset($entry['replacement'])) {
+                $delta['attemptedStyle']=$entry['replacement']['style']??array();
+                $delta['candidateFingerprint']=self::fingerprint($entry['replacement']);
+            }
+            $delta['remainingIssueIds']=array_column($entry['remainingIssues']??array(),'id');
+            return $delta;
+        },array_slice($this->attempts[$id]??array(),-3));
+    }
     public function snapshot(): array { return array('version'=>1,'brief'=>$this->brief,'attempts'=>$this->attempts,'uniqueCandidates'=>count($this->seen),'stalled'=>$this->stalled); }
 }
 /** Compact data for a task. Full evidence remains in the private archive. */
