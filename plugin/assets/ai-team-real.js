@@ -126,6 +126,55 @@
             exportControl = window.SyndaMorphAIExport.mount(results, {html:data.outputType === 'gutenberg' ? null : data.outputs.developer, artifact:data.artifact, identity:currentIdentity, receipts:exportReceipts});
         }
     }
+    function showFailure(data) {
+        const stage = data.stage || 'unknown';
+        const role = roles.includes(data.role) ? data.role : '';
+        const generated = data.generationCompleted === true;
+        const message = data.message || 'Production failed without a recorded explanation.';
+        const label = ({compilation:'Native block compilation',generation:'Model generation',budget:'Budget guard',context:'Context preparation',output_limit:'Output size validation',output_safety:'Output safety validation',preflight:'Production preflight',system:'Production system',connection:'Connection / stream'})[stage] || 'Unclassified failure';
+        const item = document.createElement('li');
+        item.className = 'sm-team-step sm-team-failure';
+        item.setAttribute('role','alert');
+        const heading = document.createElement('strong');
+        heading.textContent = label + ' · Failed';
+        const reason = document.createElement('p');
+        reason.textContent = message;
+        const diagnostics = document.createElement('p');
+        diagnostics.textContent = [data.code && 'Code: '+data.code, role && 'Role: '+labels[role], data.field && 'Field: '+data.field, data.stopReason && 'Stop reason: '+data.stopReason, Number.isInteger(data.outputTokens) && 'Output tokens: '+data.outputTokens].filter(Boolean).join(' · ');
+        const recovery = document.createElement('p');
+        recovery.textContent = generated ? 'Model generation completed; its output was rejected by the system. Previous handoffs and generated output remain in the recorded feed. Remaining agents were not started. Inspect History before retrying.' : 'Production stopped. Inspect the recorded output and History before retrying; do not assume failed calls were free.';
+        item.append(heading,reason,diagnostics,recovery);
+        timeline.append(item);
+        if (role) {
+            const entry = messages.get(role);
+            if (entry) {
+                entry.renderer.update(entry.value,true);
+                entry.name.textContent = labels[role] + (generated ? ' · Generated / rejected' : ' · Interrupted');
+                if (data.metric) entry.metric.textContent = formatMetric(data.metric);
+            }
+            if (generated) {
+                setAgent(role,'success');
+                const pill = root.querySelector('[data-agent="'+role+'"] .sm-status-pill');
+                if (pill) pill.textContent = 'Generated';
+            } else if (stage === 'generation' || (!data.stage && entry)) setAgent(role,'error');
+        }
+        // Never leave an active model labelled "Generating" after a terminal event.
+        for (const agent of roles) {
+            const pill = root.querySelector('[data-agent="'+agent+'"] .sm-status-pill');
+            if (pill?.dataset.state === 'running') {
+                setAgent(agent,'idle');
+                pill.textContent = 'Interrupted';
+                const entry = messages.get(agent);
+                if (entry) { entry.renderer.update(entry.value,true); entry.name.textContent = labels[agent]+' · Interrupted'; }
+            }
+        }
+        text(job,'Failed'); text(output,'Not completed');
+        if (Number.isInteger(data.completedCalls) && generated) text(handoffs,completed+' / 4 handoffs · '+data.completedCalls+' model calls completed');
+        setFeed(label+' failed','error');
+        text(notice,message);
+        setReview(label+' failed',message + (data.field ? ' Field: '+data.field+'.' : '')+' Inspect History before retrying.');
+        timeline.scrollTop = timeline.scrollHeight;
+    }
     function onEvent(type, data) {
         if (type === 'ready') {
             activeFormat = data.outputType || 'html';
@@ -159,7 +208,10 @@
             completed++;
             text(handoffs, completed + ' / 4 completed');
         } else if (type === 'job_error') {
-            throw new Error(data.message || 'Production stream failed.');
+            showFailure(data);
+            const error = new Error(data.message || 'Production stream failed.');
+            error.reported = true;
+            throw error;
         } else if (type === 'job_complete') {
             if (completed !== 4) throw new Error('Incomplete agent handoff: ' + completed + ' / 4.');
             text(job, data.status === 'needs_review' ? 'Review needed' : 'Generated');
@@ -240,11 +292,7 @@
                 for (let i=0; i<events.length; i++) {
                     const event = events[i];
                     if (event.type === 'job_error') {
-                        setReview('Recorded failure', event.data.message || 'Job failed.');
-                        text(job, 'Failed');
-                        setFeed('Recorded failure', 'error');
-                        const failed = event.data.role || roles[completed];
-                        if (failed) setAgent(failed, 'error');
+                        showFailure(event.data || {});
                         break;
                     }
                     onEvent(event.type, event.data);
@@ -299,13 +347,7 @@
             });
             await readEvents(response);
         } catch(error) {
-            text(job, 'Failed');
-            text(output, 'Not completed');
-            setFeed('Production failed', 'error');
-            text(notice, error.message);
-            setReview('Production interrupted', error.message + ' Completed agent text remains in the live feed. Do not retry blindly.');
-            const next = roles[completed];
-            if (next) setAgent(next, 'error');
+            if (!error.reported) showFailure({stage:'connection',message:error.message});
         } finally {
             running = false;
             run.disabled = false;
