@@ -3,6 +3,7 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 require_once __DIR__ . '/production-standards.php';
+require_once __DIR__ . '/production-history.php';
 
 function syndamorph_team_real_run( string $brief, bool $stream = true, ?callable $on_event = null ) {
     $settings = syndamorph_models_settings();
@@ -34,7 +35,7 @@ function syndamorph_team_real_run( string $brief, bool $stream = true, ?callable
     if ( function_exists( 'set_time_limit' ) ) { @set_time_limit( 1200 ); }
 
     $roles = array(
-        'boss' => 'You are the project manager. Turn the brief into a concise section plan and 3-5 brief-specific acceptance criteria in addition to the mandatory standard. Do not assert completion.',
+        'boss' => 'You are the project manager. Begin your response with a single line Job title: followed by a concise descriptive title. Then turn the brief into a concise section plan and 3-5 brief-specific acceptance criteria in addition to the mandatory standard. Do not assert completion.',
         'designer' => 'You are the designer. Given the user brief and project manager handoff, describe the visual hierarchy, responsive layout, typography, and color direction. Do not invent external assets.',
         'developer' => 'You are a front-end developer. Given brief, requirements and design handoff, produce one self-contained semantic HTML section with a single scoped style tag. Avoid JavaScript, remote URLs, external assets, iframes, forms, and dependencies. Return HTML only, no code fences.',
         'validator' => 'You are a quality reviewer. Assess the implementation against the original brief, requirements and design. Report every mandatory criterion by ID with Pass, Fail, N/A or Unverified, supporting evidence, and actionable corrections. Do not reject a section for missing host document metadata. Do not claim to have rendered or browser-tested the HTML.',
@@ -93,6 +94,9 @@ function syndamorph_team_real_run( string $brief, bool $stream = true, ?callable
             return new WP_Error( 'sm_team_unsafe', 'Developer output contains disallowed active or external content.', array( 'status' => 422 ) );
         }
         $handoffs[ $role ] = $answer;
+        if ( 'boss' === $role && $on_event && preg_match( '/^\\s*(?:\\*\\*)?Job title:\\s*(?:\\*\\*)?([^\\r\\n]+)/im', $answer, $match ) ) {
+            $on_event( 'job_title', array( 'title' => trim( $match[1], " *#\\t" ) ) );
+        }
         foreach ( $usage as $key => $value ) { $usage[ $key ] += $response['usage'][ $key ] ?? 0; }
         $role_usage = $response['usage'];
         $metrics[] = array(
@@ -155,23 +159,41 @@ function syndamorph_team_sse_run( string $brief ): void {
     while ( ob_get_level() > 0 ) {
         if ( ! @ob_end_flush() ) { break; }
     }
-    syndamorph_team_sse_emit( 'ready', array( 'roles' => array( 'boss', 'designer', 'developer', 'validator' ) ) );
+    $settings = syndamorph_models_settings();
+    $record = syndamorph_history_create( 'GEN', 'Untitled production', array(
+        'brief' => $brief, 'workflow' => 'four-agent', 'settings' => $settings,
+        'standards' => syndamorph_production_standards(),
+    ) );
+    if ( is_wp_error( $record ) ) {
+        syndamorph_team_sse_emit( 'job_error', array( 'message' => $record->get_error_message() ) );
+        delete_transient( 'syndamorph_ai_real_job_lock' );
+        exit;
+    }
+    $id = $record['id'];
+    // Persist each generated delta before delivery. An interrupted HTTP client
+    // cannot erase already committed events. No retries of paid requests.
+    $emit = static function ( string $type, array $data ) use ( $id ): void {
+        syndamorph_history_append( $id, $type, $data );
+        syndamorph_team_sse_emit( $type, $data );
+    };
     try {
-        $result = syndamorph_team_real_run( $brief, true, 'syndamorph_team_sse_emit' );
+        $emit( 'ready', array_merge( $record, array( 'roles' => array( 'boss', 'designer', 'developer', 'validator' ) ) ) );
+        $result = syndamorph_team_real_run( $brief, true, $emit );
         if ( is_wp_error( $result ) ) {
             $details = $result->get_error_data();
-            syndamorph_team_sse_emit( 'job_error', array(
+            $emit( 'job_error', array(
                 'message' => $result->get_error_message(),
                 'role' => is_array( $details ) ? (string) ( $details['role'] ?? '' ) : '',
                 'completedCalls' => is_array( $details ) ? (int) ( $details['completedCalls'] ?? 0 ) : 0,
                 'stopReason' => is_array( $details ) ? (string) ( $details['stopReason'] ?? '' ) : '',
             ) );
         } else {
-            syndamorph_team_sse_emit( 'job_complete', $result );
+            $emit( 'job_complete', $result );
         }
     } catch ( Throwable $error ) {
-        // Never send exception text: it can contain upstream or secret data.
-        syndamorph_team_sse_emit( 'job_error', array( 'message' => 'Production failed unexpectedly. Check server diagnostics before retrying.' ) );
+        $failure = array( 'message' => 'Production or history recording failed. Inspect History before retrying.' );
+        try { syndamorph_history_append( $id, 'job_error', $failure ); } catch ( Throwable $ignored ) {}
+        syndamorph_team_sse_emit( 'job_error', $failure );
     } finally {
         delete_transient( 'syndamorph_ai_real_job_lock' );
     }
@@ -209,8 +231,20 @@ add_action( 'rest_api_init', static function (): void {
                 return new WP_Error( 'sm_team_busy', 'Another real AI POC is running.', array( 'status' => 429 ) );
             }
             set_transient( 'syndamorph_ai_real_job_lock', 1, 5 * MINUTE_IN_SECONDS );
-            try { $result = syndamorph_team_real_run( trim( $brief ) ); }
-            finally { delete_transient( 'syndamorph_ai_real_job_lock' ); }
+            try {
+                $record = syndamorph_history_create( 'GEN', 'Untitled production', array(
+                    'brief' => trim( $brief ), 'workflow' => 'four-agent',
+                    'settings' => syndamorph_models_settings(), 'standards' => syndamorph_production_standards(),
+                ) );
+                if ( is_wp_error( $record ) ) { return $record; }
+                $emit = static function ( string $type, array $data ) use ( $record ): void {
+                    syndamorph_history_append( $record['id'], $type, $data );
+                };
+                $emit( 'ready', $record );
+                $result = syndamorph_team_real_run( trim( $brief ), true, $emit );
+                if ( is_wp_error( $result ) ) { $emit( 'job_error', array( 'message' => $result->get_error_message() ) ); }
+                else { $emit( 'job_complete', $result ); }
+            } finally { delete_transient( 'syndamorph_ai_real_job_lock' ); }
             return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
         },
     ) );
