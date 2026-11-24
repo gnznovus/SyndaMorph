@@ -12,7 +12,7 @@ const reply = (res, status, payload) => {
     res.end(JSON.stringify(payload));
 };
 
-const render = (html) => new Promise((resolve, reject) => {
+const render = (html, inspect = false) => new Promise((resolve, reject) => {
     // One fresh process per conversion means a runaway synchronous JS loop can
     // be forcibly terminated, rather than wedging the shared service.
     const child = spawn(process.execPath, ['/app/render-worker.js'], {
@@ -32,11 +32,11 @@ const render = (html) => new Promise((resolve, reject) => {
         if (error) { stop(); reject(error); }
         else { resolve(htmlResult); }
     };
-    const timeout = setTimeout(() => finish(new Error('DOM renderer timed out after 8 seconds.')), 8000);
+    const timeout = setTimeout(() => finish(new Error('DOM renderer timed out after 8 seconds.')), inspect ? 25000 : 8000);
     child.on('error', (err) => finish(err));
     child.stdout.on('data', (buf) => {
         size += buf.length;
-        if (size > MAX_BYTES + 4096) { finish(new Error('Rendered HTML exceeds 2 MB.')); return; }
+        if (size > (inspect ? 8 * MAX_BYTES : MAX_BYTES + 4096)) { finish(new Error('Rendered HTML exceeds 2 MB.')); return; }
         chunks.push(buf);
     });
     child.on('close', (code) => {
@@ -44,16 +44,21 @@ const render = (html) => new Promise((resolve, reject) => {
         try {
             const result = JSON.parse(Buffer.concat(chunks).toString('utf8'));
             if (result.error) { finish(new Error(result.error)); return; }
+            if (inspect) {
+                if (!Array.isArray(result.evidence) || result.evidence.length !== 3) throw new Error('Incomplete inspection evidence.');
+                finish(null, result.evidence);
+                return;
+            }
             if (typeof result.html !== 'string') { throw new Error('Renderer produced no HTML.'); }
             finish(null, result.html);
         } catch (err) { finish(err); }
     });
     child.stdin.on('error', () => {});
-    child.stdin.end(JSON.stringify({ html }));
+    child.stdin.end(JSON.stringify({ html, inspect }));
 });
 
 http.createServer(async (req, res) => {
-    if (req.method !== 'POST' || req.url !== '/render') { reply(res, 404, { error: 'Not found.' }); return; }
+    if (req.method !== 'POST' || !['/render','/inspect'].includes(req.url)) { reply(res, 404, { error: 'Not found.' }); return; }
     if (busy) { reply(res, 429, { error: 'Renderer busy. Retry preview.' }); return; }
     busy = true;
     try {
@@ -70,7 +75,8 @@ http.createServer(async (req, res) => {
         if (typeof body.html !== 'string' || !body.html.trim() || Buffer.byteLength(body.html) > MAX_BYTES) {
             reply(res, 400, { error: 'Provide an HTML string smaller than 2 MB.' }); return;
         }
-        reply(res, 200, { html: await render(body.html) });
+        if (req.url === '/inspect') reply(res, 200, { evidence: await render(body.html, true) });
+        else reply(res, 200, { html: await render(body.html) });
     } catch (error) {
         reply(res, 422, { error: 'JavaScript render failed: ' + error.message });
     } finally {
