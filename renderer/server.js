@@ -2,6 +2,7 @@
 
 const http = require('node:http');
 const { spawn } = require('node:child_process');
+const { compareScreenshots } = require('./compare');
 
 const MAX_BYTES = 2 * 1024 * 1024;
 let busy = false;
@@ -58,7 +59,7 @@ const render = (html, inspect = false) => new Promise((resolve, reject) => {
 });
 
 http.createServer(async (req, res) => {
-    if (req.method !== 'POST' || !['/render','/inspect'].includes(req.url)) { reply(res, 404, { error: 'Not found.' }); return; }
+    if (req.method !== 'POST' || !['/render','/inspect','/compare'].includes(req.url)) { reply(res, 404, { error: 'Not found.' }); return; }
     if (busy) { reply(res, 429, { error: 'Renderer busy. Retry preview.' }); return; }
     busy = true;
     try {
@@ -72,6 +73,10 @@ http.createServer(async (req, res) => {
         let body;
         try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
         catch (_) { reply(res, 400, { error: 'Invalid JSON.' }); return; }
+        if (req.url === '/compare') {
+            reply(res, 200, {comparison:compareScreenshots(body.reference,body.native)});
+            return;
+        }
         if (typeof body.html !== 'string' || !body.html.trim() || Buffer.byteLength(body.html) > MAX_BYTES) {
             reply(res, 400, { error: 'Provide an HTML string smaller than 2 MB.' }); return;
         }
