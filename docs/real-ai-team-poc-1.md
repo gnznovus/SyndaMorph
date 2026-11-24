@@ -12,7 +12,7 @@
 - `plugin/includes/ai-team-real.php`: Boss → Designer → Developer → Validator, four bounded calls and contextual handoffs. Sends `ready`, `agent_start`, `agent_delta`, `agent_complete`, `job_complete` or `job_error` events over SSE. No automatic retry, script execution or publishing; output cap is 16,384 tokens per agent.
 - `plugin/includes/production-team.php`: unified Setup/Production/Results shell; no standalone POC card.
 - `plugin/assets/production-team.js`: Source Import selection state, tabs and reset; authored simulation execution is removed.
-- `plugin/assets/ai-team-real.js`: incremental browser stream reader, live text-only agent feed, metrics and inspectable results, including a sandboxed HTML preview.
+- `plugin/assets/ai-team-real.js`: incremental browser stream reader, live rich-content agent feed, metrics and inspectable results, including a sandboxed HTML preview.
 - `plugin/assets/production-workflow.js`: existing deterministic Source Import inspection, conversion, preview and save actions (not changed by the AI POC).
 - `tests/real-ai-poc-test.php`: offline mocked model and four-agent regression without paid calls.
 
@@ -40,7 +40,7 @@ One four-agent run on `claude-haiku-5-5`, with the prompt requesting a responsiv
 
 All four reported `end_turn`. Model produced a complete HTML/CSS section and a detailed inspection report. Structural checks passed, but that does **not** establish visual fidelity, responsive behavior, Gutenberg-native editability or validator approval.
 
-The validator flagged missing full-document and viewport markup, although the Developer was explicitly instructed to return a **section**, not a complete HTML document. This is an agent deliverable-contract inconsistency to refine, not proof that the section itself was invalid.
+The validator flagged missing full-document and viewport markup, although the Developer was explicitly instructed to return a **section**, not a complete HTML document. This was an agent deliverable-contract inconsistency, addressed in production standard v1.0.0; the new behavior still needs live acceptance.
 
 ## Limitations and safeguards
 
@@ -60,3 +60,8 @@ php tests/real-ai-poc-test.php
 ```
 
 Offline CI covers catalog filtering/cache, four-role handoff, output cap/budget behavior, token usage aggregation, refusal and `max_tokens` error classification. Live provider behavior and UI flows still require manual testing after changes.
+
+
+## Production standards and rich reports
+
+The team now uses shared versioned skills, techniques and nine default criteria, plus a local Markdown and limited Mermaid flowchart renderer for live and final agent messages. The section contract explicitly delegates document metadata to the host. See [production standards and readable communication](production-standards.md) for supported formats, verification boundaries and acceptance steps.
