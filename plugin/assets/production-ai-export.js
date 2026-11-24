@@ -28,6 +28,14 @@
         const api=window.wp?.blocks;
         if (!api || typeof api.parse!=='function' || typeof api.getBlockType!=='function' || typeof api.validateBlock!=='function')
             throw new Error('WordPress block validation API unavailable. Cannot verify native Gutenberg content.');
+        const required=['group','columns','column','heading','paragraph','buttons','button'].map(name=>'core/'+name);
+        if(required.some(name=>!api.getBlockType(name))) {
+            const register=window.wp?.blockLibrary?.registerCoreBlocks;
+            if(typeof register!=='function')throw new Error('Gutenberg core registration API unavailable.');
+            register();
+        }
+        const missing=required.filter(name=>!api.getBlockType(name));
+        if(missing.length)throw new Error('Gutenberg registry incomplete: '+missing.join(', '));
         const parsed=api.parse(content);
         if (!Array.isArray(parsed) || !parsed.length) throw new Error('Gutenberg parser returned no native blocks.');
         let count=0;
@@ -38,7 +46,7 @@
                     throw new Error('Unknown or unsupported Gutenberg block.');
                 const check=api.validateBlock(block);
                 const valid=Array.isArray(check) ? check[0] === true : check?.isValid === true;
-                if(!valid) throw new Error('Gutenberg serialization invalid for '+block.name+'. Check generated block attributes.');
+                if(!valid) throw new Error('Gutenberg serialization invalid for '+block.name+' (block '+count+'). Inspect console for expected and actual save markup.');
                 if (block.innerBlocks?.length) visit(block.innerBlocks);
             }
         }
@@ -52,6 +60,10 @@
         const heading = el('h3','Save to WordPress');
         const help = el('p',native ? 'Review the compiled native Gutenberg blocks before saving. No conversion or additional AI calls.' : 'Convert the generated section into Gutenberg blocks and review the converted preview before saving. No additional AI calls.','sm-hint');
         const prepare = button(native ? 'Preview Gutenberg' : 'Convert & Preview','sm-primary');
+        const retry=button('Retry Validation','sm-team-secondary');
+        const recover=button('Recompile archived artifact (no AI)','sm-team-secondary');
+        retry.hidden=true;recover.hidden=true;
+        let activeArtifact=artifact;
         const status = el('p','','sm-hint');
         status.setAttribute('role','status');
         const preview = el('iframe');
@@ -72,7 +84,7 @@
         controls.append(mode,save,open);
         panel.append(heading,help);
         if (!native) panel.append(prepare);
-        panel.append(preview,controls,status);
+        panel.append(preview,controls,status,retry,recover);
         parent.append(panel);
         const saved=new Map();
         for(const item of receipts) if(item?.id && ['draft','pattern'].includes(item.mode)) saved.set(item.mode,item);
@@ -81,7 +93,7 @@
         const editor = id => window.SyndaMorphImport.editUrl+'?post='+encodeURIComponent(id)+'&action=edit';
         function refresh() {
             const receipt=saved.get(mode.value);
-            prepare.disabled=busy;
+            prepare.disabled=busy;retry.disabled=busy;recover.disabled=busy;
             mode.disabled=busy;
             save.disabled=busy||!prepared||!!receipt;
             save.textContent=receipt?(mode.value==='draft'?'Draft saved':'Pattern saved'):(mode.value==='draft'?'Save Draft':'Save as Pattern');
@@ -95,16 +107,16 @@
             busy=true;refresh();status.textContent=native ? 'Preparing native block preview…' : 'Converting HTML into Gutenberg blocks…';
             try {
                 // Do not execute model-generated JavaScript during conversion.
-                const result=native ? artifact : await window.SyndaMorphConverter.prepareImport(html,false);
+                const result=native ? activeArtifact : await window.SyndaMorphConverter.prepareImport(html,false);
                 if(disposed)return;
                 if(typeof result.content!=='string'||!result.content.includes('<!-- wp:')) throw new Error('No Gutenberg blocks were generated.');
                 const validatedBlocks=native ? validateNative(result.content) : null;
                 prepared=result;
                 let archiveNote='';
-                if(native && identity?.id && artifact?.contentSha256 && window.SyndaMorphTeam?.historyUrl) {
+                if(native && identity?.id && activeArtifact?.contentSha256 && window.SyndaMorphTeam?.historyUrl) {
                     try {
                         const verified=await post(window.SyndaMorphTeam.historyUrl+'/'+identity.id+'/validate-native',
-                            {contentSha256:artifact.contentSha256,valid:true,blockCount:validatedBlocks});
+                            {contentSha256:activeArtifact.contentSha256,valid:true,blockCount:validatedBlocks});
                         archiveNote=verified.status==='completed' ? ' Archived job marked Completed.' : ' Editor validation recorded.';
                         if (verified.status==='completed') panel.dispatchEvent(new CustomEvent('syndamorph-native-verified',{bubbles:true,detail:{id:identity.id}}));
                     } catch (_) { archiveNote=' Archive validation could not be recorded; inspect History.'; }
@@ -115,13 +127,25 @@
                     for(const a of [...n.attributes]) if(/^on|^(?:src|srcset|href|action|formaction|ping|poster|data)$/i.test(a.name))n.removeAttribute(a.name);
                 });
                 preview.srcdoc='<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:"><meta name="viewport" content="width=device-width,initial-scale=1">'+template.innerHTML;
-                preview.hidden=false;controls.hidden=false;prepare.textContent=native ? 'Refresh Preview' : 'Reconvert & Preview';
+                preview.hidden=false;controls.hidden=false;retry.hidden=true;recover.hidden=true;prepare.textContent=native ? 'Refresh Preview' : 'Reconvert & Preview';
                 const missing=Array.isArray(result.missing)?result.missing.length:0;
                 const styles=Array.isArray(result.stylesheets)?result.stylesheets.length:(result.stylesheets?.missing?.length||0)+(result.stylesheets?.unverified?.length||0);
                 status.textContent=(native ? 'WordPress registered-block validation passed ('+validatedBlocks+' blocks). '+archiveNote+' ' : 'Review the converted output before saving. ')+(missing?missing+' missing asset(s). ':'')+(styles?styles+' stylesheet notice(s). ':'')+(native ? 'Visual fidelity remains governed by recorded QA findings.' : 'Visual fidelity and editor validity are not automatically certified.');
-            }catch(e){if(!disposed)status.textContent=e.message;}
+            }catch(e){if(!disposed){status.textContent=e.message;retry.hidden=!native;recover.hidden=!native||!identity?.id;}}
             finally{busy=false;if(!disposed)refresh();}
         };
+        retry.addEventListener('click',()=>void preparePreview());
+        recover.addEventListener('click',async()=>{
+            if(busy||disposed||!identity?.id)return;
+            busy=true;refresh();status.textContent='Recompiling archived native plan without AI…';
+            try {
+                const result=await post(window.SyndaMorphTeam.historyUrl+'/'+identity.id+'/recompile-native',{contentSha256:activeArtifact.contentSha256});
+                if(disposed)return;
+                activeArtifact=result.artifact;
+            }catch(e){if(!disposed)status.textContent=e.message;return;}
+            finally{busy=false;if(!disposed)refresh();}
+            if(!disposed)void preparePreview();
+        });
         if (native) { void preparePreview(); }
         else prepare.addEventListener('click',()=>void preparePreview());
         async function persist(openEditor) {
@@ -155,5 +179,5 @@
         refresh();
         return {destroy(){disposed=true;panel.remove();},busy:()=>busy};
     }
-    window.SyndaMorphAIExport=Object.freeze({mount});
+    window.SyndaMorphAIExport=Object.freeze({mount,validateNative});
 })();
