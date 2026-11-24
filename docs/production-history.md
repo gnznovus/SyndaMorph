@@ -16,3 +16,7 @@ REF currently means deterministic Source Import, not reference-conditioned AI ge
 6. Verify search, sorting and pagination; confirm unauthorized users cannot read the archive.
 
 CI checks syntax and identifier/wiring assertions. Real WordPress database, browser and large-reference acceptance remain required. Deterministic revalidation, historical fixture import, and reference-conditioned AI generation are not implemented in this slice.
+
+## Export AI results to WordPress
+
+From Results (including History → Open Results), use Convert & Preview to prepare Gutenberg blocks with the existing converter, then choose Draft page or Unsynced pattern. Save Draft and Save & Open Editor are available for draft mode; Save as Pattern is available for pattern mode. No AI inference or automatic page publishing occurs. The generated HTML remains unchanged. An export receipt records the saved WordPress object ID, preventing ordinary duplicate saves when replaying a recorded job. This is not a transactional cross-request idempotency guarantee. Review the converted preview and verify editor validity manually. Deleted or changed saved objects are not reconciled automatically.
