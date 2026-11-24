@@ -10,6 +10,21 @@ require_once __DIR__.'/production-tools.php';
 /** Shared maximum output reservation for every native AI-team task. */
 function syndamorph_collab_output_cap(): int { return 16384; }
 
+/** Strict, compact inter-agent assignment; the original user brief remains authoritative. */
+function syndamorph_collab_requirements(string $raw) {
+    $data=json_decode(syndamorph_native_json_text($raw),true);
+    if(!is_array($data)||!is_string($data['title']??null)||trim($data['title'])==='')
+        return new WP_Error('sm_boss_contract','Boss must return structured JSON requirements.');
+    $result=array('title'=>mb_substr(trim($data['title']),0,100));
+    foreach(array('sections','constraints','acceptance') as $field){
+        if(!is_array($data[$field]??null)||!array_is_list($data[$field])||
+            ($field==='acceptance'&&count($data[$field])===0))
+            return new WP_Error('sm_boss_contract','Boss requirements are missing '.$field.'.');
+        $result[$field]=array_map(static fn($v)=>mb_substr(trim($v),0,180),
+            array_slice(array_values(array_filter($data[$field],'is_string')),0,12));
+    }
+    return $result;
+}
 function syndamorph_collab_cost(array $usage, float $input, float $output): float {
     return ((($usage['inputTokens'] ?? 0)+($usage['cacheReadTokens']??0)*0.1+($usage['cacheWriteTokens']??0)*1.25) * $input + ($usage['outputTokens'] ?? 0) * $output) / 1000000;
 }
@@ -269,17 +284,24 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if ($on_event) $on_event('agent_complete',array('role'=>$role,'task'=>$stage,'metric'=>$metric));
         return $result['text'];
     };
-    $boss=$call('boss','First line must be Job title: <short title>. Then a compact requirements and component responsibility memo, at most 350 words. When copy is unspecified, authorize original generic marketing copy and a descriptive provisional local CTA; never require placeholder text or invent hotel facts. Do not generate HTML, CSS, native JSON, design tokens or validation reports; those belong to subsequent tasks.',array('brief'=>$brief),16384);
-    if (is_wp_error($boss)) return $boss; $outputs['boss']=$boss;
-    if ($on_event && preg_match('/Job title:\s*([^\r\n]+)/i',$boss,$match)) $on_event('job_title',array('title'=>trim($match[1])));
+    $boss=$call('boss','Classify the job into a concise work order. Return ONLY JSON {"title":"short job title","sections":["..."],"constraints":["..."],"acceptance":["..."]}. Include concrete requested sections, implementability constraints and testable acceptance criteria. Maximum 12 short strings per list, no speculative objections, markdown or HTML. If unspecified, permit generic marketing copy and provisional local CTAs without invented real-world facts.',
+        array('brief'=>$brief),16384);
+    if(is_wp_error($boss))return $boss;
+    $bossBrief=syndamorph_collab_requirements($boss);
+    if(is_wp_error($bossBrief))return $bossBrief;
+    $outputs['boss']=wp_json_encode($bossBrief);
+    if($on_event)$on_event('job_title',array('title'=>$bossBrief['title']));
+    $assignment=array('from'=>'boss','to'=>'designer','type'=>'assignment',
+        'requirements'=>$bossBrief,'briefSha256'=>hash('sha256',$brief));
+    if($on_event)$on_event('handoff',$assignment);
 
     // Designer owns the visual deliverable; Boss reviews real browser evidence
     // before the Developer receives the approved reference.
     $reference=$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.',
-        array('brief'=>$brief,'requirements'=>$boss),16384);
+        array('brief'=>$brief,'requirements'=>$bossBrief),16384);
     if(is_wp_error($reference))return $reference;
     $approval=array('decision'=>'rejected','issues'=>array());
-    $approvedReference=false;$designReviews=0;$handoffs=array();
+    $approvedReference=false;$designReviews=0;$handoffs=array($assignment);
     for($designRound=1;$designRound<=2;$designRound++){
         $reference=trim($reference);
         if(preg_match('/^`{3}(?:html)?\\s*([\\s\\S]*?)\\s*`{3}$/iD',$reference,$fenced))$reference=trim($fenced[1]);
