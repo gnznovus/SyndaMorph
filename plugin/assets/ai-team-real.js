@@ -299,6 +299,12 @@
         }
         if (!finished) throw new Error('Stream disconnected before completion; some provider calls may have been billed.');
     }
+    root.addEventListener('syndamorph-native-verified', event => {
+        if (currentIdentity?.id === event.detail?.id) {
+            text(job,'Completed');text(output,'Native Gutenberg validated');
+            setFeed('WordPress editor compatibility confirmed','success');
+        }
+    });
     root.addEventListener('syndamorph-team-reset', () => {
         if (running || replaying || exportControl?.busy()) return;
         clearReports();
