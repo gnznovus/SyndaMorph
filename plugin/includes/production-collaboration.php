@@ -4,6 +4,7 @@ if (!defined('ABSPATH')) { exit; }
 require_once __DIR__.'/production-job-memory.php';
 require_once __DIR__.'/production-learning.php';
 require_once __DIR__.'/production-repair.php';
+require_once __DIR__.'/production-surgery.php';
 
 /** Shared maximum output reservation for every native AI-team task. */
 function syndamorph_collab_output_cap(): int { return 16384; }
@@ -288,42 +289,66 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON, preserving content and visual intent. Return JSON only. Use stable unique ids on each node, and do not invent unsupported styles. '.syndamorph_block_plan_contract(),
         array('brief'=>$brief,'design'=>$designer,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,'imageOrder'=>array('desktop-reference','mobile-reference'),'learnedRules'=>syndamorph_learning_retrieve('developer')),16384,$referenceImages);
     if (is_wp_error($developer)) return $developer;
-    // Recover model-generated schema mistakes without restarting production.
-    // Never bypass the compiler or send rejected markup to the renderer.
-    $compilePlan=static function(string $raw) {
-        $plan=json_decode(syndamorph_native_json_text($raw),true,32);
-        if(!is_array($plan)||!is_array($plan['blocks']??null)) return new WP_Error('sm_block_plan_invalid','Expected valid native plan JSON.',array('field'=>'plan'));
-        $plan=syndamorph_collab_ids($plan);
-        $unique=syndamorph_collab_validate_ids($plan);
-        if(is_wp_error($unique))return $unique;
-        $artifact=syndamorph_compile_block_plan(wp_json_encode($plan));
-        return is_wp_error($artifact)?$artifact:array('plan'=>$plan,'artifact'=>$artifact);
-    };
-    $compiled=$compilePlan($developer);
-    for($attempt=1;is_wp_error($compiled)&&$attempt<=3;$attempt++) {
+
+    // Native schema recovery operates on one persistent full-generation plan.
+    $plan=json_decode(syndamorph_native_json_text($developer),true,32);
+    if(!is_array($plan)||!is_array($plan['blocks']??null))
+        return new WP_Error('sm_block_plan_invalid','Developer did not return a native JSON plan.');
+    $plan=syndamorph_collab_ids($plan);
+    $workingId=syndamorph_surgery_save($plan);
+    if($workingId==='')return new WP_Error('sm_surgery_persist','Working plan exceeds safe size.');
+    $surgery=array('workingPlanId'=>$workingId,'repairs'=>array(),'deterministic'=>0,'paidPatches'=>0,'fullRegenerations'=>0);
+    if($on_event)$on_event('working_plan',array('id'=>$workingId,'revision'=>1));
+    $compiled=syndamorph_surgery_verify($plan,$plan);
+    $lessons=array();
+    for($attempt=1;is_wp_error($compiled)&&$attempt<=8;$attempt++){
         $error=$compiled;
-        $details=(array)$error->get_error_data();
-        $diagnostic=array('code'=>$error->get_error_code(),'message'=>$error->get_error_message(),'field'=>$details['field']??'plan');
-        if(!in_array($diagnostic['code'],array('sm_block_plan_invalid','sm_component_identity'),true))break;
-        if($on_event)$on_event('schema_repair',array_merge($diagnostic,array('attempt'=>$attempt,'status'=>'required','role'=>'developer')));
-        $repairContext=array('rejectedPlan'=>$developer,'diagnostic'=>$diagnostic,'learnedRules'=>syndamorph_learning_retrieve('schema_repair'));
-        // Preserve the 20% reserve and use the same conservative admission check as generation.
-        $estimate=((ceil(strlen(wp_json_encode($repairContext))/3)+4096)*$in+16384*$out)/1000000;
-        if(syndamorph_collab_cost($usage,$in,$out)+$estimate>$cutoff) {
-            $compiled=new WP_Error('sm_team_budget','Schema correction would exceed the 80% repair budget.',array('field'=>$diagnostic['field'],'stage'=>'budget','role'=>'developer','task'=>'schema_repair','completedCalls'=>$calls));
-            break;
+        $data=(array)$error->get_error_data();
+        $diag=array('code'=>$error->get_error_code(),'message'=>$error->get_error_message(),'field'=>$data['field']??'plan');
+        if($diag['code']!=='sm_block_plan_invalid')break;
+        $focus=syndamorph_surgery_extract($plan,$diag);
+        if(!$focus)break;
+        if($on_event)$on_event('schema_repair',array_merge($diag,array('attempt'=>$attempt,'status'=>'required','role'=>'developer')));
+        $route='deterministic';
+        $normal=syndamorph_surgery_normalize($plan,$diag);
+        $candidate=$normal===null?null:array('plan'=>$normal['plan']);
+        if($candidate!==null){
+            $test=syndamorph_surgery_verify($plan,$candidate['plan']);
+            if(is_wp_error($test) && ($test->get_error_data()['field']??'plan')===$diag['field'])$candidate=null;
         }
-        $corrected=$call('developer','Acknowledge the compiler diagnostic by correcting the rejected plan. Return the entire corrected JSON plan only, preserving all valid content, component IDs and design. Fix all schema violations, not just the first reported field. '.syndamorph_block_plan_contract(),$repairContext,16384,array(),'schema_repair');
-        if(is_wp_error($corrected)){$compiled=$corrected;break;}
-        $developer=$corrected;
-        $compiled=$compilePlan($developer);
-        syndamorph_learning_schema($diagnostic['field'],$diagnostic['message'],$learningSource.':schema:'.$attempt,!is_wp_error($compiled));
-        if($on_event)$on_event('schema_repair',array('attempt'=>$attempt,'status'=>is_wp_error($compiled)?'rejected':'resolved','role'=>'developer','field'=>$diagnostic['field']));
+        if($candidate===null){
+            $route='developer';
+            $context=array('diagnostic'=>$diag,'target'=>$focus,'learnedRules'=>syndamorph_learning_retrieve('schema_repair'));
+            $estimate=((ceil(strlen(wp_json_encode($context))/3)+4096)*$in+16384*$out)/1000000;
+            if(syndamorph_collab_cost($usage,$in,$out)+$estimate>$cutoff){
+                $compiled=new WP_Error('sm_team_budget','Surgical repair would exceed the 80% budget.',array('field'=>$diag['field'],'stage'=>'budget'));
+                break;
+            }
+            $answer=$call('developer','Surgical schema repair. Return ONLY JSON {"id":"existing id","changes":[{"path":"style.fontSize","value":"2rem"}]}. Update only the failing node style. No full-plan regeneration, no content or identity edits. '.syndamorph_block_plan_contract(),$context,16384,array(),'schema_repair');
+            if(is_wp_error($answer)){$compiled=$answer;break;}
+            $surgery['paidPatches']++;
+            $proposal=json_decode(syndamorph_native_json_text($answer),true);
+            $candidate=is_array($proposal)?syndamorph_surgery_apply($plan,$proposal):new WP_Error('sm_surgery_contract','Invalid JSON patch.');
+            if(is_wp_error($candidate)){
+                $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],'accepted'=>false);
+                continue;
+            }
+            if(is_wp_error($candidate['error']) && ($candidate['error']->get_error_data()['field']??'plan')===$diag['field']){
+                $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],'accepted'=>false);
+                continue;
+            }
+        }else $surgery['deterministic']++;
+        $before=$plan;$plan=$candidate['plan'];
+        $compiled=syndamorph_surgery_verify($before,$plan);
+        $lessons[]=array('field'=>$diag['field'],'message'=>$diag['message'],'attempt'=>$attempt);
+        syndamorph_surgery_save($plan,$workingId);
+        $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],'accepted'=>true,'compiled'=>!is_wp_error($compiled));
+        if($on_event)$on_event('schema_repair',array('attempt'=>$attempt,'status'=>is_wp_error($compiled)?'progress':'resolved','role'=>'developer','field'=>$diag['field'],'route'=>$route));
     }
-    if(is_wp_error($compiled)) {
-        $details=(array)$compiled->get_error_data();
-        return new WP_Error($compiled->get_error_code(),$compiled->get_error_message(),array_merge(array('stage'=>'compilation','role'=>'developer','task'=>'developer','completedCalls'=>$calls,'generationCompleted'=>true),$details));
-    }
+    if(is_wp_error($compiled))return new WP_Error($compiled->get_error_code(),$compiled->get_error_message(),
+        array_merge(array('stage'=>'compilation','role'=>'developer','task'=>'developer','completedCalls'=>$calls,
+            'generationCompleted'=>true,'workingPlanId'=>$workingId,'surgery'=>$surgery),(array)$compiled->get_error_data()));
+    foreach($lessons as $lesson)syndamorph_learning_schema($lesson['field'],$lesson['message'],$learningSource.':schema:'.$lesson['attempt'],true);
     $plan=$compiled['plan'];$artifact=$compiled['artifact'];
     $outputs['developer']=wp_json_encode($plan);
     $memory->remember($plan);
@@ -473,7 +498,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         'events'=>$events,'outputs'=>$outputs,'checks'=>$artifact['checks'],
         'usage'=>$usage,'agentMetrics'=>$metrics,'estimatedCostUsd'=>$cost,'pricingSource'=>$settings['pricingSource']??'unknown',
         'elapsedMs'=>(int)((microtime(true)-$started)*1000),'budgetUsd'=>$max,'budgetIsEstimate'=>true,
-        'jobMemory'=>$memory->snapshot(),
+        'jobMemory'=>$memory->snapshot(),'surgery'=>$surgery,
         'quality'=>array('capabilityNotes'=>$capabilityNotes,'issueRegistry'=>array_values($registry),'score'=>$best['score'],'issues'=>$best['issues'],'revisions'=>$revisions,'terminationReason'=>$terminationReason,'evidence'=>array(
             'reference'=>$evidenceSummary($inspectReference),'native'=>$evidenceSummary($best['evidence'])),
             'pixelComparison'=>$best['comparison'],
