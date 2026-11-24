@@ -68,7 +68,7 @@ function wp_remote_post($url,$args) {
     $i=count($GLOBALS['generations']);
     if (!empty($GLOBALS['surgery_test'])) {
         $text=match($i) {
-            1 => 'Job title: Surgical recovery fixture',
+            1 => '{"title":"Surgical recovery fixture","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid editable blocks"]}',
             2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
             3 => '{"decision":"approved","issues":[]}',
             4 => $GLOBALS['native_fixture'],
@@ -78,7 +78,7 @@ function wp_remote_post($url,$args) {
         };
     } elseif (!empty($GLOBALS['revision_test'])) {
         $text=match($i) {
-            1 => 'Job title: Hotel hero',
+            1 => '{"title":"Hotel hero","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid editable blocks"]}',
             2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
             3 => '{"decision":"approved","issues":[],"summary":"Approved design"}',
             4 => $GLOBALS['native_fixture'],
@@ -88,7 +88,7 @@ function wp_remote_post($url,$args) {
             default => throw new RuntimeException('Unexpected extra paid revision call '.$i),
         };
     } else $text= !empty($GLOBALS['native_mode']) ? match($i) {
-        1 => 'Job title: Premium hotel hero',
+        1 => '{"title":"Premium hotel hero","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid editable blocks"]}',
         2 => '<section class="hero"><style>.hero{padding:3rem}</style><h2>Welcome &amp; enjoy</h2></section>',
         3 => '{"decision":"approved","issues":[],"summary":"Approved design"}',
         4 => $GLOBALS['native_fixture'],
@@ -237,7 +237,7 @@ expect(count($GLOBALS['generations'][4]['messages'][0]['content'])===5,'Vision v
 expect($native['quality']['browserInspected']===true && $native['quality']['visionInspected']===true,'Browser and vision evidence not recorded');
 expect(count($native['quality']['pixelComparison'])===3,'Real pixel-comparison metrics not recorded');
 expect($native['status']==='needs_review','Unverified Gutenberg editor must not be auto-approved');
-expect($native['designApproval']['decision']==='approved'&&$native['designApproval']['reviewRounds']===1&&$native['handoffs'][0]['decision']==='approved','Designer reference crossed handoff without Boss approval');
+expect($native['designApproval']['decision']==='approved'&&$native['designApproval']['reviewRounds']===1&&$native['handoffs'][0]['type']==='assignment'&&$native['handoffs'][1]['decision']==='approved','Designer reference crossed handoff without Boss approval');
 expect(count($GLOBALS['generations'][2]['messages'][0]['content'])===3,'Boss did not receive desktop/mobile visual evidence before Developer');
 expect(str_contains(wp_json_encode($GLOBALS['generations'][3]['system']),'JSON'),'Native developer contract missing');
 expect(($GLOBALS['generations'][3]['system'][0]['cache_control']['type']??null)==='ephemeral','Cache prefix absent');
