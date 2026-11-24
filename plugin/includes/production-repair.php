@@ -82,3 +82,29 @@ function syndamorph_repair_content_signature(array $node): array {
     foreach($node['children']??array() as $child)if(is_array($child))$result=array_merge($result,syndamorph_repair_content_signature($child));
     return $result;
 }
+
+/** Container correction from unambiguous, stable alignment evidence.
+ * Only adjust the assigned container; constrained width is never discarded. */
+function syndamorph_repair_container(array $node,array $reference,array $native): ?array {
+    if(($node['type']??'')!=='buttons')return null;
+    $texts=syndamorph_memory_texts($node);
+    if(count($texts)!==1)return null;
+    $direction=null;
+    foreach($reference as $i=>$sample) {
+        $match=static function(array $s,string $text): ?array {
+            $matches=array_values(array_filter($s['snapshot']['elements']??array(),static fn($e)=>trim((string)($e['text']??''))===$text&&in_array(strtolower($e['tag']??''),array('a','button'),true)));
+            return count($matches)===1&&count($matches[0]['rect']??array())===4?$matches[0]['rect']:null;
+        };
+        $a=$match($sample,$texts[0]);$b=$match($native[$i]??array(),$texts[0]);
+        if(!$a||!$b)return null;
+        $width=(float)($sample['width']??0);
+        if($width<=0)return null;
+        // Infer only a clear viewport-relative direction; preserve ambiguity for Developer.
+        $d=abs($a[0]+$a[2]/2-$width/2)<12?'center':($a[0]<$width*0.16?'left':($a[0]+$a[2]>$width*0.84?'right':null));
+        if($d===null||($direction!==null&&$d!==$direction))return null;
+        $direction=$d;
+    }
+    if($direction===null||($node['style']['justifyContent']??'left')===$direction)return null;
+    $replacement=$node;$replacement['style']['justifyContent']=$direction;
+    return array('id'=>$node['id'],'replacement'=>$replacement);
+}
