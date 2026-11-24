@@ -24,6 +24,9 @@
     let running = false;
     let completed = 0;
     const messages = new Map();
+    const reportRenderers = [];
+    const clearReports = () => { reportRenderers.splice(0).forEach(renderer => renderer.destroy()); results.replaceChildren(); };
+    const clearMessages = () => { messages.forEach(message => message.renderer.destroy()); messages.clear(); };
     const text = (node, value) => { if (node) node.textContent = value; };
     const tab = name => {
         const button = root.querySelector('.sm-team-tabs [data-panel="' + name + '"]');
@@ -47,13 +50,13 @@
         stamp.textContent = 'LIVE';
         const name = document.createElement('strong');
         name.textContent = labels[role] + ' · Generating';
-        const body = document.createElement('p');
+        const body = document.createElement('div');
         body.className = 'sm-team-stream-text';
-        body.style.whiteSpace = 'pre-wrap';
+        const renderer = window.SyndaMorphRichContent.mount(body, role === 'developer' ? 'html' : 'markdown');
         const metric = document.createElement('small');
         item.append(stamp, name, body, metric);
         timeline.append(item);
-        messages.set(role, {name, body, metric, value:''});
+        messages.set(role, {name, body, metric, renderer, value:''});
     }
     function setReview(heading, description) {
         if (!review) return;
@@ -70,7 +73,7 @@
             Number(metric.estimatedCostUsd).toFixed(6);
     }
     function appendReport(data) {
-        results.replaceChildren();
+        clearReports();
         results.hidden = false;
         const summary = document.createElement('p');
         summary.className = 'sm-team-ai-summary';
@@ -85,9 +88,11 @@
             const heading = document.createElement('summary');
             const metric = (data.agentMetrics || []).find(item => item.role === role);
             heading.textContent = labels[role] + (metric ? ' — ' + formatMetric(metric) : '');
-            const pre = document.createElement('pre');
-            pre.textContent = data.outputs?.[role] || 'No output';
-            details.append(heading, pre);
+            const body = document.createElement('div');
+            const renderer = window.SyndaMorphRichContent.mount(body, role === 'developer' ? 'html' : 'markdown');
+            renderer.update(data.outputs?.[role] || 'No output', true);
+            reportRenderers.push(renderer);
+            details.append(heading, body);
             results.append(details);
         });
         if (typeof data.outputs?.developer === 'string') {
@@ -101,7 +106,7 @@
             frame.style.minHeight = '480px';
             frame.style.border = '1px solid #ddd';
             frame.srcdoc = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:">' +
-                data.outputs.developer;
+                '<meta name="viewport" content="width=device-width, initial-scale=1">' + data.outputs.developer;
             results.append(heading, frame);
         }
         const checks = document.createElement('p');
@@ -123,11 +128,12 @@
             const message = messages.get(data.role);
             message.value += data.text;
             // Bound DOM text independently from provider-side output limits.
-            message.body.textContent = message.value.slice(-120000);
+            message.renderer.update(message.value);
             const nearBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 200;
             if (nearBottom) timeline.scrollTop = timeline.scrollHeight;
         } else if (type === 'agent_complete' && messages.has(data.role)) {
             const message = messages.get(data.role);
+            message.renderer.update(message.value, true);
             message.name.textContent = labels[data.role] + ' · Completed';
             message.metric.textContent = data.metric ? formatMetric(data.metric) : '';
             setAgent(data.role, 'success');
@@ -185,9 +191,9 @@
     }
     root.addEventListener('syndamorph-team-reset', () => {
         if (running) return;
-        results.replaceChildren();
+        clearReports();
         results.hidden = true;
-        messages.clear();
+        clearMessages();
         completed = 0;
     });
     run.addEventListener('click', async () => {
@@ -201,9 +207,9 @@
         running = true;
         run.disabled = true;
         if (reset) reset.disabled = true;
-        messages.clear();
+        clearMessages();
         completed = 0;
-        results.replaceChildren();
+        clearReports();
         results.hidden = true;
         timeline.replaceChildren();
         roles.forEach(role => setAgent(role, 'idle'));
