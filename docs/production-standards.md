@@ -39,3 +39,7 @@ The renderer constructs DOM/SVG nodes with textContent; raw HTML and Markdown li
 7. Verify Source Import behavior and reset remain unchanged.
 
 Run the MVP CI workflow for PHP/JS syntax and mocked orchestration checks. A live paid run and UI acceptance are separate from CI.
+
+## AI-first architecture decision
+
+AI Production is the primary development and workspace path. Deterministic Source Import is retained as an explicit, collapsed fallback, not removed. The current AI path remains prompt-only HTML generation. Native Gutenberg block-plan compilation and reference-conditioned AI generation are pending; do not claim these are implemented. Retain capture, extraction, asset management, history, previews and save endpoints. Benchmark AI-native Gutenberg against the fallback on Fidelity > Editable > Reusable before considering retirement. No changes to the stable release.
