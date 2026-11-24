@@ -314,7 +314,7 @@ function syndamorph_collab_scoped_images(array $reference,array $native,array $t
     if(count($data['images']??array())!==count($full))return array('images'=>$full,'mode'=>'full');
     return array('images'=>$data['images'],'mode'=>'component');
 }
-function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
+function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bool $useLearning=true) {
     $viewports=syndamorph_collab_viewports($brief);
     if(is_wp_error($viewports))return $viewports;
     $visionViewports=array_values(array_unique(array(0,count($viewports)-1)));
@@ -435,7 +435,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews);
     if($on_event)$on_event('handoff',end($handoffs));
     $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON, preserving content and visual intent. Return JSON only. Use stable unique ids on each node, and do not invent unsupported styles. '.syndamorph_block_plan_contract(),
-        array('brief'=>$brief,'design'=>$designMemo,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,'imageOrder'=>array('desktop-reference','mobile-reference'),'learnedRules'=>syndamorph_learning_retrieve('developer')),16384,$referenceImages);
+        array('brief'=>$brief,'design'=>$designMemo,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,'imageOrder'=>array('desktop-reference','mobile-reference'),'learnedRules'=>$useLearning?syndamorph_learning_retrieve('developer'):array()),16384,$referenceImages);
     if (is_wp_error($developer)) return $developer;
 
     // Native schema recovery operates on one persistent full-generation plan.
@@ -469,7 +469,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         }
         if($candidate===null){
             $route='developer';
-            $context=array('diagnostic'=>$diag,'target'=>$focus,'learnedRules'=>syndamorph_learning_retrieve('schema_repair'));
+            $context=array('diagnostic'=>$diag,'target'=>$focus,'learnedRules'=>$useLearning?syndamorph_learning_retrieve('schema_repair'):array());
             $estimate=((ceil(strlen(wp_json_encode($context))/3)+4096)*$in+16384*$out)/1000000;
             if(syndamorph_collab_cost($usage,$in,$out)+$estimate>$cutoff){
                 $compiled=new WP_Error('sm_team_budget','Surgical repair would exceed the 80% working budget reserve.',array('field'=>$diag['field'],'stage'=>'budget'));
@@ -492,7 +492,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $before=$plan;$plan=$candidate['plan'];
         $compiled=syndamorph_surgery_verify($before,$plan);
         $lessons[]=array('field'=>$diag['field'],'message'=>$diag['message'],'attempt'=>$attempt);
-        syndamorph_surgery_save($plan,$workingId);
+        if(syndamorph_surgery_save($plan,$workingId)==='')return new WP_Error('sm_surgery_persist','Schema recovery draft could not be saved.');
         $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],'accepted'=>true,'compiled'=>!is_wp_error($compiled));
         if($on_event)$on_event('schema_repair',array('attempt'=>$attempt,'status'=>is_wp_error($compiled)?'progress':'resolved','role'=>'developer','field'=>$diag['field'],'route'=>$route));
     }
@@ -565,10 +565,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         // Reserve worst-case Developer and scoped visual QA calls.
         $projected=(25000*$in+32768*$out)/1000000;
         if (syndamorph_collab_cost($usage,$in,$out)+$projected>$cutoff) { $terminationReason='budget_80_percent';break; }
-        $assignment=syndamorph_repair_assignment($plan,$issues,$memory);
+        $assignment=syndamorph_repair_assignment($plan,$issues,$memory,$useLearning);
         if(!$assignment) { $terminationReason='no_new_repair_strategy';break; }
         $id=$assignment['id'];$focus=$assignment['focus'];$node=$assignment['node'];
         $repair=null;
+        $matchedLessons=syndamorph_learning_match_operation($assignment);
+        $injectedLessons=array();
         $related=syndamorph_collab_review_scope($plan,array('changed'=>array($id),
             'affected'=>$assignment['nodes']));
         $editableNodes=array_values(array_filter(syndamorph_surgery_context($node,121),
@@ -593,6 +595,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
                 array('reference'=>$inspectReference,'native'=>$inspectNative,
                     'texts'=>syndamorph_memory_texts($node)));
             if(is_wp_error($repairScope)){$terminationReason='visual_crop_blocked';break;}
+            $injectedLessons=$useLearning?array_slice($matchedLessons,0,3):array();
             $repairContext=array('issueFocus'=>$focus,'id'=>$id,
                 'strategy'=>$assignment['strategy'],'authorizedNodes'=>$assignment['nodes'],
                 'wrapParents'=>$assignment['mode']==='structure'?$assignment['wrapParents']:array(),
@@ -601,7 +604,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
                 'nativeMeasurements'=>syndamorph_memory_measurements($inspectNative,syndamorph_memory_texts($node)),
                 'previousAttempts'=>$memory->feedback($id,$related),
                 'nativeLayoutNotes'=>$artifact['layoutNotes']??array(),
-                'learnedRules'=>syndamorph_learning_retrieve('repair',(string)($node['type']??'')),
+                'learnedCorrections'=>array_map(static fn($lesson)=>array_intersect_key($lesson,
+                    array_flip(array('id','rule','pattern'))),$injectedLessons),
                 'imageScope'=>$repairScope['mode'],
                 'imageOrder'=>array('desktop-reference','desktop-current','mobile-reference','mobile-current'));
             $instruction='Diagnose the related visual defects using the aligned reference, prior attempts and current geometry. Return only JSON {"id":"assigned owner","diagnosis":"cause with evidence","changes":[{"target":"authorized id","path":"style.margin.bottom","value":"1rem"}]}. Apply up to eight combined edits only to the explicit authorized nodes. Omit unused changes. Preserve text, links, block types, existing IDs and unrelated siblings. Never return a full node or plan. If a supported repair is impossible, use {"id":"assigned owner","blocked":"capability|design_constraint|missing_evidence","diagnosis":"why"}.';
@@ -623,12 +627,16 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             'scoreBefore'=>syndamorph_issue_score($issues),'wraps'=>strlen(wp_json_encode($wraps))<=5000?$wraps:array(),
             'changes'=>strlen(wp_json_encode($proposedChanges))<=5000?$proposedChanges:array(),
             'touched'=>array_values(array_filter(array_column($proposedChanges,'target'),static fn($target)=>is_string($target)&&strlen($target)<=100)),
+            'learning'=>array('enabled'=>$useLearning,'matched'=>array_column($matchedLessons,'id'),
+                'injected'=>array_column($injectedLessons,'id'),
+                'followed'=>is_array($patch)?syndamorph_learning_followed($injectedLessons,$patch):array()),
             'remainingIssues'=>array_slice(syndamorph_repair_prioritize($focus),0,5));
         $reject=static function(string $detail,string $status='rejected',string $validation='patch_contract')
             use(&$memory,&$revisions,$on_event,$attempt):void {
             $entry=array_merge($attempt,array('status'=>$status,'accepted'=>false,'detail'=>$detail,'reason'=>$detail,
                 'validation'=>$validation,'scoreAfter'=>$attempt['scoreBefore'],
                 'nextDirection'=>'Address the validation reason before proposing a materially different correction.'));
+            $entry['learning']['validation']='failed';
             $id=$entry['id'];
             $memory->record($id,$entry);$revisions[]=$entry;
             if($on_event)$on_event('revision',$entry);
@@ -713,6 +721,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $verdict=syndamorph_visual_decision($issues,$newIssues,$visualMetrics,$newMetrics,
             $comparison,$newComparison,$focus,$parsedTarget['decision']==='approved');
         $oldScore=$verdict['beforeScore'];$newScore=$verdict['afterScore'];$accepted=$verdict['accepted'];
+        if($accepted && syndamorph_surgery_save($candidate['plan'],$workingId)==='') {
+            $terminationReason='artifact_persist_failed';$reject('Candidate could not be persisted','blocked','persistence');break;
+        }
+        $attempt['learning']['validation']=$accepted?'passed':'failed';
+        if($useLearning) {
+            $attempt['learning']['recorded']=syndamorph_learning_operation($assignment,$patch,$verdict,$learningSource.':operation:'.$round);
+        }
         $revisions[]=array_merge($attempt,array('status'=>$accepted?'accepted':'rejected','delegation'=>array('designerNeeded'=>$delegated['designerNeeded'],'reason'=>mb_substr((string)($delegated['reason']??''),0,160)),'impact'=>$impact,'reviewScope'=>$reviewIds,
             'changedFields'=>$patch['changes']??array(),'imageScope'=>$scope['mode'],'accepted'=>$accepted,'before'=>count($issues),'after'=>count($newIssues),'scoreBefore'=>$oldScore,'scoreAfter'=>$newScore,
             'introducedIssues'=>$verdict['introducedIssues'],'discoveredIssues'=>$verdict['discoveredIssues'],
@@ -725,22 +740,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             'touched'=>$candidate['touched']??array(),'remainingIssues'=>array_slice(syndamorph_repair_prioritize($newIssues),0,8),
             'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence)))));
         $memory->record($id,end($revisions));
-        if($accepted && $route==='developer'){
-            foreach($candidate['touched']??array() as $touched){
-                $was=syndamorph_collab_find($plan['blocks'],$touched);
-                $now=syndamorph_collab_find($candidate['plan']['blocks'],$touched);
-                if(is_array($was)&&is_array($now))
-                    syndamorph_learning_repair($was,$now,$oldScore,$newScore,
-                        $learningSource.':repair:'.$round);
-            }
-        }
         if($accepted) {
             if($newScore===0 && ($parsedTarget['decision']??'')==='approved')$bossQaApproved=true;
             $memory->reopen(array_values(array_diff($reviewIds,$impact['changed'])));
             $plan=$candidate['plan'];$artifact=$candidate['artifact'];$inspectNative=$newEvidence;$comparison=$newComparison;
             $visualMetrics=$newMetrics;
-            // Only accepted, browser-verified QA candidates update persistent draft.
-            syndamorph_surgery_save($plan,$workingId);
             $surgery['qaAccepted']=($surgery['qaAccepted']??0)+1;
             foreach($registry as &$record)$record['status']='resolved';unset($record);
             foreach($newIssues as $issue)$registry[syndamorph_issue_key($issue)]=array_merge($issue,array('status'=>'open',

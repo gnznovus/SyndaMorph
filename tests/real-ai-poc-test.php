@@ -17,7 +17,7 @@ function add_action(...$args): void {}
 function get_option($key,$default=false) { return $GLOBALS['options'][$key] ?? $default; }
 function update_option($key,$value,$autoload=null) { $GLOBALS['options'][$key]=$value; }
 function get_transient($key) { return $GLOBALS['transients'][$key] ?? false; }
-function set_transient($key,$value,$ttl) { $GLOBALS['transients'][$key]=$value; }
+function set_transient($key,$value,$ttl) { $GLOBALS['transients'][$key]=$value; return true; }
 function delete_transient($key) { unset($GLOBALS['transients'][$key]); }
 function sanitize_text_field($v) { return trim(strip_tags((string) $v)); }
 function sanitize_key($v) { return strtolower(preg_replace('/[^a-z0-9_\\-]/i','',(string)$v)); }
@@ -100,14 +100,19 @@ function wp_remote_post($url,$args) {
             default => throw new RuntimeException('Unexpected paid parent repair call '.$i),
         };
     } elseif (!empty($GLOBALS['adaptive_test'])) {
+        $structure='{"id":"blocks[0]","diagnosis":"An inner flex group can preserve content and apply consistent gap","wraps":[{"parent":"blocks[0]","children":["blocks[0].children[0]","blocks[0].children[1]"],"id":"text-stack","style":{"justifyContent":"center","gap":"1rem"}}],"changes":[{"path":"style.contentWidth","value":"36rem"},{"target":"blocks[0].children[0]","path":"style.margin.bottom","value":"1rem"},{"target":"blocks[0].children[0]","path":"style.align","value":"center"},{"target":"blocks[0].children[1]","path":"style.align","value":"center"}]}';
+        $input=json_decode($req['messages'][0]['content'][0]['text'],true);
+        $learnedStructure=$i===6 && !empty($input['learnedCorrections']);
+        $startedWithStructure=$i===7 && str_contains($GLOBALS['generations'][5]['messages'][0]['content'][0]['text'],'"strategy":"structure"');
         $text=match($i) {
             1 => '{"title":"Adaptive fixture","sections":["Hero"],"constraints":["Native layout"],"acceptance":["Suitable layout"]}',
             2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
             3 => '{"decision":"approved","issues":[]}',
             4 => $GLOBALS['native_fixture'],
-            5,7 => '{"decision":"changes_requested","issues":[{"id":"layout-spacing","component":"blocks[0]","category":"spacing","scope":"section","severity":"high","detail":"Text leaves need a shared vertical layout."}]}',
-            6 => '{"id":"blocks[0]","diagnosis":"Try explicit style first","changes":[{"path":"style.gap","value":"2rem"}]}',
-            8 => '{"id":"blocks[0]","diagnosis":"An inner flex group can preserve content and apply consistent gap","wraps":[{"parent":"blocks[0]","children":["blocks[0].children[0]","blocks[0].children[1]"],"id":"text-stack","style":{"justifyContent":"center","gap":"1rem"}}],"changes":[{"path":"style.contentWidth","value":"36rem"},{"target":"blocks[0].children[0]","path":"style.margin.bottom","value":"1rem"},{"target":"blocks[0].children[0]","path":"style.align","value":"center"},{"target":"blocks[0].children[1]","path":"style.align","value":"center"}]}',
+            5,7 => $startedWithStructure?'{"decision":"approved","issues":[]}':
+                '{"decision":"changes_requested","issues":[{"id":"layout-spacing","component":"blocks[0]","category":"spacing","scope":"section","severity":"high","detail":"Text leaves need a shared vertical layout."}]}',
+            6 => $learnedStructure?$structure:'{"id":"blocks[0]","diagnosis":"Try explicit style first","changes":[{"path":"style.gap","value":"2rem"}]}',
+            8 => $structure,
             9 => '{"decision":"approved","issues":[]}',
             default => throw new RuntimeException('Unexpected adaptive repair call '.$i),
         };
@@ -520,8 +525,36 @@ $unauthorized=array('id'=>'sm-hero-root','wraps'=>array(array('parent'=>'sm-hero
 expect(is_wp_error(syndamorph_surgery_operation($gen015['plan'],$unauthorized,array('id'=>'sm-hero-root','mode'=>'structure',
     'nodes'=>array('sm-hero-root','sm-hero-eyebrow','sm-hero-title'),'wrapParents'=>array('sm-hero-root')))),
     'Structural surgery accepted reordered protected children');
+$learningRows=$GLOBALS['options'][SYNDAMORPH_LEARNING_OPTION]??array();
+$scriptedAssignment=array('focus'=>array(array('category'=>'spacing')),'group'=>array('spacing|fixture'),
+    'node'=>array('type'=>'group'),'nodes'=>array('fixture','fixture-heading'),'mode'=>'structure');
+$scriptedPatch=array('wraps'=>array(array('id'=>'synthetic-group')),'changes'=>array(array('path'=>'style.contentWidth')));
+$scriptedEvidence=array('accepted'=>true,'focusBefore'=>10,'focusAfter'=>0,'pixelDeltas'=>array(375=>-0.04),
+    'states'=>array('spacing|fixture'=>'resolved'),
+    'geometryDeltas'=>array('spacing|fixture'=>array(375=>array('before'=>28,'after'=>2))));
+$lesson=syndamorph_learning_operation($scriptedAssignment,$scriptedPatch,$scriptedEvidence,'test:scripted-benchmark');
+expect(is_string($lesson),'Verified structural lesson did not persist');
+$coldCalls=0;$warmCalls=0;
+for($trial=0;$trial<2;$trial++) {
+    $GLOBALS['generations']=array();
+    $cold=syndamorph_collab_run('Coordinated layout benchmark',false,null,false);
+    $coldCalls+=count($GLOBALS['generations']);
+    $GLOBALS['generations']=array();
+    $warm=syndamorph_collab_run('Coordinated layout benchmark',false,null,true);
+    $warmCalls+=count($GLOBALS['generations']);
+    expect(!is_wp_error($cold) && !is_wp_error($warm) &&
+        count($cold['quality']['revisions'])===2 && count($warm['quality']['revisions'])===1 &&
+        $warm['quality']['score']===$cold['quality']['score'],'Learning benchmark did not preserve its quality baseline');
+    $trace=$warm['quality']['revisions'][0]['learning'];
+    expect(in_array($lesson,$trace['matched'],true) && $trace['injected']===array($lesson) &&
+        $trace['followed']===array($lesson) && $trace['validation']==='passed',
+        'Lesson matching, injection, adoption and validation were not observable');
+}
+expect($coldCalls===18 && $warmCalls===14,'Scripted learning comparison did not bypass the failed style strategy');
+$GLOBALS['options'][SYNDAMORPH_LEARNING_OPTION]=$learningRows;
 unset($GLOBALS['adaptive_test']);
 echo "PASS: adaptive repair switches to scoped structural surgery and persists a combined operation atomically\n";
+echo "PASS: scripted learning benchmark, 18 calls disabled vs 14 enabled across two matched trials\n";
 // GEN-013 reproduction: issue is owned by an ancestor but repair changes a leaf.
 $fixtureBeforeParent=$GLOBALS['native_fixture'];
 $parentPlan=json_decode($GLOBALS['native_fixture'],true);

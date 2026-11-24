@@ -9,10 +9,10 @@ function syndamorph_surgery_save(array $plan, string $key=''): string {
     if($key==='' )$key='sm_surgery_'.bin2hex(random_bytes(12));
     if(!preg_match('/^sm_surgery_[a-f0-9]{24}$/D',$key))return '';
     $prior=get_transient($key);
-    set_transient($key,array('plan'=>$plan,'sha256'=>hash('sha256',$encoded),
+    $saved=set_transient($key,array('plan'=>$plan,'sha256'=>hash('sha256',$encoded),
         'revision'=>is_array($prior)?(int)($prior['revision']??0)+1:1,
         'compilerRevision'=>syndamorph_learning_revision()),86400);
-    return $key;
+    return $saved ? $key : '';
 }
 function syndamorph_surgery_load(string $key): ?array {
     if(!preg_match('/^sm_surgery_[a-f0-9]{24}$/D',$key))return null;

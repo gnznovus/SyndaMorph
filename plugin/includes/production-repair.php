@@ -37,7 +37,7 @@ function syndamorph_repair_blocker_type(string $reason,array $issues,array $atte
     return $reason==='design_review_required'?'design_constraint':'implementation';
 }
 
-function syndamorph_repair_assignment(array $plan,array $issues,SyndaMorph_Job_Memory $memory): ?array {
+function syndamorph_repair_assignment(array $plan,array $issues,SyndaMorph_Job_Memory $memory,bool $useLearning=true): ?array {
     $editable=array_values(array_filter(syndamorph_repair_prioritize($issues),
         static fn($issue)=>syndamorph_collab_find($plan['blocks'],$issue['component'])!==null));
     $fingerprint=SyndaMorph_Job_Memory::fingerprint($plan);
@@ -72,6 +72,10 @@ function syndamorph_repair_assignment(array $plan,array $issues,SyndaMorph_Job_M
         $attempts=$memory->operationsOn($fingerprint,$group);
         $used=array_column($attempts,'strategy');
         $strategy='style';
+        if($useLearning && !$used && $wrapParents &&
+            syndamorph_learning_match_operation(array('focus'=>$focus,'node'=>$node,'nodes'=>array_values(array_unique($nodes)),'mode'=>'structure'))) {
+            $strategy='structure';
+        }
         if(in_array($strategy,$used,true)) {
             $failures=array_column($attempts,'validation');
             if((in_array('patch_contract',$failures,true)||in_array('compiler',$failures,true)) &&
