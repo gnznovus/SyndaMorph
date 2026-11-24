@@ -256,6 +256,15 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
                 'screenshotSha256'=>hash('sha256',base64_decode($sample['screenshot'],true)?:''),
                 'screenshot'=>(in_array((int)$sample['width'],array(1440,390),true) && strlen($sample['screenshot'])<=180000) ? $sample['screenshot'] : null);},$samples);
     };
+    // The model receives compact measurements; image bytes travel only in
+    // Anthropic image blocks. History retains bounded screenshot data separately.
+    $modelEvidence=static function(array $samples) use ($evidenceSummary):array {
+        return array_map(static function(array $item):array {
+            unset($item['screenshot']);
+            $item['snapshot']['elements']=array_slice($item['snapshot']['elements']??array(),0,70);
+            return $item;
+        },$evidenceSummary($samples));
+    };
     $screenshots=array();
     foreach(array(0,2) as $viewport) {
         foreach(array($inspectReference,$inspectNative) as $samples) {
@@ -265,7 +274,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         }
     }
     $review=$call('validator','Assess visual fidelity, accessible names, content, responsiveness and native Gutenberg limits based only on the provided real browser measurements. Provide JSON: {"issues":[{"id":"...","component":"existing component id","severity":"high|medium|low","detail":"..."}],"summary":"..."}. Evidence limits must be explicit. Do not claim pixel visual comparison if not supplied.',
-        array('brief'=>$brief,'design'=>$designer,'reference'=>$evidenceSummary($inspectReference),'native'=>$evidenceSummary($inspectNative),'deterministicIssues'=>$issues,'pixelComparison'=>$comparison,'componentPlan'=>$plan,'imageOrder'=>array('desktop-reference','desktop-gutenberg','mobile-reference','mobile-gutenberg')),4000,$screenshots);
+        array('brief'=>$brief,'design'=>$designer,'reference'=>$modelEvidence($inspectReference),'native'=>$modelEvidence($inspectNative),'deterministicIssues'=>$issues,'pixelComparison'=>$comparison,'componentPlan'=>$plan,'imageOrder'=>array('desktop-reference','desktop-gutenberg','mobile-reference','mobile-gutenberg')),4000,$screenshots);
     if (is_wp_error($review)) return $review;$outputs['validator']=$review;
     $parsed=json_decode($review,true);
     if (!is_array($parsed) || !is_array($parsed['issues']??null)) {
@@ -336,7 +345,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             array('id'=>$id,'changedComponent'=>syndamorph_collab_find($candidate['plan']['blocks'],$id),
                 'previousIssues'=>array_values(array_filter($issues,static fn($issue)=>isset($affected[$issue['component']??'']))),
                 'impact'=>$impact,
-                'measurements'=>$evidenceSummary($newEvidence),'pixelComparison'=>$newComparison,'imageOrder'=>array('desktop-reference','desktop-updated','mobile-reference','mobile-updated')),2400,$scopedScreenshots);
+                'measurements'=>$modelEvidence($newEvidence),'pixelComparison'=>$newComparison,'imageOrder'=>array('desktop-reference','desktop-updated','mobile-reference','mobile-updated')),2400,$scopedScreenshots);
         if (is_wp_error($targetReview)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Scoped visual validation unavailable');break; }
         $parsedTarget=json_decode($targetReview,true);
         if (!is_array($parsedTarget) || !is_array($parsedTarget['issues']??null)) {
