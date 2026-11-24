@@ -12,7 +12,7 @@ final class SyndaMorph_Job_Memory {
             foreach($value as $k=>$v) $value[$k]=self::canonical($v,is_string($k)?$k:$key);
             return $value;
         }
-        if (is_string($value) && preg_match('/^0(?:\.0+)?(?:px|rem|em|vw)?$/D',$value)) return '0';
+        if (is_string($value) && preg_match('/^0(?:\.0+)?(?:px|rem|em|vw|vh|svh|dvh)?$/D',$value)) return '0';
         if (in_array($key,array('fontWeight','lineHeight'),true) && is_numeric($value)) return (string)(float)$value;
         return $value;
     }
@@ -25,6 +25,7 @@ final class SyndaMorph_Job_Memory {
         $this->attempts[$id][]=$attempt;
         $this->stalled[$id]=!empty($attempt['accepted'])?0:($this->stalled[$id]??0)+1;
     }
+    public function reopen(array $ids): void { foreach($ids as $id) unset($this->stalled[$id]); }
     public function eligible(string $id): bool { return ($this->stalled[$id]??0)<3; }
     public function feedback(string $id): array {
         return array_map(static function(array $entry):array {
