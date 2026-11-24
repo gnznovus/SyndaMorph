@@ -1,5 +1,8 @@
 # Production standards and readable agent communication
 
+
+> **Current project status (2026-11-24):** Version 1.2.0 below is a documented historical standards baseline, not proof of every future capability. See [Master Plan](master-plan.md). Surgery v2 (commit [`54a1833`](https://github.com/gnznovus/SyndaMorph/commit/54a1833354081a04421138b6e993b2c347ccdc1e)) adds evidence-based native acceptance and learning tracking; it does **not** turn prompt-only standards into security enforcement. Future **AI Knowledge** management proposes Skills / Techniques / Rules / Adaptive Learning with Global, Boss, Designer and Developer scopes. Security, budget, authorization, content and compiler invariants must remain enforced in code.
+
 ## Production standard v1.2.0
 
 `plugin/includes/production-standards.php` is the shared, versioned source of truth. Role-specific skills, shared techniques and default acceptance criteria are injected into each agent's system instructions. The user still supplies only a brief.
