@@ -2,6 +2,14 @@
 
 **From design to editable.**
 
+## Current project status (2026-11-24)
+
+**Canonical roadmap and verified progress:** [Master Plan & Progress Tracker](docs/master-plan.md). **Adaptive Surgery v2 is implemented** on this experimental branch at [`54a1833`](https://github.com/gnznovus/SyndaMorph/commit/54a1833354081a04421138b6e993b2c347ccdc1e), with passing [MVP CI](https://github.com/gnznovus/SyndaMorph/actions/runs/45436215694) and deterministic Chromium benchmarks. **Live AI repair effectiveness and production-wide cost savings are not verified.** Next gate: controlled live-provider trials. AI Knowledge, source+visual Boss discovery, custom interactive block factory, multi-section campaigns, parallel agent queues, and bidirectional non-interruptive steering are **future plans**, not currently shipped.
+
+**Surgery v2:** Repaired sections use coordinated authorized patches, safe acceptance against true new regressions, rich QA evidence, and a protected 80% correction / 20% Boss reporting budget. Historical contracts elsewhere in this README may describe earlier POC behavior; [the canonical plan](docs/master-plan.md) and the v2 addendum in [collaborative production](docs/collaborative-production.md) govern current experimental expectations.
+
+**Release safety:** Stable published `v0.11.1` remains isolated; do not merge to `main` or publish a plugin release without explicit approval.
+
 ## AI Production Team (development branch)
 
 On `feat/secure-gateway-leasing-v1`, use **Tools → SyndaMorph → AI Integration** to configure an authorized Anthropic model and estimated spending cap, then **AI Production Team → Setup → Task instructions → Start Production**. Only the brief is required; no source URL, HTML or ZIP. For **HTML / CSS**, Boss → Designer → Developer → Validator keep the existing four-agent streaming workflow. For **Native Gutenberg**, Boss → Designer → HTML Reference → Developer → Validator produce a visual HTML target and editable native blocks, then use isolated Playwright/axe screenshot evidence, component-scoped repairs, and an 80%-budget revision cutoff. Both modes expose review-only Results and private History, with explicit Gutenberg draft/pattern saves and no automatic publishing. Native artifacts require registered Gutenberg block validation before they may be marked Completed. Source Import remains separate. See [collaborative production contract](docs/collaborative-production.md). See [real AI team POC and streaming notes](docs/real-ai-team-poc-1.md).
@@ -9,7 +17,7 @@ On `feat/secure-gateway-leasing-v1`, use **Tools → SyndaMorph → AI Integrati
 
 SyndaMorph is a standalone WordPress plugin that imports static HTML into editable native Gutenberg blocks.
 
-## GitHub Releases updater (validated locally; first release pending)
+## GitHub Releases updater (stable v0.11.1 published)
 
 SyndaMorph uses WordPress's native `Update URI` and `update_plugins_github.com`
 integration to check **published stable** releases of `gnznovus/SyndaMorph`.
@@ -70,7 +78,7 @@ If a failed run leaves a partial draft, inspect the failed step and Actions
 artifact, delete only the incomplete draft while keeping the tag, then rerun.
 Publish only from a successful run with the tag and attachments it verified.
 
-### First v0.11.1 bootstrap release (future, explicit approval required)
+### Historical v0.11.1 bootstrap procedure (release already published)
 
 1. Finish P4-A/P4-B runtime acceptance. With separate merge approval, land PR #4
    first, then retarget PR #5 to `main` and land it with approval after validating
