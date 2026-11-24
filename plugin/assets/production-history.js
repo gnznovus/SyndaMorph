@@ -111,7 +111,7 @@
             }
             if(event.type==='job_error') section('Recorded error',JSON.stringify(d,null,2),'json').open=true;
         }
-        const final=events.find(e=>e.type==='job_complete')?.data;
+        const final=[...events].reverse().find(e=>e.type==='job_complete')?.data;
         if(final?.outputs) Object.entries(final.outputs).forEach(([role,value])=>outputs.set(role,value));
         for(const [role,value] of outputs) section(role,value,role==='developer'?((final?.outputType||context.outputType)==='gutenberg'?'json':'html'):'markdown');
         if(final?.outputs?.developer) {
