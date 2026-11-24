@@ -395,6 +395,7 @@ expect($cutoff['quality']['terminationReason']==='budget_80_percent','Budget sto
 expect(isset($cutoff['artifact']['content']),'Uncompleted job lost the usable native artifact');
 unset($GLOBALS['revision_test']);
 // GEN-013 reproduction: issue is owned by an ancestor but repair changes a leaf.
+$fixtureBeforeParent=$GLOBALS['native_fixture'];
 $parentPlan=json_decode($GLOBALS['native_fixture'],true);
 $parentPlan['blocks'][0]['children'][0]['style']['margin']=array('bottom'=>'0px');
 $GLOBALS['native_fixture']=wp_json_encode($parentPlan);
@@ -418,7 +419,7 @@ expect(count($GLOBALS['generations'])===7,'Parent-owned issue unexpectedly retri
 expect(!str_contains(wp_json_encode($GLOBALS['generations'][5]['messages'][0]['content']),
     '"replacement"'),'QA model was prompted with full replacement rather than compact patch');
 unset($GLOBALS['parent_issue_test']);
-$GLOBALS['native_fixture']=wp_json_encode($GLOBALS['native_fixture'] ? json_decode($GLOBALS['native_fixture'],true) : $parentPlan);
+$GLOBALS['native_fixture']=$fixtureBeforeParent;
 // New helper-level assertions for protected sibling edits and review propagation.
 $planForSurgery=syndamorph_collab_ids(json_decode($GLOBALS['native_fixture'],true));
 $cross=syndamorph_surgery_apply($planForSurgery,
