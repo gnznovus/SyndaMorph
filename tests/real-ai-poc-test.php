@@ -399,6 +399,15 @@ syndamorph_learning_capability(array('Reference contains elements outside curren
 $snapshot=syndamorph_learning_snapshot();
 expect($snapshot['counts']['capability']===1&&$snapshot['counts']['observed']>=1,'Capability gap classification missing');
 expect(!in_array('Images, lists, tables and vector elements need an explicit compiler capability before native export.',syndamorph_learning_retrieve('developer'),true),'Capability observation injected into agent prompt');
+$staleRule=syndamorph_learning_snapshot()['lessons'][0];
+$staleId=$staleRule['id'];
+$staleRows=syndamorph_learning_rows();
+$staleRows[$staleId]['compilerRevision']='obsolete-compiler-hash';
+update_option(SYNDAMORPH_LEARNING_OPTION,$staleRows,false);
+expect(syndamorph_learning_snapshot()['counts']['stale']>=1,'Compiler revision invalidation failed');
+expect(!in_array($staleRule['rule'],syndamorph_learning_retrieve('developer'),true),'Stale lesson injected into prompt');
+syndamorph_learning_schema('blocks[0].children[0].contentWidth','Unsupported node field.','test:revalidate',true);
+expect(in_array($staleRule['rule'],syndamorph_learning_retrieve('developer'),true),'Reverification did not restore stale lesson');
 expect(syndamorph_learning_manage($lessonId,'delete'),'Learning deletion failed');
 expect(count(syndamorph_learning_retrieve('developer'))===1,'Deleted rule remained in retrieval');
 echo "PASS: persistent verified lessons, scope, deduplication, archive bootstrap, capability classification and management\n";

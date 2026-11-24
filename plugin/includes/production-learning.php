@@ -101,7 +101,7 @@ function syndamorph_learning_retrieve(string $task,string $block='*',int $limit=
     foreach(syndamorph_learning_rows() as $item){
         if(($item['category']??'')!=='agent'||($item['status']??'')!=='verified'||($item['compilerRevision']??'')!==$revision ||
             !in_array($item['task']??'',$task==='developer'?array('schema_repair'):array($task),true))continue;
-        if($item['block']!=='*' && $item['block']!==$block && !in_array($block,explode('|',$item['block']),true))continue;
+        if($task==='repair' && $item['block']!=='*' && $item['block']!==$block && !in_array($block,explode('|',$item['block']),true))continue;
         $result[]=array('rule'=>$item['rule'],'verifiedCount'=>$item['verifiedCount'],'occurrences'=>$item['occurrences']);
     }
     usort($result,static fn($a,$b)=>$b['verifiedCount']<=>$a['verifiedCount']);
