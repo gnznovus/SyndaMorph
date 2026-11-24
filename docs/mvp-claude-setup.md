@@ -1,5 +1,8 @@
 # SyndaMorph MVP — Claude API plug-in setup
 
+
+> **Current project status (2026-11-24):** This is the **historical, initial Claude source-analysis adapter setup**, not instructions for the latest production team workflow. For current setup and collaborative contract see [README](../README.md), [Collaborative Production](collaborative-production.md), and [Master Plan](master-plan.md). The earlier statement that WordPress has no AI button was true only for that MVP slice; a later Operations Board and real-AI team UI exist. Adaptive Surgery v2 is implemented with deterministic benchmarks; **live-provider performance and savings remain unverified**. Do not hardcode model names or run obsolete deployment steps without checking current environment/configuration.
+
 This is **only the source-analysis adapter** for the demo; it does not yet compile a Pattern, run the fidelity loop, or install a client package.
 
 ## Tomorrow's setup (local disposable Docker environment)
