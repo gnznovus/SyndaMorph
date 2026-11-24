@@ -398,7 +398,7 @@ expect(in_array('blocks[0].children[1]',$revised['quality']['revisions'][0]['imp
 
 $GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
 // Admit initial screenshot QA with the cached contract overhead, but not the full revision reserve.
-$GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=0.020;
+$GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=0.017;
 $cutoff=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
 expect(!is_wp_error($cutoff) && $cutoff['status']==='uncompleted','Job budget cutoff must preserve best artifact as Uncompleted: '.(is_wp_error($cutoff)?$cutoff->get_error_code().' '.$cutoff->get_error_message():($cutoff['status']??'unknown')));
 expect(count($GLOBALS['generations'])===5 && count($cutoff['quality']['revisions'])===0,'Budget admission initiated unauthorized paid repair');
