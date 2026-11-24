@@ -23,6 +23,12 @@ function syndamorph_learning_schema_rule(string $field,string $message): ?array 
     }
     if(str_contains($message,'Alignment belongs inside style.align.'))
         return array('rule'=>'Place text alignment inside style.align.','pattern'=>'align','block'=>'heading|paragraph');
+    if(str_contains($message,'Invalid color.') && in_array($name,array('background','color'),true))
+        return array('rule'=>'Use six-digit hexadecimal values for style.'.$name.'. Move linear gradients to style.gradient instead of style.background.','pattern'=>$name,'block'=>'*');
+    if(str_contains($message,'Invalid two-color gradient.') && $name==='gradient')
+        return array('rule'=>'Use a two-color linear-gradient(ANGLEdeg,#rrggbb,#rrggbb) in style.gradient; remove unsupported extra stops.','pattern'=>'gradient','block'=>'group|column|button');
+    if(str_contains($message,'Unsupported style property.') && $name==='plan')
+        return array('rule'=>'Use flat native style keys such as fontSize and background, not nested Gutenberg style.typography or style.color objects.','pattern'=>'plan','block'=>'*');
     if(str_contains($message,'Invalid length.'))
         return array('rule'=>'Use only lengths supported by the native compiler contract for '.$name.'.','pattern'=>$name,'block'=>'*');
     if(str_contains($message,'Invalid font weight.'))
