@@ -417,6 +417,9 @@ $cutoffTasks=array_map(static function(array $request): string {
 expect($cutoffTasks===array('boss','designer','final_approval','developer','validation','scope_resolution') &&
     count($cutoff['quality']['revisions'])===0,'80% budget admission must reserve only the final Boss summary');
 expect($cutoff['quality']['escalation']['decision']==='manual_review_required','Reserved Boss summary was not recorded');
+$escalationInput=json_decode($GLOBALS['generations'][5]['messages'][0]['content'][0]['text'],true);
+expect($escalationInput['blockerType']==='implementation' &&
+    $escalationInput['openIssues'][0]['id']==='heading-fidelity','Boss did not receive the actual remaining blocker');
 expect($cutoff['quality']['terminationReason']==='budget_80_percent','80% reserve stop reason not archived');
 expect(isset($cutoff['artifact']['content']),'Uncompleted job lost the usable native artifact');
 unset($GLOBALS['revision_test']);
@@ -472,6 +475,18 @@ $cta=array_values(array_filter($styles,static fn($issue)=>$issue['component']===
 expect(count($cta)===1 && count($cta[0]['views'])===3 && syndamorph_issue_score($cta)===4,
     'A single CTA typography defect was counted separately by viewport');
 echo "PASS: GEN-015 partial repair retention, stable defect identity and genuine regression veto\n";
+$historyMemory=new SyndaMorph_Job_Memory('archive replay');
+$historyMemory->record('sm-hero-root',array('round'=>2,'id'=>'sm-hero-root','accepted'=>false,
+    'changes'=>$gen015['rounds'][1]['patch']['changes'],'touched'=>array('sm-hero-eyebrow'),
+    'reason'=>'Existing alignment was assigned a new issue ID','remainingIssues'=>$afterIssues));
+$descendantFeedback=$historyMemory->feedback('sm-hero-eyebrow');
+expect(count($descendantFeedback)===1 && $descendantFeedback[0]['attemptedChanges']===$gen015['rounds'][1]['patch']['changes'] &&
+    isset($descendantFeedback[0]['reason'],$descendantFeedback[0]['remainingIssues'][0]['detail']),
+    'A child repair did not receive the ancestor correction and actionable rejection evidence');
+expect(syndamorph_repair_prioritize(array(array('id'=>'first','severity'=>'medium'),array('id'=>'root','severity'=>'high')))[0]['id']==='root',
+    'Boss escalation did not prioritize a high-impact blocker');
+$notes=syndamorph_reference_capability_notes('<section><style>.k{text-transform:uppercase}</style></section>');
+expect(count($notes)===1 && str_contains($notes[0],'typography'),'Text transform was misclassified as an advanced layout effect');
 // GEN-013 reproduction: issue is owned by an ancestor but repair changes a leaf.
 $fixtureBeforeParent=$GLOBALS['native_fixture'];
 $parentPlan=json_decode($GLOBALS['native_fixture'],true);

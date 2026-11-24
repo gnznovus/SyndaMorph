@@ -28,21 +28,33 @@ final class SyndaMorph_Job_Memory {
     public function reopen(array $ids): void { foreach($ids as $id) unset($this->stalled[$id]); }
     // Attempts remain diagnostic only: paid retries are governed by the job budget.
     public function eligible(string $id): bool { return true; }
-    public function feedback(string $id): array {
+    public function feedback(string $id,array $related=array(),int $limit=3): array {
+        $targets=array_fill_keys(array_merge(array($id),$related),true);
+        $attempts=array();
+        foreach($this->attempts as $owner=>$entries)foreach($entries as $entry) {
+            $touched=array_merge(array($owner),$entry['touched']??array(),$entry['affectedComponents']??array());
+            if(array_intersect_key(array_fill_keys($touched,true),$targets))$attempts[]=$entry;
+        }
+        usort($attempts,static fn($a,$b)=>($a['round']??0)<=>($b['round']??0));
         return array_map(static function(array $entry):array {
-            $delta=array_intersect_key($entry,array_flip(array('round','status','accepted','detail','scoreBefore','scoreAfter','route')));
+            $delta=array_intersect_key($entry,array_flip(array('round','id','status','accepted','detail','reason','scoreBefore','scoreAfter',
+                'focusScoreBefore','focusScoreAfter','route','issueGroup','diagnosis','validation','nextDirection','pixelDeltas','introducedIssues')));
+            if(isset($entry['geometryDeltas']))$delta['geometryDeltas']=array_slice($entry['geometryDeltas'],0,4,true);
             if(isset($entry['replacement'])) {
                 $delta['attemptedStyle']=$entry['replacement']['style']??array();
                 $delta['candidateFingerprint']=self::fingerprint($entry['replacement']);
             }
             if(isset($entry['changes'])&&is_array($entry['changes'])){
-                $delta['attemptedChanges']=array_slice($entry['changes'],0,3);
+                $delta['attemptedChanges']=array_slice($entry['changes'],0,8);
                 $delta['candidateFingerprint']=hash('sha256',wp_json_encode(self::canonical($entry['changes'])));
                 $delta['touched']=array_slice((array)($entry['touched']??array()),0,8);
             }
             $delta['remainingIssueIds']=array_column($entry['remainingIssues']??array(),'id');
+            $delta['remainingIssues']=array_map(static fn($issue)=>array(
+                'id'=>$issue['id'],'component'=>$issue['component']??'','detail'=>mb_substr($issue['detail']??'',0,180),
+            ),array_slice(syndamorph_repair_prioritize($entry['remainingIssues']??array()),0,3));
             return $delta;
-        },array_slice($this->attempts[$id]??array(),-3));
+        },array_slice($attempts,-max(1,min(5,$limit))));
     }
     public function snapshot(): array { return array('version'=>1,'brief'=>$this->brief,'attempts'=>$this->attempts,'uniqueCandidates'=>count($this->seen),'stalled'=>$this->stalled); }
 }

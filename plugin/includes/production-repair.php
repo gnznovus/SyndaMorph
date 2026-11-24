@@ -13,6 +13,25 @@ function syndamorph_repair_route(array $issues): string {
     // or design changes require a new reference, not a patch to native alone.
     return 'developer';
 }
+function syndamorph_repair_prioritize(array $issues): array {
+    $severity=array('high'=>3,'medium'=>2,'low'=>1);
+    usort($issues,static function(array $a,array $b)use($severity):int {
+        $class=static fn(array $issue):array=>array(
+            (int)($issue['critical']??false),
+            $severity[$issue['severity']??'medium']??2,
+            count($issue['components']??array()),
+            count($issue['views']??array()),
+        );
+        return $class($b)<=>$class($a);
+    });
+    return $issues;
+}
+
+function syndamorph_repair_blocker_type(string $reason,array $issues): string {
+    if(in_array($reason,array('browser_blocked','visual_compare_blocked','visual_crop_blocked','validator_blocked'),true))return 'missing_evidence';
+    foreach($issues as $issue)if(($issue['blockerType']??'')==='capability')return 'capability';
+    return $reason==='design_review_required'?'design_constraint':'implementation';
+}
 function syndamorph_issue_score(array $issues): int {
     $weights=array();
     foreach($issues as $issue) {
@@ -102,8 +121,10 @@ function syndamorph_repair_measured(array $node,array $reference,array $native):
  * Host-owned interaction states are intentionally not section repair targets. */
 function syndamorph_reference_capability_notes(string $html): array {
     $notes=array();
-    if(preg_match('/\\bmax-width\\s*:\\s*[^;{}]+/i',$html))$notes[]='Leaf max-width requires a constrained group layout; verify wrapping.';
-    if(preg_match('/\\b(?:grid-template-areas|position\\s*:\\s*(?:absolute|fixed|sticky)|transform\\s*:|clip-path\\s*:)/i',$html))$notes[]='Reference contains layout effects outside current native block capabilities.';
+    if(preg_match('/(?<![\w-])max-width\s*:\s*[^;{}]+/i',$html))$notes[]='Leaf max-width requires a constrained group layout; verify wrapping.';
+    if(preg_match('/(?<![\w-])(?:grid-template-areas\s*:|position\s*:\s*(?:absolute|fixed|sticky)|transform\s*:|clip-path\s*:)/i',$html))$notes[]='Reference contains layout effects outside current native block capabilities.';
+    if(preg_match('/(?<![\w-])(?:text-transform|text-wrap)\s*:\s*(?:uppercase|lowercase|capitalize|balance|pretty)\b/i',$html))
+        $notes[]='Reference typography uses casing or wrapping effects without a native style mapping. Check the visual impact before approval.';
     if(preg_match('/<\\s*(?:img|video|svg|canvas|table|ul|ol)\\b/i',$html))$notes[]='Reference contains elements outside current native block schema.';
     return $notes;
 }
