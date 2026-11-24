@@ -231,12 +231,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $maxRevisions=3;
     for($round=1;$round<=$maxRevisions && count($issues)>0;$round++) {
         // 20% remains reserved for finalization. Never start a repair if projected spending crosses cutoff.
-        $projected=(ceil(15000/3)*$in+4000*$out)/1000000;
+        $projected=(18000*$in+8500*$out)/1000000;
         if (syndamorph_collab_cost($usage,$in,$out)+$projected>$cutoff) break;
-        $focus=array_slice($issues,0,3);
-        $focus=array_values(array_filter($focus,static fn($issue)=>syndamorph_collab_find($plan['blocks'],$issue['component'])!==null));
-        if (!$focus) break;
-        $targets=array_unique(array_column($focus,'component'));$id=reset($targets);
+        $pending=array_values(array_filter($issues,static fn($issue)=>syndamorph_collab_find($plan['blocks'],$issue['component'])!==null));
+        if (!$pending) break;
+        usort($pending,static fn($a,$b)=>array_search($a['severity'],array('high','medium','low'),true)<=>array_search($b['severity'],array('high','medium','low'),true));
+        $id=$pending[0]['component'];
+        $focus=array_slice(array_values(array_filter($pending,static fn($issue)=>$issue['component']===$id)),0,3);
         $node=syndamorph_collab_find($plan['blocks'],$id);
         $repair=$call('developer','Revise ONLY the specified component. Return exactly JSON {"id":"existing id","replacement":{...full valid node with same id and type...}}. Preserve approved siblings.',
             array('brief'=>$brief,'issueFocus'=>$focus,'component'=>$node,'id'=>$id,'design'=>$designer),4000);
@@ -288,7 +289,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if($accepted) {
             $plan=$candidate['plan'];$artifact=$candidate['artifact'];$inspectNative=$newEvidence;$comparison=$newComparison;
             $issues=$newIssues;
-            if($newScore<$best['score']) $best=array('plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'score'=>$newScore,'evidence'=>$inspectNative,'comparison'=>$comparison);
+            $bestPixel=array_sum(array_column($best['comparison'],'pixelDifferenceRatio'))/3;
+            if($newScore<$best['score'] || ($newScore===$best['score'] && $newPixel<$bestPixel)) $best=array('plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'score'=>$newScore,'evidence'=>$inspectNative,'comparison'=>$comparison);
         }
         if($on_event) $on_event('revision',end($revisions));
         if($accepted && $newScore===0) break;
