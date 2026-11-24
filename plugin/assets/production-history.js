@@ -1,4 +1,4 @@
-/* Production history is a read-only consumer of recorded events. */
+/* History inspection and explicit conversion of completed archived artifacts. */
 (() => {
     'use strict';
     const cfg = window.SyndaMorphTeam;
@@ -8,7 +8,7 @@
     const list = $('sm-history-list'), detail = $('sm-history-detail'), status = $('sm-history-status');
     const search = $('sm-history-search'), category = $('sm-history-category'), sort = $('sm-history-sort');
     const prev = $('sm-history-prev'), next = $('sm-history-next');
-    let page = 1, generation = 0, timer, selected = null, renderers = [];
+    let page = 1, generation = 0, timer, selected = null, renderers = [], exportControl = null;
     const node = (tag, value, cls) => {
         const element = document.createElement(tag);
         if (value !== undefined) element.textContent = value;
@@ -27,8 +27,11 @@
         return response.json();
     }
     function clearDetail() {
+        if (exportControl?.busy()) { status.textContent='Wait for the current conversion or save to finish.'; return false; }
+        exportControl?.destroy(); exportControl=null;
         renderers.splice(0).forEach(r => r.destroy());
         detail.replaceChildren(); detail.hidden = true; selected = null;
+        return true;
     }
     function download(record) {
         const url = URL.createObjectURL(new Blob([JSON.stringify(record,null,2)],{type:'application/json'}));
@@ -62,7 +65,7 @@
         detail.append(frame);
     }
     function inspect(record) {
-        clearDetail(); selected = record; detail.hidden = false;
+        if (!clearDetail()) return; selected = record; detail.hidden = false;
         detail.append(node('h2',record.jobId + ' : ' + record.title));
         detail.append(node('p',record.status + ' · ' + record.createdAt + ' · Archived data; no AI inference.'));
         const actions = node('div',undefined,'sm-history-actions');
@@ -111,13 +114,20 @@
         const final=events.find(e=>e.type==='job_complete')?.data;
         if(final?.outputs) Object.entries(final.outputs).forEach(([role,value])=>outputs.set(role,value));
         for(const [role,value] of outputs) section(role,value,role==='developer'?'html':'markdown');
-        if(final?.outputs?.developer) preview(final.outputs.developer);
+        if(final?.outputs?.developer) {
+            preview(final.outputs.developer);
+            if(record.category==='GEN' && ['completed','needs_review'].includes(record.status)) {
+                const receipts=events.filter(e=>e.type==='export_receipt').map(e=>e.data);
+                exportControl=window.SyndaMorphAIExport.mount(detail,{html:final.outputs.developer,identity:record,receipts});
+            }
+        }
         if(final?.usage) section('Metrics and validation',JSON.stringify({usage:final.usage,agentMetrics:final.agentMetrics,checks:final.checks,estimatedCostUsd:final.estimatedCostUsd,elapsedMs:final.elapsedMs},null,2),'html');
         section('Recorded event metadata',JSON.stringify(events.filter(e=>e.type!=='agent_delta').map(e=>({type:e.type,at:e.at,role:e.data?.role})),null,2),'html');
         detail.scrollIntoView({block:'nearest'});
     }
     async function open(id, action) {
         try {
+            if (exportControl?.busy()) throw new Error('Wait for the current conversion or save to finish.');
             status.textContent='Loading archived job…';
             const record=await get('/'+id);
             if(action==='export') download(record);
