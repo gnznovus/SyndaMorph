@@ -1,11 +1,16 @@
 name: MVP autonomous pipeline checks
 on:
   push:
-    branches: [feat/mvp-autonomous-pipeline]
+    branches: [feat/mvp-autonomous-pipeline, feat/secure-gateway-leasing-v1]
     paths:
       - 'backend/**'
       - 'compose.yaml'
       - 'plugin/includes/production-team.php'
+      - 'plugin/includes/production-standards.php'
+      - 'plugin/includes/ai-team-real.php'
+      - 'plugin/assets/production-rich-content.js'
+      - 'plugin/assets/ai-team-real.js'
+      - 'tests/real-ai-poc-test.php'
       - 'plugin/includes/ai-integration.php'
       - 'plugin/syndamorph.php'
       - 'plugin/assets/production-team.js'
@@ -18,6 +23,11 @@ on:
       - 'backend/**'
       - 'compose.yaml'
       - 'plugin/includes/production-team.php'
+      - 'plugin/includes/production-standards.php'
+      - 'plugin/includes/ai-team-real.php'
+      - 'plugin/assets/production-rich-content.js'
+      - 'plugin/assets/ai-team-real.js'
+      - 'tests/real-ai-poc-test.php'
       - 'plugin/includes/ai-integration.php'
       - 'plugin/syndamorph.php'
       - 'plugin/assets/production-team.js'
@@ -39,6 +49,8 @@ jobs:
           node --check backend/purr-poc.js
           node --check plugin/assets/ai-integration.js
           node --check plugin/assets/ai-team-real.js
+          node --check plugin/assets/production-rich-content.js
+          php -l plugin/includes/production-standards.php
           php -l plugin/includes/ai-models.php
           php -l plugin/includes/ai-team-real.php
           php tests/real-ai-poc-test.php
