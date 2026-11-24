@@ -24,6 +24,8 @@ test('actual Chromium inspection provides independent responsive screenshots and
         assert.equal(Buffer.from(e.screenshot,'base64').subarray(0,3).toString('hex'),'ffd8ff');
         assert.ok(e.snapshot.elements.some(el=>el.tag==='H2' && el.styles.color==='rgb(255, 255, 255)'));
         assert.ok(e.snapshot.elements.some(el=>el.missingAlt===true));
+        assert.ok(Array.isArray(e.a11y));
+        assert.ok(e.a11y.some(v=>v.id==='image-alt'));
     }
     const compared=await fetch(url+'/compare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reference:result.evidence,native:result.evidence}),signal:AbortSignal.timeout(10000)});
     assert.equal(compared.status,200);
