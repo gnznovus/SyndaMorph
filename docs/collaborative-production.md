@@ -1,5 +1,7 @@
 # Collaborative Gutenberg Production — development branch
 
+> **Current (2026-11-24):** Adaptive Surgery v2 supersedes the fixed repair/review limits, style-only surgery constraints, viewport defaults and stagnant-target halt rules described in earlier historical sections below. See [Master Plan & Progress Tracker](master-plan.md), especially §4, and the current addendum at the end of this document. Earlier contracts remain for traceability; **do not implement the obsolete limits as active behavior**.
+
 This specification applies only when **Native Gutenberg** is selected. HTML/CSS production retains its four-agent stream and explicit manual conversion. No automatic publishing or paid retries occur.
 
 ## Contract
@@ -90,3 +92,21 @@ R39–R46 are learning infrastructure, *not* self-modifying code. Compiler Self-
 The experimental pipeline removes the fixed two-round design cap, eight-attempt schema cap, four-round QA stagnation cutoff, and per-component three-failure exclusion. **The 80% cost gate remains:** paid corrective work must fit inside 80% of the configured estimated job budget, preserving the remaining 20% for Boss escalation, issue summarization and final reporting. Initial work and final reporting remain subject to the full configured budget. Duplicate candidate detection, field-level patch restrictions, atomic rollback, compiler validity, safety checks and evidence-based approval remain mandatory. Failed/rejected candidates do not overwrite the last accepted draft.
 
 This does **not** mean the web request can run indefinitely: the existing server/runtime safety limit and infrastructure timeouts are still present. A durable asynchronous resume mechanism is a separate requirement for genuinely budget-only termination across long-running jobs. The GEN-015 live trace ended with global_no_progress after four attempted QA repairs and about $0.021822 estimated cost against a $1 cap; this change addresses those arbitrary retry stops, not the underlying open visual discrepancies. Live retesting and full CI verification are required before claiming success.
+
+
+## Adaptive Surgery v2 — current contract (2026-11-24)
+
+**Implementation status:** completed on `feat/secure-gateway-leasing-v1` at [`54a1833`](https://github.com/gnznovus/SyndaMorph/commit/54a1833354081a04421138b6e993b2c347ccdc1e). [MVP CI](https://github.com/gnznovus/SyndaMorph/actions/runs/45436215694) passed. This **supersedes** conflicting v1 contract statements above, without retroactively changing historical experiments.
+
+1. **Design gate:** Boss explicitly resolves unsupported native requirements before approval. Old fixed two-round design limit is not active.
+2. **Persistent base artifact:** Developer creates one complete plan, then repairs persisted nodes; repeated whole-plan generation for minor defects is discouraged.
+3. **Coordinated atomic surgery:** An authorized repair can combine **up to eight changes** across scoped nodes, including **up to two scoped structural wraps**. All changes are compiled/validated together; preserve protected content, IDs, links and unrelated siblings. The earlier "style-only" assertion does **not** describe v2.
+4. **Viewport evidence:** defaults are **375, 768 and 1440 px**, subject to supported explicit widths (not the old fixed 390px); track matched reference/native geometry, text and component bounds and candidate-induced defects.
+5. **Acceptance:** retain safe verified improvement even if known pre-existing issues remain; reject genuine new regressions such as mobile overflow. Stable identity should not misclassify a pre-existing centering issue.
+6. **Feedback:** keep proposed changes, rejected reasoning, measurements, residual issues and related ancestor/descendant attempt history; Boss prioritizes by severity/impact.
+7. **Retries:** no arbitrary three-attempt/stagnation veto. A subsequent operation must have a distinct evidence-backed strategy and fit deterministic budget/authorization gates.
+8. **Budget:** reserve **Developer + QA together** within the **80% corrective-work limit**; leave **20% for Boss escalation/reporting**. Count failed/review calls, images, token usage and relevant cache billing.
+9. **Learning:** record matched/injected/followed/validated lesson outcomes. Do not claim live savings from scripted tests.
+10. **Release gates:** backend and Gutenberg fixtures/Chromium repeatable tests passed; representative live-provider/WordPress execution **still requires acceptance**.
+
+**Benchmark caveat:** replayed GEN-015 candidate could have improved weighted 38→34 but was rejected under old logic. Two **predefined-patch Chromium trials** under v2 scored hotel hero **26→18 (30.8%)**, gallery callout **20→0 (100%)**. Rubric/viewport changes prevent direct comparison to the earlier 38-point baseline. No production-wide live-provider savings have been established. See [master plan](master-plan.md) for evidence and future roadmap.
