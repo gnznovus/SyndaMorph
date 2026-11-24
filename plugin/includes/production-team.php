@@ -275,7 +275,9 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
         'packageCommitUrl' => rest_url( 'syndamorph/v1/package-commit' ),
     ) ) . ';', 'before' );
     wp_enqueue_script( 'syndamorph-rich-content', plugin_dir_url( __DIR__ ) . 'assets/production-rich-content.js', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-rich-content.js' ), true );
-    wp_enqueue_script( 'syndamorph-ai-export', plugin_dir_url( __DIR__ ) . 'assets/production-ai-export.js', array( 'syndamorph-import' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-ai-export.js' ), true );
+    wp_enqueue_script( 'wp-blocks' );
+    wp_enqueue_script( 'wp-block-library' );
+    wp_enqueue_script( 'syndamorph-ai-export', plugin_dir_url( __DIR__ ) . 'assets/production-ai-export.js', array( 'syndamorph-import', 'wp-blocks', 'wp-block-library' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-ai-export.js' ), true );
     wp_enqueue_script( 'syndamorph-real-team', plugin_dir_url( __DIR__ ) . 'assets/ai-team-real.js', array( 'syndamorph-team', 'syndamorph-rich-content', 'syndamorph-ai-export' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/ai-team-real.js' ), true );
     wp_add_inline_script( 'syndamorph-real-team', 'window.SyndaMorphRealTeam=' . wp_json_encode( array(
         'nonce' => wp_create_nonce( 'wp_rest' ),
