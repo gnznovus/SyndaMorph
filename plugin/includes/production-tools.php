@@ -18,7 +18,7 @@ function syndamorph_production_tool(string $role,string $name,array $args) {
             $html=$args['html']??null;
             if(!is_string($html)||strlen($html)>120000)
                 return new WP_Error('sm_tool_input','Inspection requires bounded HTML.');
-            return syndamorph_collab_inspect($html);
+            return syndamorph_collab_inspect($html,$args['viewports']??array(1440,768,375));
         case 'playwright.compare':
             if(!is_array($args['reference']??null)||!is_array($args['native']??null))
                 return new WP_Error('sm_tool_input','Comparison requires both evidence sets.');

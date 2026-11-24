@@ -2,7 +2,7 @@
 
 const http = require('node:http');
 const { spawn } = require('node:child_process');
-const { compareScreenshots, cropScreenshots } = require('./compare');
+const { compareScreenshots, cropScreenshots, validViewports } = require('./compare');
 
 const MAX_BYTES = 2 * 1024 * 1024;
 let busy = false;
@@ -13,7 +13,8 @@ const reply = (res, status, payload) => {
     res.end(JSON.stringify(payload));
 };
 
-const render = (html, inspect = false) => new Promise((resolve, reject) => {
+const render = (html, viewports = null) => new Promise((resolve, reject) => {
+    const inspect = viewports !== null;
     // One fresh process per conversion means a runaway synchronous JS loop can
     // be forcibly terminated, rather than wedging the shared service.
     const child = spawn(process.execPath, ['/app/render-worker.js'], {
@@ -46,7 +47,10 @@ const render = (html, inspect = false) => new Promise((resolve, reject) => {
             const result = JSON.parse(Buffer.concat(chunks).toString('utf8'));
             if (result.error) { finish(new Error(result.error)); return; }
             if (inspect) {
-                if (!Array.isArray(result.evidence) || result.evidence.length !== 3) throw new Error('Incomplete inspection evidence.');
+                if (!Array.isArray(result.evidence) || result.evidence.length !== viewports.length ||
+                    result.evidence.some((sample, index) => sample.width !== viewports[index])) {
+                    throw new Error('Incomplete inspection evidence.');
+                }
                 finish(null, result.evidence);
                 return;
             }
@@ -55,7 +59,7 @@ const render = (html, inspect = false) => new Promise((resolve, reject) => {
         } catch (err) { finish(err); }
     });
     child.stdin.on('error', () => {});
-    child.stdin.end(JSON.stringify({ html, inspect }));
+    child.stdin.end(JSON.stringify({ html, inspect, viewports }));
 });
 
 http.createServer(async (req, res) => {
@@ -81,8 +85,14 @@ http.createServer(async (req, res) => {
         if (typeof body.html !== 'string' || !body.html.trim() || Buffer.byteLength(body.html) > MAX_BYTES) {
             reply(res, 400, { error: 'Provide an HTML string smaller than 2 MB.' }); return;
         }
-        if (req.url === '/inspect') reply(res, 200, { evidence: await render(body.html, true) });
-        else reply(res, 200, { html: await render(body.html) });
+        if (req.url === '/inspect') {
+            const viewports = body.viewports ?? [1440, 768, 390];
+            if (!validViewports(viewports)) {
+                reply(res, 400, { error: 'Provide one to five distinct viewport widths from 320 to 1920 CSS px.' });
+                return;
+            }
+            reply(res, 200, { evidence: await render(body.html, viewports) });
+        } else reply(res, 200, { html: await render(body.html) });
     } catch (error) {
         reply(res, 422, { error: 'JavaScript render failed: ' + error.message });
     } finally {

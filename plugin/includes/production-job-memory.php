@@ -47,21 +47,35 @@ final class SyndaMorph_Job_Memory {
     public function snapshot(): array { return array('version'=>1,'brief'=>$this->brief,'attempts'=>$this->attempts,'uniqueCandidates'=>count($this->seen),'stalled'=>$this->stalled); }
 }
 /** Compact data for a task. Full evidence remains in the private archive. */
+function syndamorph_evidence_text(string $text): string {
+    return trim(preg_replace('/\s+/u',' ',$text)??$text);
+}
 function syndamorph_memory_measurements(array $samples, array $texts=array()): array {
+    $texts=array_map('syndamorph_evidence_text',$texts);
     return array_map(static function(array $sample)use($texts):array {
         $elements=array();
-        foreach($sample['snapshot']['elements']??array() as $el) {
-            $text=trim((string)($el['text']??''));
+        $snapshot=$sample['snapshot']['elements']??array();
+        foreach($snapshot as $el) {
+            $text=$el['normalizedText']??syndamorph_evidence_text((string)($el['text']??''));
             if($texts && !in_array($text,$texts,true))continue;
             if(!$texts && $text==='' && count($elements)>0)continue;
-            $elements[]=array('text'=>mb_substr($text,0,160),'rect'=>$el['rect']??array(),'styles'=>array_intersect_key($el['styles']??array(),array_flip(array('fontSize','fontFamily','fontWeight','color','lineHeight','letterSpacing','padding','margin','gap','textAlign'))));
+            $item=array('text'=>mb_substr($text,0,110),'rect'=>$el['rect']??array(),
+                'styles'=>array_intersect_key($el['styles']??array(),array_flip(array('fontSize','fontWeight','color','lineHeight','letterSpacing','margin','gap','textAlign','textTransform'))));
+            if(isset($el['node']))$item['node']=$el['node'];
+            if(isset($el['textRect']))$item['textRect']=$el['textRect'];
+            if(!empty($el['lineRects']))$item['lines']=count($el['lineRects']);
+            $parent=$snapshot[$el['parent']??-1]??null;
+            if($parent)$item['parent']=array('node'=>$parent['node']??null,'rect'=>$parent['rect'],
+                'layout'=>array_intersect_key($parent['styles']??array(),array_flip(array('display','gap','alignItems','justifyContent'))));
+            $elements[]=$item;
             if(count($elements)>=24)break;
         }
-        return array('width'=>$sample['width'],'overflow'=>$sample['snapshot']['overflow']??null,'elements'=>$elements);
+        return array('width'=>$sample['width'],'overflow'=>$sample['snapshot']['overflow']??null,
+            'rootRect'=>$snapshot[0]['rect']??null,'elements'=>$elements);
     },$samples);
 }
 function syndamorph_memory_texts(array $node): array {
-    $texts=isset($node['text'])?array(trim((string)$node['text'])):array();
+    $texts=isset($node['text'])?array(syndamorph_evidence_text((string)$node['text'])):array();
     foreach($node['children']??array() as $child) if(is_array($child)) $texts=array_merge($texts,syndamorph_memory_texts($child));
     return $texts;
 }

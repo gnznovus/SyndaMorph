@@ -8,7 +8,7 @@ process.stdin.on('data', (chunk) => input.push(chunk));
 process.stdin.on('end', async () => {
     let browser;
     try {
-        const { html, inspect } = JSON.parse(Buffer.concat(input).toString('utf8'));
+        const { html, inspect, viewports = [1440, 768, 390] } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
             headless: true,
             args: [ '--no-sandbox', '--disable-dev-shm-usage' ],
@@ -48,18 +48,28 @@ process.stdin.on('end', async () => {
             await a11yPage.setContent(safeMarkup, {waitUntil:'domcontentloaded',timeout:5000});
             await a11yPage.evaluate(axe.source);
             const evidence = [];
-            for (const width of [1440, 768, 390]) {
+            for (const width of viewports) {
                 await page.setViewportSize({ width, height: 900 });
                 const snapshot = await page.evaluate(() => {
                     const elements = [...document.body.querySelectorAll('*')].filter(el => !['STYLE','SCRIPT'].includes(el.tagName));
+                    const positions = new Map(elements.map((el, index) => [el, index]));
+                    const rect = r => [r.x, r.y, r.width, r.height].map(value => Math.round(value * 10) / 10);
                     return {
                         overflow: document.documentElement.scrollWidth > innerWidth,
                         height: document.documentElement.scrollHeight,
                         elements: elements.slice(0, 200).map(el => {
                             const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+                            const text = el.children.length ? '' : el.textContent.replace(/\s+/gu, ' ').trim().slice(0, 250);
+                            const range = document.createRange();
+                            if (text) range.selectNodeContents(el);
                             return { tag: el.tagName, id: el.id, text: el.children.length ? '' : el.textContent.slice(0, 250),
-                                rect: [r.x,r.y,r.width,r.height].map(Math.round),
-                                styles: Object.fromEntries(['color','backgroundColor','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','padding','margin','gap','display','textAlign','borderRadius'].map(k => [k,s[k]])),
+                                node: el.getAttribute('data-sm-node') || (el.tagName === 'A' ? el.parentElement?.getAttribute('data-sm-node') : null),
+                                parent: positions.get(el.parentElement) ?? null,
+                                normalizedText: text,
+                                rect: rect(r),
+                                textRect: text ? rect(range.getBoundingClientRect()) : null,
+                                lineRects: text ? [...range.getClientRects()].slice(0, 12).map(rect) : [],
+                                styles: Object.fromEntries(['color','backgroundColor','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','padding','margin','gap','display','textAlign','textTransform','alignItems','justifyContent','borderRadius'].map(k => [k,s[k]])),
                                 clipped: /^(?:hidden|clip)$/.test(s.overflowX) && el.scrollWidth > el.clientWidth + 2,
                                 missingAlt: el.tagName === 'IMG' && !el.hasAttribute('alt'),
                                 unnamedControl: ['A','BUTTON'].includes(el.tagName) && !(el.textContent.trim() || el.getAttribute('aria-label') || el.querySelector('img[alt]:not([alt=""])'))

@@ -41,8 +41,9 @@ function wp_remote_post($url,$args) {
         return array('status'=>200,'body'=>json_encode(array('images'=>array_map(static fn($item)=>array('media_type'=>'image/jpeg','data'=>base64_encode('cropped-jpeg')),$items))));
     }
     if ($url === 'http://renderer:3000/compare') {
+        $widths=array_column(json_decode($args['body'],true)['reference'],'width');
         return array('status'=>200,'body'=>json_encode(array('comparison'=>array_map(
-            static fn($width)=>array('width'=>$width,'pixelDifferenceRatio'=>0.15,'meanChannelDifference'=>5.0,'sampledPixels'=>100),array(1440,768,390)))));
+            static fn($width)=>array('width'=>$width,'pixelDifferenceRatio'=>0.15,'meanChannelDifference'=>5.0,'sampledPixels'=>100),$widths))));
     }
     if ($url === 'http://renderer:3000/inspect') {
         $input=json_decode($args['body'],true);
@@ -53,7 +54,7 @@ function wp_remote_post($url,$args) {
             static fn($width)=>array('width'=>$width,'screenshot'=>$sample,'a11y'=>array(),'snapshot'=>array(
                 'overflow'=>false,'elements'=>array(array('tag'=>'H2','id'=>'','text'=>'Welcome & enjoy',
                 'rect'=>array(0,0,300,70),'styles'=>array('fontSize'=>'32px','fontWeight'=>'700','color'=>'rgb(0, 0, 0)','letterSpacing'=>'normal'))))),
-            array(1440,768,390)))));
+            $input['viewports']))));
     }
     if ($url !== 'https://api.anthropic.com/v1/messages') throw new RuntimeException('Unexpected generation endpoint');
     if (isset($GLOBALS['upstream_test_status'])) return array('status'=>$GLOBALS['upstream_test_status'], 'body'=>'{"sensitive":"should-not-leak"}');
@@ -431,6 +432,19 @@ expect($gen015Round3['result']['scoreAfter']===34 &&
     'Archived GEN-015 acceptance counterexample changed');
 expect(array_column($gen015Round3['pixels'],'pixelDifferenceRatio')===array(0.06784,0.06804,0.07448),
     'GEN-015 Chromium replay comparison changed');
+expect(syndamorph_collab_viewports('Responsive section.')===array(1440,768,375),
+    'Production did not default to the required 375px mobile width');
+expect(syndamorph_collab_viewports('Test at 360/820/1600 CSS px.')===array(1600,820,360) &&
+    is_wp_error(syndamorph_collab_viewports('Test at 240/820/1600 CSS px.')),
+    'Explicit viewport requests must be honored or rejected visibly');
+$gen015Preview=syndamorph_compile_block_plan(wp_json_encode($gen015['plan']));
+expect(str_contains($gen015Preview['preview'],'margin-left:auto!important;margin-right:auto!important') &&
+    str_contains($gen015Preview['preview'],'data-sm-node="sm-hero-title"') &&
+    !str_contains($gen015Preview['content'],'data-sm-node'),
+    'Constrained preview changed Gutenberg markup or ignored core centering');
+$matched=syndamorph_collab_pairs($gen015['evidence']['reference'][0]['snapshot']['elements'],
+    $gen015['evidence']['baseline'][0]['snapshot']['elements'],$gen015['plan']);
+expect(in_array('sm-hero-intro',array_column($matched,'owner'),true),'Multiline reference intro was not matched');
 // GEN-013 reproduction: issue is owned by an ancestor but repair changes a leaf.
 $fixtureBeforeParent=$GLOBALS['native_fixture'];
 $parentPlan=json_decode($GLOBALS['native_fixture'],true);

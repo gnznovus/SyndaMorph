@@ -129,18 +129,38 @@ function syndamorph_collab_patch(array $plan, array $patch) {
     if(is_wp_error($verified)){$target=$before;return $verified;}
     return array('plan'=>$verified['plan'],'artifact'=>$verified['artifact']);
 }
-function syndamorph_collab_inspect(string $html) {
+function syndamorph_collab_viewports(string $brief) {
+    $widths = array();
+    preg_match_all('/\b(\d{2,5}(?:\s*(?:,\s*(?:and\s+)?|\/|\band\b)\s*\d{2,5})*)\s*(?:CSS\s*)?px\b/i', $brief, $matches);
+    foreach ($matches[1] as $value) {
+        // A bare CSS length is not a viewport requirement unless the brief
+        // identifies it as one. Explicit lists identify acceptance widths.
+        if (!preg_match('/\D/', $value) && !preg_match('/\b(?:viewport|screen|breakpoint|desktop|tablet|mobile|at)\b[^.;]{0,28}\b'.preg_quote($value,'/').'\s*(?:CSS\s*)?px\b/i', $brief)) {
+            continue;
+        }
+        preg_match_all('/\d+/', $value, $numbers);
+        foreach ($numbers[0] as $number) $widths[] = (int)$number;
+    }
+    $widths = array_values(array_unique($widths));
+    if (!$widths) return array(1440,768,375);
+    if (count($widths) > 5 || min($widths) < 320 || max($widths) > 1920) {
+        return new WP_Error('sm_inspect_viewports','Requested viewport widths must include one to five distinct values from 320 to 1920 CSS px.');
+    }
+    rsort($widths, SORT_NUMERIC);
+    return $widths;
+}
+function syndamorph_collab_inspect(string $html,array $viewports) {
     $endpoint = defined('SYNDAMORPH_RENDERER_INSPECT_URL') ? SYNDAMORPH_RENDERER_INSPECT_URL : 'http://renderer:3000/inspect';
     // Network target is configured by deployment, never read from model output.
     if (!is_string($endpoint) || !preg_match('~^http://[a-zA-Z0-9.-]+:[0-9]{2,5}/inspect$~D', $endpoint)) {
         return new WP_Error('sm_inspect_config','Invalid isolated renderer endpoint.');
     }
     $response = wp_remote_post($endpoint,array('timeout'=>75,'redirection'=>0,'headers'=>array('Content-Type'=>'application/json'),
-        'body'=>wp_json_encode(array('html'=>$html)),'limit_response_size'=>9000000));
+        'body'=>wp_json_encode(array('html'=>$html,'viewports'=>$viewports)),'limit_response_size'=>9000000));
     if (is_wp_error($response)) { return new WP_Error('sm_inspect_unavailable','Browser inspection service unavailable.'); }
     if (wp_remote_retrieve_response_code($response)!==200) { return new WP_Error('sm_inspect_failed','Browser inspection service rejected the request.'); }
     $data=json_decode(wp_remote_retrieve_body($response),true);
-    if (!is_array($data['evidence']??null) || count($data['evidence'])!==3) { return new WP_Error('sm_inspect_incomplete','Browser inspection evidence incomplete.'); }
+    if (!is_array($data['evidence']??null) || array_column($data['evidence'],'width')!==$viewports) { return new WP_Error('sm_inspect_incomplete','Browser inspection did not return the requested viewports.'); }
     foreach($data['evidence'] as $sample) {
         if(!is_array($sample['a11y']??null)) return new WP_Error('sm_a11y_incomplete','Automated accessibility scan did not return evidence.');
     }
@@ -156,12 +176,12 @@ function syndamorph_collab_compare(array $reference,array $native) {
         'limit_response_size'=>50000));
     if(is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200)return new WP_Error('sm_compare_unavailable','Pixel comparison is unavailable.');
     $data=json_decode(wp_remote_retrieve_body($response),true);
-    if(!is_array($data['comparison']??null)||count($data['comparison'])!==3)return new WP_Error('sm_compare_invalid','Visual comparison evidence incomplete.');
+    if(!is_array($data['comparison']??null)||array_column($data['comparison'],'width')!==array_column($reference,'width'))return new WP_Error('sm_compare_invalid','Visual comparison evidence incomplete.');
     return $data['comparison'];
 }
 function syndamorph_collab_evidence(array $reference, array $native): array {
     $findings=array();
-    foreach ([0,1,2] as $i) {
+    foreach (array_keys($native) as $i) {
         $ref=$reference[$i]['snapshot']??array(); $out=$native[$i]['snapshot']??array();$width=(int)($native[$i]['width']??0);
         if (($out['overflow']??true)) $findings[] = array('id'=>'overflow-'.$width,'component'=>'blocks[0]','severity'=>'high','detail'=>'Native output has horizontal overflow at '.$width.'px.');
         foreach (($native[$i]['a11y']??array()) as $violation) {
@@ -201,7 +221,7 @@ function syndamorph_collab_block_issues(array $artifact): array {
 function syndamorph_collab_owner(array $nodes, string $text, string $fallback='blocks[0]'): string {
     foreach($nodes as $node) {
         if (!is_array($node)) continue;
-        if (isset($node['text']) && trim((string)$node['text'])===$text) return (string)($node['id']??$fallback);
+        if (isset($node['text']) && syndamorph_evidence_text((string)$node['text'])===$text) return (string)($node['id']??$fallback);
         if (isset($node['children']) && is_array($node['children'])) {
             $found=syndamorph_collab_owner($node['children'],$text,'');
             if ($found!=='') return $found;
@@ -209,28 +229,55 @@ function syndamorph_collab_owner(array $nodes, string $text, string $fallback='b
     }
     return $fallback;
 }
-/** Reusable measured evidence. Only matching leaf text is compared; mismatches are explicit. */
+/** Match by explicit HTML identity first, then by unambiguous semantic text. */
+function syndamorph_collab_pairs(array $reference,array $native,array $plan): array {
+    $index=static function(array $elements):array {
+        $out=array();
+        foreach($elements as $element) {
+            $text=$element['normalizedText']??syndamorph_evidence_text((string)($element['text']??''));
+            if($text==='')continue;
+            $tag=strtoupper($element['tag']??'');
+            if(in_array($tag,array('A','BUTTON'),true))$tag='CTA';
+            $key=$tag.'|'.$text;
+            $out[$key][]=$element;
+        }
+        return $out;
+    };
+    $referenceIndex=$index($reference);
+    $nativeIndex=$index($native);
+    $byId=array();
+    foreach($reference as $element)if(!empty($element['id']))$byId[$element['id']][]=$element;
+    $pairs=array();
+    foreach($nativeIndex as $key=>$elements)foreach($elements as $element) {
+        $id=$element['node']??$element['id']??'';
+        $matches=$byId[$id]??array();
+        if(count($matches)!==1 || ($matches[0]['tag']??'')!==($element['tag']??'')) {
+            $matches=count($elements)===1 ? ($referenceIndex[$key]??array()) : array();
+        }
+        if(count($matches)!==1)continue;
+        $text=$element['normalizedText']??syndamorph_evidence_text((string)$element['text']);
+        if($id==='' || !isset($element['node']))$id=syndamorph_collab_owner($plan['blocks'],$text);
+        $pairs[]=array('owner'=>$id,'reference'=>$matches[0],'native'=>$element);
+    }
+    return $pairs;
+}
 function syndamorph_collab_style_findings(array $reference,array $native,array $plan): array {
     $issues=array();
-    foreach([0,1,2] as $i) {
+    foreach(array_keys($native) as $i) {
         $width=(int)($native[$i]['width']??0);
-        $ref=array();
-        foreach(($reference[$i]['snapshot']['elements']??array()) as $el) {
-            $text=trim((string)($el['text']??''));
-            if ($text!=='') $ref[$text]=$el;
-        }
-        foreach(($native[$i]['snapshot']['elements']??array()) as $el) {
-            $text=trim((string)($el['text']??''));
-            if ($text==='' || !isset($ref[$text])) continue;
-            $source=$ref[$text];$changes=array();
+        $pairs=syndamorph_collab_pairs($reference[$i]['snapshot']['elements']??array(),
+            $native[$i]['snapshot']['elements']??array(),$plan);
+        foreach($pairs as $pair) {
+            $source=$pair['reference'];$el=$pair['native'];$changes=array();
+            $text=syndamorph_evidence_text($el['text']??'');
             foreach(array('fontSize','fontWeight','color','letterSpacing') as $key) {
                 if (($source['styles'][$key]??null)!==($el['styles'][$key]??null)) $changes[]=$key;
             }
-            if (count($source['rect']??array())===4 && count($el['rect']??array())===4) {
-                if (abs($source['rect'][2]-$el['rect'][2])>max(30,$source['rect'][2]*0.35)) $changes[]='width';
+            if (count($source['textRect']??array())===4 && count($el['textRect']??array())===4) {
+                if (abs($source['textRect'][2]-$el['textRect'][2])>max(24,$source['textRect'][2]*0.20)) $changes[]='textWidth';
             }
             if($changes) {
-                $id=syndamorph_collab_owner($plan['blocks'],$text);
+                $id=$pair['owner'];
                 $issues[]=array('id'=>'style-'.substr(hash('sha256',$width.$text),0,12),'component'=>$id,
                     'severity'=>'medium','detail'=>'Measured '.implode(', ',$changes).' differs from HTML reference at '.$width.'px for '.mb_substr($text,0,70));
             }
@@ -241,25 +288,32 @@ function syndamorph_collab_style_findings(array $reference,array $native,array $
 /** Use matching visible text to locate affected regions in both cached images. Fall back to full evidence if matching is ambiguous. */
 function syndamorph_collab_scoped_images(array $reference,array $native,array $texts): array {
     $items=array();$full=array();
-    foreach(array(0,2) as $viewport) foreach(array($reference,$native) as $samples) {
+    foreach(array_unique(array(0,count($reference)-1)) as $viewport) foreach(array($reference,$native) as $samples) {
         $sample=$samples[$viewport];$full[]=array('media_type'=>'image/jpeg','data'=>$sample['screenshot']);
         $rects=array();
-        foreach($sample['snapshot']['elements']??array() as $el) {
-            if(in_array(trim((string)($el['text']??'')),$texts,true)&&count($el['rect']??array())===4)$rects[]=$el['rect'];
+        $elements=$sample['snapshot']['elements']??array();
+        foreach($elements as $el) {
+            if(!in_array(syndamorph_evidence_text((string)($el['text']??'')),$texts,true)||count($el['rect']??array())!==4)continue;
+            $rects[]=$el['rect'];
+            $parent=$elements[$el['parent']??-1]['rect']??null;
+            if($parent && count($texts)>1)$rects[]=$parent;
         }
         if(!$rects)continue;
         $left=min(array_column($rects,0));$top=min(array_column($rects,1));
         $right=max(array_map(static fn($r)=>$r[0]+$r[2],$rects));$bottom=max(array_map(static fn($r)=>$r[1]+$r[3],$rects));
         $items[]=array('screenshot'=>$sample['screenshot'],'rect'=>array($left,$top,$right-$left,$bottom-$top));
     }
-    if(count($items)!==4)return array('images'=>$full,'mode'=>'full');
+    if(count($items)!==count($full))return array('images'=>$full,'mode'=>'full');
     $response=wp_remote_post('http://renderer:3000/crop',array('timeout'=>20,'redirection'=>0,'headers'=>array('Content-Type'=>'application/json'),'body'=>wp_json_encode(array('items'=>$items)),'limit_response_size'=>2000000));
     if(is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200)return array('images'=>$full,'mode'=>'full');
     $data=json_decode(wp_remote_retrieve_body($response),true);
-    if(count($data['images']??array())!==4)return array('images'=>$full,'mode'=>'full');
+    if(count($data['images']??array())!==count($full))return array('images'=>$full,'mode'=>'full');
     return array('images'=>$data['images'],'mode'=>'component');
 }
 function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
+    $viewports=syndamorph_collab_viewports($brief);
+    if(is_wp_error($viewports))return $viewports;
+    $visionViewports=array_values(array_unique(array(0,count($viewports)-1)));
     $settings=syndamorph_models_settings();
     $provider=$settings['provider']??'';$model=$settings['model']??'';
     $catalog=syndamorph_models_catalog($provider);
@@ -298,8 +352,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if ($on_event) $on_event('agent_complete',array('role'=>$role,'task'=>$stage,'metric'=>$metric));
         return $result['text'];
     };
-    $boss=$call('boss','Classify the job into a concise work order. Return ONLY JSON {"title":"short job title","sections":["..."],"constraints":["..."],"acceptance":["..."]}. Include concrete requested sections, implementability constraints and testable acceptance criteria. Maximum 12 short strings per list, no speculative objections, markdown or HTML. If unspecified, permit generic marketing copy and provisional local CTAs without invented real-world facts.',
-        array('brief'=>$brief),16384);
+    $boss=$call('boss','Classify the job into a concise work order. Return ONLY JSON {"title":"short job title","sections":["..."],"constraints":["..."],"acceptance":["..."]}. Use the supplied acceptance viewport widths exactly. Include concrete requested sections, implementability constraints and testable acceptance criteria. Maximum 12 short strings per list, no speculative objections, markdown or HTML. If unspecified, permit generic marketing copy and provisional local CTAs without invented real-world facts.',
+        array('brief'=>$brief,'viewportWidths'=>$viewports),16384);
     if(is_wp_error($boss))return $boss;
     $bossBrief=syndamorph_collab_requirements($boss);
     if(is_wp_error($bossBrief))return $bossBrief;
@@ -324,10 +378,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             return new WP_Error('sm_reference_unsafe','Designer reference failed HTML safety checks.',
                 array('stage'=>'design','designRound'=>$designRound));
         $capabilityNotes=syndamorph_reference_capability_notes($reference);
-        $inspectReference=syndamorph_production_tool('designer','playwright.inspect',array('html'=>$reference));
+        $inspectReference=syndamorph_production_tool('designer','playwright.inspect',array('html'=>$reference,'viewports'=>$viewports));
         if(is_wp_error($inspectReference))return $inspectReference;
         $referenceImages=array_map(static fn($sample)=>array('media_type'=>'image/jpeg','data'=>$sample['screenshot']),
-            array($inspectReference[0],$inspectReference[2]));
+            array_values(array_intersect_key($inspectReference,array_flip($visionViewports))));
         $review=$call('boss','Review the Designer visual artifact against requirements using the actual Playwright desktop/mobile screenshots and measurements. Return ONLY compact JSON {"decision":"approved|changes_requested","issues":[{"target":"section identifier","problem":"precise defect","requiredChange":"specific revision"}],"summary":"brief decision"}. Approve only when the design is implementable in native Gutenberg and the visible evidence meets the brief. Never approve a design solely because HTML was produced. At most three issues.',
             array('requirements'=>$brief,'referenceSha256'=>hash('sha256',$reference),
                 'capabilityNotes'=>$capabilityNotes,
@@ -434,23 +488,24 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $outputs['developer']=wp_json_encode($plan);
     $memory->remember($plan);
     
-    $inspectNative=syndamorph_production_tool('developer','playwright.inspect',array('html'=>$artifact['preview']));
+    $inspectNative=syndamorph_production_tool('developer','playwright.inspect',array('html'=>$artifact['preview'],'viewports'=>$viewports));
     if (is_wp_error($inspectReference) || is_wp_error($inspectNative)) return new WP_Error('sm_quality_blocked','Real browser inspection could not complete; job cannot be approved.');
     $comparison=syndamorph_production_tool('boss','playwright.compare',array('reference'=>$inspectReference,'native'=>$inspectNative));
     if(is_wp_error($comparison)) return $comparison;
     $evidence=array('reference'=>$inspectReference,'native'=>$inspectNative);
     $issues=array_merge(syndamorph_collab_block_issues($artifact),syndamorph_collab_evidence($inspectReference,$inspectNative),syndamorph_collab_style_findings($inspectReference,$inspectNative,$plan));
     $best=array('plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'score'=>count($issues),'evidence'=>$inspectNative,'comparison'=>$comparison);
-    $evidenceSummary=static function(array $samples):array {
-        return array_map(static function($sample){return array('width'=>$sample['width'],'snapshot'=>$sample['snapshot'],
+    $evidenceSummary=static function(array $samples)use($viewports,$visionViewports):array {
+        $imageWidths=array_intersect_key($viewports,array_flip($visionViewports));
+        return array_map(static function($sample)use($imageWidths){return array('width'=>$sample['width'],'snapshot'=>$sample['snapshot'],
                 'screenshotSha256'=>hash('sha256',base64_decode($sample['screenshot'],true)?:''),
-                'screenshot'=>(in_array((int)$sample['width'],array(1440,390),true) && strlen($sample['screenshot'])<=180000) ? $sample['screenshot'] : null);},$samples);
+                'screenshot'=>(in_array($sample['width'],$imageWidths,true) && strlen($sample['screenshot'])<=180000) ? $sample['screenshot'] : null);},$samples);
     };
     // The model receives compact measurements; image bytes travel only in
     // Anthropic image blocks. History retains bounded screenshot data separately.
     $modelEvidence=static fn(array $samples):array=>syndamorph_memory_measurements($samples);
     $screenshots=array();
-    foreach(array(0,2) as $viewport) {
+    foreach($visionViewports as $viewport) {
         foreach(array($inspectReference,$inspectNative) as $samples) {
             $encoded=$samples[$viewport]['screenshot']??'';
             if (!is_string($encoded) || strlen($encoded)>2000000) return new WP_Error('sm_vision_evidence','Screenshot evidence is incomplete or exceeds image limit.');
@@ -544,7 +599,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if($memory->seen($candidate['plan'])) { $entry=array('round'=>$round,'id'=>$id,'status'=>'duplicate','accepted'=>false,'detail'=>'Equivalent candidate already attempted; skipped browser and AI QA.','before'=>count($issues),'after'=>count($issues));$memory->record($id,$entry);$revisions[]=$entry;if($on_event)$on_event('revision',$entry);continue; }
         $memory->remember($candidate['plan']);
         $impact=syndamorph_collab_impact($plan,$candidate['plan']);
-        $newEvidence=syndamorph_production_tool('developer','playwright.inspect',array('html'=>$candidate['artifact']['preview']));
+        $newEvidence=syndamorph_production_tool('developer','playwright.inspect',array('html'=>$candidate['artifact']['preview'],'viewports'=>$viewports));
         if (is_wp_error($newEvidence)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Browser revalidation unavailable');break; }
         // Root/ancestor changes affect all descendants. Reinspect all widths, but avoid additional full-model review.
         $newComparison=syndamorph_production_tool('boss','playwright.compare',array('reference'=>$inspectReference,'native'=>$newEvidence));
@@ -565,6 +620,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
                     syndamorph_collab_find($candidate['plan']['blocks'],$id)),
                 'previousIssues'=>array_values(array_filter($issues,static fn($issue)=>isset($affected[$issue['component']??'']))),
                 'impact'=>$impact,'reviewScope'=>$reviewIds,'compilerChecks'=>$candidate['artifact']['checks'],'imageScope'=>$scope['mode'],
+                'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id))),
                 'measurements'=>syndamorph_memory_measurements($newEvidence,syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id))),'previousAttempts'=>$memory->feedback($id),'pixelComparison'=>$newComparison,'imageOrder'=>array('desktop-reference','desktop-updated','mobile-reference','mobile-updated')),16384,$scopedScreenshots,'revision_validation');
         if (is_wp_error($targetReview)) { $terminationReason='validator_blocked'; $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Scoped visual validation unavailable');break; }
         $parsedTarget=json_decode(syndamorph_native_json_text($targetReview),true);
@@ -590,8 +646,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $introduced=array_values(array_filter($newIssues,static fn($item)=>
             !isset($oldKeys[($item['component']??'').'|'.($item['id']??'')]))); 
         $oldScore=syndamorph_issue_score($issues);$newScore=syndamorph_issue_score($newIssues);
-        $oldPixel=array_sum(array_column($comparison,'pixelDifferenceRatio'))/3;
-        $newPixel=array_sum(array_column($newComparison,'pixelDifferenceRatio'))/3;
+        $oldPixel=array_sum(array_column($comparison,'pixelDifferenceRatio'))/count($comparison);
+        $newPixel=array_sum(array_column($newComparison,'pixelDifferenceRatio'))/count($newComparison);
         // Model approval alone is insufficient: deterministic checks remain
         // authoritative, and the global screenshots must not materially regress.
         $accepted=(!$introduced && ($newScore<$oldScore || ($newScore===$oldScore && $newPixel<$oldPixel))) &&
@@ -622,7 +678,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             foreach($registry as &$record)$record['status']='resolved';unset($record);
             foreach($newIssues as $issue)$registry[$issue['component'].'|'.$issue['id']]=array_merge($issue,array('status'=>'open'));
             $issues=$newIssues;
-            $bestPixel=array_sum(array_column($best['comparison'],'pixelDifferenceRatio'))/3;
+            $bestPixel=array_sum(array_column($best['comparison'],'pixelDifferenceRatio'))/count($best['comparison']);
             if($newScore<$best['score'] || ($newScore===$best['score'] && $newPixel<$bestPixel)) $best=array('plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'score'=>$newScore,'evidence'=>$inspectNative,'comparison'=>$comparison);
         }
         if($on_event) $on_event('revision',end($revisions));

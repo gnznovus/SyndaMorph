@@ -38,5 +38,32 @@ const {chromium}=require('../backend/node_modules/playwright');
   assert.ok(result.cases.length>=20);
   assert.deepEqual(result.cases.filter(c=>!c.passed),[]);
   assert.ok(result.missingFontClassRejected,'GEN9 missing font class must fail real Gutenberg validation');
+  for (const width of [1440,768,375]) {
+   const geometry=await page.evaluate(async width=>{
+    const measure=async html=>{
+     const frame=document.createElement('iframe');
+     frame.width=width;
+     const loaded=new Promise(resolve=>frame.addEventListener('load',resolve,{once:true}));
+     frame.srcdoc=html;
+     document.body.append(frame);
+     await loaded;
+     const doc=frame.contentDocument;
+     const bounds=[...doc.querySelectorAll('.wp-block-group > h2,.wp-block-group > p,.wp-block-group > .wp-block-buttons')]
+      .map(el=>{const r=el.getBoundingClientRect();return [r.x,r.width,r.y,r.bottom];});
+     frame.remove();
+     return bounds;
+    };
+    return {preview:await measure(window.nativeParity.preview),frontend:await measure(window.nativeParity.frontend)};
+   },width);
+   assert.equal(geometry.preview.length,3);
+   assert.equal(geometry.frontend.length,3);
+   for(const [i,[x,w]] of geometry.preview.entries()){
+    assert.ok(Math.abs(x+w/2-width/2)<1,'Constrained child must share the group center');
+    assert.ok(Math.abs(x-geometry.frontend[i][0])<1 && Math.abs(w-geometry.frontend[i][1])<1,'Preview width and position must match core');
+   }
+   const gaps=boxes=>[boxes[1][2]-boxes[0][3],boxes[2][2]-boxes[1][3]];
+   for(const [i,gap] of gaps(geometry.preview).entries())
+    assert.ok(Math.abs(gap-gaps(geometry.frontend)[i])<1,'Preview gap must match native inline and core spacing');
+  }
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -20,7 +20,7 @@ function syndamorph_compile_block_plan( string $raw ) {
             ! is_array( $plan['blocks'] ?? null ) || ! array_is_list( $plan['blocks'] ) || count( $plan['blocks'] ) !== 1 || ( $plan['blocks'][0]['type'] ?? '' ) !== 'group' ) {
             throw new InvalidArgumentException( 'Expected one root group in a version 1 plan.' );
         }
-        $count = 0; $headings = 0; $field = 'blocks[0]';
+        $count = 0; $headings = 0; $field = 'blocks[0]'; $previewIds = array();
         $escape = static fn( string $s ): string => htmlspecialchars( $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' );
         $length = static function ( $v ): string {
             $unit = '[0-9]{1,3}(?:\.[0-9]{1,3})?(?:px|rem|em|vw|vh|svh|dvh)';
@@ -28,7 +28,7 @@ function syndamorph_compile_block_plan( string $raw ) {
             if ( ! is_string( $v ) || ! preg_match( '~^(?:0|' . $unit . '|clamp\(\s*' . $unit . '\s*,\s*' . $unit . '(?:\s+\+\s+' . $unit . ')?\s*,\s*' . $unit . '\s*\))$~D', $v ) ) { throw new InvalidArgumentException( 'Invalid length.' ); }
             return $v === '0' ? '0px' : $v;
         };
-        $build = static function ( $node, string $parent, int $depth, string $path ) use ( &$build, &$count, &$headings, &$field, $escape, $length ): string {
+        $build = static function ( $node, string $parent, int $depth, string $path ) use ( &$build, &$count, &$headings, &$field, &$previewIds, $escape, $length ): string {
             $field = $path;
             if ( ! is_array( $node ) || ++$count > 120 || $depth > 12 ) { throw new InvalidArgumentException( 'Invalid node or plan limit exceeded.' ); }
             $type = $node['type'] ?? '';
@@ -42,6 +42,7 @@ function syndamorph_compile_block_plan( string $raw ) {
                 throw new InvalidArgumentException( $key === 'align' ? 'Alignment belongs inside style.align.' : 'Unsupported node field.' );
             }
             if (isset($node['id']) && (!is_string($node['id']) || !preg_match('/^[a-zA-Z0-9_.\\[\\]-]{1,100}$/D', $node['id']))) { $field=$path.'.id'; throw new InvalidArgumentException('Invalid component ID.'); }
+            $previewIds[] = $node['id'] ?? $path;
             $style = $node['style'] ?? array();
             if ( ! is_array($style) ) { throw new InvalidArgumentException('Invalid style.'); }
             $attrs = array(); $css = array(); $classes = array();
@@ -144,32 +145,59 @@ function syndamorph_compile_block_plan( string $raw ) {
                 }
             };$verify(parse_blocks($content));
         }
-        $preview='<style>*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;line-height:1.5}.wp-block-group.is-layout-flex{display:flex;flex-direction:column}.wp-block-group.is-layout-constrained{display:block}.wp-block-group h1,.wp-block-group h2,.wp-block-group h3,.wp-block-group h4,.wp-block-group h5,.wp-block-group h6,.wp-block-group p{margin:0}.wp-block-columns{display:flex;gap:1.5rem}.wp-block-column{flex:1;min-width:0}.wp-block-buttons{display:flex;flex-wrap:wrap;gap:1rem}.wp-block-button__link{display:inline-block;padding:.75em 1.5em;background:#26384a;color:#fff;text-decoration:none;border-radius:4px}.has-text-align-center{text-align:center}.has-text-align-right{text-align:right}@media(max-width:781px){.wp-block-columns{flex-direction:column}}</style>'.$content;
-        $layoutCss='';
-        $preview=preg_replace_callback('~<!-- wp:(group|buttons|columns) (\\{[^\\n]*?\\}) -->\\s*<div([^>]*)>~',static function($m)use(&$layoutCss){
+        $preview='<style>*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;line-height:1.5}.wp-block-group.is-layout-flex{display:flex;flex-direction:column;flex-wrap:wrap;align-items:flex-start}.wp-block-group.is-layout-constrained{display:block}:where(.wp-block-group) :where(h1,h2,h3,h4,h5,h6,p),.is-layout-flex>:is(*,div){margin:0}.wp-block-columns{display:flex;gap:1.5rem}.wp-block-column{flex:1;min-width:0}.wp-block-buttons{display:flex;flex-wrap:wrap;gap:1rem;align-items:center}.wp-block-button__link{display:inline-block;padding:.75em 1.5em;background:#26384a;color:#fff;text-decoration:none;border-radius:4px}.has-text-align-center{text-align:center}.has-text-align-right{text-align:right}@media(max-width:781px){.wp-block-columns{flex-direction:column}}</style>'.$content;
+        $layoutCss=''; $layoutNotes=array();
+        $themeStyles=function_exists('wp_get_global_styles') ? wp_get_global_styles() : array();
+        $themeGapSupport=!function_exists('wp_get_global_settings') ||
+            isset(wp_get_global_settings()['spacing']['blockGap']);
+        $preview=preg_replace_callback('~<!-- wp:(group|buttons|columns) (\\{[^\\n]*?\\}) -->\\s*<div([^>]*)>~',static function($m)use(&$layoutCss,&$layoutNotes,$themeStyles,$themeGapSupport){
             $attrs=json_decode($m[2],true);$layout=$attrs['layout']??array();$rules='';$childRules='';
-            $gap=$attrs['style']['spacing']['blockGap']??'';
-            // Values originate exclusively from the validated length parser.
-            if(is_string($gap)&&$gap!=='')$rules='gap:'.$gap.';--sm-preview-gap:'.$gap.';';
+            $gap=$attrs['style']['spacing']['blockGap']??null;
+            if ($gap!==null && (!$themeGapSupport ||
+                (function_exists('wp_sanitize_block_gap_value') ? wp_sanitize_block_gap_value($gap)===null : str_contains($gap,'(')))) {
+                $layoutNotes[]='WordPress does not apply the '.$m[1].' gap '.$gap.' in this native layout. Use a supported simple length or explicit child spacing.';
+                $gap=null;
+            }
+            $themeGap=$themeStyles['blocks']['core/'.$m[1]]['spacing']['blockGap']??$themeStyles['spacing']['blockGap']??null;
+            if ($gap===null && $themeGapSupport && is_string($themeGap) &&
+                preg_match('/^(?:0|[0-9]{1,3}(?:\\.[0-9]+)?(?:px|rem|em|vw|vh))$/D',$themeGap)) {
+                $gap=$themeGap;
+            }
+            // Serialized values come from the compiler. Theme values are validated separately.
             $width=$layout['contentSize']??'';
             if(preg_match('/^[0-9]{1,3}(?:\\.[0-9]{1,3})?(?:px|rem|em|ch)$/D',$width)) {
-                $childRules='max-width:'.$width.';margin-inline:auto';
-
+                // Core constrained layout overrides inline horizontal margins, but
+                // explicit vertical margins still take precedence over its block gap.
+                $childRules='max-width:'.$width.';margin-left:auto!important;margin-right:auto!important';
+            } elseif (is_string($gap) && $gap !== '') {
+                $rules='gap:'.$gap.';';
             }
             $horizontal=array('left'=>'flex-start','center'=>'center','right'=>'flex-end','stretch'=>'stretch');
             $vertical=array('top'=>'flex-start','center'=>'center','bottom'=>'flex-end');
             if(isset($horizontal[$layout['justifyContent']??'']))$rules.=($m[1]==='group'?'align-items:':'justify-content:').$horizontal[$layout['justifyContent']].';';
             if(isset($vertical[$layout['verticalAlignment']??''])&&$m[1]==='group')$rules.='justify-content:'.$vertical[$layout['verticalAlignment']].';';
             if(!$rules&&!$childRules)return $m[0];
-            $class='sm-layout-'.substr(hash('sha256',json_encode($layout).$rules),0,12);
+            $class='sm-layout-'.substr(hash('sha256',json_encode(array($layout,$gap,$rules))),0,12);
             $opening=preg_replace('/class="/','class="'.$class.' ',$m[3],1);
             $style='.'.$class.'{'.$rules.'}';
-            if($childRules)$style.='.'.$class.' > *:not(style){'.$childRules.'}.'.$class.' > *:not(style) ~ *:not(style){margin-block-start:var(--sm-preview-gap,0)}';
+            if($childRules) {
+                $style.='.'.$class.' > :where(:not(.alignleft):not(.alignright):not(.alignfull)){'.$childRules.'}';
+                if (is_string($gap) && $gap !== '') {
+                    $style.='.'.$class.' > *{margin-block-start:0;margin-block-end:0}.'.$class.' > * + *{margin-block-start:'.$gap.'}';
+                }
+            }
             $layoutCss.=$style;
             return '<!-- wp:'.$m[1].' '.$m[2].' --><div'.$opening.'>';
         },$preview);
+        $previewIndex = 0;
+        $preview=preg_replace_callback('~<!-- wp:(?:group|columns|column|heading|paragraph|buttons|button)(?: \\{[^\\n]*?\\})? -->\\s*<(?:div|h[1-6]|p)(?=[ >])~',
+            static function(array $match)use(&$previewIndex,$previewIds,$escape):string {
+                return $match[0].' data-sm-node="'.$escape($previewIds[$previewIndex++]).'"';
+            },$preview);
         if($layoutCss!=='')$preview='<style>'.$layoutCss.'</style>'.$preview;
-        return array('schemaVersion'=>1,'content'=>$content,'preview'=>$preview,'blockCount'=>$count,'checks'=>array('valid_plan'=>true,'native_blocks_only'=>true,'contains_heading'=>$headings>0,'no_active_markup'=>true));
+        return array('schemaVersion'=>1,'content'=>$content,'preview'=>$preview,'blockCount'=>$count,
+            'layoutNotes'=>array_values(array_unique($layoutNotes)),
+            'checks'=>array('valid_plan'=>true,'native_blocks_only'=>true,'contains_heading'=>$headings>0,'no_active_markup'=>true));
     } catch ( InvalidArgumentException | JsonException $e ) { return new WP_Error('sm_block_plan_invalid','Native block plan rejected: '.$e->getMessage(),array('status'=>422,'field'=>$field ?? 'plan')); }
     catch ( Throwable $e ) { return new WP_Error('sm_block_plan_system','Native block compilation encountered an internal error.',array('status'=>500)); }
 }
