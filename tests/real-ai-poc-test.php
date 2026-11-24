@@ -442,7 +442,7 @@ expect(($stalled['quality']['escalation']['decision']??null)==='engineering_bloc
     $stalled['stageStatus']['browserQa']==='blocked' &&
     $stalled['stageStatus']['compilation']==='passed',
     'Stalled QA did not communicate accurate blocker to Boss');
-expect($stalled['surgery']['qaAccepted']??0===0,
+expect(($stalled['surgery']['qaAccepted']??0)===0,
     'Stalled repairs unexpectedly changed accepted working artifact');
 unset($GLOBALS['stall_test']);
 // New helper-level assertions for protected sibling edits and review propagation.
