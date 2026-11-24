@@ -69,5 +69,5 @@ function syndamorph_production_task_context(string $role,string $task): string {
     $s=syndamorph_production_standards();
     $skills=in_array($task,array('validation','revision_validation'),true)?'validator':$role;
     return 'Task: '.$task.'. Skills: '.($s['skills'][$skills]??'').
-        '\nPerform only the assigned task. Apply criteria silently except during QA. Keep reports compact. Do not generate artifacts in planning or design. In QA, distinguish actionable section defects from host responsibilities and unsupported capabilities. JSON requests must return only JSON.';
+        ($task==='designer'||$task==='design_correction' ? '\nDesigner owns the scoped HTML/CSS visual reference. Return HTML only, with no scripts or external dependencies.' : '\nPerform only the assigned task. Keep reports compact. Do not generate artifacts in planning. In QA, distinguish actionable defects from host responsibilities. JSON requests must return only JSON.');
 }
