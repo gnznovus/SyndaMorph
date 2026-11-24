@@ -28,6 +28,18 @@ function syndamorph_collab_ids(array $plan): array {
     $walk($plan['blocks'], 'blocks');
     return $plan;
 }
+function syndamorph_collab_validate_ids(array $plan) {
+    $ids=array();$duplicate=false;
+    $walk=static function(array $nodes)use(&$walk,&$ids,&$duplicate):void {
+        foreach($nodes as $node) {
+            if(!is_array($node)||!is_string($node['id']??null)||isset($ids[$node['id']])){$duplicate=true;return;}
+            $ids[$node['id']]=true;
+            if(is_array($node['children']??null))$walk($node['children']);
+        }
+    };
+    $walk($plan['blocks']??array());
+    return $duplicate?new WP_Error('sm_component_identity','Duplicate or invalid component IDs in native plan.'):true;
+}
 /** Direct node fingerprints exclude children; parent style changes invalidate descendants. */
 function syndamorph_collab_fingerprints(array $plan): array {
     $result=array();
@@ -73,6 +85,8 @@ function syndamorph_collab_patch(array $plan, array $patch) {
     }
     $before = $target;
     $target = $patch['replacement'];
+    $unique=syndamorph_collab_validate_ids($plan);
+    if(is_wp_error($unique)){$target=$before;return $unique;}
     $compiled = syndamorph_compile_block_plan(wp_json_encode($plan));
     if (is_wp_error($compiled)) { $target = $before; return $compiled; }
     return array('plan'=>$plan,'artifact'=>$compiled);
@@ -221,6 +235,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $plan=json_decode($developer,true);
     if (!is_array($plan)) return new WP_Error('sm_block_plan_invalid','Developer did not return valid block plan JSON.');
     $plan=syndamorph_collab_ids($plan);
+    $unique=syndamorph_collab_validate_ids($plan);
+    if(is_wp_error($unique))return $unique;
     $artifact=syndamorph_compile_block_plan(wp_json_encode($plan));
     if (is_wp_error($artifact)) return $artifact;
     $outputs['developer']=wp_json_encode($plan);
