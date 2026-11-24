@@ -254,9 +254,12 @@
             const finishedTask=data.task || data.role;
             if (requiredTasks().includes(finishedTask) && !completedRoles.has(finishedTask)) { completedRoles.add(finishedTask); completed++; }
             text(handoffs, completed + ' / ' + requiredTasks().length + ' initial tasks completed');
+        } else if (type === 'schema_repair') {
+            const item=document.createElement('li');item.className='sm-team-step';
+            item.textContent='Schema repair '+data.attempt+' · '+data.status+' · '+(data.field||'')+(data.message?' · '+data.message:'');timeline.append(item);
         } else if (type === 'revision') {
             const item=document.createElement('li');item.className='sm-team-step';
-            item.textContent='Revision '+data.round+' · '+data.id+' · '+(data.accepted?'Accepted':'Not accepted')+' · findings '+data.before+' → '+data.after;
+            item.textContent='Revision '+data.round+' · '+data.id+' · '+(data.accepted?'Accepted':data.status==='duplicate'?'Duplicate skipped':'Not accepted')+(Number.isFinite(data.before)&&Number.isFinite(data.after)?' · findings '+data.before+' → '+data.after:'')+(data.detail?' · '+data.detail:'');
             timeline.append(item);
         } else if (type === 'job_error') {
             showFailure(data);
@@ -268,7 +271,7 @@
             text(job, data.status === 'uncompleted' ? 'Uncompleted' : data.status === 'needs_review' ? 'Review needed' : 'Generated');
             text(output, 'Review output');
             text(notice, 'Production finished. Review every agent output; nothing was published.');
-            setFeed(initialRoles().length+' initial tasks finished · '+(data.status || 'review'), data.status === 'uncompleted' ? 'error' : 'success');
+            setFeed(requiredTasks().length+' initial tasks finished · '+(data.status || 'review'), data.status === 'uncompleted' ? 'error' : 'success');
             setReview(data.status === 'uncompleted' ? 'Production uncompleted · best artifact preserved' : 'Generation complete · review required',
                 data.quality ? 'Browser and vision evidence recorded. WordPress editor validation remains pending.' : 'AI output is available below; visual fidelity remains unverified.');
             appendReport(data);
