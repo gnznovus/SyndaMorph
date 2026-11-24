@@ -123,6 +123,23 @@
         }
         if(final?.referenceHtml) section('HTML design reference',final.referenceHtml,'html');
         if(final?.quality) section('QA findings and revision history',JSON.stringify(final.quality,null,2),'json').open=true;
+        if (final?.quality?.evidence) {
+            const gallery=node('details',undefined,'sm-team-ai-agent-output');
+            gallery.append(node('summary','Recorded QA screenshots'));
+            for (const kind of ['reference','native']) {
+                for (const sample of final.quality.evidence[kind] || []) {
+                    if (!sample.screenshot || !/^[A-Za-z0-9+/=]+$/.test(sample.screenshot)) continue;
+                    const figure=node('figure');
+                    const img=node('img');
+                    img.alt=kind+' screenshot at '+sample.width+'px';
+                    img.src='data:image/jpeg;base64,'+sample.screenshot;
+                    img.loading='lazy';img.style.maxWidth='100%';
+                    figure.append(img,node('figcaption',kind+' · '+sample.width+'px'));
+                    gallery.append(figure);
+                }
+            }
+            detail.append(gallery);
+        }
         if(final?.usage) section('Metrics and validation',JSON.stringify({usage:final.usage,agentMetrics:final.agentMetrics,checks:final.checks,estimatedCostUsd:final.estimatedCostUsd,elapsedMs:final.elapsedMs},null,2),'html');
         section('Recorded event metadata',JSON.stringify(events.filter(e=>e.type!=='agent_delta').map(e=>({type:e.type,at:e.at,role:e.data?.role})),null,2),'html');
         detail.scrollIntoView({block:'nearest'});
