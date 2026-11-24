@@ -247,13 +247,42 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON, preserving content and visual intent. Return JSON only. Use stable unique ids on each node, and do not invent unsupported styles. '.syndamorph_block_plan_contract(),
         array('brief'=>$brief,'design'=>$designer,'reference'=>$reference),9000);
     if (is_wp_error($developer)) return $developer;
-    $plan=json_decode($developer,true);
-    if (!is_array($plan)) return new WP_Error('sm_block_plan_invalid','Developer did not return valid block plan JSON.');
-    $plan=syndamorph_collab_ids($plan);
-    $unique=syndamorph_collab_validate_ids($plan);
-    if(is_wp_error($unique))return $unique;
-    $artifact=syndamorph_compile_block_plan(wp_json_encode($plan));
-    if (is_wp_error($artifact)) return $artifact;
+    // Recover model-generated schema mistakes without restarting production.
+    // Never bypass the compiler or send rejected markup to the renderer.
+    $compilePlan=static function(string $raw) {
+        $plan=json_decode($raw,true,32);
+        if(!is_array($plan)||!is_array($plan['blocks']??null)) return new WP_Error('sm_block_plan_invalid','Expected valid native plan JSON.',array('field'=>'plan'));
+        $plan=syndamorph_collab_ids($plan);
+        $unique=syndamorph_collab_validate_ids($plan);
+        if(is_wp_error($unique))return $unique;
+        $artifact=syndamorph_compile_block_plan(wp_json_encode($plan));
+        return is_wp_error($artifact)?$artifact:array('plan'=>$plan,'artifact'=>$artifact);
+    };
+    $compiled=$compilePlan($developer);
+    for($attempt=1;is_wp_error($compiled)&&$attempt<=3;$attempt++) {
+        $error=$compiled;
+        $details=(array)$error->get_error_data();
+        $diagnostic=array('code'=>$error->get_error_code(),'message'=>$error->get_error_message(),'field'=>$details['field']??'plan');
+        if(!in_array($diagnostic['code'],array('sm_block_plan_invalid','sm_component_identity'),true))break;
+        if($on_event)$on_event('schema_repair',array_merge($diagnostic,array('attempt'=>$attempt,'status'=>'required','role'=>'developer')));
+        $repairContext=array('rejectedPlan'=>$developer,'diagnostic'=>$diagnostic);
+        // Preserve the 20% reserve and use the same conservative admission check as generation.
+        $estimate=((ceil(strlen(wp_json_encode($repairContext))/3)+4096)*$in+16384*$out)/1000000;
+        if(syndamorph_collab_cost($usage,$in,$out)+$estimate>$cutoff) {
+            $compiled=new WP_Error('sm_team_budget','Schema correction would exceed the 80% repair budget.',array('field'=>$diagnostic['field'],'stage'=>'budget','role'=>'developer','task'=>'schema_repair','completedCalls'=>$calls));
+            break;
+        }
+        $corrected=$call('developer','Acknowledge the compiler diagnostic by correcting the rejected plan. Return the entire corrected JSON plan only, preserving all valid content, component IDs and design. Fix all schema violations, not just the first reported field. '.syndamorph_block_plan_contract(),$repairContext,16384,array(),'schema_repair');
+        if(is_wp_error($corrected)){$compiled=$corrected;break;}
+        $developer=$corrected;
+        $compiled=$compilePlan($developer);
+        if($on_event)$on_event('schema_repair',array('attempt'=>$attempt,'status'=>is_wp_error($compiled)?'rejected':'resolved','role'=>'developer','field'=>$diagnostic['field']));
+    }
+    if(is_wp_error($compiled)) {
+        $details=(array)$compiled->get_error_data();
+        return new WP_Error($compiled->get_error_code(),$compiled->get_error_message(),array_merge(array('stage'=>'compilation','role'=>'developer','task'=>'developer','completedCalls'=>$calls,'generationCompleted'=>true),$details));
+    }
+    $plan=$compiled['plan'];$artifact=$compiled['artifact'];
     $outputs['developer']=wp_json_encode($plan);
     $inspectReference=syndamorph_collab_inspect($reference);
     $inspectNative=syndamorph_collab_inspect($artifact['preview']);
