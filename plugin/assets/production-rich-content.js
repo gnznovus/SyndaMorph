@@ -158,14 +158,14 @@
     }
     function mount(parent, kind='markdown') {
         const toolbar=el('div');toolbar.className='sm-rich-toolbar';
-        const toggle=el('button',kind==='html'?'Formatted':'Raw');toggle.type='button';
+        const toggle=el('button',(kind==='html'||kind==='json')?'Formatted':'Raw');toggle.type='button';
         const content=el('div');content.className='sm-rich-content';
         toolbar.append(toggle);parent.append(toolbar,content);
-        let value='',raw=kind==='html',done=false,timer=null;
+        let value='',raw=(kind==='html'||kind==='json'),done=false,timer=null;
         function paint() {
             timer=null;
             toggle.textContent=raw?'Rendered':'Raw';
-            content.replaceChildren(raw?el('pre',value):kind==='html'?codeBlock(value,'html',done):markdown(value,done));
+            content.replaceChildren(raw?el('pre',value):(kind==='html'||kind==='json')?codeBlock(value,kind,done):markdown(value,done));
         }
         toggle.addEventListener('click',()=>{raw=!raw;if(timer!==null)clearTimeout(timer);paint();});
         return {
