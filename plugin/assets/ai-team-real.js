@@ -27,7 +27,9 @@
     let replaying = false;
     const messages = new Map();
     const reportRenderers = [];
-    const clearReports = () => { reportRenderers.splice(0).forEach(renderer => renderer.destroy()); results.replaceChildren(); };
+    let exportControl = null;
+    let exportReceipts = [];
+    const clearReports = () => { if (exportControl) exportControl.destroy(); exportControl = null; reportRenderers.splice(0).forEach(renderer => renderer.destroy()); results.replaceChildren(); };
     const clearMessages = () => { messages.forEach(message => message.renderer.destroy()); messages.clear(); };
     const text = (node, value) => { if (node) node.textContent = value; };
     const tab = name => {
@@ -118,6 +120,9 @@
             Object.keys(data.checks || {}).length +
             '. No Gutenberg conversion, browser QA, or publishing has occurred.';
         results.append(checks);
+        if (typeof data.outputs?.developer === 'string') {
+            exportControl = window.SyndaMorphAIExport.mount(results, {html:data.outputs.developer, identity:currentIdentity, receipts:exportReceipts});
+        }
     }
     function onEvent(type, data) {
         if (type === 'ready') {
@@ -128,6 +133,7 @@
             }
             setFeed('Connected · waiting for Boss', 'running');
         } else if (type === 'job_title' && currentIdentity) {
+            currentIdentity = {...currentIdentity, title:data.title};
             const label = currentIdentity.jobId + ' : ' + data.title;
             text(current, label); text(title, label);
         } else if (type === 'agent_start' && roles.includes(data.role)) {
@@ -200,7 +206,7 @@
         if (!finished) throw new Error('Stream disconnected before completion; some provider calls may have been billed.');
     }
     root.addEventListener('syndamorph-team-reset', () => {
-        if (running || replaying) return;
+        if (running || replaying || exportControl?.busy()) return;
         clearReports();
         results.hidden = true;
         clearMessages();
@@ -210,7 +216,7 @@
     window.SyndaMorphProductionReplay = Object.freeze({
         busy: () => running || replaying,
         async replay(record, animated = false) {
-            if (running || replaying) throw new Error('A production job is already active.');
+            if (running || replaying || exportControl?.busy()) throw new Error('A production job is already active.');
             replaying = true;
             run.disabled = true;
             if (reset) reset.disabled = true;
@@ -218,6 +224,7 @@
                 clearMessages(); clearReports(); timeline.replaceChildren();
                 results.hidden = true; completed = 0;
                 currentIdentity = record;
+                exportReceipts = (record.events || []).filter(e => e.type === 'export_receipt').map(e => e.data);
                 roles.forEach(role => setAgent(role, 'idle'));
                 text(current, record.jobId + ' : ' + record.title);
                 text(title, record.jobId + ' : ' + record.title);
@@ -253,7 +260,7 @@
         }
     });
     run.addEventListener('click', async () => {
-        if (running || replaying) return;
+        if (running || replaying || exportControl?.busy()) return;
         const prompt = brief.value.trim();
         if (prompt.length < 12 || prompt.length > 2000) {
             text(notice, 'Enter a production brief between 12 and 2000 characters.');
@@ -270,6 +277,7 @@
         timeline.replaceChildren();
         roles.forEach(role => setAgent(role, 'idle'));
         currentIdentity = null;
+        exportReceipts = [];
         text(current, 'Allocating production job…');
         text(title, 'Allocating production job…');
         text(job, 'Running');
