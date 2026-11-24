@@ -66,7 +66,17 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    if (!empty($GLOBALS['revision_test'])) {
+    if (!empty($GLOBALS['surgery_test'])) {
+        $text=match($i) {
+            1 => 'Job title: Surgical recovery fixture',
+            2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
+            3 => '{"decision":"approved","issues":[]}',
+            4 => $GLOBALS['native_fixture'],
+            5 => '{"id":"blocks[0]","changes":[{"path":"style.background","op":"remove"},{"path":"style.gradient","value":"linear-gradient(135deg,#18283a,#203040)"}]}',
+            6 => '{"issues":[],"summary":"No measured defects"}',
+            default => throw new RuntimeException('Unexpected surgery paid model call '.$i),
+        };
+    } elseif (!empty($GLOBALS['revision_test'])) {
         $text=match($i) {
             1 => 'Job title: Hotel hero',
             2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
@@ -276,6 +286,36 @@ expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($badStyle))),'Un
 $badStyle=$richPlan;
 $badStyle['blocks'][0]['style']['gradient']='linear-gradient(135deg,#000000,red)';
 expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($badStyle))),'Unsafe native gradient accepted');
+
+expect(in_array('playwright.inspect',syndamorph_production_tool_grants('boss'),true)
+    && in_array('playwright.inspect',syndamorph_production_tool_grants('designer'),true)
+    && in_array('playwright.inspect',syndamorph_production_tool_grants('developer'),true),
+    'Playwright not shared across authorized roles');
+expect(is_wp_error(syndamorph_production_tool('anonymous','playwright.inspect',array('html'=>'<section></section>'))),
+    'Untrusted actor received shared tool access');
+expect(is_wp_error(syndamorph_production_tool('designer','compiler.patch',array())),
+    'Designer received Developer-only native patch authority');
+$validBefore=$GLOBALS['native_fixture'];
+$GLOBALS['native_fixture']=str_replace('"background":"#18283a"',
+    '"background":"linear-gradient(135deg,#18283a,#203040)"',$validBefore);
+$GLOBALS['surgery_test']=true;
+$GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
+$case=syndamorph_team_real_run('Recover one invalid background without regenerating the entire plan.',false,null,'gutenberg');
+expect(!is_wp_error($case),'GEN-012-style compiler surgery failed: '.(is_wp_error($case)?$case->get_error_message():'unknown'));
+expect(count($GLOBALS['generations'])===6,'Surgery should require one paid field patch, not full-plan retries');
+expect($case['surgery']['paidPatches']===1&&$case['surgery']['fullRegenerations']===0,
+    'Surgery metrics do not distinguish patch calls from full generations');
+expect($case['surgery']['repairs'][0]['accepted']&&$case['surgery']['repairs'][0]['compiled'],
+    'Surgical correction did not compile');
+expect(str_contains($case['artifact']['content'],'linear-gradient(135deg')&&
+    str_contains($case['artifact']['content'],'Welcome &amp; enjoy'),
+    'Compiled surgical plan lost the gradient or original content');
+$persisted=syndamorph_surgery_load($case['surgery']['workingPlanId']);
+expect(is_array($persisted)&&$persisted['revision']===2,
+    'Resolved surgical plan was not persisted as a second draft revision');
+unset($GLOBALS['surgery_test']);
+$GLOBALS['native_fixture']=$validBefore;
+
 expect(str_contains($ui,'syndamorph-team-output-type'),'Output selector missing');
 $export=file_get_contents(dirname(__DIR__).'/plugin/assets/production-ai-export.js');
 expect(str_contains($export,'native ? activeArtifact : await window.SyndaMorphConverter.prepareImport'),'Native export must bypass manual conversion');
