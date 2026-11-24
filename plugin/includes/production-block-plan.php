@@ -3,7 +3,7 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 function syndamorph_block_plan_contract(): string {
-    return 'Return a JSON object {"version":1,"blocks":[...]} with exactly one root group. Each node has type, a stable unique id and optional style. Supported nodes: group (children), columns (children of type column, 2–4), column (children), heading (text, level 1–6), paragraph (text), buttons (children of type button), button (text, href: #fragment or /local-path). Only group/column may contain ordinary content blocks. Styles: color, background (hex RGB), fontSize, padding (all sides), gap (group/columns/buttons), align (heading/paragraph: left/center/right), all lengths positive px/rem/em or clamp(length,length,length) with vw allowed. Use a heading and meaningful CTA. No HTML, arbitrary CSS, remote URLs, custom blocks or invented attributes. Use native columns mobile stacking; no fixed widths. Example {"version":1,"blocks":[{"type":"group","style":{"background":"#18283a","padding":"clamp(2rem,5vw,5rem)"},"children":[{"type":"heading","level":2,"text":"Welcome","style":{"color":"#ffffff","fontSize":"clamp(2rem,5vw,4rem)"}},{"type":"paragraph","text":"Discover our hotel","style":{"color":"#ffffff"}},{"type":"buttons","children":[{"type":"button","text":"Explore","href":"#explore"}]}]}]}.';
+    return 'Return a JSON object {"version":1,"blocks":[...]} with exactly one root group. Each node has type, a stable unique id and optional style. Supported nodes: group (children), columns (children of type column, 2–4), column (children), heading (text, level 1–6), paragraph (text), buttons (children of type button), button (text, href: #fragment or /local-path). Only group/column may contain ordinary content blocks. Styles: color, background (six-digit hex), fontSize, fontWeight (100–900), lineHeight (1–2.5), letterSpacing (px/rem/em), padding (single length or object with top/right/bottom/left lengths on group/column/button), margin (single length or sides on heading/paragraph), gap (group/columns/buttons), borderRadius (button), align (heading/paragraph left/center/right). All lengths positive px/rem/em or clamp(length,length,length) with vw allowed. Use a heading and meaningful CTA. No HTML, arbitrary CSS, remote URLs, custom blocks or invented attributes. Use native columns mobile stacking; no fixed widths. Example {"version":1,"blocks":[{"type":"group","style":{"background":"#18283a","padding":"clamp(2rem,5vw,5rem)"},"children":[{"type":"heading","level":2,"text":"Welcome","style":{"color":"#ffffff","fontSize":"clamp(2rem,5vw,4rem)"}},{"type":"paragraph","text":"Discover our hotel","style":{"color":"#ffffff"}},{"type":"buttons","children":[{"type":"button","text":"Explore","href":"#explore"}]}]}]}.';
 }
 
 function syndamorph_compile_block_plan( string $raw ) {
@@ -39,7 +39,7 @@ function syndamorph_compile_block_plan( string $raw ) {
             if ( ! is_array($style) ) { throw new InvalidArgumentException('Invalid style.'); }
             $attrs = array(); $css = array(); $classes = array();
             if ( $type !== 'paragraph' ) { $classes[] = 'wp-block-' . $type; }
-            if ( $type === 'group' ) { $attrs['layout'] = array('type'=>'default'); }
+            if ( $type === 'group' ) { $attrs['layout'] = array('type'=>'flex','orientation'=>'vertical'); }
             foreach ( $style as $key=>$value ) {
                 $field = $path . '.style.' . preg_replace('/[^a-zA-Z0-9_-]/', '?', substr((string)$key,0,64));
                 if ( in_array($key,array('color','background'),true) && in_array($type,array('group','column','heading','paragraph','button'),true) ) {
@@ -49,10 +49,24 @@ function syndamorph_compile_block_plan( string $raw ) {
                     $css[$key==='color'?'color':'background-color']=$value;
                 } elseif ( $key==='fontSize' && in_array($type,array('heading','paragraph','button'),true) ) {
                     $attrs['style']['typography']['fontSize']=$css['font-size']=$length($value);
-                } elseif ( $key==='padding' && in_array($type,array('group','column','button'),true) ) {
-                    foreach(array('top','right','bottom','left') as $side) { $attrs['style']['spacing']['padding'][$side]=$css['padding-'.$side]=$length($value); }
+                } elseif (in_array($key,array('padding','margin'),true) && (($key==='padding' && in_array($type,array('group','column','button'),true)) || ($key==='margin' && in_array($type,array('heading','paragraph'),true)))) {
+                    if(is_array($value)) {
+                        if (array_diff(array_keys($value),array('top','right','bottom','left')) || !count($value)) throw new InvalidArgumentException('Invalid spacing sides.');
+                        $sides=$value;
+                    } else { $sides=array_fill_keys(array('top','right','bottom','left'),$value); }
+                    foreach($sides as $side=>$v) { $attrs['style']['spacing'][$key][$side]=$css[$key.'-'.$side]=$length($v); }
+                } elseif ( $key==='fontWeight' && in_array($type,array('heading','paragraph','button'),true) ) {
+                    if(!is_string($value)||!preg_match('/^[1-9]00$/D',$value))throw new InvalidArgumentException('Invalid font weight.');
+                    $attrs['style']['typography']['fontWeight']=$value;$css['font-weight']=$value;
+                } elseif ( $key==='lineHeight' && in_array($type,array('heading','paragraph','button'),true) ) {
+                    if(!is_string($value)||!preg_match('/^(?:1(?:\\.[0-9]{1,2})?|2(?:\\.[0-5])?)$/D',$value))throw new InvalidArgumentException('Invalid unitless line height.');
+                    $attrs['style']['typography']['lineHeight']=$value;$css['line-height']=$value;
+                } elseif ( $key==='letterSpacing' && in_array($type,array('heading','paragraph','button'),true) ) {
+                    $attrs['style']['typography']['letterSpacing']=$css['letter-spacing']=$length($value);
+                } elseif ( $key==='borderRadius' && $type==='button' ) {
+                    $attrs['style']['border']['radius']=$css['border-radius']=$length($value);
                 } elseif ( $key==='gap' && in_array($type,array('group','columns','buttons'),true) ) {
-                    $attrs['style']['spacing']['blockGap']=$length($value);
+                    $attrs['style']['spacing']['blockGap']=$css['gap']=$length($value);
                 } elseif ( $key==='align' && in_array($type,array('heading','paragraph'),true) && in_array($value,array('left','center','right'),true) ) {
                     $attrs[$type==='heading'?'textAlign':'align']=$value;
                     $classes[]='has-text-align-'.$value;
@@ -102,7 +116,7 @@ function syndamorph_compile_block_plan( string $raw ) {
                 }
             };$verify(parse_blocks($content));
         }
-        $preview='<style>*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;line-height:1.5}.wp-block-columns{display:flex;gap:1.5rem}.wp-block-column{flex:1;min-width:0}.wp-block-buttons{display:flex;flex-wrap:wrap;gap:1rem}.wp-block-button__link{display:inline-block;padding:.75em 1.5em;background:#26384a;color:#fff;text-decoration:none;border-radius:4px}.has-text-align-center{text-align:center}.has-text-align-right{text-align:right}@media(max-width:781px){.wp-block-columns{flex-direction:column}}</style>'.$content;
+        $preview='<style>*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;line-height:1.5}.wp-block-group.is-layout-flex{display:flex;flex-direction:column}.wp-block-columns{display:flex;gap:1.5rem}.wp-block-column{flex:1;min-width:0}.wp-block-buttons{display:flex;flex-wrap:wrap;gap:1rem}.wp-block-button__link{display:inline-block;padding:.75em 1.5em;background:#26384a;color:#fff;text-decoration:none;border-radius:4px}.has-text-align-center{text-align:center}.has-text-align-right{text-align:right}@media(max-width:781px){.wp-block-columns{flex-direction:column}}</style>'.$content;
         return array('schemaVersion'=>1,'content'=>$content,'preview'=>$preview,'blockCount'=>$count,'checks'=>array('valid_plan'=>true,'native_blocks_only'=>true,'contains_heading'=>$headings>0,'no_active_markup'=>true));
     } catch ( InvalidArgumentException | JsonException $e ) { return new WP_Error('sm_block_plan_invalid','Native block plan rejected: '.$e->getMessage(),array('status'=>422,'field'=>$field ?? 'plan')); }
     catch ( Throwable $e ) { return new WP_Error('sm_block_plan_system','Native block compilation encountered an internal error.',array('status'=>500)); }
