@@ -19,6 +19,8 @@ on:
       - 'plugin/assets/production-rich-content.js'
       - 'plugin/assets/ai-team-real.js'
       - 'tests/real-ai-poc-test.php'
+      - 'tests/gutenberg-native-*'
+      - 'plugin/includes/production-editor-learning.php'
       - 'plugin/includes/ai-integration.php'
       - 'plugin/syndamorph.php'
       - 'plugin/assets/production-team.js'
@@ -40,6 +42,8 @@ on:
       - 'plugin/assets/production-rich-content.js'
       - 'plugin/assets/ai-team-real.js'
       - 'tests/real-ai-poc-test.php'
+      - 'tests/gutenberg-native-*'
+      - 'plugin/includes/production-editor-learning.php'
       - 'plugin/includes/ai-integration.php'
       - 'plugin/syndamorph.php'
       - 'plugin/assets/production-team.js'
@@ -103,6 +107,15 @@ jobs:
           trap 'docker rm -f syndamorph-inspection-test >/dev/null 2>&1 || true' EXIT
           for i in $(seq 1 30); do if curl -fsS -o /dev/null http://127.0.0.1:3999/ 2>/dev/null || [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3999/ 2>/dev/null)" = 404 ]; then break; fi; sleep 1; done
           node --test renderer/inspect.test.js
+      - name: Real WordPress Gutenberg serialization gate
+        run: |
+          docker compose up -d db wordpress
+          trap 'docker compose down -v' EXIT
+          for i in $(seq 1 60); do if curl -fsS -o /dev/null http://127.0.0.1:8085/wp-admin/install.php; then break; fi; sleep 2; done
+          curl -fsS -o /dev/null -X POST 'http://127.0.0.1:8085/wp-admin/install.php?step=2' --data 'weblog_title=CI&user_name=ciadmin&admin_password=ci-only-test-password&admin_password2=ci-only-test-password&admin_email=ci@example.invalid&blog_public=0&Submit=Install+WordPress'
+          docker compose cp tests/gutenberg-native-fixture.php wordpress:/var/www/html/sm-native-fixture.php
+          cd backend && npx playwright install --with-deps chromium && cd ..
+          node tests/gutenberg-native-browser.cjs
       - name: Backend runtime packaging
         run: |
           docker build -t syndamorph-mvp ./backend

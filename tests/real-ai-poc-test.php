@@ -254,7 +254,7 @@ $badStyle['blocks'][0]['style']['gradient']='linear-gradient(135deg,#000000,red)
 expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($badStyle))),'Unsafe native gradient accepted');
 expect(str_contains($ui,'syndamorph-team-output-type'),'Output selector missing');
 $export=file_get_contents(dirname(__DIR__).'/plugin/assets/production-ai-export.js');
-expect(str_contains($export,'native ? artifact : await window.SyndaMorphConverter.prepareImport'),'Native export must bypass manual conversion');
+expect(str_contains($export,'native ? activeArtifact : await window.SyndaMorphConverter.prepareImport'),'Native export must bypass manual conversion');
 $history=file_get_contents(dirname(__DIR__).'/plugin/assets/production-history.js');
 expect(str_contains($history,'artifact:final.artifact'),'Archived native artifact not passed to shared export');
 echo "PASS: native pipeline, compiler rejection cases, output selector and shared export integration\n";
@@ -347,3 +347,16 @@ expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($layoutPlan))),'
 $memory->reopen(array('heading'));
 expect($memory->eligible('heading'),'Stalled descendant not reopened after ancestor change');
 echo "PASS: GEN9 native layout, viewport height, normalization and visual context regressions\n";
+
+require_once dirname(__DIR__).'/plugin/includes/production-editor-learning.php';
+function get_bloginfo($key){return 'test-wordpress';}
+syndamorph_editor_learning_observe(10,str_repeat('a',64),'serialization','core/group');
+syndamorph_editor_learning_observe(10,str_repeat('a',64),'serialization','core/group');
+$learning=array_values(get_option('syndamorph_editor_learning_v1'))[0];
+expect($learning['occurrences']===1&&$learning['verifiedCorrections']===0,'Editor learning did not deduplicate or falsely verified a failure');
+syndamorph_editor_learning_confirm(10,str_repeat('a',64),str_repeat('b',64));
+syndamorph_editor_learning_confirm(10,str_repeat('a',64),str_repeat('b',64));
+$learning=array_values(get_option('syndamorph_editor_learning_v1'))[0];
+expect($learning['verifiedCorrections']===1&&$learning['category']==='engineering','Verified engineering correction not tracked exactly once');
+expect(!str_contains($styled['content'],'style="gap:')&&str_contains($styled['preview'],'gap:1rem'),'Native/preview gap separation failed');
+echo "PASS: persistent editor engineering observations and preview-only layout CSS\n";

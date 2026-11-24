@@ -46,7 +46,7 @@
                     throw new Error('Unknown or unsupported Gutenberg block.');
                 const check=api.validateBlock(block);
                 const valid=Array.isArray(check) ? check[0] === true : check?.isValid === true;
-                if(!valid) throw new Error('Gutenberg serialization invalid for '+block.name+' (block '+count+'). Inspect console for expected and actual save markup.');
+                if(!valid || block.isValid===false) throw new Error('Gutenberg serialization invalid for '+block.name+' (block '+count+'). Inspect console for expected and actual save markup.');
                 if (block.innerBlocks?.length) visit(block.innerBlocks);
             }
         }
@@ -117,7 +117,7 @@
                     try {
                         const verified=await post(window.SyndaMorphTeam.historyUrl+'/'+identity.id+'/validate-native',
                             {contentSha256:activeArtifact.contentSha256,valid:true,blockCount:validatedBlocks});
-                        archiveNote=verified.status==='completed' ? ' Archived job marked Completed.' : ' Editor validation recorded.';
+                        archiveNote=verified.status==='completed' ? ' Archived job marked Completed.' : ' Editor validation recorded; production quality review remains pending.';
                         if (verified.status==='completed') panel.dispatchEvent(new CustomEvent('syndamorph-native-verified',{bubbles:true,detail:{id:identity.id}}));
                     } catch (_) { archiveNote=' Archive validation could not be recorded; inspect History.'; }
                 }
