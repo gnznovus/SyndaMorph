@@ -261,7 +261,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $modelEvidence=static function(array $samples) use ($evidenceSummary):array {
         return array_map(static function(array $item):array {
             unset($item['screenshot']);
-            $item['snapshot']['elements']=array_slice($item['snapshot']['elements']??array(),0,70);
+            $item['snapshot']['elements']=array_slice($item['snapshot']['elements']??array(),0,35);
             return $item;
         },$evidenceSummary($samples));
     };
