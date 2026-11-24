@@ -73,9 +73,8 @@ function wp_remote_post($url,$args) {
             3 => '<section><h2>Welcome &amp; enjoy</h2></section>',
             4 => $GLOBALS['native_fixture'],
             5 => '{"issues":[{"id":"heading-fidelity","component":"blocks[0].children[0]","severity":"medium","detail":"Font size needs refinement"}],"summary":"Review heading"}',
-            6 => '{"designerNeeded":false,"reason":"Existing design specification sufficient"}',
-            7 => json_encode(array('id'=>'blocks[0].children[0]','replacement'=>array('id'=>'blocks[0].children[0]','type'=>'heading','text'=>'Welcome & enjoy','level'=>2,'style'=>array('color'=>'#ffffff','fontSize'=>'2.5rem')))),
-            8 => '{"issues":[]}',
+            6 => json_encode(array('id'=>'blocks[0].children[0]','replacement'=>array('id'=>'blocks[0].children[0]','type'=>'heading','text'=>'Welcome & enjoy','level'=>2,'style'=>array('color'=>'#ffffff','fontSize'=>'2.5rem')))),
+            7 => '{"issues":[]}',
             default => throw new RuntimeException('Unexpected extra paid revision call '.$i),
         };
     } else $text= !empty($GLOBALS['native_mode']) ? match($i) {
@@ -288,14 +287,14 @@ $GLOBALS['revision_test']=true;
 $GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=1.0;
 $revised=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
 expect(!is_wp_error($revised),'Targeted collaborative revision failed: '.(is_wp_error($revised)?$revised->get_error_message():'unknown'));
-expect(count($GLOBALS['generations'])===8,'Boss, Developer and scoped Validator revision should make exactly three incremental calls');
+expect(count($GLOBALS['generations'])===7,'Direct Developer and scoped QA should make exactly two incremental calls');
 expect($revised['status']==='needs_review' && count($revised['quality']['revisions'])===1 && $revised['quality']['revisions'][0]['accepted'],
     'Successful targeted revision did not resolve the issue');
 expect(str_contains($revised['artifact']['content'],'font-size:2.5rem'),'Best native artifact did not keep the repaired heading');
 expect(str_contains($revised['artifact']['content'],'A premium hotel experience.'),'Revision destroyed approved sibling');
 expect($revised['quality']['revisions'][0]['imageScope']==='component','Scoped review did not use crops');
 expect($GLOBALS['crop_calls']===1,'Crop endpoint not exercised');
-expect(!$revised['quality']['revisions'][0]['delegation']['designerNeeded'],'Boss delegated unnecessary full design work');
+expect($revised['quality']['revisions'][0]['route']==='developer' && !$revised['quality']['revisions'][0]['delegation']['designerNeeded'],'Routine repair invoked unnecessary design work');
 expect(in_array('blocks[0].children[1]',$revised['quality']['revisions'][0]['impact']['reused'],true),'Unchanged sibling evidence not reused');
 
 $GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
@@ -323,3 +322,13 @@ $compact=syndamorph_memory_measurements(array($sample),array('Heading'));
 expect(count($compact[0]['elements'])===1&&!isset($compact[0]['screenshot']),'Scoped context includes irrelevant elements or image bytes');
 expect(abs(syndamorph_collab_cost(array('inputTokens'=>100,'cacheReadTokens'=>100,'cacheWriteTokens'=>100,'outputTokens'=>100),1,2)-0.000435)<0.000000001,'Cache-aware cost arithmetic failed');
 echo "PASS: shared memory, cache prefix, scoped evidence and screenshot crops\n";
+
+expect(syndamorph_agent_scope('developer','repair')&&!syndamorph_agent_scope('designer','repair')&&!syndamorph_agent_scope('boss','delegation'),'Agent scope violation');
+expect(syndamorph_issue_score(array(array('severity'=>'high'))) > syndamorph_issue_score(array_fill(0,5,array('severity'=>'low'))),'Severity weighting failed');
+expect(count(syndamorph_issue_merge(array(array('id'=>'same','component'=>'heading','detail'=>'defect'),array('id'=>'same','component'=>'heading','detail'=>'duplicate'),array('id'=>'pass','component'=>'heading','detail'=>'pass','status'=>'resolved'))))===1,'Duplicate or resolved issue counted');
+$richPlan['blocks'][0]['children'][0]['style']['fontSize']='clamp(2rem, 1.2rem + 3.5vw, 4rem)';
+$richPlan['blocks'][0]['children'][0]['style']['letterSpacing']='-0.01em';
+expect(!is_wp_error(syndamorph_compile_block_plan(wp_json_encode($richPlan))),'GEN8 fluid typography rejected');
+$memory->record('delta',array('replacement'=>$withIds['blocks'][0],'remainingIssues'=>array(array('id'=>'example'))));
+expect(!isset($memory->feedback('delta')[0]['replacement'])&&$memory->feedback('delta')[0]['remainingIssueIds']===array('example'),'Repair memory leaks full historical node');
+echo "PASS: scope, issue registry, GEN8 compiler and compact memory regressions\n";
