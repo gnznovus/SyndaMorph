@@ -84,7 +84,7 @@ function syndamorph_history_append( int $id, string $event, array $data ): void 
         throw new RuntimeException( 'History event could not be recorded.' );
     }
     $update = array( 'updated_at' => gmdate( 'Y-m-d H:i:s' ) );
-    if ( 'job_complete' === $event ) { $update['status'] = 'needs_review' === ( $data['status'] ?? '' ) ? 'needs_review' : 'completed'; }
+    if ( 'job_complete' === $event ) { $update['status'] = in_array(( $data['status'] ?? '' ), array('uncompleted','needs_review','failed','completed'), true) ? $data['status'] : 'needs_review'; }
     if ( 'job_error' === $event ) { $update['status'] = 'failed'; }
     if ( 'job_title' === $event ) { $update['title'] = mb_substr( sanitize_text_field( (string) ( $data['title'] ?? '' ) ), 0, 200 ); }
     if ( false === $wpdb->update( $jobs, $update, array( 'id' => $id ) ) ) {
