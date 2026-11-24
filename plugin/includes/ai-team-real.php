@@ -5,6 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 require_once __DIR__ . '/production-standards.php';
 require_once __DIR__ . '/production-history.php';
 require_once __DIR__ . '/production-block-plan.php';
+require_once __DIR__ . '/production-collaboration.php';
 
 /** Safe, shared failure payload for live delivery and archive replay. */
 function syndamorph_team_failure_payload( WP_Error $error ): array {
@@ -19,6 +20,7 @@ function syndamorph_team_failure_payload( WP_Error $error ): array {
 
 function syndamorph_team_real_run( string $brief, bool $stream = true, ?callable $on_event = null, string $format = 'html' ) {
     if ( ! in_array( $format, array('html','gutenberg'), true ) ) { return new WP_Error('sm_format','Unsupported output type.',array('status'=>400)); }
+    if ('gutenberg' === $format) { return syndamorph_collab_run($brief,$stream,$on_event); }
     $artifact = null;
     $settings = syndamorph_models_settings();
     $provider = $settings['provider'] ?? '';
