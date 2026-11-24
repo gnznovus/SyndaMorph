@@ -351,6 +351,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if($diag['code']!=='sm_block_plan_invalid')break;
         $focus=syndamorph_surgery_extract($plan,$diag);
         if(!$focus)break;
+        // Record failures as observations immediately; only compiled recovery
+        // upgrades the same evidence to a verified, reusable lesson.
+        syndamorph_learning_schema($diag['field'],$diag['message'],$learningSource.':schema:'.$attempt,false);
         if($on_event)$on_event('schema_repair',array_merge($diag,array('attempt'=>$attempt,'status'=>'required','role'=>'developer')));
         $route='deterministic';
         $normal=syndamorph_surgery_normalize($plan,$diag);
