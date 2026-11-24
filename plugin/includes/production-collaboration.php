@@ -28,6 +28,39 @@ function syndamorph_collab_ids(array $plan): array {
     $walk($plan['blocks'], 'blocks');
     return $plan;
 }
+/** Direct node fingerprints exclude children; parent style changes invalidate descendants. */
+function syndamorph_collab_fingerprints(array $plan): array {
+    $result=array();
+    $walk=static function(array $nodes,?string $parent)use(&$walk,&$result):void {
+        foreach($nodes as $node) {
+            if(!is_array($node) || !is_string($node['id']??null)) continue;
+            $own=$node;unset($own['children']);
+            $result[$node['id']]=array('hash'=>hash('sha256',wp_json_encode($own)),'parent'=>$parent);
+            if(is_array($node['children']??null)) $walk($node['children'],$node['id']);
+        }
+    };
+    $walk($plan['blocks'],null);
+    return $result;
+}
+function syndamorph_collab_impact(array $before,array $after): array {
+    $old=syndamorph_collab_fingerprints($before);
+    $new=syndamorph_collab_fingerprints($after);
+    $changed=array();
+    foreach(array_unique(array_merge(array_keys($old),array_keys($new))) as $id) {
+        if(!isset($old[$id],$new[$id]) || $old[$id]['hash']!==$new[$id]['hash'] || $old[$id]['parent']!==$new[$id]['parent'])$changed[$id]=true;
+    }
+    $affected=$changed;
+    // Only descendants of actually modified nodes are affected; sibling evidence is reusable.
+    foreach($new as $id=>$item) {
+        $parent=$item['parent'];
+        while($parent!==null) {
+            if(isset($changed[$parent])){$affected[$id]=true;break;}
+            $parent=$new[$parent]['parent']??null;
+        }
+    }
+    $reusable=array_values(array_diff(array_keys($new),array_keys($affected)));
+    return array('changed'=>array_keys($changed),'affected'=>array_keys($affected),'reused'=>$reusable);
+}
 /** Only existing component IDs can be replaced; siblings and approved subtrees are retained. */
 function syndamorph_collab_patch(array $plan, array $patch) {
     if (array_keys($patch) !== array('id','replacement') || !is_string($patch['id']) || !is_array($patch['replacement'])) {
@@ -262,13 +295,15 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if (!is_array($patch)) { $revisions[]=array('round'=>$round,'status'=>'rejected','detail'=>'Invalid JSON patch');continue; }
         $candidate=syndamorph_collab_patch($plan,$patch);
         if (is_wp_error($candidate)) { $revisions[]=array('round'=>$round,'status'=>'rejected','detail'=>$candidate->get_error_message());continue; }
+        $impact=syndamorph_collab_impact($plan,$candidate['plan']);
         $newEvidence=syndamorph_collab_inspect($candidate['artifact']['preview']);
         if (is_wp_error($newEvidence)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Browser revalidation unavailable');break; }
         // Root/ancestor changes affect all descendants. Reinspect all widths, but avoid additional full-model review.
         $newComparison=syndamorph_collab_compare($inspectReference,$newEvidence);
         if(is_wp_error($newComparison)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Pixel comparison unavailable');break; }
         $newIssues=array_merge(syndamorph_collab_evidence($inspectReference,$newEvidence),syndamorph_collab_style_findings($inspectReference,$newEvidence,$candidate['plan']));
-        $otherIssues=array_values(array_filter($issues,static fn($issue)=>($issue['component']??'')!==$id));
+        $affected=array_fill_keys($impact['affected'],true);
+        $otherIssues=array_values(array_filter($issues,static fn($issue)=>!isset($affected[$issue['component']??''])));
         $scopedScreenshots=array();
         foreach(array(0,2) as $viewport) {
             foreach(array($inspectReference,$newEvidence) as $samples) {
@@ -280,7 +315,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $targetReview=$call('validator',
             'Inspect ONLY the changed component and affected descendants using the four browser screenshots. Compare against reference. Return JSON {"issues":[{"id":"...","component":"existing id","severity":"high|medium|low","detail":"..."}]}. Do not re-review approved siblings.',
             array('id'=>$id,'changedComponent'=>syndamorph_collab_find($candidate['plan']['blocks'],$id),
-                'previousIssues'=>array_values(array_filter($issues,static fn($issue)=>($issue['component']??'')===$id)),
+                'previousIssues'=>array_values(array_filter($issues,static fn($issue)=>isset($affected[$issue['component']??'']))),
+                'impact'=>$impact,
                 'measurements'=>$evidenceSummary($newEvidence),'pixelComparison'=>$newComparison,'imageOrder'=>array('desktop-reference','desktop-updated','mobile-reference','mobile-updated')),2400,$scopedScreenshots);
         if (is_wp_error($targetReview)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Scoped visual validation unavailable');break; }
         $parsedTarget=json_decode($targetReview,true);
@@ -301,7 +337,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $oldPixel=array_sum(array_column($comparison,'pixelDifferenceRatio'))/3;
         $newPixel=array_sum(array_column($newComparison,'pixelDifferenceRatio'))/3;
         $accepted=($newScore<$oldScore || ($newScore===$oldScore && $newPixel<$oldPixel)) && $newPixel<=$oldPixel+0.08;
-        $revisions[]=array('round'=>$round,'id'=>$id,'delegation'=>array('designerNeeded'=>$delegated['designerNeeded'],'reason'=>mb_substr((string)($delegated['reason']??''),0,160)),'accepted'=>$accepted,'before'=>$oldScore,'after'=>$newScore,'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
+        $revisions[]=array('round'=>$round,'id'=>$id,'delegation'=>array('designerNeeded'=>$delegated['designerNeeded'],'reason'=>mb_substr((string)($delegated['reason']??''),0,160)),'impact'=>$impact,'accepted'=>$accepted,'before'=>$oldScore,'after'=>$newScore,'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
         if($accepted) {
             $plan=$candidate['plan'];$artifact=$candidate['artifact'];$inspectNative=$newEvidence;$comparison=$newComparison;
             $issues=$newIssues;
