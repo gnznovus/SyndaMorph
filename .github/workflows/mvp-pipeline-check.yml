@@ -9,6 +9,7 @@ on:
       - 'plugin/includes/production-standards.php'
       - 'plugin/includes/production-history.php'
       - 'plugin/assets/production-history.js'
+      - 'plugin/assets/production-ai-export.js'
       - 'plugin/includes/ai-team-real.php'
       - 'plugin/assets/production-rich-content.js'
       - 'plugin/assets/ai-team-real.js'
@@ -28,6 +29,7 @@ on:
       - 'plugin/includes/production-standards.php'
       - 'plugin/includes/production-history.php'
       - 'plugin/assets/production-history.js'
+      - 'plugin/assets/production-ai-export.js'
       - 'plugin/includes/ai-team-real.php'
       - 'plugin/assets/production-rich-content.js'
       - 'plugin/assets/ai-team-real.js'
@@ -57,6 +59,7 @@ jobs:
           php -l plugin/includes/production-standards.php
           php -l plugin/includes/production-history.php
           node --check plugin/assets/production-history.js
+          node --check plugin/assets/production-ai-export.js
           php -l plugin/includes/ai-models.php
           php -l plugin/includes/ai-team-real.php
           php tests/real-ai-poc-test.php
