@@ -45,13 +45,18 @@ function syndamorph_surgery_apply(array $plan,array $proposal) {
     foreach($proposal['changes'] as $change){
         if(!is_array($change)||!is_string($change['path']??null)||
             !preg_match('/^style\\.([a-zA-Z]+)(?:\\.(top|right|bottom|left))?$/D',$change['path'],$m)||
-            !in_array($m[1],$allowed,true)||!array_key_exists('value',$change)||
+            !in_array($m[1],$allowed,true)||
+            !in_array($change['op']??'set',array('set','remove'),true)||
+            (($change['op']??'set')==='set'&&!array_key_exists('value',$change))||
             (isset($m[2])&&!in_array($m[1],array('padding','margin'),true)))
             return new WP_Error('sm_surgery_scope','Surgery may only update supported style properties.');
+        $remove=($change['op']??'set')==='remove';
         if(isset($m[2])){
             if(!is_array($target['style'][$m[1]]??null))return new WP_Error('sm_surgery_scope','Side edits require existing spacing object.');
-            $target['style'][$m[1]][$m[2]]=$change['value'];
-        } else $target['style'][$m[1]]=$change['value'];
+            if($remove)unset($target['style'][$m[1]][$m[2]]);
+            else $target['style'][$m[1]][$m[2]]=$change['value'];
+        }elseif($remove)unset($target['style'][$m[1]]);
+        else $target['style'][$m[1]]=$change['value'];
     }
     if(syndamorph_repair_content_signature($before)!==syndamorph_repair_content_signature($target))
         return new WP_Error('sm_surgery_content','Surgical patch changed protected content.');
