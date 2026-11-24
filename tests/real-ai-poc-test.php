@@ -35,6 +35,10 @@ function wp_remote_get($url,$args) {
     ),'has_more'=>false)) );
 }
 function wp_remote_post($url,$args) {
+    if ($url === 'http://renderer:3000/compare') {
+        return array('status'=>200,'body'=>json_encode(array('comparison'=>array_map(
+            static fn($width)=>array('width'=>$width,'pixelDifferenceRatio'=>0.15,'meanChannelDifference'=>5.0,'sampledPixels'=>100),array(1440,768,390)))));
+    }
     if ($url === 'http://renderer:3000/inspect') {
         $input=json_decode($args['body'],true);
         $native=str_contains($input['html'],'<!-- wp:');
@@ -77,6 +81,7 @@ function wp_remote_post($url,$args) {
         'usage'=>array('input_tokens'=>1200,'output_tokens'=>150),
     )));
 }
+putenv('SYNDAMORPH_RENDERER_URL=http://renderer:3000/render');
 require dirname(__DIR__) . '/plugin/includes/ai-models.php';
 require dirname(__DIR__) . '/plugin/includes/ai-team-real.php';
 function expect($ok,$message) { if(!$ok) throw new RuntimeException($message); }
@@ -202,6 +207,7 @@ expect(count($GLOBALS['generations'])===5,'Native job must execute five initial 
 expect($GLOBALS['inspection_calls']===array('reference','native'),'Both browser artifacts must be inspected');
 expect(count($GLOBALS['generations'][4]['messages'][0]['content'])===5,'Vision validator must receive text and four screenshots');
 expect($native['quality']['browserInspected']===true && $native['quality']['visionInspected']===true,'Browser and vision evidence not recorded');
+expect(count($native['quality']['pixelComparison'])===3,'Real pixel-comparison metrics not recorded');
 expect($native['status']==='needs_review','Unverified Gutenberg editor must not be auto-approved');
 expect(str_contains($GLOBALS['generations'][3]['system'],'JSON'),'Native developer contract missing');
 foreach(array(
