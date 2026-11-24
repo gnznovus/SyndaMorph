@@ -37,38 +37,91 @@ function syndamorph_surgery_extract(array $plan,array $diagnostic): ?array {
         'node'=>$local,'childCount'=>$childCount);
 }
 /** Only native style attributes are patchable; content, IDs and siblings are immutable. */
+/**
+ * Field-only transaction. QA may edit a descendant of an issue-owning group,
+ * but never a node outside that group's existing subtree.
+ */
 function syndamorph_surgery_apply(array $plan,array $proposal) {
-    if(!is_string($proposal['id']??null)||!is_array($proposal['changes']??null)||
-        count($proposal['changes'])<1||count($proposal['changes'])>8)return new WP_Error('sm_surgery_contract','Expected {id,changes:[{path,value}]} with at most eight changes.');
-    $target=&syndamorph_collab_find($plan['blocks'],$proposal['id']);
-    if($target===null)return new WP_Error('sm_surgery_target','Component not found.');
-    $before=$target;
+    $owner=$proposal['id']??null;$changes=$proposal['changes']??null;
+    if(!is_string($owner)||!is_array($changes)||!array_is_list($changes)||
+        count($changes)<1||count($changes)>8)
+        return new WP_Error('sm_surgery_contract','Expected {id,changes:[{path,value,target?}]} with at most eight changes.');
+    $base=$plan;
+    $scope=syndamorph_collab_find($plan['blocks'],$owner);
+    if($scope===null)return new WP_Error('sm_surgery_target','Assigned repair component not found.');
     $allowed=array('color','background','gradient','fontSize','fontWeight','lineHeight','letterSpacing',
         'padding','margin','gap','minHeight','contentWidth','justifyContent','verticalAlignment','align','borderRadius');
-    foreach($proposal['changes'] as $change){
+    $touches=array();
+    foreach($changes as $change){
         if(!is_array($change)||!is_string($change['path']??null)||
             !preg_match('/^style\\.([a-zA-Z]+)(?:\\.(top|right|bottom|left))?$/D',$change['path'],$m)||
             !in_array($m[1],$allowed,true)||
             !in_array($change['op']??'set',array('set','remove'),true)||
             (($change['op']??'set')==='set'&&!array_key_exists('value',$change))||
             (isset($m[2])&&!in_array($m[1],array('padding','margin'),true)))
-            return new WP_Error('sm_surgery_scope','Surgery may only update supported style properties.');
+            return new WP_Error('sm_surgery_scope','Surgery may only update supported native style properties.');
+        $id=$change['target']??$owner;
+        if(!is_string($id))return new WP_Error('sm_surgery_scope','Invalid patch target.');
+        // Resolve against the assigned subtree first; global lookup alone would
+        // allow unrelated siblings and approved design components to be edited.
+        $within=array($scope);
+        if(syndamorph_collab_find($within,$id)===null)
+            return new WP_Error('sm_surgery_scope','Patch target escapes assigned component subtree.');
+        $target=&syndamorph_collab_find($plan['blocks'],$id);
+        if($target===null)return new WP_Error('sm_surgery_target','Patch target missing.');
         $remove=($change['op']??'set')==='remove';
         if(isset($m[2])){
-            if(!is_array($target['style'][$m[1]]??null))return new WP_Error('sm_surgery_scope','Side edits require existing spacing object.');
+            if(!is_array($target['style'][$m[1]]??null))
+                return new WP_Error('sm_surgery_scope','Side edits require existing spacing object.');
             if($remove)unset($target['style'][$m[1]][$m[2]]);
             else $target['style'][$m[1]][$m[2]]=$change['value'];
         }elseif($remove)unset($target['style'][$m[1]]);
         else $target['style'][$m[1]]=$change['value'];
+        $touches[$id]=true;
+        unset($target);
     }
-    if(syndamorph_repair_content_signature($before)!==syndamorph_repair_content_signature($target))
+    if(syndamorph_repair_content_signature($base['blocks'][0])!==syndamorph_repair_content_signature($plan['blocks'][0]))
         return new WP_Error('sm_surgery_content','Surgical patch changed protected content.');
     $unique=syndamorph_collab_validate_ids($plan);
     if(is_wp_error($unique))return $unique;
     $compile=syndamorph_compile_block_plan(wp_json_encode($plan));
     return array('plan'=>$plan,'artifact'=>is_wp_error($compile)?null:$compile,
-        'error'=>is_wp_error($compile)?$compile:null,'impact'=>syndamorph_collab_impact(
-            array('blocks'=>array($before)),array('blocks'=>array($target))));
+        'error'=>is_wp_error($compile)?$compile:null,
+        'impact'=>syndamorph_collab_impact($base,$plan),'touched'=>array_keys($touches));
+}
+/**
+ * Convert a safe deterministic old-style replacement to field-only surgery.
+ * Never accept structural or copy changes from this compatibility adapter.
+ */
+function syndamorph_surgery_from_replacement(array $node,array $patch) {
+    if(($patch['id']??null)!==($node['id']??null)||!is_array($patch['replacement']??null))return null;
+    $after=$patch['replacement'];
+    if(($after['type']??null)!==($node['type']??null))return null;
+    $a=$node;$c=$after;unset($a['style'],$c['style']);
+    if($a!==$c)return null;
+    $oldStyle=$node['style']??array();$newStyle=$after['style']??array();
+    $changes=array();
+    foreach(array_unique(array_merge(array_keys($oldStyle),array_keys($newStyle))) as $key){
+        if(($oldStyle[$key]??null)===($newStyle[$key]??null))continue;
+        if(!array_key_exists($key,$newStyle))$changes[]=array('path'=>'style.'.$key,'op'=>'remove');
+        else $changes[]=array('path'=>'style.'.$key,'value'=>$newStyle[$key]);
+    }
+    return $changes&&count($changes)<=8?array('id'=>$node['id'],'changes'=>$changes):null;
+}
+/** A compact, bounded set of existing nodes; never ship entire subtrees for QA. */
+function syndamorph_surgery_context(array $node,int $max=14): array {
+    $out=array();
+    $walk=static function(array $n,int $depth)use(&$walk,&$out,$max):void{
+        if(count($out)>=$max)return;
+        $entry=array('id'=>$n['id']??'', 'type'=>$n['type']??'', 'depth'=>$depth,
+            'style'=>$n['style']??array());
+        if(isset($n['text']))$entry['text']=mb_substr((string)$n['text'],0,120);
+        if(isset($n['href']))$entry['href']=mb_substr((string)$n['href'],0,100);
+        $out[]=$entry;
+        foreach($n['children']??array() as $child)if(is_array($child))$walk($child,$depth+1);
+    };
+    $walk($node,0);
+    return $out;
 }
 /** Deterministic corrections are permitted only when semantics are unambiguous. */
 function syndamorph_surgery_normalize(array $plan,array $diagnostic): ?array {
