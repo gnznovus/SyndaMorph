@@ -109,11 +109,11 @@
                 section(d.title+' · Gutenberg blocks',d.artifact?.content||'','html');
                 preview(d.artifact?.preview);
             }
-            if(event.type==='job_error') section('Recorded error',d.message||'Unknown failure').open=true;
+            if(event.type==='job_error') section('Recorded error',JSON.stringify(d,null,2),'json').open=true;
         }
         const final=events.find(e=>e.type==='job_complete')?.data;
         if(final?.outputs) Object.entries(final.outputs).forEach(([role,value])=>outputs.set(role,value));
-        for(const [role,value] of outputs) section(role,value,role==='developer'?(final?.outputType==='gutenberg'?'json':'html'):'markdown');
+        for(const [role,value] of outputs) section(role,value,role==='developer'?((final?.outputType||context.outputType)==='gutenberg'?'json':'html'):'markdown');
         if(final?.outputs?.developer) {
             if(final.outputType !== 'gutenberg') preview(final.outputs.developer);
             if(record.category==='GEN' && ['completed','needs_review'].includes(record.status)) {
