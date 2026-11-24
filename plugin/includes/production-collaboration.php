@@ -96,6 +96,20 @@ function syndamorph_collab_impact(array $before,array $after): array {
     $reusable=array_values(array_diff(array_keys($new),array_keys($affected)));
     return array('changed'=>array_keys($changed),'affected'=>array_keys($affected),'reused'=>$reusable);
 }
+/** Visual effects propagate upward to layout ancestors without treating their
+ * source code as changed. Preserve unaffected sibling code/reuse fingerprints. */
+function syndamorph_collab_review_scope(array $plan,array $impact): array {
+    $nodes=syndamorph_collab_fingerprints($plan);
+    $scope=array_fill_keys($impact['affected'],true);
+    foreach($impact['changed'] as $id){
+        $parent=$nodes[$id]['parent']??null;
+        while($parent!==null){
+            $scope[$parent]=true;
+            $parent=$nodes[$parent]['parent']??null;
+        }
+    }
+    return array_keys($scope);
+}
 /** Only existing component IDs can be replaced; siblings and approved subtrees are retained. */
 function syndamorph_collab_patch(array $plan, array $patch) {
     if (count($patch)!==2 || !array_key_exists('id',$patch) || !array_key_exists('replacement',$patch) || !is_string($patch['id']) || !is_array($patch['replacement'])) {
@@ -490,26 +504,47 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $node=syndamorph_collab_find($plan['blocks'],$id);
         $route=syndamorph_repair_route($focus);
         $delegated=array('designerNeeded'=>false,'reason'=>'Frozen reference: implementation repair only.');
-        $patch=syndamorph_repair_container($node,$inspectReference,$inspectNative)??syndamorph_repair_measured($node,$inspectReference,$inspectNative);
-        if($patch!==null) {
-            $probe=syndamorph_collab_patch($plan,$patch);
-            if(is_wp_error($probe)||$memory->seen($probe['plan']))$patch=null;
+        $deterministic=syndamorph_repair_container($node,$inspectReference,$inspectNative)??
+            syndamorph_repair_measured($node,$inspectReference,$inspectNative);
+        $patch=$deterministic===null?null:syndamorph_surgery_from_replacement($node,$deterministic);
+        if($patch!==null){
+            $probe=syndamorph_surgery_apply($plan,$patch);
+            if(is_wp_error($probe)||is_wp_error($probe['error'])||$memory->seen($probe['plan']))$patch=null;
         }
-        if($patch!==null) {
+        if($patch!==null){
             $route='engine';
-        } else {
-            $repairScope=syndamorph_production_tool('developer','playwright.crop',array('reference'=>$inspectReference,'native'=>$inspectNative,'texts'=>syndamorph_memory_texts($node)));
-            $repair=$call('developer','Repair only the specified native component against the frozen HTML reference. Inspect the reference/current screenshot pairs and measurements, including ancestor constraints. Return exactly JSON {"id":"existing id","replacement":{...full valid node with same id and type...}}. Preserve text, links and approved siblings. Do not redesign. Fix schema errors using the supported contract. Never repeat rejected attempts.',
-                array('issueFocus'=>$focus,'component'=>$node,'id'=>$id,'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts($node)),'nativeMeasurements'=>syndamorph_memory_measurements($inspectNative,syndamorph_memory_texts($node)),'previousAttempts'=>$memory->feedback($id),'learnedRules'=>syndamorph_learning_retrieve('repair',(string)($node['type']??'')),'imageScope'=>$repairScope['mode'],'imageOrder'=>array('desktop-reference','desktop-current','mobile-reference','mobile-current')),16384,$repairScope['images'],'repair');
-            if(is_wp_error($repair)) { $terminationReason=$repair->get_error_code()==='sm_team_budget'?'budget_80_percent':'developer_blocked';break; }
+        }else{
+            $repairScope=syndamorph_production_tool('developer','playwright.crop',
+                array('reference'=>$inspectReference,'native'=>$inspectNative,
+                    'texts'=>syndamorph_memory_texts($node)));
+            if(is_wp_error($repairScope)){$terminationReason='visual_crop_blocked';break;}
+            $repairContext=array('issueFocus'=>$focus,'id'=>$id,
+                'editableNodes'=>syndamorph_surgery_context($node),
+                'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts($node)),
+                'nativeMeasurements'=>syndamorph_memory_measurements($inspectNative,syndamorph_memory_texts($node)),
+                'previousAttempts'=>$memory->feedback($id),
+                'learnedRules'=>syndamorph_learning_retrieve('repair',(string)($node['type']??'')),
+                'imageScope'=>$repairScope['mode'],
+                'imageOrder'=>array('desktop-reference','desktop-current','mobile-reference','mobile-current'));
+            $repair=$call('developer','Repair the current persisted native plan with MINIMAL STYLE-ONLY SURGERY. Return ONLY JSON {"id":"assigned issue owner","changes":[{"target":"existing child id when needed","path":"style.margin.bottom","value":"1rem"}]}. Each change may target the assigned node or an EXISTING descendant; never change text, links, block types, IDs, siblings or structure. Change at most 3 supported style properties and use the compiler contract. For spacing, distinguish parent gap from leaf margin; edit the actual source of mismatch. Use reference/current viewport measurements and previous rejected attempts. Never return a full node or full plan. '.syndamorph_block_plan_contract(),
+                $repairContext,2048,$repairScope['images'],'repair');
+            if(is_wp_error($repair)){$terminationReason=$repair->get_error_code()==='sm_team_budget'?
+                'budget_80_percent':'developer_blocked';break;}
             $patch=json_decode(syndamorph_native_json_text($repair),true);
         }
         if($on_event)$on_event('repair_route',array('round'=>$round,'id'=>$id,'route'=>$route));
-        if (!is_array($patch)) { $entry=array('round'=>$round,'id'=>$id,'status'=>'rejected','detail'=>'Invalid JSON patch');$memory->record($id,$entry);$revisions[]=$entry;if($on_event)$on_event('revision',$entry);continue; }
-        if(($patch['id']??null)!==$id) { $entry=array('round'=>$round,'id'=>$id,'status'=>'rejected','detail'=>'Patch escaped assigned component');$memory->record($id,$entry);$revisions[]=$entry;continue; }
-        if(is_array($patch['replacement']??null)&&syndamorph_repair_content_signature($node)!==syndamorph_repair_content_signature($patch['replacement'])) { $entry=array('round'=>$round,'id'=>$id,'status'=>'rejected','detail'=>'Repair altered frozen content or links');$memory->record($id,$entry);$revisions[]=$entry;if($on_event)$on_event('revision',$entry);continue; }
-        $candidate=syndamorph_collab_patch($plan,$patch);
-        if (is_wp_error($candidate)) { $entry=array('round'=>$round,'id'=>$id,'status'=>'rejected','detail'=>$candidate->get_error_message());$memory->record($id,$entry);$revisions[]=$entry;if($on_event)$on_event('revision',$entry);continue; }
+        $reject=static function(string $detail,string $status='rejected')use(&$memory,&$revisions,$on_event,$round,$id):void{
+            $entry=array('round'=>$round,'id'=>$id,'status'=>$status,'accepted'=>false,'detail'=>$detail);
+            $memory->record($id,$entry);$revisions[]=$entry;
+            if($on_event)$on_event('revision',$entry);
+        };
+        if(!is_array($patch)||($patch['id']??null)!==$id||!is_array($patch['changes']??null)){
+            $reject('Invalid or out-of-scope surgical JSON patch');continue;
+        }
+        if(count($patch['changes'])>3){$reject('QA surgery exceeds three field changes');continue;}
+        $candidate=syndamorph_surgery_apply($plan,$patch);
+        if(is_wp_error($candidate)){$reject($candidate->get_error_message());continue;}
+        if(is_wp_error($candidate['error'])){$reject($candidate['error']->get_error_message());continue;}
         if($memory->seen($candidate['plan'])) { $entry=array('round'=>$round,'id'=>$id,'status'=>'duplicate','accepted'=>false,'detail'=>'Equivalent candidate already attempted; skipped browser and AI QA.','before'=>count($issues),'after'=>count($issues));$memory->record($id,$entry);$revisions[]=$entry;if($on_event)$on_event('revision',$entry);continue; }
         $memory->remember($candidate['plan']);
         $impact=syndamorph_collab_impact($plan,$candidate['plan']);
@@ -519,7 +554,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $newComparison=syndamorph_production_tool('boss','playwright.compare',array('reference'=>$inspectReference,'native'=>$newEvidence));
         if(is_wp_error($newComparison)) { $terminationReason='visual_compare_blocked'; $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Pixel comparison unavailable');break; }
         $newIssues=array_merge(syndamorph_collab_block_issues($candidate['artifact']),syndamorph_collab_evidence($inspectReference,$newEvidence),syndamorph_collab_style_findings($inspectReference,$newEvidence,$candidate['plan']));
-        $affected=array_fill_keys($impact['affected'],true);
+        // A child spacing change affects ancestor layout metrics, even when the
+        // ancestor's own attributes and fingerprint are unchanged.
+        $reviewIds=syndamorph_collab_review_scope($candidate['plan'],$impact);
+        $affected=array_fill_keys($reviewIds,true);
         $otherIssues=array_values(array_filter($issues,static fn($issue)=>!isset($affected[$issue['component']??''])));
         $scope=syndamorph_production_tool('boss','playwright.crop',array('reference'=>$inspectReference,'native'=>$newEvidence,'texts'=>syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id))));
         $scopedScreenshots=$scope['images'];
@@ -527,9 +565,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         // not the entire design report. Unaffected model findings are retained.
         $targetReview=$call('boss',
             'Inspect ONLY the changed component and affected descendants using the four browser screenshots. Compare against reference. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"...","component":"existing id","severity":"high|medium|low","detail":"..."}]}. Approve only when the changed component has no remaining actionable defects. Do not re-review approved siblings. Compiler validity is authoritative; never report speculative schema failures for compiled markup. Return only open, actionable implementation defects. Never put passes, resolved issues, host responsibilities or unsupported capabilities in issues. Reuse previous IDs. Include kind=implementation and status=open.',
-            array('id'=>$id,'changedComponent'=>syndamorph_collab_find($candidate['plan']['blocks'],$id),
+            array('id'=>$id,'changedNodes'=>syndamorph_surgery_context(
+                    syndamorph_collab_find($candidate['plan']['blocks'],$id)),
                 'previousIssues'=>array_values(array_filter($issues,static fn($issue)=>isset($affected[$issue['component']??'']))),
-                'impact'=>$impact,'compilerChecks'=>$candidate['artifact']['checks'],'imageScope'=>$scope['mode'],
+                'impact'=>$impact,'reviewScope'=>$reviewIds,'compilerChecks'=>$candidate['artifact']['checks'],'imageScope'=>$scope['mode'],
                 'measurements'=>syndamorph_memory_measurements($newEvidence,syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id))),'previousAttempts'=>$memory->feedback($id),'pixelComparison'=>$newComparison,'imageOrder'=>array('desktop-reference','desktop-updated','mobile-reference','mobile-updated')),16384,$scopedScreenshots,'revision_validation');
         if (is_wp_error($targetReview)) { $terminationReason='validator_blocked'; $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Scoped visual validation unavailable');break; }
         $parsedTarget=json_decode(syndamorph_native_json_text($targetReview),true);
@@ -551,14 +590,29 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $oldScore=syndamorph_issue_score($issues);$newScore=syndamorph_issue_score($newIssues);
         $oldPixel=array_sum(array_column($comparison,'pixelDifferenceRatio'))/3;
         $newPixel=array_sum(array_column($newComparison,'pixelDifferenceRatio'))/3;
-        $accepted=($newScore<$oldScore || ($newScore===$oldScore && $newPixel<$oldPixel)) && $newPixel<=$oldPixel+0.08;
-        $revisions[]=array('round'=>$round,'id'=>$id,'delegation'=>array('designerNeeded'=>$delegated['designerNeeded'],'reason'=>mb_substr((string)($delegated['reason']??''),0,160)),'route'=>$route,'impact'=>$impact,'imageScope'=>$scope['mode'],'accepted'=>$accepted,'before'=>count($issues),'after'=>count($newIssues),'scoreBefore'=>$oldScore,'scoreAfter'=>$newScore,'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
-        $memory->record($id,array_merge(end($revisions),array('replacement'=>$patch['replacement'],'remainingIssues'=>array_slice($newIssues,0,8))));
-        if($accepted && $route==='developer')syndamorph_learning_repair($node,$patch['replacement'],$oldScore,$newScore,$learningSource.':repair:'.$round);
+        // Model approval alone is insufficient: deterministic checks remain
+        // authoritative, and the global screenshots must not materially regress.
+        $accepted=($newScore<$oldScore || ($newScore===$oldScore && $newPixel<$oldPixel)) &&
+            $newPixel<=$oldPixel+0.01 &&
+            !(($parsedTarget['decision']??'')==='changes_requested' && !$newIssues);
+        $revisions[]=array('round'=>$round,'id'=>$id,'delegation'=>array('designerNeeded'=>$delegated['designerNeeded'],'reason'=>mb_substr((string)($delegated['reason']??''),0,160)),'route'=>$route,'impact'=>$impact,'reviewScope'=>$reviewIds,
+            'changedFields'=>$patch['changes'],'imageScope'=>$scope['mode'],'accepted'=>$accepted,'before'=>count($issues),'after'=>count($newIssues),'scoreBefore'=>$oldScore,'scoreAfter'=>$newScore,'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
+        $memory->record($id,array_merge(end($revisions),
+            array('changes'=>$patch['changes'],'touched'=>$candidate['touched']??array(),
+                'remainingIssues'=>array_slice($newIssues,0,8))));
+        if($accepted && $route==='developer'){
+            foreach($candidate['touched']??array() as $touched){
+                $was=syndamorph_collab_find($plan['blocks'],$touched);
+                $now=syndamorph_collab_find($candidate['plan']['blocks'],$touched);
+                if(is_array($was)&&is_array($now))
+                    syndamorph_learning_repair($was,$now,$oldScore,$newScore,
+                        $learningSource.':repair:'.$round);
+            }
+        }
         if($accepted) {
             if($newScore===0 && ($parsedTarget['decision']??'')==='approved')$bossQaApproved=true;
             $stagnation=0;
-            $memory->reopen(array_values(array_diff($impact['affected'],$impact['changed'])));
+            $memory->reopen(array_values(array_diff($reviewIds,$impact['changed'])));
             $plan=$candidate['plan'];$artifact=$candidate['artifact'];$inspectNative=$newEvidence;$comparison=$newComparison;
             // Only accepted, browser-verified QA candidates update persistent draft.
             syndamorph_surgery_save($plan,$workingId);
