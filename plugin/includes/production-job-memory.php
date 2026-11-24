@@ -26,7 +26,8 @@ final class SyndaMorph_Job_Memory {
         $this->stalled[$id]=!empty($attempt['accepted'])?0:($this->stalled[$id]??0)+1;
     }
     public function reopen(array $ids): void { foreach($ids as $id) unset($this->stalled[$id]); }
-    public function eligible(string $id): bool { return ($this->stalled[$id]??0)<3; }
+    // Attempts remain diagnostic only: paid retries are governed by the job budget.
+    public function eligible(string $id): bool { return true; }
     public function feedback(string $id): array {
         return array_map(static function(array $entry):array {
             $delta=array_intersect_key($entry,array_flip(array('round','status','accepted','detail','scoreBefore','scoreAfter','route')));
