@@ -33,6 +33,12 @@ test('actual Chromium inspection provides independent responsive screenshots and
     const metrics=(await compared.json()).comparison;
     assert.deepEqual(metrics.map(x=>x.width),[1440,768,390]);
     assert.ok(metrics.every(x=>x.pixelDifferenceRatio===0 && x.meanChannelDifference===0));
+    const crop=await fetch(url+'/crop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:[{screenshot:result.evidence[0].screenshot,rect:[24,24,180,40]}]})});
+    assert.equal(crop.status,200);
+    const images=(await crop.json()).images;
+    assert.equal(images.length,1);
+    assert.equal(Buffer.from(images[0].data,'base64').subarray(0,3).toString('hex'),'ffd8ff');
+    assert.ok(images[0].data.length<result.evidence[0].screenshot.length);
 });
 
 test('existing DOM render endpoint remains available',async()=>{
