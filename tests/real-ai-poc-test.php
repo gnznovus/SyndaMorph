@@ -92,7 +92,7 @@ function wp_remote_post($url,$args) {
         2 => '<section class="hero"><style>.hero{padding:3rem}</style><h2>Welcome &amp; enjoy</h2></section>',
         3 => '{"decision":"approved","issues":[],"summary":"Approved design"}',
         4 => $GLOBALS['native_fixture'],
-        5 => '{"decision":"approved","issues":[],"summary":"Measurements checked; editor still unverified."}'
+        5 => '{"decision":"approved","issues":[],"summary":"Measurements checked; editor still unverified."}',
         default => throw new RuntimeException('Too many native AI calls'),
     } : match($i) {
         1 => 'Job plan: build premium hotel hero with heading and CTA. Criteria: semantic section, responsive layout.',
