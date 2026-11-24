@@ -2,100 +2,163 @@
 
 const http = require('node:http');
 const { spawn } = require('node:child_process');
-const { compareScreenshots, cropScreenshots, validViewports } = require('./compare');
+const { createHash } = require('node:crypto');
+const { readFileSync } = require('node:fs');
+const { join } = require('node:path');
+const { compareScreenshots, cropScreenshots } = require('./compare');
+const { PROTOCOL, DEFAULT_VIEWPORTS, MAX_RESPONSE, MAX_COMPARE_REQUEST,
+    MAX_SCREENSHOT, RendererError, validViewports } = require('./inspection-contract');
 
-const MAX_BYTES = 2 * 1024 * 1024;
-let busy = false;
-
-const reply = (res, status, payload) => {
-    if (res.writableEnded || res.destroyed) { return; }
-    res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
-    res.end(JSON.stringify(payload));
+const MAX_HTML = 2 * 1024 * 1024;
+const MAX_JSON_REQUEST = MAX_HTML + 1024;
+const INSPECT_TIMEOUT = 60000;
+const build = ['server.js', 'render-worker.js', 'compare.js', 'inspection-contract.js', 'package.json']
+    .reduce((hash, file) => hash.update(readFileSync(join(__dirname, file))).update('\0'), createHash('sha256')).digest('hex');
+const diagnostic = { service: 'syndamorph-renderer', inspectionProtocol: PROTOCOL, build,
+    maxResponseBytes: MAX_RESPONSE, maxScreenshotBytes: MAX_SCREENSHOT };
+const workerErrors = {
+    browser_timeout: 504, browser_crash: 503, worker_failure: 502,
+    screenshot_limit: 507, evidence_limit: 507,
 };
 
-const render = (html, viewports = null) => new Promise((resolve, reject) => {
+function runBrowserWorker(html, viewports, signal, options = {}) {
     const inspect = viewports !== null;
-    // One fresh process per conversion means a runaway synchronous JS loop can
-    // be forcibly terminated, rather than wedging the shared service.
-    const child = spawn(process.execPath, ['/app/render-worker.js'], {
-        detached: true,
-        stdio: ['pipe', 'pipe', 'pipe'],
+    return new Promise((resolve, reject) => {
+        const child = spawn(process.execPath, options.workerArgs ?? [join(__dirname, 'render-worker.js')], {
+            detached: true, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let failure;
+        let forceKill;
+        let bytes = 0;
+        const chunks = [];
+        const fail = (code, status) => {
+            if (failure) return;
+            failure = new RendererError(code, status);
+            if (!child.pid) return;
+            // Playwright handles SIGTERM and closes its Chromium process group.
+            // Retain the hard deadline if the worker or browser is wedged.
+            child.kill('SIGTERM');
+            forceKill = setTimeout(() => {
+                try {
+                    if (process.platform === 'win32') child.kill('SIGKILL');
+                    else process.kill(-child.pid, 'SIGKILL');
+                } catch (_) { /* already exited */ }
+            }, 1500);
+        };
+        const onAbort = () => fail('request_aborted', 499);
+        const timer = setTimeout(() => fail('browser_timeout', 504),
+            options.timeoutMs ?? (inspect ? INSPECT_TIMEOUT : 8000));
+        signal?.addEventListener('abort', onAbort, { once: true });
+        if (signal?.aborted) onAbort();
+        child.on('error', () => fail('worker_crash', 503));
+        // Drain stderr without persisting anything Chromium may have echoed.
+        child.stderr.resume();
+        child.stdout.on('data', buf => {
+            if (failure) return;
+            bytes += buf.length;
+            if (bytes > (inspect ? MAX_RESPONSE : MAX_HTML + 4096)) {
+                fail('evidence_limit', 507);
+                return;
+            }
+            chunks.push(buf);
+        });
+        child.on('close', code => {
+            clearTimeout(timer);
+            clearTimeout(forceKill);
+            signal?.removeEventListener('abort', onAbort);
+            if (failure) return reject(failure);
+            if (code !== 0 || bytes === 0) return reject(new RendererError('worker_crash', 503));
+            let result;
+            try { result = JSON.parse(Buffer.concat(chunks, bytes).toString('utf8')); }
+            catch (_) { return reject(new RendererError('worker_invalid_json', 502)); }
+            if (result?.error) {
+                const code = Object.hasOwn(workerErrors, result.error) ? result.error : 'worker_failure';
+                return reject(new RendererError(code, workerErrors[code]));
+            }
+            if (inspect) {
+                if (!Array.isArray(result?.evidence) || result.evidence.length !== viewports.length)
+                    return reject(new RendererError('missing_evidence', 502));
+                if (result.evidence.some((sample, i) => sample?.width !== viewports[i]))
+                    return reject(new RendererError('viewport_mismatch', 502));
+                return resolve(result.evidence);
+            }
+            if (typeof result?.html !== 'string') return reject(new RendererError('worker_failure', 502));
+            return resolve(result.html);
+        });
+        child.stdin.on('error', () => {});
+        child.stdin.end(JSON.stringify({ html, inspect, viewports }));
     });
+}
+
+async function readBody(req, limit) {
+    const length = Number(req.headers['content-length']);
+    if (length > limit) {
+        req.resume();
+        throw new RendererError('request_limit', 413);
+    }
     const chunks = [];
     let size = 0;
-    let settled = false;
-    const stop = () => {
-        try { process.kill(-child.pid, 'SIGKILL'); } catch (_) { /* already exited */ }
-    };
-    const finish = (error, htmlResult) => {
-        if (settled) { return; }
-        settled = true;
-        clearTimeout(timeout);
-        if (error) { stop(); reject(error); }
-        else { resolve(htmlResult); }
-    };
-    const timeout = setTimeout(() => finish(new Error('Isolated browser worker exceeded its execution limit.')), inspect ? 60000 : 8000);
-    child.on('error', (err) => finish(err));
-    child.stdout.on('data', (buf) => {
-        size += buf.length;
-        if (size > (inspect ? 8 * MAX_BYTES : MAX_BYTES + 4096)) { finish(new Error('Rendered HTML exceeds 2 MB.')); return; }
-        chunks.push(buf);
-    });
-    child.on('close', (code) => {
-        if (settled) { return; }
-        try {
-            const result = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-            if (result.error) { finish(new Error(result.error)); return; }
-            if (inspect) {
-                if (!Array.isArray(result.evidence) || result.evidence.length !== viewports.length ||
-                    result.evidence.some((sample, index) => sample.width !== viewports[index])) {
-                    throw new Error('Incomplete inspection evidence.');
-                }
-                finish(null, result.evidence);
-                return;
-            }
-            if (typeof result.html !== 'string') { throw new Error('Renderer produced no HTML.'); }
-            finish(null, result.html);
-        } catch (err) { finish(err); }
-    });
-    child.stdin.on('error', () => {});
-    child.stdin.end(JSON.stringify({ html, inspect, viewports }));
-});
-
-http.createServer(async (req, res) => {
-    if (req.method !== 'POST' || !['/render','/inspect','/compare','/crop'].includes(req.url)) { reply(res, 404, { error: 'Not found.' }); return; }
-    if (busy) { reply(res, 429, { error: 'Renderer busy. Retry preview.' }); return; }
-    busy = true;
-    try {
-        const chunks = [];
-        let size = 0;
-        for await (const part of req) {
-            size += part.length;
-            if (size > MAX_BYTES + 1024) { reply(res, 413, { error: 'Input exceeds 2 MB.' }); return; }
-            chunks.push(part);
+    // Leaving the iterator on rejection must not destroy the socket before
+    // the status and bounded error body can be sent.
+    for await (const part of req.iterator({ destroyOnReturn: false })) {
+        size += part.length;
+        if (size > limit) {
+            req.resume();
+            throw new RendererError('request_limit', 413);
         }
-        let body;
-        try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
-        catch (_) { reply(res, 400, { error: 'Invalid JSON.' }); return; }
-        if (req.url === '/crop') { reply(res,200,{images:cropScreenshots(body.items)}); return; }
-        if (req.url === '/compare') {
-            reply(res, 200, {comparison:compareScreenshots(body.reference,body.native)});
-            return;
-        }
-        if (typeof body.html !== 'string' || !body.html.trim() || Buffer.byteLength(body.html) > MAX_BYTES) {
-            reply(res, 400, { error: 'Provide an HTML string smaller than 2 MB.' }); return;
-        }
-        if (req.url === '/inspect') {
-            const viewports = body.viewports ?? [1440, 768, 390];
-            if (!validViewports(viewports)) {
-                reply(res, 400, { error: 'Provide one to five distinct viewport widths from 320 to 1920 CSS px.' });
-                return;
-            }
-            reply(res, 200, { evidence: await render(body.html, viewports) });
-        } else reply(res, 200, { html: await render(body.html) });
-    } catch (error) {
-        reply(res, 422, { error: 'JavaScript render failed: ' + error.message });
-    } finally {
-        busy = false;
+        chunks.push(part);
     }
-}).listen(3000, '0.0.0.0');
+    try { return JSON.parse(Buffer.concat(chunks, size).toString('utf8')); }
+    catch (_) { throw new RendererError('invalid_request_json', 400); }
+}
+
+function createRendererServer(render = runBrowserWorker) {
+    let busy = false;
+    return http.createServer({ requestTimeout: 30000, headersTimeout: 10000 }, async (req, res) => {
+        function reply(status, payload) {
+            if (res.writableEnded || res.destroyed) return;
+            const bytes = Buffer.from(JSON.stringify(payload));
+            if (req.url === '/inspect' && bytes.length > MAX_RESPONSE)
+                throw new RendererError('evidence_limit', 507);
+            res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store',
+                'content-length': bytes.length, 'x-syndamorph-inspection-protocol': PROTOCOL,
+                'x-syndamorph-renderer-build': build, ...(status === 429 ? { 'retry-after': '1' } : {}) });
+            res.end(bytes);
+        }
+        if (req.method === 'GET' && req.url === '/healthz') return reply(200, diagnostic);
+        if (req.method !== 'POST' || !['/render','/inspect','/compare','/crop'].includes(req.url))
+            return reply(404, { error: 'not_found' });
+        if (busy) {
+            req.resume();
+            return reply(429, { error: 'renderer_busy' });
+        }
+        busy = true;
+        const controller = new AbortController();
+        res.once('close', () => { if (!res.writableFinished) controller.abort(); });
+        try {
+            const limit = req.url === '/compare' ? MAX_COMPARE_REQUEST :
+                req.url === '/crop' ? 4 * MAX_SCREENSHOT + 4096 : MAX_JSON_REQUEST;
+            const body = await readBody(req, limit);
+            if (!body || typeof body !== 'object' || Array.isArray(body)) throw new RendererError('invalid_request_json', 400);
+            if (req.url === '/crop') return reply(200, { images: cropScreenshots(body.items) });
+            if (req.url === '/compare') return reply(200, { comparison: compareScreenshots(body.reference, body.native) });
+            if (typeof body.html !== 'string' || !body.html.trim()) throw new RendererError('invalid_html', 400);
+            if (Buffer.byteLength(body.html) > MAX_HTML) throw new RendererError('request_limit', 413);
+            if (req.url !== '/inspect') return reply(200, { html: await render(body.html, null, controller.signal) });
+            if (Object.hasOwn(body, 'inspectionProtocol') && body.inspectionProtocol !== PROTOCOL)
+                throw new RendererError('protocol_mismatch', 409);
+            const viewports = Object.hasOwn(body, 'viewports') ? body.viewports : DEFAULT_VIEWPORTS;
+            if (!validViewports(viewports)) throw new RendererError('invalid_viewports', 400);
+            reply(200, { evidence: await render(body.html, viewports, controller.signal) });
+        } catch (error) {
+            const known = error instanceof RendererError;
+            // Only server-owned categories cross the response boundary.
+            reply(known ? error.status : 422, { error: known ? error.code : 'invalid_renderer_input' });
+        } finally {
+            busy = false;
+        }
+    });
+}
+
+if (require.main === module) createRendererServer().listen(3000, '0.0.0.0');
+module.exports = { createRendererServer, runBrowserWorker };

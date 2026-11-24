@@ -16,6 +16,7 @@ on:
       - 'plugin/assets/production-ai-export.js'
       - 'plugin/includes/ai-team-real.php'
       - 'plugin/includes/production-collaboration.php'
+      - 'plugin/includes/production-inspection.php'
       - 'plugin/includes/production-visual-qa.php'
       - 'plugin/includes/production-surgery.php'
       - 'plugin/includes/production-tools.php'
@@ -25,6 +26,7 @@ on:
       - 'plugin/assets/production-rich-content.js'
       - 'plugin/assets/ai-team-real.js'
       - 'tests/real-ai-poc-test.php'
+      - 'tests/inspection-wordpress.php'
       - 'tests/adaptive-surgery-benchmark.*'
       - 'tests/fixtures/gen-015-repair.json'
       - 'tests/gutenberg-native-*'
@@ -39,6 +41,7 @@ on:
   pull_request:
     paths:
       - 'plugin/includes/production-collaboration.php'
+      - 'plugin/includes/production-inspection.php'
       - 'plugin/includes/production-visual-qa.php'
       - 'backend/**'
       - 'compose.yaml'
@@ -55,6 +58,7 @@ on:
       - 'plugin/assets/production-rich-content.js'
       - 'plugin/assets/ai-team-real.js'
       - 'tests/real-ai-poc-test.php'
+      - 'tests/inspection-wordpress.php'
       - 'tests/adaptive-surgery-benchmark.*'
       - 'tests/fixtures/gen-015-repair.json'
       - 'tests/gutenberg-native-*'
@@ -91,6 +95,8 @@ jobs:
           php -l plugin/includes/ai-team-real.php
           php -l plugin/includes/production-block-plan.php
           php -l plugin/includes/production-collaboration.php
+          php -l plugin/includes/production-inspection.php
+          php -l tests/inspection-wordpress.php
           php -l plugin/includes/production-visual-qa.php
           php -l plugin/includes/production-surgery.php
           php -l plugin/includes/production-tools.php
@@ -124,17 +130,19 @@ jobs:
       - name: Real Playwright inspection smoke test
         run: |
           docker build -t syndamorph-inspection ./renderer
-          docker run -d --rm --name syndamorph-inspection-test -p 127.0.0.1:3999:3000 syndamorph-inspection
+          docker run -d --rm --init --read-only --tmpfs /tmp:size=256m --memory 768m --pids-limit 128 --shm-size 256m --cap-drop ALL --security-opt no-new-privileges --name syndamorph-inspection-test -p 127.0.0.1:3999:3000 syndamorph-inspection
           trap 'docker rm -f syndamorph-inspection-test >/dev/null 2>&1 || true' EXIT
-          for i in $(seq 1 30); do if curl -fsS -o /dev/null http://127.0.0.1:3999/ 2>/dev/null || [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3999/ 2>/dev/null)" = 404 ]; then break; fi; sleep 1; done
+          for i in $(seq 1 30); do if curl -fsS -o /dev/null http://127.0.0.1:3999/healthz 2>/dev/null; then break; fi; sleep 1; done
+          docker exec -i syndamorph-inspection-test node < renderer/transport.test.js
           node --test renderer/inspect.test.js
           node tests/adaptive-surgery-benchmark.cjs
       - name: Real WordPress Gutenberg serialization gate
         run: |
-          docker compose up -d db wordpress
+          docker compose up -d db wordpress renderer
           trap 'docker compose down -v' EXIT
           for i in $(seq 1 60); do if curl -fsS -o /dev/null http://127.0.0.1:8085/wp-admin/install.php; then break; fi; sleep 2; done
           curl -fsS -o /dev/null -X POST 'http://127.0.0.1:8085/wp-admin/install.php?step=2' --data 'weblog_title=CI&user_name=ciadmin&admin_password=ci-only-test-password&admin_password2=ci-only-test-password&admin_email=ci@example.invalid&blog_public=0&Submit=Install+WordPress'
+          docker compose exec -T wordpress php < tests/inspection-wordpress.php
           docker compose cp tests/gutenberg-native-fixture.php wordpress:/var/www/html/sm-native-fixture.php
           cd backend && npx playwright install --with-deps chromium && cd ..
           node tests/gutenberg-native-browser.cjs

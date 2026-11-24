@@ -5,6 +5,7 @@ require_once __DIR__.'/production-job-memory.php';
 require_once __DIR__.'/production-learning.php';
 require_once __DIR__.'/production-repair.php';
 require_once __DIR__.'/production-visual-qa.php';
+require_once __DIR__.'/production-inspection.php';
 require_once __DIR__.'/production-surgery.php';
 require_once __DIR__.'/production-tools.php';
 
@@ -186,23 +187,6 @@ function syndamorph_collab_viewports(string $brief) {
     rsort($widths, SORT_NUMERIC);
     return $widths;
 }
-function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,375)) {
-    $endpoint = defined('SYNDAMORPH_RENDERER_INSPECT_URL') ? SYNDAMORPH_RENDERER_INSPECT_URL : 'http://renderer:3000/inspect';
-    // Network target is configured by deployment, never read from model output.
-    if (!is_string($endpoint) || !preg_match('~^http://[a-zA-Z0-9.-]+:[0-9]{2,5}/inspect$~D', $endpoint)) {
-        return new WP_Error('sm_inspect_config','Invalid isolated renderer endpoint.');
-    }
-    $response = wp_remote_post($endpoint,array('timeout'=>75,'redirection'=>0,'headers'=>array('Content-Type'=>'application/json'),
-        'body'=>wp_json_encode(array('html'=>$html,'viewports'=>$viewports)),'limit_response_size'=>9000000));
-    if (is_wp_error($response)) { return new WP_Error('sm_inspect_unavailable','Browser inspection service unavailable.'); }
-    if (wp_remote_retrieve_response_code($response)!==200) { return new WP_Error('sm_inspect_failed','Browser inspection service rejected the request.'); }
-    $data=json_decode(wp_remote_retrieve_body($response),true);
-    if (!is_array($data['evidence']??null) || array_column($data['evidence'],'width')!==$viewports) { return new WP_Error('sm_inspect_incomplete','Browser inspection did not return the requested viewports.'); }
-    foreach($data['evidence'] as $sample) {
-        if(!is_array($sample['a11y']??null)) return new WP_Error('sm_a11y_incomplete','Automated accessibility scan did not return evidence.');
-    }
-    return $data['evidence'];
-}
 /** Deterministic visual comparison reuses already captured screenshots. */
 function syndamorph_collab_compare(array $reference,array $native) {
     $url=getenv('SYNDAMORPH_RENDERER_URL');
@@ -364,6 +348,9 @@ function syndamorph_repair_image_index(array $focus,array $viewports): int {
 function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bool $useLearning=true) {
     $viewports=syndamorph_collab_viewports($brief);
     if(is_wp_error($viewports))return $viewports;
+    $renderer=syndamorph_inspection_ready($viewports);
+    if(is_wp_error($renderer))return syndamorph_inspection_with_stage($renderer,'preflight','',0);
+    if($on_event)$on_event('renderer_ready',$renderer+array('expectedWidths'=>$viewports));
     $visionViewports=array_values(array_unique(array(0,count($viewports)-1)));
     $settings=syndamorph_models_settings();
     $provider=$settings['provider']??'';$model=$settings['model']??'';
@@ -446,7 +433,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 array('stage'=>'design','designRound'=>$designRound));
         $capabilityNotes=syndamorph_reference_capability_notes($reference);
         $inspectReference=syndamorph_production_tool('designer','playwright.inspect',array('html'=>$reference,'viewports'=>$viewports));
-        if(is_wp_error($inspectReference))return $inspectReference;
+        if(is_wp_error($inspectReference)) {
+            $error=syndamorph_inspection_with_stage($inspectReference,'design_inspection','designer',$calls);
+            return $on_event?syndamorph_inspection_checkpoint($error,$reference,$viewports):$error;
+        }
         $referenceImages=array_map(static fn($sample)=>array('media_type'=>'image/jpeg','data'=>$sample['screenshot']),
             array_values(array_intersect_key($inspectReference,array_flip($visionViewports))));
         $review=$call('boss','Review the Designer reference against the brief, native compiler contract and browser evidence. Return JSON {"decision":"approved|changes_requested","issues":[{"target":"section","problem":"precise defect","requiredChange":"specific revision"}],"acceptedCapabilityDeviations":[{"note":"exact supplied note","reason":"why the reference remains valid with a native alternative"}],"summary":"brief decision"}. Resolve native capability limitations before freezing the reference. Request a Designer correction for any material unsupported requirement. Explicitly explain minor accepted deviations. At most three issues.',
@@ -566,7 +556,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $memory->remember($plan);
     
     $inspectNative=syndamorph_production_tool('developer','playwright.inspect',array('html'=>$artifact['preview'],'viewports'=>$viewports));
-    if (is_wp_error($inspectReference) || is_wp_error($inspectNative)) return new WP_Error('sm_quality_blocked','Real browser inspection could not complete; job cannot be approved.');
+    if(is_wp_error($inspectNative))return syndamorph_inspection_with_stage($inspectNative,'implementation_inspection','developer',$calls);
     $comparison=syndamorph_production_tool('boss','playwright.compare',array('reference'=>$inspectReference,'native'=>$inspectNative));
     if(is_wp_error($comparison)) return $comparison;
     $evidence=array('reference'=>$inspectReference,'native'=>$inspectNative);
@@ -741,7 +731,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $impact=syndamorph_collab_impact($plan,$candidate['plan']);
         $newEvidence=syndamorph_production_tool('developer','playwright.inspect',array('html'=>$candidate['artifact']['preview'],'viewports'=>$viewports));
         if (is_wp_error($newEvidence)) {
-            $terminationReason='browser_blocked';$reject('Browser revalidation unavailable','blocked','browser');break;
+            $terminationReason='browser_blocked';
+            $error=syndamorph_inspection_with_stage($newEvidence,'revision_inspection','developer',$calls);
+            if($on_event)$on_event('inspection_error',syndamorph_inspection_diagnostic($error));
+            $reject($error->get_error_message(),'blocked','browser');break;
         }
         // Root/ancestor changes affect all descendants. Reinspect all widths, but avoid additional full-model review.
         $newComparison=syndamorph_production_tool('boss','playwright.compare',array('reference'=>$inspectReference,'native'=>$newEvidence));

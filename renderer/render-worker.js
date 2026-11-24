@@ -2,15 +2,25 @@
 
 const { chromium } = require('playwright');
 const axe = require('axe-core');
+const { HEIGHT, MAX_JPEG, MAX_METADATA, DEFAULT_VIEWPORTS, RendererError } = require('./inspection-contract');
+
+async function boundedScreenshot(page) {
+    for (const quality of [65, 50, 35, 20, 10]) {
+        const bytes = await page.screenshot({ type: 'jpeg', quality, timeout: 5000 });
+        if (bytes.length <= MAX_JPEG) return bytes.toString('base64');
+    }
+    throw new RendererError('screenshot_limit', 507);
+}
 
 const input = [];
 process.stdin.on('data', (chunk) => input.push(chunk));
 process.stdin.on('end', async () => {
     let browser;
+    let crashed = false;
     try {
-        const { html, inspect, viewports = [1440, 768, 390] } = JSON.parse(Buffer.concat(input).toString('utf8'));
+        const { html, inspect, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
-            headless: true,
+            headless: true, timeout: 10000,
             args: [ '--no-sandbox', '--disable-dev-shm-usage' ],
         });
         const context = await browser.newContext({
@@ -22,6 +32,7 @@ process.stdin.on('end', async () => {
         // This preview only supports inline scripts and inline styles.
         await context.route('**/*', (route) => route.abort('blockedbyclient'));
         const page = await context.newPage();
+        page.on('crash', () => { crashed = true; });
         page.on('popup', (popup) => popup.close().catch(() => {}));
         await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 5000 });
         await page.waitForTimeout(600);
@@ -45,11 +56,12 @@ process.stdin.on('end', async () => {
             });
             await a11yContext.route('**/*', route=>route.abort('blockedbyclient'));
             const a11yPage = await a11yContext.newPage();
+            a11yPage.on('crash', () => { crashed = true; });
             await a11yPage.setContent(safeMarkup, {waitUntil:'domcontentloaded',timeout:5000});
             await a11yPage.evaluate(axe.source);
             const evidence = [];
             for (const width of viewports) {
-                await page.setViewportSize({ width, height: 900 });
+                await page.setViewportSize({ width, height: HEIGHT });
                 const snapshot = await page.evaluate(() => {
                     const elements = [...document.body.querySelectorAll('*')].filter(el => !['STYLE','SCRIPT'].includes(el.tagName));
                     const positions = new Map(elements.map((el, index) => [el, index]));
@@ -62,14 +74,15 @@ process.stdin.on('end', async () => {
                             const text = el.children.length ? '' : el.textContent.replace(/\s+/gu, ' ').trim().slice(0, 250);
                             const range = document.createRange();
                             if (text) range.selectNodeContents(el);
-                            return { tag: el.tagName, id: el.id, text: el.children.length ? '' : el.textContent.slice(0, 250),
-                                node: el.getAttribute('data-sm-node') || (el.tagName === 'A' ? el.parentElement?.getAttribute('data-sm-node') : null),
+                            const id = el.getAttribute('data-sm-node') || (el.tagName === 'A' ? el.parentElement?.getAttribute('data-sm-node') : null);
+                            return { tag: el.tagName.slice(0, 32), id: el.id.slice(0, 128), text: el.children.length ? '' : el.textContent.slice(0, 250),
+                                node: id?.slice(0, 128) ?? null,
                                 parent: positions.get(el.parentElement) ?? null,
                                 normalizedText: text,
                                 rect: rect(r),
                                 textRect: text ? rect(range.getBoundingClientRect()) : null,
                                 lineRects: text ? [...range.getClientRects()].slice(0, 12).map(rect) : [],
-                                styles: Object.fromEntries(['color','backgroundColor','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','padding','margin','gap','display','textAlign','textTransform','alignItems','justifyContent','borderRadius'].map(k => [k,s[k]])),
+                                styles: Object.fromEntries(['color','backgroundColor','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','padding','margin','gap','display','textAlign','textTransform','alignItems','justifyContent','borderRadius'].map(k => [k,s[k].slice(0, 128)])),
                                 clipped: /^(?:hidden|clip)$/.test(s.overflowX) && el.scrollWidth > el.clientWidth + 2,
                                 missingAlt: el.tagName === 'IMG' && !el.hasAttribute('alt'),
                                 unnamedControl: ['A','BUTTON'].includes(el.tagName) && !(el.textContent.trim() || el.getAttribute('aria-label') || el.querySelector('img[alt]:not([alt=""])'))
@@ -77,13 +90,18 @@ process.stdin.on('end', async () => {
                         })
                     };
                 });
-                const screenshot = (await page.screenshot({type:'jpeg',quality:65,timeout:3000})).toString('base64');
-                await a11yPage.setViewportSize({width,height:900});
+                await a11yPage.setViewportSize({width,height:HEIGHT});
                 const a11y = await a11yPage.evaluate(async () => {
                     const report=await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa']}});
                     return report.violations.map(v=>({id:v.id,impact:v.impact,description:v.description,
-                        nodes:v.nodes.slice(0,8).map(n=>({target:n.target,summary:n.failureSummary}))}));
+                        nodes:v.nodes.slice(0,8).map(n=>({
+                            target:n.target.slice(0,8).map(selector=>(typeof selector==='string'?selector:JSON.stringify(selector)).slice(0,256)),
+                            summary:n.failureSummary?.slice(0,600),
+                        }))}));
                 });
+                if (Buffer.byteLength(JSON.stringify({ width, snapshot, a11y })) > MAX_METADATA)
+                    throw new RendererError('evidence_limit', 507);
+                const screenshot = await boundedScreenshot(page);
                 evidence.push({width,snapshot,screenshot,a11y});
             }
             process.stdout.write(JSON.stringify({ evidence }));
@@ -95,7 +113,10 @@ process.stdin.on('end', async () => {
         });
         process.stdout.write(JSON.stringify({ html: snapshot }));
     } catch (error) {
-        process.stdout.write(JSON.stringify({ error: error.message }));
+        const category = error instanceof RendererError ? error.code :
+            error.name === 'TimeoutError' ? 'browser_timeout' :
+                (crashed || !browser || !browser.isConnected()) ? 'browser_crash' : 'worker_failure';
+        process.stdout.write(JSON.stringify({ error: category }));
     } finally {
         if (browser) { await browser.close().catch(() => {}); }
     }

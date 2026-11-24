@@ -11,11 +11,17 @@ require_once __DIR__ . '/production-collaboration.php';
 function syndamorph_team_failure_payload( WP_Error $error ): array {
     $details = $error->get_error_data();
     $details = is_array( $details ) ? $details : array();
-    return array_merge(
+    $payload=array_merge(
         array( 'code' => $error->get_error_code(), 'message' => $error->get_error_message(),
             'stage' => 'preflight', 'role' => '', 'completedCalls' => 0 ),
         array_intersect_key( $details, array_flip( array( 'stage', 'role', 'task', 'completedCalls', 'stopReason', 'outputTokens', 'field', 'metric', 'generationCompleted' ) ) )
     );
+    if(str_starts_with($error->get_error_code(),'sm_inspect_')) {
+        $payload['inspection']=syndamorph_inspection_diagnostic($error);
+        $checkpoint=$details['referenceCheckpoint']??null;
+        if(is_string($checkpoint)&&preg_match('/^[a-f0-9]{32}$/D',$checkpoint))$payload['referenceCheckpoint']=$checkpoint;
+    }
+    return $payload;
 }
 
 function syndamorph_team_real_run( string $brief, bool $stream = true, ?callable $on_event = null, string $format = 'html' ) {

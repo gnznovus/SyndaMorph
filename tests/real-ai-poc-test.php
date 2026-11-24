@@ -24,8 +24,25 @@ function sanitize_key($v) { return strtolower(preg_replace('/[^a-z0-9_\\-]/i',''
 function wp_json_encode($v) { return json_encode($v); }
 function wp_remote_retrieve_response_code($r) { return $r['status']; }
 function wp_remote_retrieve_body($r) { return $r['body']; }
+function wp_remote_retrieve_header($r,$name) { return $r['headers'][$name]??''; }
+function inspection_reply(array $data,int $status=200): array {
+    $body=json_encode($data);
+    return array('status'=>$status,'body'=>$body,'headers'=>array(
+        'content-length'=>strlen($body),'x-syndamorph-inspection-protocol'=>'1',
+        'x-syndamorph-renderer-build'=>str_repeat('a',64),
+    ));
+}
+function inspection_fixture_jpeg(int $width): string {
+    // Minimal synthetic JPEG header for mocked transport; real integration decodes Chromium output.
+    return base64_encode(hex2bin('ffd8ffc0000b08').pack('nn',900,$width).hex2bin('01011100ffd9'));
+}
 function syndamorph_ai_saved_key($provider) { return $provider === 'anthropic' ? 'sensitive-test-key' : ''; }
 function wp_remote_get($url,$args) {
+    if($url==='http://renderer:3000/healthz') {
+        if(isset($GLOBALS['inspection_health']))return $GLOBALS['inspection_health'];
+        return inspection_reply(array('service'=>'syndamorph-renderer','inspectionProtocol'=>1,'build'=>str_repeat('a',64),
+            'maxResponseBytes'=>3602048,'maxScreenshotBytes'=>400000));
+    }
     $GLOBALS['model_fetches']++;
     if ( $url !== 'https://api.anthropic.com/v1/models?limit=100' ) throw new RuntimeException('Unexpected models endpoint');
     if ( $args['headers']['x-api-key'] !== 'sensitive-test-key' ) throw new RuntimeException('Missing credential');
@@ -49,12 +66,13 @@ function wp_remote_post($url,$args) {
         $input=json_decode($args['body'],true);
         $native=str_contains($input['html'],'<!-- wp:');
         $GLOBALS['inspection_calls'][]=$native?'native':'reference';
-        $sample=base64_encode('mock-jpeg-evidence');
-        return array('status'=>200,'body'=>json_encode(array('evidence'=>array_map(
-            static fn($width)=>array('width'=>$width,'screenshot'=>$sample,'a11y'=>array(),'snapshot'=>array(
+        $GLOBALS['inspection_sent_hashes'][]=hash('sha256',$input['html']);
+        if(!empty($GLOBALS['inspection_failures']))return array_shift($GLOBALS['inspection_failures']);
+        return inspection_reply(array('evidence'=>array_map(
+            static fn($width)=>array('width'=>$width,'screenshot'=>inspection_fixture_jpeg($width),'a11y'=>array(),'snapshot'=>array(
                 'overflow'=>false,'elements'=>array(array('tag'=>'H2','id'=>'','text'=>'Welcome & enjoy',
                 'rect'=>array(0,0,300,70),'styles'=>array('fontSize'=>'32px','fontWeight'=>'700','color'=>'rgb(0, 0, 0)','letterSpacing'=>'normal'))))),
-            $input['viewports']))));
+            $input['viewports'])));
     }
     if ($url !== 'https://api.anthropic.com/v1/messages') throw new RuntimeException('Unexpected generation endpoint');
     if (isset($GLOBALS['upstream_test_status'])) return array('status'=>$GLOBALS['upstream_test_status'], 'body'=>'{"sensitive":"should-not-leak"}');
@@ -717,3 +735,82 @@ expect(in_array($staleRule['rule'],syndamorph_learning_retrieve('developer'),tru
 expect(syndamorph_learning_manage($lessonId,'delete'),'Learning deletion failed');
 expect(count(syndamorph_learning_retrieve('developer'))===1,'Deleted rule remained in retrieval');
 echo "PASS: persistent verified lessons, scope, deduplication, archive bootstrap, capability classification and management\n";
+
+$widths=array(1440,768,375);
+$fixtureEvidence=array_map(static fn($width)=>array('width'=>$width,'screenshot'=>inspection_fixture_jpeg($width),
+    'snapshot'=>array('overflow'=>false,'elements'=>array()),'a11y'=>array()),$widths);
+$valid=inspection_reply(array('evidence'=>$fixtureEvidence));
+expect(syndamorph_inspection_validate($valid,$widths)===$fixtureEvidence,'Valid renderer evidence was rejected');
+$checkInspection=static function($response,string $code,array $expected=array())use($widths) {
+    $error=syndamorph_inspection_validate($response,$widths);
+    expect(is_wp_error($error)&&$error->get_error_code()==='sm_inspect_'.$code,'Wrong inspection classification for '.$code);
+    $diagnostic=syndamorph_inspection_diagnostic($error);
+    foreach($expected as $key=>$value)expect(($diagnostic[$key]??null)===$value,'Inspection detail missing: '.$key);
+    expect(!str_contains(wp_json_encode($diagnostic),'DO-NOT-LOG'),'Inspection diagnostic leaked response content');
+};
+$truncated=$valid;
+$truncated['body']=substr($truncated['body'],0,-7);
+$checkInspection($truncated,'truncated',array('httpStatus'=>200,'responseBytes'=>strlen($truncated['body'])));
+$broken=$valid;
+$broken['body']='{"evidence":"DO-NOT-LOG"';
+$broken['headers']['content-length']=strlen($broken['body']);
+$checkInspection($broken,'invalid_json');
+$oversized=$valid;
+$oversized['headers']['content-length']=SYNDAMORPH_INSPECTION_RESPONSE_BYTES+1;
+$checkInspection($oversized,'response_limit');
+$checkInspection(inspection_reply(array('evidence'=>array_slice($fixtureEvidence,0,2))),'missing_evidence');
+$checkInspection(inspection_reply(array('evidence'=>array_reverse($fixtureEvidence))),'viewport_mismatch',array('returnedWidths'=>array(375,768,1440)));
+$duplicate=$fixtureEvidence;$duplicate[2]['width']=768;
+$checkInspection(inspection_reply(array('evidence'=>$duplicate)),'viewport_mismatch');
+$typed=$fixtureEvidence;$typed[2]['width']='375';
+$checkInspection(inspection_reply(array('evidence'=>$typed)),'viewport_mismatch',array('returnedWidths'=>array(1440,768,'375')));
+$partial=$fixtureEvidence;unset($partial[0]['a11y']);
+$checkInspection(inspection_reply(array('evidence'=>$partial)),'a11y_incomplete');
+$partial=$fixtureEvidence;unset($partial[1]['snapshot']);
+$checkInspection(inspection_reply(array('evidence'=>$partial)),'snapshot_incomplete');
+$partial=$fixtureEvidence;$partial[2]['screenshot']=inspection_fixture_jpeg(390);
+$checkInspection(inspection_reply(array('evidence'=>$partial)),'screenshot_incomplete');
+$checkInspection(inspection_reply(array('error'=>'browser_timeout'),504),'browser_timeout');
+$checkInspection(inspection_reply(array('error'=>'worker_crash'),503),'browser_crash');
+$checkInspection(inspection_reply(array('error'=>'DO-NOT-LOG'),429),'busy');
+$checkInspection(new WP_Error('http_request_failed','cURL error 18: partial file DO-NOT-LOG'),'truncated');
+$checkInspection(new WP_Error('http_request_failed','cURL error 28: timed out DO-NOT-LOG'),'transport_timeout');
+$checkInspection(new WP_Error('http_request_failed','DO-NOT-LOG'),'unavailable');
+
+$GLOBALS['generations']=array();
+$GLOBALS['inspection_health']=array('status'=>404,'body'=>'{"error":"Not found."}');
+$stale=syndamorph_collab_run('Stale renderer regression fixture.',false,null);
+expect(is_wp_error($stale)&&$stale->get_error_code()==='sm_inspect_protocol_mismatch'&&count($GLOBALS['generations'])===0,
+    'Stale renderer did not fail readiness before model generation');
+unset($GLOBALS['inspection_health']);
+$GLOBALS['inspection_calls']=array();
+$GLOBALS['inspection_sent_hashes']=array();
+$GLOBALS['inspection_failures']=array(inspection_reply(array('error'=>'renderer_busy'),429),
+    inspection_reply(array('error'=>'browser_crash'),503));
+$recovered=syndamorph_collab_inspect('<section>Saved reference</section>',$widths);
+expect(!is_wp_error($recovered)&&count($GLOBALS['inspection_calls'])===3&&count(array_unique($GLOBALS['inspection_sent_hashes']))===1,
+    'Transient renderer failures did not retry the same reference within the bound');
+$GLOBALS['inspection_failures']=array_fill(0,4,inspection_reply(array('error'=>'worker_crash'),503));
+$exhausted=syndamorph_collab_inspect('<section>Saved reference</section>',$widths);
+expect(is_wp_error($exhausted)&&$exhausted->get_error_data()['attempts']===3&&count($GLOBALS['inspection_failures'])===1,
+    'Renderer retries exceeded the configured bound');
+$GLOBALS['inspection_failures']=array();
+$saved=syndamorph_inspection_checkpoint($exhausted,'<section>Saved reference</section>',$widths);
+$wire=syndamorph_team_failure_payload($saved);
+expect(isset($wire['referenceCheckpoint'])&&!str_contains(wp_json_encode($wire),'Saved reference'),'Checkpoint exposed private HTML');
+$receipt=syndamorph_inspection_recheck($wire['referenceCheckpoint']);
+expect(!is_wp_error($receipt)&&$receipt['widths']===$widths&&$receipt['aiCalls']===0&&count($GLOBALS['generations'])===0,
+    'Saved reference could not be inspected without a new generation');
+$GLOBALS['revision_test']=true;
+$GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=1.0;
+$GLOBALS['inspection_failures']=array(inspection_reply(array('evidence'=>$duplicate)));
+$designFailure=syndamorph_collab_run('Archive the approved-for-inspection reference.',false,static function(){});
+$designWire=syndamorph_team_failure_payload($designFailure);
+expect($designWire['code']==='sm_inspect_viewport_mismatch'&&$designWire['stage']==='design_inspection'&&
+    $designWire['role']==='designer'&&$designWire['completedCalls']===2&&count($GLOBALS['generations'])===2&&
+    isset($designWire['referenceCheckpoint']),'Designer inspection error lost the reference or used another paid call');
+$designReceipt=syndamorph_inspection_recheck($designWire['referenceCheckpoint']);
+expect(!is_wp_error($designReceipt)&&$designReceipt['aiCalls']===0&&count($GLOBALS['generations'])===2,
+    'Rechecking the failed Designer artifact called a paid agent');
+unset($GLOBALS['revision_test']);
+echo "PASS: inspection diagnostics, stale runtime gate, bounded retry and saved reference recovery\n";

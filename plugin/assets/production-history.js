@@ -109,7 +109,27 @@
                 section(d.title+' · Gutenberg blocks',d.artifact?.content||'','html');
                 preview(d.artifact?.preview);
             }
-            if(event.type==='job_error') section('Recorded error',JSON.stringify(d,null,2),'json').open=true;
+            if(event.type==='inspection_error') section('Recorded inspection error',JSON.stringify(d,null,2),'json').open=true;
+            if(event.type==='job_error') {
+                const { referenceCheckpoint, ...error } = d;
+                section('Recorded error',JSON.stringify(error,null,2),'json').open=true;
+                if(referenceCheckpoint) {
+                    const retry=button('Retry browser inspection',async()=>{
+                        retry.disabled=true;
+                        status.textContent='Inspecting the saved reference…';
+                        try {
+                            const response=await fetch(cfg.historyUrl+'/'+record.id+'/reinspect-reference',{
+                                method:'POST',credentials:'same-origin',headers:{'X-WP-Nonce':cfg.nonce},
+                            });
+                            const result=await response.json();
+                            if(!response.ok)throw new Error(result.message || 'Browser inspection failed.');
+                            status.textContent='Browser inspection passed at '+result.widths.join(', ')+' CSS px. The job remains archived.';
+                        }catch(e){status.textContent=e.message;}
+                        finally{retry.disabled=false;}
+                    });
+                    actions.append(retry);
+                }
+            }
         }
         const final=[...events].reverse().find(e=>e.type==='job_complete')?.data;
         if(final?.outputs) Object.entries(final.outputs).forEach(([role,value])=>outputs.set(role,value));

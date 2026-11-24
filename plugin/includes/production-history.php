@@ -129,6 +129,24 @@ add_action( 'rest_api_init', static function (): void {
             return rest_ensure_response( array( 'jobs' => array_map( 'syndamorph_history_summary', array_slice( $rows, 0, 50 ) ), 'more' => count( $rows ) > 50 ) );
         },
     ) );
+    register_rest_route('syndamorph/v1','/history/(?P<id>[0-9]+)/reinspect-reference',array(
+        'methods'=>'POST','permission_callback'=>$permission,
+        'callback'=>static function(WP_REST_Request $request){
+            global $wpdb;
+            list($jobs,$events)=syndamorph_history_tables();
+            $id=(int)$request['id'];
+            $raw=$wpdb->get_var($wpdb->prepare(
+                "SELECT e.payload FROM $events e INNER JOIN $jobs j ON j.id=e.job_id
+                 WHERE j.id=%d AND j.category='GEN' AND j.status='failed' AND e.event_type='job_error' ORDER BY e.id DESC LIMIT 1",$id));
+            $failure=is_string($raw)?json_decode($raw,true):null;
+            $checkpoint=$failure['referenceCheckpoint']??null;
+            if(!is_string($checkpoint))
+                return new WP_Error('sm_inspect_checkpoint_missing','This job has no saved inspection reference.',array('status'=>404));
+            require_once __DIR__.'/production-inspection.php';
+            $result=syndamorph_inspection_recheck($checkpoint);
+            return is_wp_error($result)?$result:rest_ensure_response($result);
+        }
+    ));
     register_rest_route('syndamorph/v1','/learning',array(
         'methods'=>'GET','permission_callback'=>$permission,
         'callback'=>static function(){return rest_ensure_response(syndamorph_learning_snapshot());}
@@ -236,7 +254,11 @@ add_action( 'rest_api_init', static function (): void {
             if(is_wp_error($viewports))return $viewports;
             $ref=syndamorph_collab_inspect($reference,$viewports);
             $native=syndamorph_collab_inspect($artifact['preview'],$viewports);
-            if(is_wp_error($ref)||is_wp_error($native))return new WP_Error('sm_recompile_qa','Browser reinspection unavailable.',array('status'=>503));
+            if(is_wp_error($ref)||is_wp_error($native)) {
+                $error=is_wp_error($ref)?$ref:$native;
+                return new WP_Error($error->get_error_code(),$error->get_error_message(),
+                    array('status'=>503,'inspection'=>syndamorph_inspection_diagnostic($error)));
+            }
             $comparison=syndamorph_collab_compare($ref,$native);
             if(is_wp_error($comparison))return $comparison;
             $decoded=json_decode(syndamorph_native_json_text($plan),true);
