@@ -24,6 +24,13 @@
     const initialRoles = () => activeFormat === 'gutenberg' ? roles : roles.filter(r => r !== 'reference');
     const completedRoles = new Set();
     const labels = {boss:'Boss', designer:'Designer', reference:'HTML Reference', developer:'Developer', validator:'Validator'};
+    const syncRoster = () => {
+        const reference = root.querySelector('[data-agent="reference"]');
+        if (reference) reference.hidden = activeFormat !== 'gutenberg';
+    };
+    format?.addEventListener('change', () => {
+        if (!running && !replaying) { activeFormat = format.value; syncRoster(); }
+    });
     let running = false;
     let completed = 0;
     let currentIdentity = null;
@@ -60,7 +67,7 @@
         name.textContent = labels[role] + ' · Generating';
         const body = document.createElement('div');
         body.className = 'sm-team-stream-text';
-        const renderer = window.SyndaMorphRichContent.mount(body, role === 'developer' ? (activeFormat === 'gutenberg' ? 'json' : 'html') : 'markdown');
+        const renderer = window.SyndaMorphRichContent.mount(body, role === 'reference' ? 'html' : role === 'developer' ? (activeFormat === 'gutenberg' ? 'json' : 'html') : 'markdown');
         const metric = document.createElement('small');
         item.append(stamp, name, body, metric);
         timeline.append(item);
@@ -97,7 +104,7 @@
             const metric = (data.agentMetrics || []).find(item => item.role === role);
             heading.textContent = labels[role] + (metric ? ' — ' + formatMetric(metric) : '');
             const body = document.createElement('div');
-            const renderer = window.SyndaMorphRichContent.mount(body, role === 'developer' ? (data.outputType === 'gutenberg' ? 'json' : 'html') : 'markdown');
+            const renderer = window.SyndaMorphRichContent.mount(body, role === 'reference' ? 'html' : role === 'developer' ? (data.outputType === 'gutenberg' ? 'json' : 'html') : 'markdown');
             renderer.update(data.outputs?.[role] || 'No output', true);
             reportRenderers.push(renderer);
             details.append(heading, body);
@@ -213,6 +220,7 @@
     function onEvent(type, data) {
         if (type === 'ready') {
             activeFormat = data.outputType || 'html';
+            syncRoster();
             if (data.jobId) {
                 currentIdentity = data;
                 const label = data.jobId + ' : ' + data.title;
@@ -324,6 +332,7 @@
                 clearMessages(); clearReports(); timeline.replaceChildren();
                 results.hidden = true; completed = 0; completedRoles.clear();
                 activeFormat = record.context?.outputType || 'html';
+                syncRoster();
                 currentIdentity = record;
                 exportReceipts = (record.events || []).filter(e => e.type === 'export_receipt').map(e => e.data);
                 roles.forEach(role => setAgent(role, 'idle'));
@@ -356,10 +365,12 @@
             }
         }
     });
+    syncRoster();
     run.addEventListener('click', async () => {
         if (running || replaying || exportControl?.busy()) return;
         const prompt = brief.value.trim();
         activeFormat = format?.value || 'html';
+        syncRoster();
         if (prompt.length < 12 || prompt.length > 2000) {
             text(notice, 'Enter a production brief between 12 and 2000 characters.');
             return;
