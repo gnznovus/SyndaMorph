@@ -99,6 +99,14 @@ function wp_remote_post($url,$args) {
             default => throw new RuntimeException('Unexpected paid parent repair call '.$i),
         };
     } elseif (!empty($GLOBALS['revision_test'])) {
+        if (str_contains($req['system'][1]['text'] ?? '', 'Task: scope_resolution.')) {
+            $resolution = array('decision'=>'manual_review_required','summary'=>'Repair reserve reached','nextAction'=>'Review the retained artifact');
+            return array('status'=>200,'body'=>json_encode(array(
+                'model'=>'claude-dynamic-test-1','stop_reason'=>'end_turn',
+                'content'=>array(array('type'=>'text','text'=>json_encode($resolution))),
+                'usage'=>array('input_tokens'=>1200,'output_tokens'=>150),
+            )));
+        }
         $text=match($i) {
             1 => '{"title":"Hotel hero","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid editable blocks"]}',
             2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
@@ -401,10 +409,28 @@ $GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
 $GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=0.020;
 $cutoff=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
 expect(!is_wp_error($cutoff) && $cutoff['status']==='uncompleted','80% working-budget cutoff must preserve best artifact as Uncompleted: '.(is_wp_error($cutoff)?$cutoff->get_error_code().' '.$cutoff->get_error_message():($cutoff['status']??'unknown')));
-expect(count($GLOBALS['generations'])===5 && count($cutoff['quality']['revisions'])===0,'80% budget admission initiated unauthorized paid repair');
+$cutoffTasks=array_map(static function(array $request): string {
+    preg_match('/^Task: ([a-z_]+)\./',$request['system'][1]['text']??'', $match);
+    return $match[1]??'unknown';
+},$GLOBALS['generations']);
+expect($cutoffTasks===array('boss','designer','final_approval','developer','validation','scope_resolution') &&
+    count($cutoff['quality']['revisions'])===0,'80% budget admission must reserve only the final Boss summary');
+expect($cutoff['quality']['escalation']['decision']==='manual_review_required','Reserved Boss summary was not recorded');
 expect($cutoff['quality']['terminationReason']==='budget_80_percent','80% reserve stop reason not archived');
 expect(isset($cutoff['artifact']['content']),'Uncompleted job lost the usable native artifact');
 unset($GLOBALS['revision_test']);
+
+$gen015=json_decode(file_get_contents(__DIR__.'/fixtures/gen-015-repair.json'),true,512,JSON_THROW_ON_ERROR);
+expect($gen015['archive']['job']==='GEN-000002' && $gen015['baseline']['score']===38 &&
+    $gen015['baseline']['retained']===0,'Archived GEN-015 baseline changed');
+expect(array_column(array_column($gen015['rounds'],'result'),'accepted')===array(false,false,false,false),
+    'Archived GEN-015 outcomes changed');
+$gen015Round3=$gen015['rounds'][2];
+expect($gen015Round3['result']['scoreAfter']===34 &&
+    $gen015Round3['result']['introducedIssues']===array('layout-root-desktop-centering'),
+    'Archived GEN-015 acceptance counterexample changed');
+expect(array_column($gen015Round3['pixels'],'pixelDifferenceRatio')===array(0.06784,0.06804,0.07448),
+    'GEN-015 Chromium replay comparison changed');
 // GEN-013 reproduction: issue is owned by an ancestor but repair changes a leaf.
 $fixtureBeforeParent=$GLOBALS['native_fixture'];
 $parentPlan=json_decode($GLOBALS['native_fixture'],true);
