@@ -56,6 +56,9 @@ function syndamorph_collab_inspect(string $html) {
     if (wp_remote_retrieve_response_code($response)!==200) { return new WP_Error('sm_inspect_failed','Browser inspection service rejected the request.'); }
     $data=json_decode(wp_remote_retrieve_body($response),true);
     if (!is_array($data['evidence']??null) || count($data['evidence'])!==3) { return new WP_Error('sm_inspect_incomplete','Browser inspection evidence incomplete.'); }
+    foreach($data['evidence'] as $sample) {
+        if(!is_array($sample['a11y']??null)) return new WP_Error('sm_a11y_incomplete','Automated accessibility scan did not return evidence.');
+    }
     return $data['evidence'];
 }
 /** Deterministic visual comparison reuses already captured screenshots. */
@@ -76,6 +79,11 @@ function syndamorph_collab_evidence(array $reference, array $native): array {
     foreach ([0,1,2] as $i) {
         $ref=$reference[$i]['snapshot']??array(); $out=$native[$i]['snapshot']??array();$width=(int)($native[$i]['width']??0);
         if (($out['overflow']??true)) $findings[] = array('id'=>'overflow-'.$width,'component'=>'blocks[0]','severity'=>'high','detail'=>'Native output has horizontal overflow at '.$width.'px.');
+        foreach (($native[$i]['a11y']??array()) as $violation) {
+            $rule=sanitize_key((string)($violation['id']??'unknown'));
+            $findings[]=array('id'=>'axe-'.$rule.'-'.$width,'component'=>'blocks[0]','severity'=>'high',
+                'detail'=>'axe-core '.($violation['impact']??'issue').': '.mb_substr((string)($violation['description']??$rule),0,200));
+        }
         foreach (($out['elements']??array()) as $index=>$el) {
             if (!empty($el['missingAlt']) || !empty($el['unnamedControl'])) {
                 $findings[] = array('id'=>'a11y-'.$width.'-'.$index,'component'=>$el['id']?:'blocks[0]','severity'=>'high','detail'=>'Element has missing accessible name or image alt.');
