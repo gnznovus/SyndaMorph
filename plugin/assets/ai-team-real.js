@@ -113,7 +113,7 @@
         if (data.quality) {
             const qa=document.createElement('details');qa.className='sm-team-ai-agent-output';qa.open=true;
             const h=document.createElement('summary');h.textContent='Browser QA, issues and targeted revisions';
-            const pre=document.createElement('pre');pre.textContent=JSON.stringify({issues:data.quality.issues,revisions:data.quality.revisions,browserInspected:data.quality.browserInspected,visionInspected:data.quality.visionInspected,nativeEditorVerified:data.quality.nativeEditorVerified},null,2);
+            const pre=document.createElement('pre');pre.textContent=JSON.stringify({terminationReason:data.quality.terminationReason,issues:data.quality.issues,revisions:data.quality.revisions,pixelComparison:data.quality.pixelComparison,browserInspected:data.quality.browserInspected,visionInspected:data.quality.visionInspected,nativeEditorVerified:data.quality.nativeEditorVerified},null,2);
             qa.append(h,pre);results.append(qa);
         }
         if (data.quality?.evidence) {
