@@ -24,7 +24,10 @@
     const taskRoles = {reference:'developer',validator:'boss',validation:'boss',revision_validation:'boss'};
     const taskLabels = {reference:'HTML reference',validation:'QA validation',validator:'QA validation',revision_validation:'Scoped QA validation',repair:'Technical repair',schema_repair:'Schema repair',final_approval:'Final approval'};
     const initialRoles = () => roles;
-    const requiredTasks = () => activeFormat === 'gutenberg' ? ['boss','designer','final_approval','developer','validation'] : ['boss','designer','developer','validator'];
+    let legacyNativeReplay = false;
+    const requiredTasks = () => activeFormat === 'gutenberg' ?
+        ['boss','designer',legacyNativeReplay?'reference':'final_approval','developer','validation'] :
+        ['boss','designer','developer','validator'];
     const completedRoles = new Set();
     const labels = {boss:'Boss', designer:'Designer', reference:'HTML Reference', developer:'Developer', validator:'Validator'};
     const syncRoster = () => {};
@@ -230,9 +233,11 @@
     }
     function onEvent(type, data) {
         const task=data.task || data.role;
+        if (activeFormat==='gutenberg' && task==='reference' && type==='agent_start') legacyNativeReplay=true;
         if (taskRoles[data.role]) data={...data,role:taskRoles[data.role],task};
         if (task==='validator' && activeFormat==='gutenberg') data={...data,task:'validation'};
         if (type === 'ready') {
+            legacyNativeReplay = false;
             activeFormat = data.outputType || 'html';
             syncRoster();
             if (data.jobId) {
