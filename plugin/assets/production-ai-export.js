@@ -57,7 +57,7 @@
         const editor = id => window.SyndaMorphImport.editUrl+'?post='+encodeURIComponent(id)+'&action=edit';
         function refresh() {
             const receipt=saved.get(mode.value);
-            prepare.disabled=busy||!!prepared;
+            prepare.disabled=busy;
             mode.disabled=busy;
             save.disabled=busy||!prepared||!!receipt;
             save.textContent=receipt?(mode.value==='draft'?'Draft saved':'Pattern saved'):(mode.value==='draft'?'Save Draft':'Save as Pattern');
@@ -66,7 +66,8 @@
             open.textContent=receipt?'Open Editor':'Save & Open Editor';
         }
         prepare.addEventListener('click',async()=>{
-            if(busy||prepared)return;
+            if(busy||disposed)return;
+            prepared=null; preview.hidden=true; controls.hidden=true;
             busy=true;refresh();status.textContent='Converting HTML into Gutenberg blocks…';
             try {
                 // Do not execute model-generated JavaScript during conversion.
@@ -80,9 +81,9 @@
                     for(const a of [...n.attributes]) if(/^on|^(?:src|srcset|href|action|formaction|ping|poster|data)$/i.test(a.name))n.removeAttribute(a.name);
                 });
                 preview.srcdoc='<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:"><meta name="viewport" content="width=device-width,initial-scale=1">'+template.innerHTML;
-                preview.hidden=false;controls.hidden=false;prepare.textContent='Gutenberg preview ready';
+                preview.hidden=false;controls.hidden=false;prepare.textContent='Reconvert & Preview';
                 const missing=Array.isArray(result.missing)?result.missing.length:0;
-                const styles=Array.isArray(result.stylesheets)?result.stylesheets.length:0;
+                const styles=Array.isArray(result.stylesheets)?result.stylesheets.length:(result.stylesheets?.missing?.length||0)+(result.stylesheets?.unverified?.length||0);
                 status.textContent='Review the converted output before saving. '+(missing?missing+' missing asset(s). ':'')+(styles?styles+' stylesheet notice(s). ':'')+'Visual fidelity and editor validity are not automatically certified.';
             }catch(e){if(!disposed)status.textContent=e.message;}
             finally{busy=false;if(!disposed)refresh();}
