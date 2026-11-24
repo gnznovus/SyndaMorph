@@ -26,7 +26,27 @@ process.stdin.on('end', async () => {
         await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 5000 });
         await page.waitForTimeout(600);
         if (inspect) {
-            await page.evaluate(axe.source);
+            // Render untrusted input with JS disabled. Run axe separately on a
+            // sanitized DOM copy, never on the original script-bearing document.
+            const safeMarkup = await page.evaluate(() => {
+                const doc = document.documentElement.cloneNode(true);
+                doc.querySelectorAll('script,iframe,object,embed,form,link,base,meta[http-equiv]').forEach(el=>el.remove());
+                doc.querySelectorAll('*').forEach(el => {
+                    for(const attr of [...el.attributes]) {
+                        if(/^on/i.test(attr.name) || /^(?:srcdoc|formaction|action)$/i.test(attr.name) ||
+                            (/^(?:href|src)$/i.test(attr.name) && /^(?:javascript:|data:text\/html)/i.test(attr.value)))
+                            el.removeAttribute(attr.name);
+                    }
+                });
+                return '<!doctype html>' + doc.outerHTML;
+            });
+            const a11yContext = await browser.newContext({
+                javaScriptEnabled:true, serviceWorkers:'block', acceptDownloads:false
+            });
+            await a11yContext.route('**/*', route=>route.abort('blockedbyclient'));
+            const a11yPage = await a11yContext.newPage();
+            await a11yPage.setContent(safeMarkup, {waitUntil:'domcontentloaded',timeout:5000});
+            await a11yPage.evaluate(axe.source);
             const evidence = [];
             for (const width of [1440, 768, 390]) {
                 await page.setViewportSize({ width, height: 900 });
@@ -47,7 +67,8 @@ process.stdin.on('end', async () => {
                     };
                 });
                 const screenshot = (await page.screenshot({type:'jpeg',quality:65,timeout:3000})).toString('base64');
-                const a11y = await page.evaluate(async () => {
+                await a11yPage.setViewportSize({width,height:900});
+                const a11y = await a11yPage.evaluate(async () => {
                     const report=await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa']}});
                     return report.violations.map(v=>({id:v.id,impact:v.impact,description:v.description,
                         nodes:v.nodes.slice(0,8).map(n=>({target:n.target,summary:n.failureSummary}))}));
