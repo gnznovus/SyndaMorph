@@ -313,6 +313,9 @@ expect(str_contains($case['artifact']['content'],'linear-gradient(135deg')&&
 $persisted=syndamorph_surgery_load($case['surgery']['workingPlanId']);
 expect(is_array($persisted)&&$persisted['revision']===2,
     'Resolved surgical plan was not persisted as a second draft revision');
+expect(count(syndamorph_learning_retrieve('developer'))>0,'Accepted GEN-012 compiler fix was not retained as verified learning');
+// Keep unrelated legacy editor-learning fixtures isolated from this recovery benchmark.
+$GLOBALS['options'][SYNDAMORPH_LEARNING_OPTION]=array();
 unset($GLOBALS['surgery_test']);
 $GLOBALS['native_fixture']=$validBefore;
 
