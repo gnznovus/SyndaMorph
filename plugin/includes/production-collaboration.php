@@ -5,7 +5,7 @@ if (!defined('ABSPATH')) { exit; }
 function syndamorph_collab_cost(array $usage, float $input, float $output): float {
     return (($usage['inputTokens'] ?? 0) * $input + ($usage['outputTokens'] ?? 0) * $output) / 1000000;
 }
-function syndamorph_collab_find(array &$nodes, string $id, string $path = 'blocks') {
+function &syndamorph_collab_find(array &$nodes, string $id, string $path = 'blocks') {
     foreach ($nodes as $index => &$node) {
         if (!is_array($node)) { continue; }
         $current = $path . '[' . $index . ']';
@@ -15,7 +15,7 @@ function syndamorph_collab_find(array &$nodes, string $id, string $path = 'block
             if ($found !== null) { return $found; }
         }
     }
-    return null;
+    $missing=null; return $missing;
 }
 function syndamorph_collab_ids(array $plan): array {
     $walk = static function (array &$nodes, string $path) use (&$walk): void {
