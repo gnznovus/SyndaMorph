@@ -33,7 +33,7 @@ const render = (html, inspect = false) => new Promise((resolve, reject) => {
         if (error) { stop(); reject(error); }
         else { resolve(htmlResult); }
     };
-    const timeout = setTimeout(() => finish(new Error('DOM renderer timed out after 8 seconds.')), inspect ? 25000 : 8000);
+    const timeout = setTimeout(() => finish(new Error('Isolated browser worker exceeded its execution limit.')), inspect ? 60000 : 8000);
     child.on('error', (err) => finish(err));
     child.stdout.on('data', (buf) => {
         size += buf.length;
