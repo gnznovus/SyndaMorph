@@ -7,6 +7,7 @@ on:
       - 'compose.yaml'
       - 'plugin/includes/production-team.php'
       - 'plugin/includes/production-standards.php'
+      - 'plugin/includes/production-job-memory.php'
       - 'plugin/includes/production-history.php'
       - 'plugin/assets/production-history.js'
       - 'plugin/assets/production-ai-export.js'
@@ -31,6 +32,7 @@ on:
       - 'compose.yaml'
       - 'plugin/includes/production-team.php'
       - 'plugin/includes/production-standards.php'
+      - 'plugin/includes/production-job-memory.php'
       - 'plugin/includes/production-history.php'
       - 'plugin/assets/production-history.js'
       - 'plugin/assets/production-ai-export.js'
@@ -68,6 +70,8 @@ jobs:
           php -l plugin/includes/ai-team-real.php
           php -l plugin/includes/production-block-plan.php
           php -l plugin/includes/production-collaboration.php
+          php -l plugin/includes/production-job-memory.php
+          node --check renderer/compare.js
           node --check renderer/render-worker.js
           node --check renderer/server.js
           php tests/real-ai-poc-test.php
