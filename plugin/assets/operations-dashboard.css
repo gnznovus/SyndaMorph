@@ -931,3 +931,28 @@
 #syndamorph-production-team .sm-team-actions button:disabled {
     cursor:not-allowed; opacity:.55;
 }
+
+/* Shared rich agent content — scoped to the production workspace. */
+#syndamorph-production-team .sm-rich-content {min-width:0;overflow-wrap:anywhere;color:#243348;font-size:14px;line-height:1.65;}
+#syndamorph-production-team .sm-rich-toolbar,
+#syndamorph-production-team .sm-rich-code-toolbar {display:flex;justify-content:flex-end;align-items:center;gap:12px;padding:6px 0;}
+#syndamorph-production-team .sm-rich-toolbar button,
+#syndamorph-production-team .sm-rich-code-toolbar button {background:#fff;border:1px solid #cbd5e1;border-radius:5px;padding:4px 10px;cursor:pointer;color:#334155;}
+#syndamorph-production-team .sm-rich-content h3,
+#syndamorph-production-team .sm-rich-content h4,
+#syndamorph-production-team .sm-rich-content h5,
+#syndamorph-production-team .sm-rich-content h6 {color:#18283a;margin:16px 0 8px;font-weight:650;}
+#syndamorph-production-team .sm-rich-content p {margin:7px 0;white-space:pre-wrap;}
+#syndamorph-production-team .sm-rich-content ul,
+#syndamorph-production-team .sm-rich-content ol {margin:8px 0;padding-inline-start:24px;list-style:revert;}
+#syndamorph-production-team .sm-rich-content li {margin:4px 0;list-style:revert;}
+#syndamorph-production-team .sm-rich-content blockquote {border-left:3px solid #94a3b8;margin:10px 0;padding:4px 12px;}
+#syndamorph-production-team .sm-rich-table-wrap {overflow:auto;margin:12px 0;}
+#syndamorph-production-team .sm-rich-content table {border-collapse:collapse;width:100%;font-size:13px;line-height:1.5;}
+#syndamorph-production-team .sm-rich-content th,
+#syndamorph-production-team .sm-rich-content td {padding:9px 11px;border:1px solid #dce3ea;text-align:left;vertical-align:top;}
+#syndamorph-production-team .sm-rich-content th {background:#f1f5f9;font-weight:650;}
+#syndamorph-production-team .sm-rich-content pre {white-space:pre-wrap;overflow-wrap:anywhere;max-height:450px;overflow:auto;background:#f8fafc;padding:12px;margin:6px 0;border-radius:6px;font-size:12px;line-height:1.6;}
+#syndamorph-production-team .sm-rich-content code {font-family:ui-monospace,monospace;background:#f1f5f9;padding:1px 3px;border-radius:3px;}
+#syndamorph-production-team .sm-rich-content pre code {background:none;padding:0;}
+#syndamorph-production-team .sm-rich-diagram {display:block;width:100%;height:auto;max-height:700px;margin:10px 0;border:1px solid #dce3ea;border-radius:8px;background:#fff;color:#334155;}
