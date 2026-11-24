@@ -589,16 +589,21 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             $newIssues[]=array('id'=>'boss-approval-pending','component'=>'boss','severity'=>'high',
                 'detail'=>'Boss did not approve this revised component.','source'=>'process');
         $newIssues=syndamorph_issue_merge($newIssues);
+        $oldKeys=array_fill_keys(array_map(static fn($item)=>
+            ($item['component']??'').'|'.($item['id']??''),$issues),true);
+        $introduced=array_values(array_filter($newIssues,static fn($item)=>
+            !isset($oldKeys[($item['component']??'').'|'.($item['id']??'')]))); 
         $oldScore=syndamorph_issue_score($issues);$newScore=syndamorph_issue_score($newIssues);
         $oldPixel=array_sum(array_column($comparison,'pixelDifferenceRatio'))/3;
         $newPixel=array_sum(array_column($newComparison,'pixelDifferenceRatio'))/3;
         // Model approval alone is insufficient: deterministic checks remain
         // authoritative, and the global screenshots must not materially regress.
-        $accepted=($newScore<$oldScore || ($newScore===$oldScore && $newPixel<$oldPixel)) &&
+        $accepted=(!$introduced && ($newScore<$oldScore || ($newScore===$oldScore && $newPixel<$oldPixel))) &&
             $newPixel<=$oldPixel+0.01 &&
             !(($parsedTarget['decision']??'')==='changes_requested' && !$newIssues);
         $revisions[]=array('round'=>$round,'id'=>$id,'delegation'=>array('designerNeeded'=>$delegated['designerNeeded'],'reason'=>mb_substr((string)($delegated['reason']??''),0,160)),'route'=>$route,'impact'=>$impact,'reviewScope'=>$reviewIds,
-            'changedFields'=>$patch['changes'],'imageScope'=>$scope['mode'],'accepted'=>$accepted,'before'=>count($issues),'after'=>count($newIssues),'scoreBefore'=>$oldScore,'scoreAfter'=>$newScore,'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
+            'changedFields'=>$patch['changes'],'imageScope'=>$scope['mode'],'accepted'=>$accepted,'before'=>count($issues),'after'=>count($newIssues),'scoreBefore'=>$oldScore,'scoreAfter'=>$newScore,
+            'introducedIssues'=>array_column($introduced,'id'),'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
         $memory->record($id,array_merge(end($revisions),
             array('changes'=>$patch['changes'],'touched'=>$candidate['touched']??array(),
                 'remainingIssues'=>array_slice($newIssues,0,8))));
