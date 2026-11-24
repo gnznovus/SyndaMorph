@@ -201,6 +201,27 @@ function syndamorph_collab_style_findings(array $reference,array $native,array $
     }
     return array_slice($issues,0,50);
 }
+/** Use matching visible text to locate affected regions in both cached images. Fall back to full evidence if matching is ambiguous. */
+function syndamorph_collab_scoped_images(array $reference,array $native,array $texts): array {
+    $items=array();$full=array();
+    foreach(array(0,2) as $viewport) foreach(array($reference,$native) as $samples) {
+        $sample=$samples[$viewport];$full[]=array('media_type'=>'image/jpeg','data'=>$sample['screenshot']);
+        $rects=array();
+        foreach($sample['snapshot']['elements']??array() as $el) {
+            if(in_array(trim((string)($el['text']??'')),$texts,true)&&count($el['rect']??array())===4)$rects[]=$el['rect'];
+        }
+        if(!$rects)continue;
+        $left=min(array_column($rects,0));$top=min(array_column($rects,1));
+        $right=max(array_map(static fn($r)=>$r[0]+$r[2],$rects));$bottom=max(array_map(static fn($r)=>$r[1]+$r[3],$rects));
+        $items[]=array('screenshot'=>$sample['screenshot'],'rect'=>array($left,$top,$right-$left,$bottom-$top));
+    }
+    if(count($items)!==4)return array('images'=>$full,'mode'=>'full');
+    $response=wp_remote_post('http://renderer:3000/crop',array('timeout'=>20,'redirection'=>0,'headers'=>array('Content-Type'=>'application/json'),'body'=>wp_json_encode(array('items'=>$items)),'limit_response_size'=>2000000));
+    if(is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200)return array('images'=>$full,'mode'=>'full');
+    $data=json_decode(wp_remote_retrieve_body($response),true);
+    if(count($data['images']??array())!==4)return array('images'=>$full,'mode'=>'full');
+    return array('images'=>$data['images'],'mode'=>'component');
+}
 function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $settings=syndamorph_models_settings();
     $provider=$settings['provider']??'';$model=$settings['model']??'';
@@ -374,19 +395,15 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $newIssues=array_merge(syndamorph_collab_block_issues($candidate['artifact']),syndamorph_collab_evidence($inspectReference,$newEvidence),syndamorph_collab_style_findings($inspectReference,$newEvidence,$candidate['plan']));
         $affected=array_fill_keys($impact['affected'],true);
         $otherIssues=array_values(array_filter($issues,static fn($issue)=>!isset($affected[$issue['component']??''])));
-        $scopedScreenshots=array();
-        foreach(array(0,2) as $viewport) {
-            foreach(array($inspectReference,$newEvidence) as $samples) {
-                $scopedScreenshots[]=array('media_type'=>'image/jpeg','data'=>$samples[$viewport]['screenshot']);
-            }
-        }
+        $scope=syndamorph_collab_scoped_images($inspectReference,$newEvidence,syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id)));
+        $scopedScreenshots=$scope['images'];
         // Each repair receives a fresh vision review of its changed component,
         // not the entire design report. Unaffected model findings are retained.
         $targetReview=$call('boss',
             'Inspect ONLY the changed component and affected descendants using the four browser screenshots. Compare against reference. Return JSON {"issues":[{"id":"...","component":"existing id","severity":"high|medium|low","detail":"..."}]}. Do not re-review approved siblings.',
             array('id'=>$id,'changedComponent'=>syndamorph_collab_find($candidate['plan']['blocks'],$id),
                 'previousIssues'=>array_values(array_filter($issues,static fn($issue)=>isset($affected[$issue['component']??'']))),
-                'impact'=>$impact,
+                'impact'=>$impact,'imageScope'=>$scope['mode'],
                 'measurements'=>syndamorph_memory_measurements($newEvidence,syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id))),'previousAttempts'=>$memory->feedback($id),'pixelComparison'=>$newComparison,'imageOrder'=>array('desktop-reference','desktop-updated','mobile-reference','mobile-updated')),16384,$scopedScreenshots,'revision_validation');
         if (is_wp_error($targetReview)) { $terminationReason='validator_blocked'; $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Scoped visual validation unavailable');break; }
         $parsedTarget=json_decode($targetReview,true);
@@ -407,7 +424,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $oldPixel=array_sum(array_column($comparison,'pixelDifferenceRatio'))/3;
         $newPixel=array_sum(array_column($newComparison,'pixelDifferenceRatio'))/3;
         $accepted=($newScore<$oldScore || ($newScore===$oldScore && $newPixel<$oldPixel)) && $newPixel<=$oldPixel+0.08;
-        $revisions[]=array('round'=>$round,'id'=>$id,'delegation'=>array('designerNeeded'=>$delegated['designerNeeded'],'reason'=>mb_substr((string)($delegated['reason']??''),0,160)),'impact'=>$impact,'accepted'=>$accepted,'before'=>$oldScore,'after'=>$newScore,'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
+        $revisions[]=array('round'=>$round,'id'=>$id,'delegation'=>array('designerNeeded'=>$delegated['designerNeeded'],'reason'=>mb_substr((string)($delegated['reason']??''),0,160)),'impact'=>$impact,'imageScope'=>$scope['mode'],'accepted'=>$accepted,'before'=>$oldScore,'after'=>$newScore,'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
         $memory->record($id,array_merge(end($revisions),array('replacement'=>$patch['replacement'],'remainingIssues'=>array_slice($newIssues,0,8))));
         if($accepted) {
             $plan=$candidate['plan'];$artifact=$candidate['artifact'];$inspectNative=$newEvidence;$comparison=$newComparison;
