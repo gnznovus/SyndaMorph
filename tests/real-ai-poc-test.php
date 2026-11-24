@@ -69,8 +69,8 @@ function wp_remote_post($url,$args) {
     if (!empty($GLOBALS['revision_test'])) {
         $text=match($i) {
             1 => 'Job title: Hotel hero',
-            2 => 'Use elegant typography and native blocks.',
-            3 => '<section><h2>Welcome &amp; enjoy</h2></section>',
+            2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
+            3 => '{"decision":"approved","issues":[],"summary":"Approved design"}',
             4 => $GLOBALS['native_fixture'],
             5 => '{"issues":[{"id":"heading-fidelity","component":"blocks[0].children[0]","severity":"medium","detail":"Font size needs refinement"}],"summary":"Review heading"}',
             6 => json_encode(array('id'=>'blocks[0].children[0]','replacement'=>array('id'=>'blocks[0].children[0]','type'=>'heading','text'=>'Welcome & enjoy','level'=>2,'style'=>array('color'=>'#ffffff','fontSize'=>'2.5rem')))),
@@ -79,8 +79,8 @@ function wp_remote_post($url,$args) {
         };
     } else $text= !empty($GLOBALS['native_mode']) ? match($i) {
         1 => 'Job title: Premium hotel hero',
-        2 => 'Fluid hero design with strong contrast and clear CTA.',
-        3 => '<section class="hero"><style>.hero{padding:3rem}</style><h2>Welcome &amp; enjoy</h2></section>',
+        2 => '<section class="hero"><style>.hero{padding:3rem}</style><h2>Welcome &amp; enjoy</h2></section>',
+        3 => '{"decision":"approved","issues":[],"summary":"Approved design"}',
         4 => $GLOBALS['native_fixture'],
         5 => '{"issues":[],"summary":"Measurements checked; editor still unverified."}',
         default => throw new RuntimeException('Too many native AI calls'),
@@ -227,6 +227,8 @@ expect(count($GLOBALS['generations'][4]['messages'][0]['content'])===5,'Vision v
 expect($native['quality']['browserInspected']===true && $native['quality']['visionInspected']===true,'Browser and vision evidence not recorded');
 expect(count($native['quality']['pixelComparison'])===3,'Real pixel-comparison metrics not recorded');
 expect($native['status']==='needs_review','Unverified Gutenberg editor must not be auto-approved');
+expect($native['designApproval']['decision']==='approved'&&$native['designApproval']['reviewRounds']===1&&$native['handoffs'][0]['decision']==='approved','Designer reference crossed handoff without Boss approval');
+expect(count($GLOBALS['generations'][2]['messages'][0]['content'])===3,'Boss did not receive desktop/mobile visual evidence before Developer');
 expect(str_contains(wp_json_encode($GLOBALS['generations'][3]['system']),'JSON'),'Native developer contract missing');
 expect(($GLOBALS['generations'][3]['system'][0]['cache_control']['type']??null)==='ephemeral','Cache prefix absent');
 expect($GLOBALS['generations'][0]['system'][0]===$GLOBALS['generations'][4]['system'][0],'Shared cache prefix not stable');
@@ -262,7 +264,7 @@ $target=$resolved['plan']['blocks'][0]['children'][0];
 $patch=syndamorph_surgery_apply($resolved['plan'],array('id'=>$target['id'],'changes'=>array(array('path'=>'style.fontSize','value'=>'2.5rem'))));
 expect(is_array($patch)&&!is_wp_error($patch['artifact']),'Surgical property correction failed');
 expect($patch['plan']['blocks'][0]['children'][1]===$resolved['plan']['blocks'][0]['children'][1],'Surgical repair modified unrelated sibling');
-expect(is_wp_error(syndamorph_surgery_apply($resolved['plan'],array('id'=>$target['id'],'changes'=>array(array('path'=>'text','value'=>'tampered')))),'Surgery escaped style-only scope');
+expect(is_wp_error(syndamorph_surgery_apply($resolved['plan'],array('id'=>$target['id'],'changes'=>array(array('path'=>'text','value'=>'tampered'))))),'Surgery escaped style-only scope');
 $invalid=syndamorph_surgery_apply($resolved['plan'],array('id'=>$target['id'],'changes'=>array(array('path'=>'style.fontSize','value'=>'url(javascript:evil)'))));
 expect(is_array($invalid)&&is_wp_error($invalid['error'])&&$invalid['artifact']===null,'Invalid surgery candidate passed compilation');
 
