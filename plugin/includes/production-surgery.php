@@ -11,7 +11,7 @@ function syndamorph_surgery_save(array $plan, string $key=''): string {
     $prior=get_transient($key);
     set_transient($key,array('plan'=>$plan,'sha256'=>hash('sha256',$encoded),
         'revision'=>is_array($prior)?(int)($prior['revision']??0)+1:1,
-        'compilerRevision'=>syndamorph_learning_revision()),DAY_IN_SECONDS);
+        'compilerRevision'=>syndamorph_learning_revision()),86400);
     return $key;
 }
 function syndamorph_surgery_load(string $key): ?array {
