@@ -43,3 +43,8 @@ On `feat/secure-gateway-leasing-v1`, the WordPress Operations workspace now acce
 The administrator-only real workflow calls **Boss → Designer → Developer → Validator** sequentially through the Anthropic adapter, with server-side streaming and a configured estimated budget. Its first complete Haiku 5.5 run consumed 11,957 input and 16,515 output tokens over 73.8 seconds, costing an estimated $0.009453. Each agent's generated text now streams into the Production feed in real time, with per-agent token/latency/cost metrics on completion and a sandboxed HTML preview in Results. No content is automatically published or converted to Gutenberg.
 
 This demonstrates real LLM inference and role handoff **only**. It does not replace the deterministic Source Import converter, complete the P0 layout-plan/custom-block compiler, create Gutenberg-native patterns from AI output, or verify browser fidelity. See [real AI team POC](real-ai-team-poc-1.md) for the exact workflow, baseline and constraints.
+
+
+## Production standards and rich reports
+
+The team now uses shared versioned skills, techniques and nine default criteria, plus a local Markdown and limited Mermaid flowchart renderer for live and final agent messages. The section contract explicitly delegates document metadata to the host. See [production standards and readable communication](production-standards.md) for supported formats, verification boundaries and acceptance steps.
