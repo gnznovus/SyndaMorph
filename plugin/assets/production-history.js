@@ -113,7 +113,7 @@
         }
         const final=events.find(e=>e.type==='job_complete')?.data;
         if(final?.outputs) Object.entries(final.outputs).forEach(([role,value])=>outputs.set(role,value));
-        for(const [role,value] of outputs) section(role,value,role==='developer'?'html':'markdown');
+        for(const [role,value] of outputs) section(role,value,role==='developer'?(final?.outputType==='gutenberg'?'json':'html'):'markdown');
         if(final?.outputs?.developer) {
             if(final.outputType !== 'gutenberg') preview(final.outputs.developer);
             if(record.category==='GEN' && ['completed','needs_review'].includes(record.status)) {
