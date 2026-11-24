@@ -245,6 +245,27 @@ $richPlan['blocks'][0]['children'][0]['style']=array('color'=>'#ffffff','fontSiz
 $richPlan['blocks'][0]['children'][2]['children'][0]['style']=array('background'=>'#ffffff','color'=>'#18283a','borderRadius'=>'8px','padding'=>'1rem');
 $styled=syndamorph_compile_block_plan(wp_json_encode($richPlan));
 expect(!is_wp_error($styled),'Expanded Gutenberg native style schema failed to compile');
+$nestedPlan=$richPlan;
+$nestedPlan['blocks'][0]['children'][0]['style']=array('typography'=>array('fontSize'=>'2rem'));
+$nestedPlan=syndamorph_collab_ids($nestedPlan);
+$nestedError=syndamorph_compile_block_plan(wp_json_encode($nestedPlan));
+expect(is_wp_error($nestedError),'Nested typography must fail before surgery');
+$diagnostic=array('code'=>$nestedError->get_error_code(),'message'=>$nestedError->get_error_message(),'field'=>$nestedError->get_error_data()['field']);
+$normalized=syndamorph_surgery_normalize($nestedPlan,$diagnostic);
+expect(is_array($normalized),'Nested typography normalization not detected');
+$resolved=syndamorph_surgery_verify($nestedPlan,$normalized['plan']);
+expect(!is_wp_error($resolved),'Deterministic surgical normalization failed');
+$key=syndamorph_surgery_save($resolved['plan']);
+expect($key!==''&&syndamorph_surgery_load($key)['revision']===1,'Working draft not persisted');
+expect(syndamorph_surgery_save($resolved['plan'],$key)===$key&&syndamorph_surgery_load($key)['revision']===2,'Working draft revision not persisted');
+$target=$resolved['plan']['blocks'][0]['children'][0];
+$patch=syndamorph_surgery_apply($resolved['plan'],array('id'=>$target['id'],'changes'=>array(array('path'=>'style.fontSize','value'=>'2.5rem'))));
+expect(is_array($patch)&&!is_wp_error($patch['artifact']),'Surgical property correction failed');
+expect($patch['plan']['blocks'][0]['children'][1]===$resolved['plan']['blocks'][0]['children'][1],'Surgical repair modified unrelated sibling');
+expect(is_wp_error(syndamorph_surgery_apply($resolved['plan'],array('id'=>$target['id'],'changes'=>array(array('path'=>'text','value'=>'tampered')))),'Surgery escaped style-only scope');
+$invalid=syndamorph_surgery_apply($resolved['plan'],array('id'=>$target['id'],'changes'=>array(array('path'=>'style.fontSize','value'=>'url(javascript:evil)'))));
+expect(is_array($invalid)&&is_wp_error($invalid['error'])&&$invalid['artifact']===null,'Invalid surgery candidate passed compilation');
+
 expect(str_contains($styled['content'],'linear-gradient(135deg') && str_contains($styled['content'],'font-weight:700') &&
     str_contains($styled['content'],'border-radius:8px'),'Native styling was not serialized');
 $badStyle=$richPlan;
