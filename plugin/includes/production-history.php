@@ -168,6 +168,30 @@ add_action( 'rest_api_init', static function (): void {
             return rest_ensure_response( array( 'recorded' => true ) );
         },
     ) );
+    register_rest_route( 'syndamorph/v1', '/history/(?P<id>[0-9]+)/export-receipt', array(
+        'methods' => 'POST', 'permission_callback' => $permission,
+        'callback' => static function ( WP_REST_Request $request ) {
+            global $wpdb;
+            list( $jobs ) = syndamorph_history_tables();
+            $url_params = $request->get_url_params();
+            $id = (int) $url_params['id'];
+            $mode = (string) $request->get_param( 'mode' );
+            // Route ID identifies the job; use the JSON body for the saved object.
+            $json = $request->get_json_params();
+            $post_id = (int) ( $json['id'] ?? 0 );
+            $post = get_post( $post_id );
+            $job = $wpdb->get_row( $wpdb->prepare( "SELECT category,status FROM $jobs WHERE id=%d", $id ), ARRAY_A );
+            if ( ! $job || 'GEN' !== $job['category'] || ! in_array( $job['status'], array( 'completed', 'needs_review' ), true ) ||
+                ! in_array( $mode, array( 'draft', 'pattern' ), true ) || ! $post || ! current_user_can( 'edit_post', $post_id ) ||
+                ( 'draft' === $mode && ( 'page' !== $post->post_type || 'draft' !== $post->post_status ) ) ||
+                ( 'pattern' === $mode && ( 'wp_block' !== $post->post_type || 'unsynced' !== get_post_meta( $post_id, 'wp_pattern_sync_status', true ) ) ) ) {
+                return new WP_Error( 'sm_history_export', 'Invalid job export receipt.', array( 'status' => 400 ) );
+            }
+            try { syndamorph_history_append( $id, 'export_receipt', array( 'mode' => $mode, 'id' => $post_id ) ); }
+            catch ( Throwable $error ) { return new WP_Error( 'sm_history_write', 'Could not record export receipt.', array( 'status' => 503 ) ); }
+            return rest_ensure_response( array( 'recorded' => true ) );
+        },
+    ) );
     register_rest_route( 'syndamorph/v1', '/history/(?P<id>[0-9]+)', array(
         'methods' => 'GET', 'permission_callback' => $permission,
         'callback' => static function ( WP_REST_Request $request ) {
