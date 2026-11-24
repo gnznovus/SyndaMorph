@@ -24,6 +24,26 @@
         if (!response.ok) throw new Error(result.message || 'Save failed (HTTP '+response.status+').');
         return result;
     }
+    function validateNative(content) {
+        const api=window.wp?.blocks;
+        if (!api || typeof api.parse!=='function' || typeof api.getBlockType!=='function' || typeof api.validateBlock!=='function')
+            throw new Error('WordPress block validation API unavailable. Cannot verify native Gutenberg content.');
+        const parsed=api.parse(content);
+        if (!Array.isArray(parsed) || !parsed.length) throw new Error('Gutenberg parser returned no native blocks.');
+        let count=0;
+        function visit(blocks) {
+            for(const block of blocks) {
+                count++;
+                if (count>200 || !block?.name?.startsWith('core/') || !api.getBlockType(block.name))
+                    throw new Error('Unknown or unsupported Gutenberg block.');
+                const check=api.validateBlock(block);
+                if(!check || check.isValid!==true) throw new Error('Gutenberg serialization invalid for '+block.name+'. Check generated block attributes.');
+                if (block.innerBlocks?.length) visit(block.innerBlocks);
+            }
+        }
+        visit(parsed);
+        return count;
+    }
     function mount(parent, {html, artifact, identity, receipts=[]}) {
         const native = artifact?.schemaVersion === 1 && typeof artifact.content === 'string' && typeof artifact.preview === 'string';
         if (!native && (!window.SyndaMorphConverter || typeof html !== 'string' || !html.trim())) return;
@@ -77,7 +97,16 @@
                 const result=native ? artifact : await window.SyndaMorphConverter.prepareImport(html,false);
                 if(disposed)return;
                 if(typeof result.content!=='string'||!result.content.includes('<!-- wp:')) throw new Error('No Gutenberg blocks were generated.');
+                const validatedBlocks=native ? validateNative(result.content) : null;
                 prepared=result;
+                let archiveNote='';
+                if(native && identity?.id && artifact?.contentSha256 && window.SyndaMorphTeam?.historyUrl) {
+                    try {
+                        const verified=await post(window.SyndaMorphTeam.historyUrl+'/'+identity.id+'/validate-native',
+                            {contentSha256:artifact.contentSha256,valid:true,blockCount:validatedBlocks});
+                        archiveNote=verified.status==='completed' ? ' Archived job marked Completed.' : ' Editor validation recorded.';
+                    } catch (_) { archiveNote=' Archive validation could not be recorded; inspect History.'; }
+                }
                 const template=el('template');template.innerHTML=result.preview;
                 template.content.querySelectorAll('script,iframe,frame,object,embed,link,meta,base,form,video,audio,source,svg,math').forEach(n=>n.remove());
                 template.content.querySelectorAll('*').forEach(n=>{
@@ -87,7 +116,7 @@
                 preview.hidden=false;controls.hidden=false;prepare.textContent=native ? 'Refresh Preview' : 'Reconvert & Preview';
                 const missing=Array.isArray(result.missing)?result.missing.length:0;
                 const styles=Array.isArray(result.stylesheets)?result.stylesheets.length:(result.stylesheets?.missing?.length||0)+(result.stylesheets?.unverified?.length||0);
-                status.textContent=(native ? 'Review the native output before saving. ' : 'Review the converted output before saving. ')+(missing?missing+' missing asset(s). ':'')+(styles?styles+' stylesheet notice(s). ':'')+'Visual fidelity and editor validity are not automatically certified.';
+                status.textContent=(native ? 'WordPress registered-block validation passed ('+validatedBlocks+' blocks). '+archiveNote+' ' : 'Review the converted output before saving. ')+(missing?missing+' missing asset(s). ':'')+(styles?styles+' stylesheet notice(s). ':'')+(native ? 'Visual fidelity remains governed by recorded QA findings.' : 'Visual fidelity and editor validity are not automatically certified.');
             }catch(e){if(!disposed)status.textContent=e.message;}
             finally{busy=false;if(!disposed)refresh();}
         };
