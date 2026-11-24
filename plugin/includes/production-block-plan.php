@@ -11,7 +11,7 @@ function syndamorph_compile_block_plan( string $raw ) {
         if ( strlen( $raw ) > 120000 ) { throw new InvalidArgumentException( 'Plan too large.' ); }
         $plan = json_decode( $raw, true, 32, JSON_THROW_ON_ERROR );
         if ( ! is_array( $plan ) || array_diff( array_keys( $plan ), array( 'version', 'blocks' ) ) || ( $plan['version'] ?? null ) !== 1 ||
-            ! is_array( $plan['blocks'] ?? null ) || count( $plan['blocks'] ) !== 1 || ( $plan['blocks'][0]['type'] ?? '' ) !== 'group' ) {
+            ! is_array( $plan['blocks'] ?? null ) || ! array_is_list( $plan['blocks'] ) || count( $plan['blocks'] ) !== 1 || ( $plan['blocks'][0]['type'] ?? '' ) !== 'group' ) {
             throw new InvalidArgumentException( 'Expected one root group in a version 1 plan.' );
         }
         $count = 0; $headings = 0;
@@ -74,7 +74,7 @@ function syndamorph_compile_block_plan( string $raw ) {
                 }elseif($type==='paragraph'){$markup='<p'.$appearance($classes,$style_parts).'>'.$body.'</p>';}
                 else{
                     $href=$node['href']??'';
-                    if(!is_string($href)||!preg_match('~^(?:#[A-Za-z][\w-]*|/(?!/)[A-Za-z0-9/_#?=&.%~-]*)$~D',$href))throw new InvalidArgumentException('Invalid local CTA URL.');
+                    if(!is_string($href)||!preg_match('~^(?:#[A-Za-z][\w-]*|/(?!/)[A-Za-z0-9/_#?=&.%-]*)$~D',$href))throw new InvalidArgumentException('Invalid local CTA URL.');
                     $link_classes=array_merge(array('wp-block-button__link'),array_values(array_diff($classes,array('wp-block-button'))),array('wp-element-button'));
                     $markup='<div class="wp-block-button"><a'.$appearance($link_classes,$style_parts).' href="'.$escape($href).'">'.$body.'</a></div>';
                 }
