@@ -270,24 +270,65 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $boss=$call('boss','First line must be Job title: <short title>. Then a compact requirements and component responsibility memo, at most 350 words. When copy is unspecified, authorize original generic marketing copy and a descriptive provisional local CTA; never require placeholder text or invent hotel facts. Do not generate HTML, CSS, native JSON, design tokens or validation reports; those belong to subsequent tasks.',array('brief'=>$brief),16384);
     if (is_wp_error($boss)) return $boss; $outputs['boss']=$boss;
     if ($on_event && preg_match('/Job title:\s*([^\r\n]+)/i',$boss,$match)) $on_event('job_title',array('title'=>trim($match[1])));
-    $designer=$call('designer','Respect native capabilities in the shared contract; design only implementable native layouts. Return a compact design specification (at most 450 words): hierarchy, layout, palette, responsive tokens, typography and implementation limitations. Allow original generic copy without factual claims. Do not require placeholder labels. Do not generate code or a full criteria review.',array('brief'=>$brief,'boss'=>$boss),16384);
-    if (is_wp_error($designer)) return $designer;$outputs['designer']=$designer;
-    $reference=$call('developer','Produce one complete self-contained HTML section and scoped CSS using only design capabilities representable in the native contract. Use system-ui, matching native layout behavior and supported length expressions. Write finished generic headline, introduction and CTA copy where unspecified; no bracket placeholders. No Markdown fences. No JavaScript, external URLs, scripts or external assets. Return only HTML.',array('brief'=>$brief,'boss'=>$boss,'design'=>$designer),16384,array(),'reference');
-    if (is_wp_error($reference)) return $reference;
-    $reference=trim($reference);
-    if(preg_match('/^```(?:html)?\s*([\s\S]*?)\s*```$/iD',$reference,$fenced))$reference=trim($fenced[1]);
-    if (!preg_match('~<section\b~i',$reference) || preg_match('~<\s*(?:script|iframe|object|embed|form|link|meta)\b|\bon[a-z]+\s*=|\b(?:javascript:|https?://|@import)~i',$reference)) {
-        return new WP_Error('sm_reference_unsafe','HTML design reference failed safety or structure checks.');
+
+    // Designer owns the visual deliverable; Boss reviews real browser evidence
+    // before the Developer receives the approved reference.
+    $reference=$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.',
+        array('brief'=>$brief,'requirements'=>$boss),16384);
+    if(is_wp_error($reference))return $reference;
+    $approval=array('decision'=>'rejected','issues'=>array());
+    $approvedReference=false;$designReviews=0;$handoffs=array();
+    for($designRound=1;$designRound<=2;$designRound++){
+        $reference=trim($reference);
+        if(preg_match('/^`{3}(?:html)?\\s*([\\s\\S]*?)\\s*`{3}$/iD',$reference,$fenced))$reference=trim($fenced[1]);
+        if(!preg_match('~<section\\b~i',$reference) ||
+            preg_match('~<\\s*(?:script|iframe|object|embed|form|link|meta)\\b|\\bon[a-z]+\\s*=|\\b(?:javascript:|https?://|@import)~i',$reference))
+            return new WP_Error('sm_reference_unsafe','Designer reference failed HTML safety checks.',
+                array('stage'=>'design','designRound'=>$designRound));
+        $capabilityNotes=syndamorph_reference_capability_notes($reference);
+        $inspectReference=syndamorph_collab_inspect($reference);
+        if(is_wp_error($inspectReference))return $inspectReference;
+        $referenceImages=array_map(static fn($sample)=>array('media_type'=>'image/jpeg','data'=>$sample['screenshot']),
+            array($inspectReference[0],$inspectReference[2]));
+        $review=$call('boss','Review the Designer visual artifact against requirements using the actual Playwright desktop/mobile screenshots and measurements. Return ONLY compact JSON {"decision":"approved|changes_requested","issues":[{"target":"section identifier","problem":"precise defect","requiredChange":"specific revision"}],"summary":"brief decision"}. Approve only when the design is implementable in native Gutenberg and the visible evidence meets the brief. Never approve a design solely because HTML was produced. At most three issues.',
+            array('requirements'=>$brief,'referenceSha256'=>hash('sha256',$reference),
+                'capabilityNotes'=>$capabilityNotes,
+                'measurements'=>syndamorph_memory_measurements($inspectReference),
+                'imageOrder'=>array('desktop-design','mobile-design')),16384,$referenceImages,'final_approval');
+        if(is_wp_error($review))return $review;
+        $parsed=json_decode(syndamorph_native_json_text($review),true);
+        $approval=is_array($parsed)?$parsed:array('decision'=>'changes_requested','issues'=>array(
+            array('target'=>'reference','problem'=>'Invalid review contract','requiredChange'=>'Submit structured decision')));
+        $designReviews++;
+        $decision=($approval['decision']??'')==='approved'?'approved':'changes_requested';
+        $handoff=array('from'=>'boss','to'=>'designer','type'=>'design_review','decision'=>$decision,
+            'referenceSha256'=>hash('sha256',$reference),
+            'issues'=>array_slice(array_map(static function($item){
+                return array('target'=>mb_substr((string)($item['target']??'reference'),0,60),
+                    'problem'=>mb_substr((string)($item['problem']??''),0,160),
+                    'requiredChange'=>mb_substr((string)($item['requiredChange']??''),0,160));
+            },array_filter((array)($approval['issues']??array()),'is_array')),0,3));
+        $handoffs[]=$handoff;
+        if($on_event)$on_event('handoff',$handoff);
+        if($decision==='approved'){$approvedReference=true;break;}
+        if($designRound===2)break;
+        $reference=$call('designer','Revise the existing visual reference ONLY for the Boss review issues. Preserve accepted sections, copy and intent; return full updated safe HTML reference only.',
+            array('reference'=>$reference,'feedback'=>$handoff['issues'],'requirements'=>$brief),16384,array(),'design_correction');
+        if(is_wp_error($reference))return $reference;
     }
+    if(!$approvedReference)return new WP_Error('sm_design_unapproved','Boss did not approve the visual reference.',
+        array('stage'=>'design_approval','reviewRounds'=>$designReviews,'issues'=>end($handoffs)['issues']??array()));
+    $outputs['designer']='Visual reference approved by Boss; see referenceHtml.';
     $outputs['reference']=$reference;
-    $capabilityNotes=syndamorph_reference_capability_notes($reference);
     syndamorph_learning_capability($capabilityNotes,$learningSource.':capability');
     if($on_event&&$capabilityNotes)$on_event('capability_preflight',array('notes'=>$capabilityNotes));
-    $inspectReference=syndamorph_collab_inspect($reference);
-    if(is_wp_error($inspectReference))return $inspectReference;
-    $referenceImages=array_map(static fn($s)=>array('media_type'=>'image/jpeg','data'=>$s['screenshot']),array($inspectReference[0],$inspectReference[2]));
+    $designMemo=array('decision'=>'approved','referenceSha256'=>hash('sha256',$reference),
+        'reviewRounds'=>$designReviews,'capabilityNotes'=>$capabilityNotes);
+    $handoffs[]=array('from'=>'boss','to'=>'developer','type'=>'approved_design',
+        'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews);
+    if($on_event)$on_event('handoff',end($handoffs));
     $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON, preserving content and visual intent. Return JSON only. Use stable unique ids on each node, and do not invent unsupported styles. '.syndamorph_block_plan_contract(),
-        array('brief'=>$brief,'design'=>$designer,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,'imageOrder'=>array('desktop-reference','mobile-reference'),'learnedRules'=>syndamorph_learning_retrieve('developer')),16384,$referenceImages);
+        array('brief'=>$brief,'design'=>$designMemo,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,'imageOrder'=>array('desktop-reference','mobile-reference'),'learnedRules'=>syndamorph_learning_retrieve('developer')),16384,$referenceImages);
     if (is_wp_error($developer)) return $developer;
 
     // Native schema recovery operates on one persistent full-generation plan.
@@ -377,7 +418,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         }
     }
     $review=$call('boss','Assess visual fidelity, accessible names, content, responsiveness and native Gutenberg limits based only on the provided real browser measurements. Provide JSON: {"issues":[{"id":"...","component":"existing component id","severity":"high|medium|low","detail":"..."}],"summary":"..."}. Compiler checks are authoritative for accepted schema. Do not report speculative invalid gradients or unsupported attributes if compilation passed; report measured appearance differences instead. Return ONLY actionable implementation defects in issues. Include kind=implementation and status=open. Passes, host responsibilities, unsupported capabilities and pending editor verification belong in separate notes, never issues. Design itself is frozen. Use existing issue IDs for known findings. Evidence limits must be explicit.',
-        array('brief'=>$brief,'design'=>$designer,'reference'=>$modelEvidence($inspectReference),'native'=>$modelEvidence($inspectNative),'deterministicIssues'=>$issues,'pixelComparison'=>$comparison,'componentPlan'=>$plan,'compilerChecks'=>$artifact['checks'],'imageOrder'=>array('desktop-reference','desktop-gutenberg','mobile-reference','mobile-gutenberg')),16384,$screenshots,'validation');
+        array('brief'=>$brief,'design'=>$designMemo,'reference'=>$modelEvidence($inspectReference),'native'=>$modelEvidence($inspectNative),'deterministicIssues'=>$issues,'pixelComparison'=>$comparison,'componentPlan'=>$plan,'compilerChecks'=>$artifact['checks'],'imageOrder'=>array('desktop-reference','desktop-gutenberg','mobile-reference','mobile-gutenberg')),16384,$screenshots,'validation');
     if (is_wp_error($review)) return $review;$outputs['validator']=$review;
     $parsed=json_decode(syndamorph_native_json_text($review),true);
     if (!is_array($parsed) || !is_array($parsed['issues']??null)) {
@@ -498,7 +539,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         'events'=>$events,'outputs'=>$outputs,'checks'=>$artifact['checks'],
         'usage'=>$usage,'agentMetrics'=>$metrics,'estimatedCostUsd'=>$cost,'pricingSource'=>$settings['pricingSource']??'unknown',
         'elapsedMs'=>(int)((microtime(true)-$started)*1000),'budgetUsd'=>$max,'budgetIsEstimate'=>true,
-        'jobMemory'=>$memory->snapshot(),'surgery'=>$surgery,
+        'jobMemory'=>$memory->snapshot(),'surgery'=>$surgery,'designApproval'=>$designMemo,'handoffs'=>$handoffs,
         'quality'=>array('capabilityNotes'=>$capabilityNotes,'issueRegistry'=>array_values($registry),'score'=>$best['score'],'issues'=>$best['issues'],'revisions'=>$revisions,'terminationReason'=>$terminationReason,'evidence'=>array(
             'reference'=>$evidenceSummary($inspectReference),'native'=>$evidenceSummary($best['evidence'])),
             'pixelComparison'=>$best['comparison'],
