@@ -105,6 +105,7 @@
                         const verified=await post(window.SyndaMorphTeam.historyUrl+'/'+identity.id+'/validate-native',
                             {contentSha256:artifact.contentSha256,valid:true,blockCount:validatedBlocks});
                         archiveNote=verified.status==='completed' ? ' Archived job marked Completed.' : ' Editor validation recorded.';
+                        if (verified.status==='completed') panel.dispatchEvent(new CustomEvent('syndamorph-native-verified',{bubbles:true,detail:{id:identity.id}}));
                     } catch (_) { archiveNote=' Archive validation could not be recorded; inspect History.'; }
                 }
                 const template=el('template');template.innerHTML=result.preview;
