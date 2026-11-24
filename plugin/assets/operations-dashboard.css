@@ -956,3 +956,12 @@
 #syndamorph-production-team .sm-rich-content code {font-family:ui-monospace,monospace;background:#f1f5f9;padding:1px 3px;border-radius:3px;}
 #syndamorph-production-team .sm-rich-content pre code {background:none;padding:0;}
 #syndamorph-production-team .sm-rich-diagram {display:block;width:100%;height:auto;max-height:700px;margin:10px 0;border:1px solid #dce3ea;border-radius:8px;background:#fff;color:#334155;}
+
+#syndamorph-production-team .sm-team-tabs {grid-template-columns:repeat(4,minmax(0,1fr));}
+#syndamorph-production-team .sm-history-toolbar {display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:center;}
+#syndamorph-production-team .sm-history-item {padding:14px 0;border-bottom:1px solid #dce3ea;}
+#syndamorph-production-team .sm-history-item-head {display:flex;align-items:center;justify-content:space-between;gap:12px;}
+#syndamorph-production-team .sm-history-actions {display:flex;flex-wrap:wrap;gap:8px;margin:12px 0;}
+#syndamorph-production-team .sm-history-preview {width:100%;min-height:440px;border:1px solid #dce3ea;margin:12px 0;}
+#syndamorph-production-team #sm-history-detail {margin-top:20px;padding-top:16px;border-top:1px solid #dce3ea;}
+@media(max-width:782px){#syndamorph-production-team .sm-history-toolbar {grid-template-columns:1fr 1fr;}}
