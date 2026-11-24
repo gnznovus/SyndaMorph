@@ -124,18 +124,18 @@ function syndamorph_team_render_tab(): void {
                         <section class="sm-card" aria-labelledby="sm-team-brief-title">
                             <div class="sm-card-header">
                                 <h2 class="sm-card-title" id="sm-team-brief-title">Production brief</h2>
-                                <p class="sm-card-caption">Describe the desired output for Boss → Designer → Developer → Validator. Currently supports prompt-only HTML generation.</p>
+                                <p class="sm-card-caption">Describe the desired output for Boss → Designer → Developer → Validator. Choose HTML/CSS or native Gutenberg. Source references are not yet wired.</p>
                             </div>
                             <div class="sm-card-body">
                                 <div class="sm-field">
-                                    <label class="sm-field-label" for="syndamorph-team-brief">Task instructions</label>
+                                    <label class="sm-field-label" for="syndamorph-team-output-type">Output type</label><select class="sm-control" id="syndamorph-team-output-type"><option value="html">HTML / CSS</option><option value="gutenberg">Native Gutenberg</option></select></div><div class="sm-field"><label class="sm-field-label" for="syndamorph-team-brief">Task instructions</label>
                                     <textarea class="sm-control sm-team-brief" id="syndamorph-team-brief" rows="7" maxlength="2000">Create a responsive, premium hotel hero section with a welcoming headline, short introduction, and clear call-to-action. Use a self-contained layout without external assets.</textarea>
                                 </div>
                                 <div class="sm-team-actions">
                                     <button type="button" class="sm-primary" id="syndamorph-real-run">Start Production <span aria-hidden="true">→</span></button>
                                     <button type="button" class="sm-team-secondary" id="syndamorph-team-reset">Reset</button>
                                 </div>
-                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">AI is the primary production path. Live agent messages appear in Production. Reference-conditioned AI and native Gutenberg generation are upcoming.</p>
+                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">AI is the primary production path. Live agent messages appear in Production. Reference-conditioned AI is upcoming.</p>
                             </div>
                         </section>
                     </div>
