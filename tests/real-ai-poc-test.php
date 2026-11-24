@@ -20,6 +20,7 @@ function get_transient($key) { return $GLOBALS['transients'][$key] ?? false; }
 function set_transient($key,$value,$ttl) { $GLOBALS['transients'][$key]=$value; }
 function delete_transient($key) { unset($GLOBALS['transients'][$key]); }
 function sanitize_text_field($v) { return trim(strip_tags((string) $v)); }
+function sanitize_key($v) { return strtolower(preg_replace('/[^a-z0-9_\\-]/i','',(string)$v)); }
 function wp_json_encode($v) { return json_encode($v); }
 function wp_remote_retrieve_response_code($r) { return $r['status']; }
 function wp_remote_retrieve_body($r) { return $r['body']; }
@@ -34,6 +35,17 @@ function wp_remote_get($url,$args) {
     ),'has_more'=>false)) );
 }
 function wp_remote_post($url,$args) {
+    if ($url === 'http://renderer:3000/inspect') {
+        $input=json_decode($args['body'],true);
+        $native=str_contains($input['html'],'<!-- wp:');
+        $GLOBALS['inspection_calls'][]=$native?'native':'reference';
+        $sample=base64_encode('mock-jpeg-evidence');
+        return array('status'=>200,'body'=>json_encode(array('evidence'=>array_map(
+            static fn($width)=>array('width'=>$width,'screenshot'=>$sample,'snapshot'=>array(
+                'overflow'=>false,'elements'=>array(array('tag'=>'H2','id'=>'','text'=>'Welcome & enjoy',
+                'rect'=>array(0,0,300,70),'styles'=>array('fontSize'=>'32px','fontWeight'=>'700','color'=>'rgb(0, 0, 0)','letterSpacing'=>'normal'))))),
+            array(1440,768,390)))));
+    }
     if ($url !== 'https://api.anthropic.com/v1/messages') throw new RuntimeException('Unexpected generation endpoint');
     if (isset($GLOBALS['upstream_test_status'])) return array('status'=>$GLOBALS['upstream_test_status'], 'body'=>'{"sensitive":"should-not-leak"}');
     if (isset($GLOBALS['stop_reason_test'])) return array('status'=>200, 'body'=>json_encode(array(
@@ -45,7 +57,14 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    $text= match($i) {
+    $text= !empty($GLOBALS['native_mode']) ? match($i) {
+        1 => 'Job title: Premium hotel hero',
+        2 => 'Fluid hero design with strong contrast and clear CTA.',
+        3 => '<section class="hero"><style>.hero{padding:3rem}</style><h2>Welcome &amp; enjoy</h2></section>',
+        4 => $GLOBALS['native_fixture'],
+        5 => '{"issues":[],"summary":"Measurements checked; editor still unverified."}',
+        default => throw new RuntimeException('Too many native AI calls'),
+    } : match($i) {
         1 => 'Job plan: build premium hotel hero with heading and CTA. Criteria: semantic section, responsive layout.',
         2 => 'Visual design: responsive grid, strong typography, accessible contrast and clear CTA.',
         3 => isset($GLOBALS['native_fixture']) ? $GLOBALS['native_fixture'] : '<section class="hero"><style>.hero{padding:3rem}</style><h1>Welcome to our Hotel</h1><p>Stay with us.</p></section>',
@@ -172,13 +191,19 @@ $GLOBALS['native_fixture'] = json_encode(array('version'=>1,'blocks'=>array(
     ))
 )));
 $GLOBALS['generations']=array();
+$GLOBALS['native_mode']=true;
+$GLOBALS['inspection_calls']=array();
 $GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=1.0;
 $native=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
 expect(is_array($native) && $native['outputType']==='gutenberg','Native pipeline failed');
 expect($native['artifact']['blockCount']===5 && $native['checks']['contains_heading'],'Native compilation failed');
 expect(str_contains($native['artifact']['content'],'<!-- wp:group') && str_contains($native['artifact']['content'],'Welcome &amp; enjoy'),'Native serialization failed');
-expect(count($GLOBALS['generations'])===4,'Native job must make four calls');
-expect(str_contains($GLOBALS['generations'][2]['system'],'JSON only'),'Native developer contract missing');
+expect(count($GLOBALS['generations'])===5,'Native job must execute five initial calls');
+expect($GLOBALS['inspection_calls']===array('reference','native'),'Both browser artifacts must be inspected');
+expect(count($GLOBALS['generations'][4]['messages'][0]['content'])===5,'Vision validator must receive text and four screenshots');
+expect($native['quality']['browserInspected']===true && $native['quality']['visionInspected']===true,'Browser and vision evidence not recorded');
+expect($native['status']==='needs_review','Unverified Gutenberg editor must not be auto-approved');
+expect(str_contains($GLOBALS['generations'][3]['system'],'JSON'),'Native developer contract missing');
 foreach(array(
     '{"version":2,"blocks":[]}',
     '{"version":1,"blocks":[{"type":"html","text":"bad"}]}',
@@ -193,14 +218,15 @@ $history=file_get_contents(dirname(__DIR__).'/plugin/assets/production-history.j
 expect(str_contains($history,'artifact:final.artifact'),'Archived native artifact not passed to shared export');
 echo "PASS: native pipeline, compiler rejection cases, output selector and shared export integration\n";
 
-$GLOBALS['native_fixture']=str_replace('"type":"heading"','"type":"heading","align":"left"',$GLOBALS['native_fixture']);
-$GLOBALS['generations']=array();
-$failure=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
-expect(is_wp_error($failure),'Invalid Developer plan accepted');
-$diagnostic=syndamorph_team_failure_payload($failure);
-expect($diagnostic['stage']==='compilation' && $diagnostic['role']==='developer','Failure stage or role lost');
-expect($diagnostic['generationCompleted']===true && $diagnostic['completedCalls']===3 && count($GLOBALS['generations'])===3,'Compiler rejection misclassified as model failure or Validator called');
-expect($diagnostic['field']==='blocks[0].children[0].align' && str_contains($diagnostic['message'],'style.align'),'Missing actionable field diagnostic');
-expect($diagnostic['metric']['outputTokens']===150,'Rejected output usage lost');
-expect(str_contains($client,'showFailure(event.data || {})') && str_contains($client,'timeline.append(item)'),'Shared live/replay failure display missing');
-echo "PASS: structured compiler rejection, usage and field diagnostics\n";
+
+$withIds=syndamorph_collab_ids(json_decode($GLOBALS['native_fixture'],true));
+expect(isset($withIds['blocks'][0]['children'][0]['id']),'Native component ID assignment missing');
+$patch=array('id'=>$withIds['blocks'][0]['children'][0]['id'],'replacement'=>$withIds['blocks'][0]['children'][0]);
+$patch['replacement']['text']='Updated heading';
+$patched=syndamorph_collab_patch($withIds,$patch);
+expect(!is_wp_error($patched) && str_contains($patched['artifact']['content'],'Updated heading'),'Targeted native revision failed');
+expect(str_contains($patched['artifact']['content'],'A premium hotel experience.'),'Approved sibling changed by patch');
+$patch['replacement']['id']='different';
+expect(is_wp_error(syndamorph_collab_patch($withIds,$patch)),'Cross-component patch was allowed');
+expect(str_contains($export,'if (native) { void preparePreview(); }'),'Native auto-preview missing');
+echo "PASS: screenshot-grounded dual artifact QA, stable IDs and targeted revision isolation\\n";
