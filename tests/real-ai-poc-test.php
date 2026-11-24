@@ -35,6 +35,11 @@ function wp_remote_get($url,$args) {
     ),'has_more'=>false)) );
 }
 function wp_remote_post($url,$args) {
+    if ($url === 'http://renderer:3000/crop') {
+        $GLOBALS['crop_calls']=($GLOBALS['crop_calls']??0)+1;
+        $items=json_decode($args['body'],true)['items'];
+        return array('status'=>200,'body'=>json_encode(array('images'=>array_map(static fn($item)=>array('media_type'=>'image/jpeg','data'=>base64_encode('cropped-jpeg')),$items))));
+    }
     if ($url === 'http://renderer:3000/compare') {
         return array('status'=>200,'body'=>json_encode(array('comparison'=>array_map(
             static fn($width)=>array('width'=>$width,'pixelDifferenceRatio'=>0.15,'meanChannelDifference'=>5.0,'sampledPixels'=>100),array(1440,768,390)))));
@@ -221,7 +226,9 @@ expect(count($GLOBALS['generations'][4]['messages'][0]['content'])===5,'Vision v
 expect($native['quality']['browserInspected']===true && $native['quality']['visionInspected']===true,'Browser and vision evidence not recorded');
 expect(count($native['quality']['pixelComparison'])===3,'Real pixel-comparison metrics not recorded');
 expect($native['status']==='needs_review','Unverified Gutenberg editor must not be auto-approved');
-expect(str_contains($GLOBALS['generations'][3]['system'],'JSON'),'Native developer contract missing');
+expect(str_contains(wp_json_encode($GLOBALS['generations'][3]['system']),'JSON'),'Native developer contract missing');
+expect(($GLOBALS['generations'][3]['system'][0]['cache_control']['type']??null)==='ephemeral','Cache prefix absent');
+expect($GLOBALS['generations'][0]['system'][0]===$GLOBALS['generations'][4]['system'][0],'Shared cache prefix not stable');
 foreach(array(
     '{"version":2,"blocks":[]}',
     '{"version":1,"blocks":[{"type":"html","text":"bad"}]}',
@@ -286,6 +293,8 @@ expect($revised['status']==='needs_review' && count($revised['quality']['revisio
     'Successful targeted revision did not resolve the issue');
 expect(str_contains($revised['artifact']['content'],'font-size:2.5rem'),'Best native artifact did not keep the repaired heading');
 expect(str_contains($revised['artifact']['content'],'A premium hotel experience.'),'Revision destroyed approved sibling');
+expect($revised['quality']['revisions'][0]['imageScope']==='component','Scoped review did not use crops');
+expect($GLOBALS['crop_calls']===1,'Crop endpoint not exercised');
 expect(!$revised['quality']['revisions'][0]['delegation']['designerNeeded'],'Boss delegated unnecessary full design work');
 expect(in_array('blocks[0].children[1]',$revised['quality']['revisions'][0]['impact']['reused'],true),'Unchanged sibling evidence not reused');
 
@@ -298,3 +307,18 @@ expect($cutoff['quality']['terminationReason']==='budget_80_percent','Budget sto
 expect(isset($cutoff['artifact']['content']),'Uncompleted job lost the usable native artifact');
 unset($GLOBALS['revision_test']);
 echo "PASS: delegated component repair, scoped vision review, best artifact, reuse and 80-percent budget cutoff\\n";
+
+$memory=new SyndaMorph_Job_Memory('fixture');
+$a=$withIds;$b=$withIds;
+$a['blocks'][0]['children'][0]['style']['margin']='0px';
+$b['blocks'][0]['children'][0]['style']['margin']='0rem';
+$memory->remember($a);
+expect($memory->seen($b),'Equivalent zero lengths not deduplicated');
+for($i=0;$i<3;$i++)$memory->record('heading',array('accepted'=>false,'detail'=>'duplicate'));
+expect(!$memory->eligible('heading')&&$memory->eligible('other'),'Stalled target did not yield to other components');
+expect(count($memory->feedback('heading'))===3,'Rejected repair feedback lost');
+$sample=array('width'=>390,'snapshot'=>array('overflow'=>false,'elements'=>array(array('text'=>'Heading','rect'=>array(0,0,100,20),'styles'=>array('fontSize'=>'20px','display'=>'block')),array('text'=>'Other','rect'=>array(0,20,100,20)))),'screenshot'=>'secret-image');
+$compact=syndamorph_memory_measurements(array($sample),array('Heading'));
+expect(count($compact[0]['elements'])===1&&!isset($compact[0]['screenshot']),'Scoped context includes irrelevant elements or image bytes');
+expect(abs(syndamorph_collab_cost(array('inputTokens'=>100,'cacheReadTokens'=>100,'cacheWriteTokens'=>100,'outputTokens'=>100),1,2)-0.000435)<0.000000001,'Cache-aware cost arithmetic failed');
+echo "PASS: shared memory, cache prefix, scoped evidence and screenshot crops\n";
