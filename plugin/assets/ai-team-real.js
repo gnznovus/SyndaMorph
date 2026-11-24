@@ -23,6 +23,8 @@
     const labels = {boss:'Boss', designer:'Designer', developer:'Developer', validator:'Validator'};
     let running = false;
     let completed = 0;
+    let currentIdentity = null;
+    let replaying = false;
     const messages = new Map();
     const reportRenderers = [];
     const clearReports = () => { reportRenderers.splice(0).forEach(renderer => renderer.destroy()); results.replaceChildren(); };
@@ -119,7 +121,15 @@
     }
     function onEvent(type, data) {
         if (type === 'ready') {
+            if (data.jobId) {
+                currentIdentity = data;
+                const label = data.jobId + ' : ' + data.title;
+                text(current, label); text(title, label);
+            }
             setFeed('Connected · waiting for Boss', 'running');
+        } else if (type === 'job_title' && currentIdentity) {
+            const label = currentIdentity.jobId + ' : ' + data.title;
+            text(current, label); text(title, label);
         } else if (type === 'agent_start' && roles.includes(data.role)) {
             setAgent(data.role, 'running');
             addMessage(data.role);
@@ -150,7 +160,7 @@
             setReview('Generation complete · review required',
                 'AI output is available below. Visual fidelity and Gutenberg block validity remain unverified.');
             appendReport(data);
-            tab('results');
+            if (!replaying) tab('results');
         }
     }
     async function readEvents(response) {
@@ -190,14 +200,60 @@
         if (!finished) throw new Error('Stream disconnected before completion; some provider calls may have been billed.');
     }
     root.addEventListener('syndamorph-team-reset', () => {
-        if (running) return;
+        if (running || replaying) return;
         clearReports();
         results.hidden = true;
         clearMessages();
         completed = 0;
     });
+    // History uses the exact same event consumer and output renderer as live jobs.
+    window.SyndaMorphProductionReplay = Object.freeze({
+        busy: () => running || replaying,
+        async replay(record, animated = false) {
+            if (running || replaying) throw new Error('A production job is already active.');
+            replaying = true;
+            run.disabled = true;
+            if (reset) reset.disabled = true;
+            try {
+                clearMessages(); clearReports(); timeline.replaceChildren();
+                results.hidden = true; completed = 0;
+                currentIdentity = record;
+                roles.forEach(role => setAgent(role, 'idle'));
+                text(current, record.jobId + ' : ' + record.title);
+                text(title, record.jobId + ' : ' + record.title);
+                text(handoffs, '0 / 4 completed');
+                text(job, 'Replay');
+                text(output, 'Recorded output');
+                setFeed('Historical replay · no AI calls', 'running');
+                tab('production');
+                const events = record.events || [];
+                for (let i=0; i<events.length; i++) {
+                    const event = events[i];
+                    if (event.type === 'job_error') {
+                        setReview('Recorded failure', event.data.message || 'Job failed.');
+                        text(job, 'Failed');
+                        setFeed('Recorded failure', 'error');
+                        const failed = event.data.role || roles[completed];
+                        if (failed) setAgent(failed, 'error');
+                        break;
+                    }
+                    onEvent(event.type, event.data);
+                    if (animated && event.type !== 'agent_delta') await new Promise(resolve => setTimeout(resolve, 300));
+                    if (animated && i % 20 === 0) await new Promise(resolve => setTimeout(resolve, 16));
+                }
+                text(current, record.jobId + ' : ' + record.title);
+                text(title, record.jobId + ' : ' + record.title);
+                if (record.status === 'running' || record.status === 'interrupted') {
+                    text(job, record.status); setFeed('Partial recorded history', 'idle');
+                } else if (record.status !== 'failed') setFeed('Historical replay complete · no AI calls', 'success');
+                if (!animated && !results.hidden) tab('results');
+            } finally {
+                replaying = false; run.disabled = false; if (reset) reset.disabled = false;
+            }
+        }
+    });
     run.addEventListener('click', async () => {
-        if (running) return;
+        if (running || replaying) return;
         const prompt = brief.value.trim();
         if (prompt.length < 12 || prompt.length > 2000) {
             text(notice, 'Enter a production brief between 12 and 2000 characters.');
@@ -213,8 +269,9 @@
         results.hidden = true;
         timeline.replaceChildren();
         roles.forEach(role => setAgent(role, 'idle'));
-        text(current, 'AI-' + Date.now().toString(36).toUpperCase() + ' · ' + prompt.slice(0,75));
-        text(title, 'Real AI Production Team');
+        currentIdentity = null;
+        text(current, 'Allocating production job…');
+        text(title, 'Allocating production job…');
         text(job, 'Running');
         text(handoffs, '0 / 4 completed');
         text(output, 'Generating');
