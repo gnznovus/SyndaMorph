@@ -358,7 +358,11 @@
                 text(title, record.jobId + ' : ' + record.title);
                 if (record.status === 'running' || record.status === 'interrupted') {
                     text(job, record.status); setFeed('Partial recorded history', 'idle');
-                } else if (record.status !== 'failed') setFeed('Historical replay complete · no AI calls', 'success');
+                } else if (record.status !== 'failed') {
+                    if (record.status === 'completed') { text(job,'Completed'); text(output,'Validated or archived output'); }
+                    else if (record.status === 'uncompleted') { text(job,'Uncompleted'); text(output,'Best artifact available'); }
+                    setFeed('Historical replay complete · no AI calls', 'success');
+                }
                 if (!animated && !results.hidden) tab('results');
             } finally {
                 replaying = false; run.disabled = false; if (reset) reset.disabled = false;
