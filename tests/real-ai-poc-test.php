@@ -76,6 +76,17 @@ function wp_remote_post($url,$args) {
             6 => '{"decision":"approved","issues":[],"summary":"No measured defects"}',
             default => throw new RuntimeException('Unexpected surgery paid model call '.$i),
         };
+    } elseif (!empty($GLOBALS['parent_issue_test'])) {
+        $text=match($i){
+            1 => '{"title":"Parent issue fixture","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid blocks"]}',
+            2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
+            3 => '{"decision":"approved","issues":[]}',
+            4 => $GLOBALS['native_fixture'],
+            5 => '{"decision":"changes_requested","issues":[{"id":"cta-spacing","component":"blocks[0]","severity":"medium","detail":"Parent layout spacing differs from reference"}]}',
+            6 => '{"id":"blocks[0]","changes":[{"target":"blocks[0].children[0]","path":"style.margin.bottom","value":"1rem"}]}',
+            7 => '{"decision":"approved","issues":[]}',
+            default => throw new RuntimeException('Unexpected paid parent repair call '.$i),
+        };
     } elseif (!empty($GLOBALS['revision_test'])) {
         $text=match($i) {
             1 => '{"title":"Hotel hero","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid editable blocks"]}',
@@ -383,6 +394,39 @@ expect(count($GLOBALS['generations'])===5 && count($cutoff['quality']['revisions
 expect($cutoff['quality']['terminationReason']==='budget_80_percent','Budget stop reason not archived');
 expect(isset($cutoff['artifact']['content']),'Uncompleted job lost the usable native artifact');
 unset($GLOBALS['revision_test']);
+// GEN-013 reproduction: issue is owned by an ancestor but repair changes a leaf.
+$parentPlan=json_decode($GLOBALS['native_fixture'],true);
+$parentPlan['blocks'][0]['children'][0]['style']['margin']=array('bottom'=>'0px');
+$GLOBALS['native_fixture']=wp_json_encode($parentPlan);
+$GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
+$GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=1.0;
+$GLOBALS['parent_issue_test']=true;
+$parentCase=syndamorph_team_real_run('Correct a layout gap without regenerating a group.',false,null,'gutenberg');
+expect(!is_wp_error($parentCase),'Ancestor issue surgical test failed: '.(is_wp_error($parentCase)?$parentCase->get_error_message():'unknown'));
+expect($parentCase['status']==='needs_review'&&count($parentCase['quality']['revisions'])===1 &&
+    $parentCase['quality']['revisions'][0]['accepted']&&$parentCase['quality']['score']===0,
+    'Boss-approved leaf surgery failed to clear ancestor-owned visual issue');
+expect(in_array('blocks[0]',$parentCase['quality']['revisions'][0]['reviewScope'],true),
+    'Parent layout issue not included in child repair review scope');
+expect(in_array('blocks[0].children[1]',$parentCase['quality']['revisions'][0]['impact']['reused'],true),
+    'Untouched sibling lost component identity reuse');
+expect(str_contains($parentCase['artifact']['content'],'margin-bottom:1rem'),
+    'Accepted child margin surgery was not applied');
+expect(syndamorph_surgery_load($parentCase['surgery']['workingPlanId'])['revision']===2,
+    'QA surgery did not persist an accepted revision');
+expect(count($GLOBALS['generations'])===7,'Parent-owned issue unexpectedly retried or regenerated a full component');
+expect(!str_contains(wp_json_encode($GLOBALS['generations'][5]['messages'][0]['content']),
+    '"replacement"'),'QA model was prompted with full replacement rather than compact patch');
+unset($GLOBALS['parent_issue_test']);
+$GLOBALS['native_fixture']=wp_json_encode($GLOBALS['native_fixture'] ? json_decode($GLOBALS['native_fixture'],true) : $parentPlan);
+// New helper-level assertions for protected sibling edits and review propagation.
+$planForSurgery=syndamorph_collab_ids(json_decode($GLOBALS['native_fixture'],true));
+$cross=syndamorph_surgery_apply($planForSurgery,
+    array('id'=>$planForSurgery['blocks'][0]['children'][0]['id'],'changes'=>array(
+        array('target'=>$planForSurgery['blocks'][0]['children'][1]['id'],
+              'path'=>'style.color','value'=>'#123456'))));
+expect(is_wp_error($cross),'Surgery escaped its assigned subtree into a sibling');
+echo "PASS: GEN-013 ancestor issue reconciliation, descendant surgery and approved persistent QA revision\\n";
 echo "PASS: delegated component repair, scoped vision review, best artifact, reuse and 80-percent budget cutoff\\n";
 
 $memory=new SyndaMorph_Job_Memory('fixture');
