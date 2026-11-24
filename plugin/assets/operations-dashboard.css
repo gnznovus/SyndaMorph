@@ -976,3 +976,7 @@
 #syndamorph-production-team .sm-ai-export > p {margin:0;}
 #syndamorph-production-team .sm-ai-convert-actions {display:flex;align-items:center;flex-wrap:wrap;gap:10px;}
 #syndamorph-production-team .sm-ai-convert-actions > button {box-sizing:border-box;height:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding:0 16px;font-size:12px;line-height:1.2;border-radius:9px;margin:0;}
+
+/* Terminal production diagnostic */
+#syndamorph-production-team .sm-team-failure {border-inline-start:3px solid #dc2626;background:#fff4f4;padding:16px;overflow-wrap:anywhere;}
+#syndamorph-production-team .sm-team-failure p {margin:8px 0 0;color:#653333;white-space:pre-wrap;}
