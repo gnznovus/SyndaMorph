@@ -2,6 +2,7 @@
 /** Budgeted dual-artifact Gutenberg production. HTML-only jobs use the legacy pipeline. */
 if (!defined('ABSPATH')) { exit; }
 require_once __DIR__.'/production-job-memory.php';
+require_once __DIR__.'/production-learning.php';
 require_once __DIR__.'/production-repair.php';
 
 function syndamorph_collab_cost(array $usage, float $input, float $output): float {
@@ -279,7 +280,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     if(is_wp_error($inspectReference))return $inspectReference;
     $referenceImages=array_map(static fn($s)=>array('media_type'=>'image/jpeg','data'=>$s['screenshot']),array($inspectReference[0],$inspectReference[2]));
     $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON, preserving content and visual intent. Return JSON only. Use stable unique ids on each node, and do not invent unsupported styles. '.syndamorph_block_plan_contract(),
-        array('brief'=>$brief,'design'=>$designer,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,'imageOrder'=>array('desktop-reference','mobile-reference')),9000,$referenceImages);
+        array('brief'=>$brief,'design'=>$designer,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,'imageOrder'=>array('desktop-reference','mobile-reference'),'learnedRules'=>syndamorph_learning_retrieve('developer')),9000,$referenceImages);
     if (is_wp_error($developer)) return $developer;
     // Recover model-generated schema mistakes without restarting production.
     // Never bypass the compiler or send rejected markup to the renderer.
@@ -299,7 +300,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $diagnostic=array('code'=>$error->get_error_code(),'message'=>$error->get_error_message(),'field'=>$details['field']??'plan');
         if(!in_array($diagnostic['code'],array('sm_block_plan_invalid','sm_component_identity'),true))break;
         if($on_event)$on_event('schema_repair',array_merge($diagnostic,array('attempt'=>$attempt,'status'=>'required','role'=>'developer')));
-        $repairContext=array('rejectedPlan'=>$developer,'diagnostic'=>$diagnostic);
+        $repairContext=array('rejectedPlan'=>$developer,'diagnostic'=>$diagnostic,'learnedRules'=>syndamorph_learning_retrieve('schema_repair'));
+        $beforeCorrection=$developer;
         // Preserve the 20% reserve and use the same conservative admission check as generation.
         $estimate=((ceil(strlen(wp_json_encode($repairContext))/3)+4096)*$in+16384*$out)/1000000;
         if(syndamorph_collab_cost($usage,$in,$out)+$estimate>$cutoff) {
@@ -310,6 +312,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         if(is_wp_error($corrected)){$compiled=$corrected;break;}
         $developer=$corrected;
         $compiled=$compilePlan($developer);
+        syndamorph_learning_schema($diagnostic['field'],$diagnostic['message'],'job:'.substr(hash('sha256',$brief),0,16).':'.$attempt,!is_wp_error($compiled));
         if($on_event)$on_event('schema_repair',array('attempt'=>$attempt,'status'=>is_wp_error($compiled)?'rejected':'resolved','role'=>'developer','field'=>$diagnostic['field']));
     }
     if(is_wp_error($compiled)) {
@@ -388,7 +391,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         } else {
             $repairScope=syndamorph_collab_scoped_images($inspectReference,$inspectNative,syndamorph_memory_texts($node));
             $repair=$call('developer','Repair only the specified native component against the frozen HTML reference. Inspect the reference/current screenshot pairs and measurements, including ancestor constraints. Return exactly JSON {"id":"existing id","replacement":{...full valid node with same id and type...}}. Preserve text, links and approved siblings. Do not redesign. Fix schema errors using the supported contract. Never repeat rejected attempts.',
-                array('issueFocus'=>$focus,'component'=>$node,'id'=>$id,'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts($node)),'nativeMeasurements'=>syndamorph_memory_measurements($inspectNative,syndamorph_memory_texts($node)),'previousAttempts'=>$memory->feedback($id),'imageScope'=>$repairScope['mode'],'imageOrder'=>array('desktop-reference','desktop-current','mobile-reference','mobile-current')),4000,$repairScope['images'],'repair');
+                array('issueFocus'=>$focus,'component'=>$node,'id'=>$id,'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts($node)),'nativeMeasurements'=>syndamorph_memory_measurements($inspectNative,syndamorph_memory_texts($node)),'previousAttempts'=>$memory->feedback($id),'learnedRules'=>syndamorph_learning_retrieve('repair',(string)($node['type']??'')),'imageScope'=>$repairScope['mode'],'imageOrder'=>array('desktop-reference','desktop-current','mobile-reference','mobile-current')),4000,$repairScope['images'],'repair');
             if(is_wp_error($repair)) { $terminationReason=$repair->get_error_code()==='sm_team_budget'?'budget_80_percent':'developer_blocked';break; }
             $patch=json_decode(syndamorph_native_json_text($repair),true);
         }
@@ -438,6 +441,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $accepted=($newScore<$oldScore || ($newScore===$oldScore && $newPixel<$oldPixel)) && $newPixel<=$oldPixel+0.08;
         $revisions[]=array('round'=>$round,'id'=>$id,'delegation'=>array('designerNeeded'=>$delegated['designerNeeded'],'reason'=>mb_substr((string)($delegated['reason']??''),0,160)),'route'=>$route,'impact'=>$impact,'imageScope'=>$scope['mode'],'accepted'=>$accepted,'before'=>count($issues),'after'=>count($newIssues),'scoreBefore'=>$oldScore,'scoreAfter'=>$newScore,'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
         $memory->record($id,array_merge(end($revisions),array('replacement'=>$patch['replacement'],'remainingIssues'=>array_slice($newIssues,0,8))));
+        if($accepted && $route==='developer')syndamorph_learning_repair($node,$patch['replacement'],$oldScore,$newScore,'job:'.substr(hash('sha256',$brief),0,16).':'.$round);
         if($accepted) {
             $stagnation=0;
             $memory->reopen(array_values(array_diff($impact['affected'],$impact['changed'])));

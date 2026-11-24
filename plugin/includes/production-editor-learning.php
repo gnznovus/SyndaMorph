@@ -1,6 +1,7 @@
 <?php
 /** Cross-job engineering observations. Never inject unverified editor failures into agent prompts. */
 if (!defined('ABSPATH')) exit;
+require_once __DIR__.'/production-learning.php';
 function syndamorph_editor_learning_revision(): string {
     return hash_file('sha256',__DIR__.'/production-block-plan.php');
 }
@@ -22,6 +23,7 @@ function syndamorph_editor_learning_observe(int $job,string $checksum,string $ki
     $row['observations']=array_slice($row['observations'],-50,null,true);
     $row['lastSeen']=gmdate('c');$rows[$key]=$row;
     update_option('syndamorph_editor_learning_v1',array_slice($rows,-100,null,true),false);
+    syndamorph_learning_record('engineering','editor',$block===''?'*':str_replace('core/','',$block),$kind,'Editor validation detected a '.$kind.' defect in a registered native block.','job:'.$job.':'.substr($checksum,0,16),false);
 }
 function syndamorph_editor_learning_confirm(int $job,string $old,string $new): void {
     if($old===$new)return;
@@ -37,4 +39,6 @@ function syndamorph_editor_learning_confirm(int $job,string $old,string $new): v
         $row['correctedArtifactSha256']=$new;
     }unset($row);
     update_option('syndamorph_editor_learning_v1',$rows,false);
+    // Editor recovery confirms the artifact, not a reusable prompt rule.
+    // Engineering learning remains observational until autonomous compiler repair is implemented.
 }

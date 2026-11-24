@@ -232,6 +232,17 @@ function syndamorph_team_render_tab(): void {
                             <div id="sm-history-list"></div>
                             <div class="sm-history-actions"><button type="button" class="sm-team-secondary" id="sm-history-prev" disabled>Previous</button><button type="button" class="sm-team-secondary" id="sm-history-next" disabled>Next</button></div>
                             <div id="sm-history-detail" hidden></div>
+                            <section class="sm-card" aria-labelledby="sm-learning-title">
+                                <div class="sm-card-header"><h3 id="sm-learning-title" class="sm-card-title">Adaptive Learning</h3><p class="sm-card-caption">Verified lessons are reused only for matching agent tasks and compiler versions.</p></div>
+                                <div class="sm-card-body">
+                                    <div class="sm-history-actions">
+                                        <button type="button" class="sm-team-secondary" id="sm-learning-refresh">Refresh lessons</button>
+                                        <button type="button" class="sm-team-secondary" id="sm-learning-bootstrap">Import verified historical corrections</button>
+                                    </div>
+                                    <p class="sm-hint" id="sm-learning-status" role="status" aria-live="polite"></p>
+                                    <div id="sm-learning-counts"></div><div id="sm-learning-list"></div>
+                                </div>
+                            </section>
                         </div>
                     </section>
                 </section>
@@ -282,6 +293,7 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
         'nonce' => wp_create_nonce( 'wp_rest' ),
         'url' => rest_url( 'syndamorph/v1/ai/team-stream' ),
     ) ) . ';', 'before' );
+    wp_enqueue_script( 'syndamorph-learning', plugin_dir_url( __DIR__ ) . 'assets/production-learning.js', array( 'syndamorph-team' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-learning.js' ), true );
     wp_enqueue_script( 'syndamorph-history', plugin_dir_url( __DIR__ ) . 'assets/production-history.js', array( 'syndamorph-real-team' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-history.js' ), true );
     wp_enqueue_script( 'syndamorph-team-migration', plugin_dir_url( __DIR__ ) . 'assets/production-workflow.js',
         array( 'syndamorph-team', 'syndamorph-import' ),

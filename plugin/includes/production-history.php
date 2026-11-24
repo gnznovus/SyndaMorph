@@ -2,6 +2,7 @@
 /** Private, administrator-only production history. No provider calls on reads. */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 require_once __DIR__.'/production-editor-learning.php';
+require_once __DIR__.'/production-learning.php';
 
 function syndamorph_history_tables(): array {
     global $wpdb;
@@ -128,6 +129,38 @@ add_action( 'rest_api_init', static function (): void {
             return rest_ensure_response( array( 'jobs' => array_map( 'syndamorph_history_summary', array_slice( $rows, 0, 50 ) ), 'more' => count( $rows ) > 50 ) );
         },
     ) );
+    register_rest_route('syndamorph/v1','/learning',array(
+        'methods'=>'GET','permission_callback'=>$permission,
+        'callback'=>static function(){return rest_ensure_response(syndamorph_learning_snapshot());}
+    ));
+    register_rest_route('syndamorph/v1','/learning/(?P<id>[a-f0-9]{64})',array(
+        'methods'=>'POST','permission_callback'=>$permission,
+        'callback'=>static function(WP_REST_Request $request){
+            $action=(string)$request->get_param('operation');
+            if(!in_array($action,array('disable','enable','delete'),true)||!syndamorph_learning_manage((string)$request['id'],$action))
+                return new WP_Error('sm_learning_manage','Unknown lesson or operation.',array('status'=>400));
+            return rest_ensure_response(syndamorph_learning_snapshot());
+        }
+    ));
+    register_rest_route('syndamorph/v1','/learning/bootstrap',array(
+        'methods'=>'POST','permission_callback'=>$permission,
+        'callback'=>static function(){
+            global $wpdb;
+            list($jobs,$events)=syndamorph_history_tables();
+            // Read only small, structured repair events; avoid importing screenshots,
+            // raw briefs or model outputs. Require a finished GEN record.
+            $rows=$wpdb->get_results("SELECT e.job_id,e.payload FROM $events e INNER JOIN $jobs j ON j.id=e.job_id WHERE j.category='GEN' AND j.status IN ('completed','needs_review','uncompleted') AND e.event_type='schema_repair' ORDER BY e.id DESC LIMIT 1200",ARRAY_A);
+            if(!is_array($rows))return new WP_Error('sm_learning_archive','Archive unavailable.',array('status'=>503));
+            $grouped=array();
+            foreach(array_reverse($rows) as $row){
+                $id=(int)$row['job_id'];
+                $grouped[$id][]=array('type'=>'schema_repair','data'=>json_decode($row['payload'],true));
+            }
+            $learned=0;
+            foreach($grouped as $job=>$eventsForJob)$learned+=syndamorph_learning_bootstrap($eventsForJob,(string)$job);
+            return rest_ensure_response(array('scannedJobs'=>count($grouped),'verifiedLessons'=>$learned,'snapshot'=>syndamorph_learning_snapshot()));
+        }
+    ));
     // Source Import is currently deterministic. Preserve its input separately
     // from AI events; no provider is contacted by these endpoints.
     register_rest_route( 'syndamorph/v1', '/history/reference', array(
