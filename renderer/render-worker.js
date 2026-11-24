@@ -1,6 +1,7 @@
 'use strict';
 
 const { chromium } = require('playwright');
+const axe = require('axe-core');
 
 const input = [];
 process.stdin.on('data', (chunk) => input.push(chunk));
@@ -25,6 +26,7 @@ process.stdin.on('end', async () => {
         await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 5000 });
         await page.waitForTimeout(600);
         if (inspect) {
+            await page.evaluate(axe.source);
             const evidence = [];
             for (const width of [1440, 768, 390]) {
                 await page.setViewportSize({ width, height: 900 });
@@ -45,7 +47,12 @@ process.stdin.on('end', async () => {
                     };
                 });
                 const screenshot = (await page.screenshot({type:'jpeg',quality:65,timeout:3000})).toString('base64');
-                evidence.push({width,snapshot,screenshot});
+                const a11y = await page.evaluate(async () => {
+                    const report=await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa']}});
+                    return report.violations.map(v=>({id:v.id,impact:v.impact,description:v.description,
+                        nodes:v.nodes.slice(0,8).map(n=>({target:n.target,summary:n.failureSummary}))}));
+                });
+                evidence.push({width,snapshot,screenshot,a11y});
             }
             process.stdout.write(JSON.stringify({ evidence }));
             return;
