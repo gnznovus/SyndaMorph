@@ -1,5 +1,8 @@
 # Production History
 
+
+> **Current project status (2026-11-24):** See [Master Plan](master-plan.md) for implemented vs planned capabilities. Adaptive Surgery v2 now records richer accepted/rejected repairs, browser evidence, operation costs, scoped feedback and verified-learning events. The historical GEN/REF sequences and append-only History contract below remain; **campaign-level persistent queues, steering events, and campaign checkpoints are planned, not already supported.** Future AI Knowledge Management will move *learning management controls* out of History while preserving History as immutable evidence.
+
 History is the fourth Operations tab. Administrator-only WordPress REST endpoints expose persistent jobs and append-only events. GEN and REF have independent sequences; display format is `GEN-000001 : Job title`. IDs are allocated before execution; the Boss supplies a descriptive GEN title during its first response. REF titles derive from source conversion.
 
 GEN records preserve the brief, model settings (not credentials), standards snapshot, streamed text deltas, handoffs, final artifacts, metrics and errors. Replay uses the live event consumer without contacting a model. Interrupted jobs retain committed events; a stale running record is displayed as interrupted after 25 minutes. Existing pre-history jobs cannot be reconstructed automatically.
