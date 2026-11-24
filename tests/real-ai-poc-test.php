@@ -83,7 +83,7 @@ function wp_remote_post($url,$args) {
             3 => '{"decision":"approved","issues":[],"summary":"Approved design"}',
             4 => $GLOBALS['native_fixture'],
             5 => '{"decision":"changes_requested","issues":[{"id":"heading-fidelity","component":"blocks[0].children[0]","severity":"medium","detail":"Font size needs refinement"}],"summary":"Review heading"}',
-            6 => json_encode(array('id'=>'blocks[0].children[0]','replacement'=>array('id'=>'blocks[0].children[0]','type'=>'heading','text'=>'Welcome & enjoy','level'=>2,'style'=>array('color'=>'#ffffff','fontSize'=>'2.5rem')))),
+            6 => '{"id":"blocks[0].children[0]","changes":[{"path":"style.fontSize","value":"2.5rem"}]}',
             7 => '{"decision":"approved","issues":[]}',
             default => throw new RuntimeException('Unexpected extra paid revision call '.$i),
         };
@@ -369,6 +369,9 @@ expect($revised['quality']['revisions'][0]['imageScope']==='component','Scoped r
 expect($GLOBALS['crop_calls']===2,'Developer and QA crop endpoints not exercised');
 expect(count($GLOBALS['generations'][5]['messages'][0]['content'])===5,'Developer repair lacks paired visual evidence');
 expect($revised['quality']['revisions'][0]['route']==='developer' && !$revised['quality']['revisions'][0]['delegation']['designerNeeded'],'Routine repair invoked unnecessary design work');
+expect(count($revised['quality']['revisions'][0]['changedFields']??array())===1 &&
+    !isset($revised['quality']['revisions'][0]['changedFields'][0]['replacement']),
+    'QA repair still sends full-component replacements');
 expect(in_array('blocks[0].children[1]',$revised['quality']['revisions'][0]['impact']['reused'],true),'Unchanged sibling evidence not reused');
 
 $GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
