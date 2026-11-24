@@ -255,7 +255,8 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
         'packagePageUrl' => rest_url( 'syndamorph/v1/package-page' ),
         'packageCommitUrl' => rest_url( 'syndamorph/v1/package-commit' ),
     ) ) . ';', 'before' );
-    wp_enqueue_script( 'syndamorph-real-team', plugin_dir_url( __DIR__ ) . 'assets/ai-team-real.js', array( 'syndamorph-team' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/ai-team-real.js' ), true );
+    wp_enqueue_script( 'syndamorph-rich-content', plugin_dir_url( __DIR__ ) . 'assets/production-rich-content.js', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-rich-content.js' ), true );
+    wp_enqueue_script( 'syndamorph-real-team', plugin_dir_url( __DIR__ ) . 'assets/ai-team-real.js', array( 'syndamorph-team', 'syndamorph-rich-content' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/ai-team-real.js' ), true );
     wp_add_inline_script( 'syndamorph-real-team', 'window.SyndaMorphRealTeam=' . wp_json_encode( array(
         'nonce' => wp_create_nonce( 'wp_rest' ),
         'url' => rest_url( 'syndamorph/v1/ai/team-stream' ),
