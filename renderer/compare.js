@@ -30,4 +30,18 @@ function compareScreenshots(reference,native) {
             sampledPixels:total};
     });
 }
-module.exports={compareScreenshots};
+function cropScreenshot(sample,rect) {
+    const img=decode(sample);
+    if(!Array.isArray(rect)||rect.length!==4||rect.some(x=>!Number.isFinite(x)))throw Error('Invalid crop rectangle.');
+    const x=Math.max(0,Math.floor(rect[0]-12)),y=Math.max(0,Math.floor(rect[1]-12));
+    const right=Math.min(img.width,Math.ceil(rect[0]+rect[2]+12)),bottom=Math.min(img.height,Math.ceil(rect[1]+rect[3]+12));
+    if(right-x<2||bottom-y<2)throw Error('Component outside screenshot.');
+    const width=right-x,height=bottom-y,data=Buffer.alloc(width*height*4);
+    for(let row=0;row<height;row++) Buffer.from(img.data.buffer,img.data.byteOffset+((y+row)*img.width+x)*4,width*4).copy(data,row*width*4);
+    return jpeg.encode({data,width,height},70).data.toString('base64');
+}
+function cropScreenshots(items) {
+    if(!Array.isArray(items)||items.length<1||items.length>4)throw Error('Expected one to four crops.');
+    return items.map(item=>({media_type:'image/jpeg',data:cropScreenshot(item,item.rect)}));
+}
+module.exports={compareScreenshots,cropScreenshots};
