@@ -66,3 +66,19 @@ function syndamorph_repair_measured(array $node,array $reference,array $native):
     }
     return SyndaMorph_Job_Memory::fingerprint($replacement)===SyndaMorph_Job_Memory::fingerprint($node)?null:array('id'=>$node['id'],'replacement'=>$replacement);
 }
+
+/** Preflight checks for reference-only features the current native schema cannot reproduce.
+ * Host-owned interaction states are intentionally not section repair targets. */
+function syndamorph_reference_capability_notes(string $html): array {
+    $notes=array();
+    if(preg_match('/\\bmax-width\\s*:\\s*[^;{}]+/i',$html))$notes[]='Leaf max-width requires a constrained group layout; verify wrapping.';
+    if(preg_match('/\\b(?:grid-template-areas|position\\s*:\\s*(?:absolute|fixed|sticky)|transform\\s*:|clip-path\\s*:)/i',$html))$notes[]='Reference contains layout effects outside current native block capabilities.';
+    if(preg_match('/<\\s*(?:img|video|svg|canvas|table|ul|ol)\\b/i',$html))$notes[]='Reference contains elements outside current native block schema.';
+    return $notes;
+}
+function syndamorph_repair_content_signature(array $node): array {
+    $result=array();
+    if(isset($node['text']))$result[]=array('text'=>$node['text'],'href'=>$node['href']??null,'type'=>$node['type']??null);
+    foreach($node['children']??array() as $child)if(is_array($child))$result=array_merge($result,syndamorph_repair_content_signature($child));
+    return $result;
+}
