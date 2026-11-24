@@ -229,6 +229,22 @@ foreach(array(
     str_replace('#ffffff','red;position:fixed',$GLOBALS['native_fixture']),
     str_replace('"type":"heading"','"type":"column"',$GLOBALS['native_fixture'])
 ) as $bad) expect(is_wp_error(syndamorph_compile_block_plan($bad)),'Invalid plan accepted');
+$richPlan=json_decode($GLOBALS['native_fixture'],true);
+$richPlan['blocks'][0]['style']=array('gradient'=>'linear-gradient(135deg,#18283a,#203040)',
+    'padding'=>array('top'=>'3rem','right'=>'2rem','bottom'=>'3rem','left'=>'2rem'),'minHeight'=>'420px','gap'=>'1rem');
+$richPlan['blocks'][0]['children'][0]['style']=array('color'=>'#ffffff','fontSize'=>'clamp(2rem,5vw,4rem)',
+    'fontWeight'=>'700','lineHeight'=>'1.2','letterSpacing'=>'0.05em','margin'=>array('bottom'=>'1rem'));
+$richPlan['blocks'][0]['children'][2]['children'][0]['style']=array('background'=>'#ffffff','color'=>'#18283a','borderRadius'=>'8px','padding'=>'1rem');
+$styled=syndamorph_compile_block_plan(wp_json_encode($richPlan));
+expect(!is_wp_error($styled),'Expanded Gutenberg native style schema failed to compile');
+expect(str_contains($styled['content'],'linear-gradient(135deg') && str_contains($styled['content'],'font-weight:700') &&
+    str_contains($styled['content'],'border-radius:8px'),'Native styling was not serialized');
+$badStyle=$richPlan;
+$badStyle['blocks'][0]['children'][0]['style']['fontWeight']='700;position:fixed';
+expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($badStyle))),'Unsafe native font weight accepted');
+$badStyle=$richPlan;
+$badStyle['blocks'][0]['style']['gradient']='linear-gradient(135deg,#000000,red)';
+expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($badStyle))),'Unsafe native gradient accepted');
 expect(str_contains($ui,'syndamorph-team-output-type'),'Output selector missing');
 $export=file_get_contents(dirname(__DIR__).'/plugin/assets/production-ai-export.js');
 expect(str_contains($export,'native ? artifact : await window.SyndaMorphConverter.prepareImport'),'Native export must bypass manual conversion');
