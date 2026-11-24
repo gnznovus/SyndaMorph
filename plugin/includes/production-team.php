@@ -31,7 +31,7 @@ function syndamorph_team_render_tab(): void {
                 </div>
                 <div class="sm-sidebar-footer">
                     <strong>Internal MVP</strong><br>
-                    URL, HTML and ZIP conversion is operational. AI team generation is experimental and never publishes automatically.
+                    AI Production is the primary development path. Deterministic conversion remains a fallback. Nothing publishes automatically.
                 </div>
             </aside>
             <main class="sm-main">
@@ -41,7 +41,7 @@ function syndamorph_team_render_tab(): void {
                 </div>
                 <p class="sm-kicker">Production workspace</p>
                 <h1 class="sm-page-title">AI Production Team</h1>
-                <p class="sm-page-description">Inspect and convert source content with the existing Gutenberg engine, review results, or run the four-agent AI workflow from a production brief. AI output stays in review until explicitly handled.</p>
+                <p class="sm-page-description">Generate with the AI Production Team, review results and inspect saved jobs. The manual converter remains available as a no-inference fallback.</p>
 
                 <nav class="sm-team-tabs" aria-label="Production workflow stages" role="tablist">
                     <button type="button" id="sm-team-tab-setup" role="tab" aria-controls="sm-team-panel-setup" aria-selected="true" tabindex="0" data-panel="setup">01 <strong>Setup</strong><span>Prepare job</span></button>
@@ -52,7 +52,26 @@ function syndamorph_team_render_tab(): void {
 
                 <section id="sm-team-panel-setup" class="sm-team-panel" role="tabpanel" aria-labelledby="sm-team-tab-setup" data-panel="setup">
                     <div class="sm-team-layout sm-team-setup-grid">
-                        <section class="sm-card" aria-labelledby="sm-team-source-title">
+                        <section class="sm-card" aria-labelledby="sm-team-brief-title">
+                            <div class="sm-card-header">
+                                <h2 class="sm-card-title" id="sm-team-brief-title">AI Production · Primary engine</h2>
+                                <p class="sm-card-caption">Describe the desired output for Boss → Designer → Developer → Validator. Currently supports prompt-only HTML generation.</p>
+                            </div>
+                            <div class="sm-card-body">
+                                <div class="sm-field">
+                                    <label class="sm-field-label" for="syndamorph-team-brief">Task instructions</label>
+                                    <textarea class="sm-control sm-team-brief" id="syndamorph-team-brief" rows="7" maxlength="2000">Create a responsive, premium hotel hero section with a welcoming headline, short introduction, and clear call-to-action. Use a self-contained layout without external assets.</textarea>
+                                </div>
+                                <div class="sm-team-actions">
+                                    <button type="button" class="sm-primary" id="syndamorph-real-run">Start Production <span aria-hidden="true">→</span></button>
+                                    <button type="button" class="sm-team-secondary" id="syndamorph-team-reset">Reset</button>
+                                </div>
+                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">AI is the primary production path. Live agent messages appear in Production. Reference-conditioned AI and native Gutenberg generation are upcoming.</p>
+                            </div>
+                        </section>
+                        <details class="sm-card sm-team-fallback" id="sm-team-fallback">
+                            <summary class="sm-card-header"><strong class="sm-card-title">Manual conversion · Fallback</strong><span class="sm-card-caption">Optional deterministic URL, HTML and ZIP conversion. No AI calls.</span></summary>
+                            <section aria-labelledby="sm-team-source-title">
                             <div class="sm-card-header">
                                 <h2 class="sm-card-title" id="sm-team-source-title">Source import</h2>
                                 <p class="sm-card-caption">Select URL, HTML or ZIP. Inspect source content through the existing SyndaMorph pipeline before conversion.</p>
@@ -115,29 +134,13 @@ function syndamorph_team_render_tab(): void {
                                     <details id="syndamorph-team-source-diagnostics" hidden><summary>Capture diagnostics</summary><pre id="syndamorph-team-source-diagnostics-json"></pre></details>
                                 </div>
                                 <div class="sm-team-source-footer">
-                                    <p class="sm-team-note">For now, conversion titles come from the source. The PM will assign descriptive job titles during real classification.</p>
-                                    <button type="button" class="sm-primary" id="syndamorph-team-convert">Convert &amp; Preview <span aria-hidden="true">→</span></button>
+                                    <p class="sm-team-note">This fallback does not use the AI Production Team. Reference jobs remain available in History.</p>
+                                    <button type="button" class="sm-team-secondary" id="syndamorph-team-convert">Convert &amp; Preview <span aria-hidden="true">→</span></button>
                                     <p class="sm-team-action-feedback" id="syndamorph-team-convert-error" role="alert" hidden></p>
                                 </div>
                             </div>
                         </section>
-                        <section class="sm-card" aria-labelledby="sm-team-brief-title">
-                            <div class="sm-card-header">
-                                <h2 class="sm-card-title" id="sm-team-brief-title">Production brief</h2>
-                                <p class="sm-card-caption">Describe the desired output for Boss → Designer → Developer → Validator. No source input is required.</p>
-                            </div>
-                            <div class="sm-card-body">
-                                <div class="sm-field">
-                                    <label class="sm-field-label" for="syndamorph-team-brief">Task instructions</label>
-                                    <textarea class="sm-control sm-team-brief" id="syndamorph-team-brief" rows="7" maxlength="2000">Create a responsive, premium hotel hero section with a welcoming headline, short introduction, and clear call-to-action. Use a self-contained layout without external assets.</textarea>
-                                </div>
-                                <div class="sm-team-actions">
-                                    <button type="button" class="sm-primary" id="syndamorph-real-run">Start Production <span aria-hidden="true">→</span></button>
-                                    <button type="button" class="sm-team-secondary" id="syndamorph-team-reset">Reset</button>
-                                </div>
-                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">Real AI uses this brief only. Live agent messages appear in Production; Source Import remains independent.</p>
-                            </div>
-                        </section>
+                        </details>
                     </div>
                 </section>
 
@@ -179,12 +182,12 @@ function syndamorph_team_render_tab(): void {
                 <section id="sm-team-panel-results" class="sm-team-panel" role="tabpanel" aria-labelledby="sm-team-tab-results" data-panel="results" hidden>
                     <section class="sm-card" aria-labelledby="sm-team-review-title">
                         <div class="sm-card-header"><h2 class="sm-card-title" id="sm-team-review-title">Job results</h2>
-                            <p class="sm-card-caption">Real AI reports are review-only; Gutenberg conversion remains available through Source Import.</p></div>
+                            <p class="sm-card-caption">Review AI artifacts and explicitly convert or save them. Manual conversion results remain supported.</p></div>
                         <div class="sm-card-body">
                             <h2 class="sm-team-result-title" id="syndamorph-team-result-title">No job submitted</h2>
                             <div class="sm-team-result" id="syndamorph-team-review" role="status" aria-live="polite">
                                 <strong>No output available</strong>
-                                <p>Inspect and convert a source from Setup to view real Gutenberg previews and approve WordPress output.</p>
+                                <p>Start AI Production from Setup, open a historical job, or use manual conversion as a fallback.</p>
                             </div>
                             <div id="syndamorph-real-results" class="sm-team-ai-results" hidden aria-label="Real AI generation results"></div>
                             <section class="sm-team-artifacts" id="syndamorph-team-artifacts" hidden aria-label="Converted Gutenberg preview">
