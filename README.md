@@ -374,3 +374,8 @@ renderer/
 ## Origin
 
 The first POC was validated in `gnznovus/syndacast-layout-engine` on branch `poc/html-to-gutenberg` (commit `aa736d9`). This repository carries forward the working importer under the SyndaMorph product identity, without importing the old Layout Engine architecture or history.
+
+
+## Production standards and rich reports
+
+The team now uses shared versioned skills, techniques and nine default criteria, plus a local Markdown and limited Mermaid flowchart renderer for live and final agent messages. The section contract explicitly delegates document metadata to the host. See [production standards and readable communication](docs/production-standards.md) for supported formats, verification boundaries and acceptance steps.
