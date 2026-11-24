@@ -78,6 +78,47 @@ function syndamorph_collab_evidence(array $reference, array $native): array {
     }
     return $findings;
 }
+/** Map a rendered leaf to its native-plan owner, without injecting custom block markup. */
+function syndamorph_collab_owner(array $nodes, string $text, string $fallback='blocks[0]'): string {
+    foreach($nodes as $node) {
+        if (!is_array($node)) continue;
+        if (isset($node['text']) && trim((string)$node['text'])===$text) return (string)($node['id']??$fallback);
+        if (isset($node['children']) && is_array($node['children'])) {
+            $found=syndamorph_collab_owner($node['children'],$text,'');
+            if ($found!=='') return $found;
+        }
+    }
+    return $fallback;
+}
+/** Reusable measured evidence. Only matching leaf text is compared; mismatches are explicit. */
+function syndamorph_collab_style_findings(array $reference,array $native,array $plan): array {
+    $issues=array();
+    foreach([0,1,2] as $i) {
+        $width=(int)($native[$i]['width']??0);
+        $ref=array();
+        foreach(($reference[$i]['snapshot']['elements']??array()) as $el) {
+            $text=trim((string)($el['text']??''));
+            if ($text!=='') $ref[$text]=$el;
+        }
+        foreach(($native[$i]['snapshot']['elements']??array()) as $el) {
+            $text=trim((string)($el['text']??''));
+            if ($text==='' || !isset($ref[$text])) continue;
+            $source=$ref[$text];$changes=array();
+            foreach(array('fontSize','fontWeight','color','letterSpacing') as $key) {
+                if (($source['styles'][$key]??null)!==($el['styles'][$key]??null)) $changes[]=$key;
+            }
+            if (count($source['rect']??array())===4 && count($el['rect']??array())===4) {
+                if (abs($source['rect'][2]-$el['rect'][2])>max(30,$source['rect'][2]*0.35)) $changes[]='width';
+            }
+            if($changes) {
+                $id=syndamorph_collab_owner($plan['blocks'],$text);
+                $issues[]=array('id'=>'style-'.substr(hash('sha256',$width.$text),0,12),'component'=>$id,
+                    'severity'=>'medium','detail'=>'Measured '.implode(', ',$changes).' differs from HTML reference at '.$width.'px for '.mb_substr($text,0,70));
+            }
+        }
+    }
+    return array_slice($issues,0,50);
+}
 function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $settings=syndamorph_models_settings();
     $provider=$settings['provider']??'';$model=$settings['model']??'';
@@ -133,7 +174,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $inspectNative=syndamorph_collab_inspect($artifact['preview']);
     if (is_wp_error($inspectReference) || is_wp_error($inspectNative)) return new WP_Error('sm_quality_blocked','Real browser inspection could not complete; job cannot be approved.');
     $evidence=array('reference'=>$inspectReference,'native'=>$inspectNative);
-    $issues=syndamorph_collab_evidence($inspectReference,$inspectNative);
+    $issues=array_merge(syndamorph_collab_evidence($inspectReference,$inspectNative),syndamorph_collab_style_findings($inspectReference,$inspectNative,$plan));
     $best=array('plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'score'=>count($issues));
     $evidenceSummary=static function(array $samples):array {
         return array_map(static function($sample){return array('width'=>$sample['width'],'snapshot'=>$sample['snapshot'],'screenshotSha256'=>hash('sha256',base64_decode($sample['screenshot'],true)?:''));},$samples);
@@ -182,7 +223,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $newEvidence=syndamorph_collab_inspect($candidate['artifact']['preview']);
         if (is_wp_error($newEvidence)) { $revisions[]=array('round'=>$round,'status'=>'blocked','detail'=>'Browser revalidation unavailable');break; }
         // Root/ancestor changes affect all descendants. Reinspect all widths, but avoid additional full-model review.
-        $newIssues=syndamorph_collab_evidence($inspectReference,$newEvidence);
+        $newIssues=array_merge(syndamorph_collab_evidence($inspectReference,$newEvidence),syndamorph_collab_style_findings($inspectReference,$newEvidence,$candidate['plan']));
         $oldScore=count($issues);$newScore=count($newIssues);
         $accepted=$newScore<=$oldScore;
         $revisions[]=array('round'=>$round,'id'=>$id,'accepted'=>$accepted,'before'=>$oldScore,'after'=>$newScore,'evidenceHash'=>hash('sha256',wp_json_encode($evidenceSummary($newEvidence))));
