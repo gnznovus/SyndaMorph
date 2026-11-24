@@ -47,6 +47,7 @@ function syndamorph_team_render_tab(): void {
                     <button type="button" id="sm-team-tab-setup" role="tab" aria-controls="sm-team-panel-setup" aria-selected="true" tabindex="0" data-panel="setup">01 <strong>Setup</strong><span>Prepare job</span></button>
                     <button type="button" id="sm-team-tab-production" role="tab" aria-controls="sm-team-panel-production" aria-selected="false" tabindex="-1" data-panel="production">02 <strong>Production</strong><span>Live activity</span></button>
                     <button type="button" id="sm-team-tab-results" role="tab" aria-controls="sm-team-panel-results" aria-selected="false" tabindex="-1" data-panel="results">03 <strong>Results</strong><span>Review output</span></button>
+                    <button type="button" id="sm-team-tab-history" role="tab" aria-controls="sm-team-panel-history" aria-selected="false" tabindex="-1" data-panel="history">04 <strong>History</strong><span>Saved jobs</span></button>
                 </nav>
 
                 <section id="sm-team-panel-setup" class="sm-team-panel" role="tabpanel" aria-labelledby="sm-team-tab-setup" data-panel="setup">
@@ -218,6 +219,23 @@ function syndamorph_team_render_tab(): void {
                         </div>
                     </section>
                 </section>
+                <section id="sm-team-panel-history" class="sm-team-panel" role="tabpanel" aria-labelledby="sm-team-tab-history" data-panel="history" hidden>
+                    <section class="sm-card">
+                        <div class="sm-card-header"><h2 class="sm-card-title">Production History</h2><p class="sm-card-caption">Inspect and replay recorded jobs without new AI calls.</p></div>
+                        <div class="sm-card-body">
+                            <div class="sm-history-toolbar">
+                                <input type="search" class="sm-control" id="sm-history-search" placeholder="Search job ID or title" aria-label="Search jobs">
+                                <select class="sm-control" id="sm-history-category" aria-label="Job category"><option value="">All categories</option><option value="GEN">GEN · Without reference</option><option value="REF">REF · With reference</option></select>
+                                <select class="sm-control" id="sm-history-sort" aria-label="Sort jobs"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="id">Job ID</option><option value="title">Job title</option><option value="status">Status</option></select>
+                                <button type="button" class="sm-team-secondary" id="sm-history-refresh">Refresh</button>
+                            </div>
+                            <p id="sm-history-status" role="status" aria-live="polite"></p>
+                            <div id="sm-history-list"></div>
+                            <div class="sm-history-actions"><button type="button" class="sm-team-secondary" id="sm-history-prev" disabled>Previous</button><button type="button" class="sm-team-secondary" id="sm-history-next" disabled>Next</button></div>
+                            <div id="sm-history-detail" hidden></div>
+                        </div>
+                    </section>
+                </section>
             </main>
         </div>
     </div>
@@ -251,6 +269,7 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
     wp_add_inline_script( 'syndamorph-team', 'window.SyndaMorphTeam=' . wp_json_encode( array(
         'nonce' => wp_create_nonce( 'wp_rest' ),
         'captureUrl' => rest_url( 'syndamorph/v1/capture-url' ),
+        'historyUrl' => rest_url( 'syndamorph/v1/history' ),
         'packageScanUrl' => rest_url( 'syndamorph/v1/package-scan' ),
         'packagePageUrl' => rest_url( 'syndamorph/v1/package-page' ),
         'packageCommitUrl' => rest_url( 'syndamorph/v1/package-commit' ),
@@ -261,6 +280,7 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
         'nonce' => wp_create_nonce( 'wp_rest' ),
         'url' => rest_url( 'syndamorph/v1/ai/team-stream' ),
     ) ) . ';', 'before' );
+    wp_enqueue_script( 'syndamorph-history', plugin_dir_url( __DIR__ ) . 'assets/production-history.js', array( 'syndamorph-real-team' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-history.js' ), true );
     wp_enqueue_script( 'syndamorph-team-migration', plugin_dir_url( __DIR__ ) . 'assets/production-workflow.js',
         array( 'syndamorph-team', 'syndamorph-import' ),
         (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-workflow.js' ), true );
