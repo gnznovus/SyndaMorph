@@ -37,8 +37,13 @@ function syndamorph_editor_learning_confirm(int $job,string $old,string $new): v
         $row['status']='corrected_example';
         $row['correctedCompilerRevision']=syndamorph_editor_learning_revision();
         $row['correctedArtifactSha256']=$new;
+        syndamorph_learning_record('engineering','editor',
+            $row['block']===''?'*':str_replace('core/','',(string)$row['block']),
+            (string)$row['kind'],
+            'Editor validation detected a '.$row['kind'].' defect in a registered native block.',
+            'job:'.$job.':'.substr($old,0,16),true);
     }unset($row);
     update_option('syndamorph_editor_learning_v1',$rows,false);
-    // Editor recovery confirms the artifact, not a reusable prompt rule.
-    // Engineering learning remains observational until autonomous compiler repair is implemented.
+    // Verification marks the engineering observation as confirmed.
+    // It is still excluded from agent prompts; deployment requires human approval.
 }
