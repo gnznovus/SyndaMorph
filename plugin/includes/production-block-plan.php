@@ -94,7 +94,7 @@ function syndamorph_compile_block_plan( string $raw ) {
                 } elseif ( $key==='borderRadius' && $type==='button' ) {
                     $attrs['style']['border']['radius']=$css['border-radius']=$length($value);
                 } elseif ( $key==='gap' && in_array($type,array('group','columns','buttons'),true) ) {
-                    $attrs['style']['spacing']['blockGap']=$css['gap']=$length($value);
+                    $attrs['style']['spacing']['blockGap']=$length($value);
                 } elseif ( $key==='align' && in_array($type,array('heading','paragraph'),true) && in_array($value,array('left','center','right'),true) ) {
                     $attrs[$type==='heading'?'textAlign':'align']=$value;
                     $classes[]='has-text-align-'.$value;
@@ -145,13 +145,16 @@ function syndamorph_compile_block_plan( string $raw ) {
             };$verify(parse_blocks($content));
         }
         $preview='<style>*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;line-height:1.5}.wp-block-group.is-layout-flex{display:flex;flex-direction:column}.wp-block-group.is-layout-constrained{display:block}.wp-block-group h1,.wp-block-group h2,.wp-block-group h3,.wp-block-group h4,.wp-block-group h5,.wp-block-group h6,.wp-block-group p{margin:0}.wp-block-columns{display:flex;gap:1.5rem}.wp-block-column{flex:1;min-width:0}.wp-block-buttons{display:flex;flex-wrap:wrap;gap:1rem}.wp-block-button__link{display:inline-block;padding:.75em 1.5em;background:#26384a;color:#fff;text-decoration:none;border-radius:4px}.has-text-align-center{text-align:center}.has-text-align-right{text-align:right}@media(max-width:781px){.wp-block-columns{flex-direction:column}}</style>'.$content;
-        $preview=preg_replace_callback('~<!-- wp:(group|buttons) (\\{[^\\n]*?\\}) -->\\s*<div([^>]*)>~',static function($m){
+        $layoutCss='';
+        $preview=preg_replace_callback('~<!-- wp:(group|buttons|columns) (\\{[^\\n]*?\\}) -->\\s*<div([^>]*)>~',static function($m)use(&$layoutCss){
             $attrs=json_decode($m[2],true);$layout=$attrs['layout']??array();$rules='';$childRules='';
+            $gap=$attrs['style']['spacing']['blockGap']??'';
+            // Values originate exclusively from the validated length parser.
+            if(is_string($gap)&&$gap!=='')$rules='gap:'.$gap.';--sm-preview-gap:'.$gap.';';
             $width=$layout['contentSize']??'';
             if(preg_match('/^[0-9]{1,3}(?:\\.[0-9]{1,3})?(?:px|rem|em|ch)$/D',$width)) {
                 $childRules='max-width:'.$width.';margin-inline:auto';
-                $gap=$attrs['style']['spacing']['blockGap']??'';
-                if(is_string($gap)&&preg_match('/^[0-9.]+(?:px|rem|em|vw|vh)$/D',$gap))$rules='--sm-preview-gap:'.$gap.';';
+
             }
             $horizontal=array('left'=>'flex-start','center'=>'center','right'=>'flex-end','stretch'=>'stretch');
             $vertical=array('top'=>'flex-start','center'=>'center','bottom'=>'flex-end');
@@ -162,8 +165,10 @@ function syndamorph_compile_block_plan( string $raw ) {
             $opening=preg_replace('/class="/','class="'.$class.' ',$m[3],1);
             $style='.'.$class.'{'.$rules.'}';
             if($childRules)$style.='.'.$class.' > *:not(style){'.$childRules.'}.'.$class.' > *:not(style) ~ *:not(style){margin-block-start:var(--sm-preview-gap,0)}';
-            return '<style>'.$style.'</style><!-- wp:'.$m[1].' '.$m[2].' --><div'.$opening.'>';
+            $layoutCss.=$style;
+            return '<!-- wp:'.$m[1].' '.$m[2].' --><div'.$opening.'>';
         },$preview);
+        if($layoutCss!=='')$preview='<style>'.$layoutCss.'</style>'.$preview;
         return array('schemaVersion'=>1,'content'=>$content,'preview'=>$preview,'blockCount'=>$count,'checks'=>array('valid_plan'=>true,'native_blocks_only'=>true,'contains_heading'=>$headings>0,'no_active_markup'=>true));
     } catch ( InvalidArgumentException | JsonException $e ) { return new WP_Error('sm_block_plan_invalid','Native block plan rejected: '.$e->getMessage(),array('status'=>422,'field'=>$field ?? 'plan')); }
     catch ( Throwable $e ) { return new WP_Error('sm_block_plan_system','Native block compilation encountered an internal error.',array('status'=>500)); }
