@@ -45,7 +45,7 @@ function wp_remote_post($url,$args) {
         $GLOBALS['inspection_calls'][]=$native?'native':'reference';
         $sample=base64_encode('mock-jpeg-evidence');
         return array('status'=>200,'body'=>json_encode(array('evidence'=>array_map(
-            static fn($width)=>array('width'=>$width,'screenshot'=>$sample,'snapshot'=>array(
+            static fn($width)=>array('width'=>$width,'screenshot'=>$sample,'a11y'=>array(),'snapshot'=>array(
                 'overflow'=>false,'elements'=>array(array('tag'=>'H2','id'=>'','text'=>'Welcome & enjoy',
                 'rect'=>array(0,0,300,70),'styles'=>array('fontSize'=>'32px','fontWeight'=>'700','color'=>'rgb(0, 0, 0)','letterSpacing'=>'normal'))))),
             array(1440,768,390)))));
