@@ -270,7 +270,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $usage=array('inputTokens'=>0,'outputTokens'=>0,'cacheReadTokens'=>0,'cacheWriteTokens'=>0);
     $metrics=array();$outputs=array();$events=array();$issues=array();$revisions=array();$evidence=array();$best=null;
     $learningSource='job:'.bin2hex(random_bytes(8));
-    $started=microtime(true);$calls=0;$cutoff=$max*0.8;$memory=new SyndaMorph_Job_Memory($brief);
+    $started=microtime(true);$calls=0;$cutoff=$max;$memory=new SyndaMorph_Job_Memory($brief);
     if (function_exists('set_time_limit')) @set_time_limit(1200);
     $call=static function(string $role,string $instruction,array $context,int $cap,array $images=array(),string $stage='') use (&$usage,&$metrics,&$events,&$calls,$provider,$model,$in,$out,$max,$stream,$on_event) {
         $stage=$stage ?: $role;
@@ -283,7 +283,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $prefix=syndamorph_production_cached_contract();
         $system=syndamorph_production_task_context($role,$stage)."\n".$instruction;
         $allowance=((ceil((strlen($encoded)+strlen($prefix)+strlen($system))/3)*1.25+count($images)*2000)*$in+$cap*$out)/1000000;
-        if (syndamorph_collab_cost($usage,$in,$out)+$allowance>(in_array($stage,array('schema_repair','revision_validation','delegation','repair','design_correction'),true)?$max*0.8:$max)) return new WP_Error('sm_team_budget','No safe budget for another model call.',array('stage'=>'budget','role'=>$role,'task'=>$stage,'completedCalls'=>$calls));
+        if (syndamorph_collab_cost($usage,$in,$out)+$allowance>$max) return new WP_Error('sm_team_budget','No safe budget for another model call.',array('stage'=>'budget','role'=>$role,'task'=>$stage,'completedCalls'=>$calls));
         if ($on_event) $on_event('agent_start',array('role'=>$role,'task'=>$stage));
         $start=microtime(true);
         $result=syndamorph_models_generate($provider,$model,
@@ -316,7 +316,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     if(is_wp_error($reference))return $reference;
     $approval=array('decision'=>'rejected','issues'=>array());
     $approvedReference=false;$designReviews=0;$handoffs=array($assignment);
-    for($designRound=1;$designRound<=2;$designRound++){
+    for($designRound=1;;$designRound++){
         $reference=trim($reference);
         if(preg_match('/^`{3}(?:html)?\\s*([\\s\\S]*?)\\s*`{3}$/iD',$reference,$fenced))$reference=trim($fenced[1]);
         if(!preg_match('~<section\\b~i',$reference) ||
@@ -349,7 +349,6 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         $handoffs[]=$handoff;
         if($on_event)$on_event('handoff',$handoff);
         if($decision==='approved'){$approvedReference=true;break;}
-        if($designRound===2)break;
         $reference=$call('designer','Revise the existing visual reference ONLY for the Boss review issues. Preserve accepted sections, copy and intent; return full updated safe HTML reference only.',
             array('reference'=>$reference,'feedback'=>$handoff['issues'],'requirements'=>$brief),16384,array(),'design_correction');
         if(is_wp_error($reference))return $reference;
@@ -380,7 +379,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     if($on_event)$on_event('working_plan',array('id'=>$workingId,'revision'=>1));
     $compiled=syndamorph_surgery_verify($plan,$plan);
     $lessons=array();
-    for($attempt=1;is_wp_error($compiled)&&$attempt<=8;$attempt++){
+    for($attempt=1;is_wp_error($compiled);$attempt++){
         $error=$compiled;
         $data=(array)$error->get_error_data();
         $diag=array('code'=>$error->get_error_code(),'message'=>$error->get_error_message(),'field'=>$data['field']??'plan');
@@ -403,7 +402,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             $context=array('diagnostic'=>$diag,'target'=>$focus,'learnedRules'=>syndamorph_learning_retrieve('schema_repair'));
             $estimate=((ceil(strlen(wp_json_encode($context))/3)+4096)*$in+16384*$out)/1000000;
             if(syndamorph_collab_cost($usage,$in,$out)+$estimate>$cutoff){
-                $compiled=new WP_Error('sm_team_budget','Surgical repair would exceed the 80% budget.',array('field'=>$diag['field'],'stage'=>'budget'));
+                $compiled=new WP_Error('sm_team_budget','Surgical repair would exceed the configured job budget.',array('field'=>$diag['field'],'stage'=>'budget'));
                 break;
             }
             $answer=$call('developer','Surgical schema repair. Return ONLY JSON {"id":"existing id","changes":[{"path":"style.fontSize","value":"2rem"}]}. Update only the failing node style. No full-plan regeneration, no content or identity edits. '.syndamorph_block_plan_contract(),$context,16384,array(),'schema_repair');
@@ -485,17 +484,14 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
     $issues=syndamorph_issue_merge($issues);
     $registry=array();foreach($issues as $issue)$registry[$issue['component'].'|'.$issue['id']]=array_merge($issue,array('status'=>'open'));
     $best['issues']=$issues;$best['score']=syndamorph_issue_score($issues);
-    $stagnation=0;
     $terminationReason='quality_pending';
-    // Budget is the primary limit; retain a hard runtime safety guard and stop stalled targets.
+    // Budget governs paid QA retries; distinct safety/transport failures still fail closed.
     for($round=1;count($issues)>0;$round++) {
-        if($stagnation>=4) { $terminationReason='global_no_progress';break; }
-        $stagnation++;
         if(microtime(true)-$started>1000) { $terminationReason='runtime_limit';break; }
-        // 20% remains reserved for finalization. Never start a repair if projected spending crosses cutoff.
+        // Reserve worst-case Developer and scoped visual QA costs against the configured job budget.
         // Reserve worst-case Developer and scoped visual QA calls.
         $projected=(25000*$in+32768*$out)/1000000;
-        if (syndamorph_collab_cost($usage,$in,$out)+$projected>$cutoff) { $terminationReason='budget_80_percent';break; }
+        if (syndamorph_collab_cost($usage,$in,$out)+$projected>$cutoff) { $terminationReason='budget_exhausted';break; }
         $pending=array_values(array_filter($issues,static fn($issue)=>$memory->eligible($issue['component']) && syndamorph_collab_find($plan['blocks'],$issue['component'])!==null));
         if (!$pending) { $terminationReason='no_progress_or_editable_targets';break; }
         usort($pending,static fn($a,$b)=>array_search($a['severity'],array('high','medium','low'),true)<=>array_search($b['severity'],array('high','medium','low'),true));
@@ -529,7 +525,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
             $repair=$call('developer','Repair the current persisted native plan with MINIMAL STYLE-ONLY SURGERY. Return ONLY JSON {"id":"assigned issue owner","changes":[{"target":"existing child id when needed","path":"style.margin.bottom","value":"1rem"}]}. Each change may target the assigned node or an EXISTING descendant; never change text, links, block types, IDs, siblings or structure. Change at most 3 supported style properties and use the compiler contract. For spacing, distinguish parent gap from leaf margin; edit the actual source of mismatch. Use reference/current viewport measurements and previous rejected attempts. Never return a full node or full plan. '.syndamorph_block_plan_contract(),
                 $repairContext,2048,$repairScope['images'],'repair');
             if(is_wp_error($repair)){$terminationReason=$repair->get_error_code()==='sm_team_budget'?
-                'budget_80_percent':'developer_blocked';break;}
+                'budget_exhausted':'developer_blocked';break;}
             $patch=json_decode(syndamorph_native_json_text($repair),true);
         }
         if($on_event)$on_event('repair_route',array('round'=>$round,'id'=>$id,'route'=>$route));
@@ -618,7 +614,6 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event) {
         }
         if($accepted) {
             if($newScore===0 && ($parsedTarget['decision']??'')==='approved')$bossQaApproved=true;
-            $stagnation=0;
             $memory->reopen(array_values(array_diff($reviewIds,$impact['changed'])));
             $plan=$candidate['plan'];$artifact=$candidate['artifact'];$inspectNative=$newEvidence;$comparison=$newComparison;
             // Only accepted, browser-verified QA candidates update persistent draft.
