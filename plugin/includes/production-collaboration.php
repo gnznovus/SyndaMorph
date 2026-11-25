@@ -618,9 +618,6 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             array('approved','changes_requested','verification_required'),$on_event);
         if(is_wp_error($record))return $record;
         $approval=$parsed;
-        if(!is_array($approval['issues']??null))
-            return new WP_Error('sm_boss_review_contract','Boss must return a structured issues list.',
-                array('stage'=>'design_approval'));
         $designReviews++;
         if(($approval['decision']??'')==='verification_required'){
             $request=(array)($approval['toolRequest']??array());
@@ -635,7 +632,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $pendingToolEvidence=$toolResult;
             continue;
         }
-        $decision=($approval['decision']??'')==='approved'?'approved':'changes_requested';
+        if(!is_array($approval['issues']??null))
+            return new WP_Error('sm_boss_review_contract','Boss must return a structured issues list.',
+                array('stage'=>'design_approval'));
+        $decision=$record['decision'];
         $deviations=array();
         foreach((array)($approval['acceptedCapabilityDeviations']??array()) as $deviation) {
             if(!is_array($deviation)||!in_array($deviation['note']??null,$capabilityNotes,true)||
