@@ -762,7 +762,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON using the cached compiler contract. Preserve content and visual intent. Return JSON only, with stable unique IDs and supported native styles.',
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,
             'imageOrder'=>array_intersect_key($viewports,array_flip($visionViewports)),
-            'learnedRules'=>$useLearning?syndamorph_learning_retrieve('developer'):array()),16384,$referenceImages);
+            'learnedRules'=>$useLearning?syndamorph_learning_retrieve('developer'):array(),
+            'compilerPitfalls'=>array(
+                'buttons.style.margin is unsupported; use gap on the parent group for spacing.',
+                'Use gradient linear-gradient(135deg,#18283a,#0f1a26) with exactly two hex color endpoints and no percentage stops.',
+                'Unsupported styles must not be emitted; preserve the approved design through native-compatible groups.')),16384,$referenceImages);
     if (is_wp_error($developer)) return $developer;
 
     // Native schema recovery operates on one persistent full-generation plan.
@@ -799,13 +803,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         // upgrades the same evidence to a verified, reusable lesson.
         syndamorph_learning_schema($diag['field'],$diag['message'],$learningSource.':schema:'.$attempt,false);
         if($on_event)$on_event('schema_repair',array_merge($diag,array('attempt'=>$attempt,'status'=>'required','role'=>'developer')));
-        $route='deterministic';
-        $normal=syndamorph_surgery_normalize($plan,$diag);
-        $candidate=$normal===null?null:array('plan'=>$normal['plan']);
-        if($candidate!==null){
-            $test=syndamorph_surgery_verify($plan,$candidate['plan']);
-            if(is_wp_error($test) && ($test->get_error_data()['field']??'plan')===$diag['field'])$candidate=null;
-        }
+        // Compiler owns proven schema transforms. Developer is asked only
+        // when no known deterministic transaction advances this diagnostic.
+        $route='auto_repair';
+        $auto=syndamorph_compiler_auto_repair($plan,$diag);
+        $candidate=$auto===null?null:array('plan'=>$auto['plan']);
         if($candidate===null){
             $route='developer';
             $schemaAttempts[$errorKey]=($schemaAttempts[$errorKey]??0)+1;
@@ -816,7 +818,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'rejectedPatches'=>array_values($schemaRejected[$errorKey]??array()),
                 'attemptsRemaining'=>$schemaRetryLimit-$schemaAttempts[$errorKey],
                 'learnedRules'=>$useLearning?syndamorph_learning_retrieve('schema_repair'):array());
-            $answer=$call('developer','Compiler rejected the current plan. Follow diagnostic.expected exactly. Return JSON {"acknowledged":{"instructionId":"copy instructionId from context","field":"copy diagnostic.field from context"},"patch":{"id":"existing id","changes":[{"path":"style.fontSize","value":"2rem"}]}}. Change only the failing node style. Preserve content and identity.',
+            $answer=$call('developer','Compiler Auto-Repair could not safely resolve this diagnostic. Follow diagnostic.expected exactly. Return JSON {"acknowledged":{"instructionId":"copy instructionId from context","field":"copy diagnostic.field from context"},"patch":{"id":"existing id","changes":[{"path":"style.margin","op":"remove"}]}} for unsupported properties, or {"path":"style.fontSize","value":"2rem"} for corrections. Removing a property REQUIRES op:remove; null is not deletion. Change only the failing node style. Preserve content and identity.',
                 $context,2048,array(),'schema_repair');
             if(is_wp_error($answer)){$compiled=$answer;break;}
             $surgery['paidPatches']++;
@@ -850,7 +852,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],'accepted'=>false);
                 continue;
             }
-        }else $surgery['deterministic']++;
+        }else{
+            $surgery['deterministic']++;
+            if($on_event)$on_event('compiler_auto_repair',array(
+                'status'=>'accepted','field'=>$diag['field'],
+                'reason'=>$diag['message'],'changedProperty'=>$auto['repair'],
+                'compiled'=>$auto['compiled'],'requiresVisualQa'=>true));
+        }
         $before=$plan;$plan=$candidate['plan'];
         $compiled=syndamorph_surgery_verify($before,$plan);
         $lessons[]=array('field'=>$diag['field'],'message'=>$diag['message'],'attempt'=>$attempt);
