@@ -466,6 +466,31 @@ expect(is_wp_error(syndamorph_production_tool_request('developer',$overlongReque
     'Tool requests must retain a hard maximum input budget');
 
 
+// Global authority invariant: model decisions remain attributed and immutable,
+// while orchestrator gates report their own, separately authorized status.
+$authorityEvents=array();
+$emitAuthority=static function(string $type,array $data)use(&$authorityEvents):void{
+    $authorityEvents[]=array('type'=>$type,'data'=>$data);
+};
+$agentRecord=syndamorph_authority_decision('boss','design_approval',
+    array('decision'=>'approved','issues'=>array(),'summary'=>'Approved by Boss'),
+    array('approved','changes_requested'),$emitAuthority);
+$gateRecord=syndamorph_authority_gate($agentRecord,'blocked',
+    'Deterministic safety validation failed.',$emitAuthority);
+expect($agentRecord['decision']==='approved'&&$gateRecord['agentDecision']==='approved'&&
+    $gateRecord['executionStatus']==='blocked'&&$gateRecord['owner']==='orchestrator'&&
+    count($authorityEvents)===2&&$authorityEvents[0]['type']==='agent_decision'&&
+    $authorityEvents[1]['type']==='execution_gate'&&
+    $authorityEvents[0]['data']['decision']==='approved',
+    'Orchestrator must never change an agent approval when blocking execution');
+expect(is_wp_error(syndamorph_authority_decision('boss','design_approval',
+    array('decision'=>'surprise_override'),array('approved','changes_requested'),$emitAuthority)),
+    'Unknown agent decisions must not be silently converted into repair instructions');
+expect(is_wp_error(syndamorph_authority_decision('designer','design_approval',
+    null,array('approved'),$emitAuthority)),
+    'Invalid responses cannot be impersonated as another agent decision');
+expect(count($authorityEvents)===2,'Invalid decisions must not emit fabricated agent decision events');
+
 // GEN-000018: an explicit issue-free Boss approval is final for the design
 // stage even when accepted capability deviations are narrative strings.
 $GLOBALS['boss_approved_deviation_test']=true;
