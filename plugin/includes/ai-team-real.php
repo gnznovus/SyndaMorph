@@ -229,6 +229,8 @@ function syndamorph_team_sse_run( string $brief, string $format = 'html' ): void
     try {
         $emit( 'ready', array_merge( $record, array( 'outputType' => $format, 'roles' => array( 'boss', 'designer', 'developer' ) ) ) );
         $result = syndamorph_team_real_run( $brief, true, $emit, $format );
+        $pendingControl=syndamorph_job_control_gate();
+        if(is_wp_error($pendingControl))$result=$pendingControl;
         if ( is_wp_error( $result ) ) {
             if(in_array($result->get_error_code(),array('sm_team_pause','sm_team_stop','sm_team_abort'),true)){
                 $action=str_replace('sm_team_','',$result->get_error_code());
@@ -275,6 +277,8 @@ function syndamorph_team_sse_resume(int $id,string $brief,string $format,array $
         syndamorph_team_sse_emit('job_resumed',array('status'=>'running','replayedCalls'=>count($calls)));
         $GLOBALS['syndamorph_resume_suppress']=true;
         $result=syndamorph_team_real_run($brief,true,$emit,$format);
+        $pendingControl=syndamorph_job_control_gate();
+        if(is_wp_error($pendingControl))$result=$pendingControl;
         unset($GLOBALS['syndamorph_resume_suppress']);
         if(is_wp_error($result)){
             $code=$result->get_error_code();
