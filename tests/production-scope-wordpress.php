@@ -164,6 +164,21 @@ if($phase==='setup') {
     scope_expect(!empty($candidate['eligible'])&&$candidate['sourceAcceptance']['layoutAuthorization']===
         syndamorph_scope_layout_authorization($authorizedJob,$keys[0]),
         'The authenticated source layout authorization did not survive production and native QA.');
+    $archived=syndamorph_history_latest($candidate['id'],'job_complete');
+    $archived['status']='uncompleted';
+    $archived['quality']['terminationReason']='native_responsive_pending';
+    $archived['quality']['continuousResponsive']['status']='pending';
+    syndamorph_history_append($candidate['id'],'job_complete',$archived);
+    scope_expect(empty(syndamorph_scope_candidate($authorizedJob,$keys[0])['eligible']),
+        'Pending native responsive QA could promote an artifact.');
+    $request=new WP_REST_Request('POST','/syndamorph/v1/history/'.$candidate['id'].'/reinspect-reference');
+    $response=rest_do_request($request);
+    $rechecked=$response->get_data();
+    scope_expect($response->get_status()===200&&($rechecked['responsive']['status']??null)==='passed'&&
+        $rechecked['aiCalls']===0&&$rechecked['status']==='needs_review'&&
+        syndamorph_history_latest($candidate['id'],'job_complete')===$archived&&
+        !empty(syndamorph_scope_candidate($authorizedJob,$keys[0])['eligible']),
+        'Independent DOM reinspection failed to recover the exact archived artifact: '.wp_json_encode($rechecked));
     echo wp_json_encode(array('section'=>$section['id'],'page'=>$page['id'],'keys'=>$keys,'mockCalls'=>count($calls),
         'authorizedMobileLayout'=>true)).PHP_EOL;
 } elseif($phase==='retry') {

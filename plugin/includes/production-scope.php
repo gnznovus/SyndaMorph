@@ -4,6 +4,7 @@ if (!defined('ABSPATH')) { exit; }
 require_once __DIR__.'/production-source.php';
 require_once __DIR__.'/production-scope-source.php';
 require_once __DIR__.'/production-tabs.php';
+require_once __DIR__.'/production-responsive.php';
 
 const SYNDAMORPH_SCOPE_WORKFLOW = 'source-scope-v1';
 
@@ -110,10 +111,17 @@ function syndamorph_scope_status(array $manifest): array {
             if(in_array($last['status'],array('failed','uncompleted','needs_review'),true)) {
                 $failure=syndamorph_history_latest($last['id'],'job_error');
                 $final=syndamorph_history_latest($last['id'],'job_complete');
-                $region['checkpointAvailable']=!empty($failure['referenceCheckpoint'])||!empty($final['referenceCheckpoint']);
+                if($final){
+                    $final=syndamorph_history_responsive_result($last['id'],$final);
+                    if($last['status']==='uncompleted'&&($final['status']??null)==='needs_review')$region['status']='needs_review';
+                }
                 $functional=$final['quality']['functionalChecks']['status']??null;
+                $responsive=$final['quality']['continuousResponsive']['status']??null;
+                $region['checkpointAvailable']=!empty($failure['referenceCheckpoint'])||!empty($final['referenceCheckpoint'])||
+                    $responsive==='pending';
                 $region['issue']=$failure['message']??$final['quality']['issues'][0]['detail']??
-                    (in_array($functional,array('pending','failed'),true)?'Functional QA '.$functional.'. See the artifact receipt in History.':null);
+                    (in_array($functional,array('pending','failed'),true)?'Functional QA '.$functional.'. See the artifact receipt in History.':null)??
+                    (in_array($responsive,array('pending','failed'),true)?'Responsive QA '.$responsive.'. See the artifact receipt in History.':null);
             }
         }
     }
@@ -188,13 +196,15 @@ function syndamorph_scope_candidate(array $manifest,string $key): ?array {
     $attempt=end($region['attempts']);
     $final=syndamorph_history_latest($attempt['id'],'job_complete');
     if(empty($final['artifact']['content']))return null;
+    $final=syndamorph_history_responsive_result($attempt['id'],$final);
     $checksum=hash('sha256',$final['artifact']['content']);
     return array('id'=>$attempt['id'],'content'=>$final['artifact']['content'],
         'checksum'=>$checksum,'sourceAcceptance'=>$final['sourceAcceptance']??null,
         'eligible'=>!empty($final['sourceAcceptance']['passed'])&&!empty($final['quality']['bossApproved'])&&
             ($final['sourceAcceptance']['id']??null)===$key&&hash_equals((string)($final['sourceAcceptance']['artifactSha256']??''),$checksum)&&
             !empty($final['quality']['visionInspected'])&&!empty($final['quality']['browserInspected'])&&
-            empty($final['quality']['issues'])&&syndamorph_functional_acceptance($final,$checksum));
+            empty($final['quality']['issues'])&&syndamorph_functional_acceptance($final,$checksum)&&
+            syndamorph_native_responsive_acceptance($final,$checksum));
 }
 
 function syndamorph_scope_find_post(string $type,string $key): ?WP_Post {
@@ -325,7 +335,8 @@ function syndamorph_scope_page_qa(array $manifest,WP_Post $page): array {
         if(($view['order']??null)!==$order)return array('passed'=>false,'reason'=>"Reconstructed section order differs from the source at {$width}px.");
     }
     $html=syndamorph_scope_document($page->post_content,$page->post_title);
-    $whole=syndamorph_scope_inspect($html,'page');
+    $build=null;
+    $whole=syndamorph_collab_inspect($html,SYNDAMORPH_SOURCE_WIDTHS,$build,'page');
     $fold=syndamorph_scope_inspect($html,'page-fold');
     if(is_wp_error($whole)||is_wp_error($fold))return array('passed'=>false,'reason'=>'Reconstructed WordPress browser evidence is pending.',
         'inspection'=>syndamorph_inspection_diagnostic(is_wp_error($whole)?$whole:$fold));
@@ -342,7 +353,9 @@ function syndamorph_scope_page_qa(array $manifest,WP_Post $page): array {
     $wholeQa=syndamorph_source_visual(array_map(static fn($view)=>array('width'=>$view['width'],'extent'=>$view['height'],'screenshot'=>$view['whole']),$source),$whole,true,$layoutWidths);
     $foldQa=syndamorph_source_visual(array_map(static fn($view)=>array('width'=>$view['width'],'screenshot'=>$view['fold']),$source),$fold,false,$layoutWidths);
     $issues=syndamorph_collab_evidence($whole,$whole);
-    return array('passed'=>$wholeQa['passed']&&$foldQa['passed']&&!$issues,'fullExtent'=>$wholeQa,'firstFold'=>$foldQa,'browserIssues'=>$issues,
+    $responsive=syndamorph_native_responsive_receipt($html,SYNDAMORPH_SOURCE_WIDTHS,$whole,$build,hash('sha256',$page->post_content));
+    return array('passed'=>$wholeQa['passed']&&$foldQa['passed']&&!$issues&&$responsive['status']==='passed',
+        'fullExtent'=>$wholeQa,'firstFold'=>$foldQa,'browserIssues'=>$issues,'continuousResponsive'=>$responsive,
         'renderSha256'=>hash('sha256',$html))+
         ($layoutWidths?array('layoutAuthorization'=>$manifest['layoutAuthorization']):array());
 }

@@ -259,6 +259,29 @@
             (qaPending ? '. Required visual QA is pending.' :
                 data.outputType === 'gutenberg' ? '. Browser and vision QA collected; native editor validation is not certified.' : '. No Gutenberg conversion, browser QA, or publishing has occurred.');
         results.append(checks);
+        if(data.stageStatus?.responsive==='pending'&&currentIdentity?.id&&window.SyndaMorphTeam?.historyUrl){
+            const recheck=document.createElement('button');
+            recheck.type='button';
+            recheck.className='sm-team-secondary';
+            recheck.textContent='Recheck responsive QA';
+            recheck.addEventListener('click',async()=>{
+                recheck.disabled=true;
+                try{
+                    const response=await fetch(window.SyndaMorphTeam.historyUrl+'/'+currentIdentity.id+'/reinspect-reference',{
+                        method:'POST',credentials:'same-origin',headers:{'X-WP-Nonce':cfg.nonce},
+                    });
+                    const result=await response.json();
+                    if(!response.ok)throw new Error(result.message||'Reinspection failed.');
+                    checks.textContent='Responsive QA '+result.responsive.status+'. The saved artifact was used.';
+                    if(result.status==='needs_review')text(job,'Review needed');
+                    recheck.disabled=result.responsive.status!=='pending';
+                }catch(error){
+                    checks.textContent=error.message;
+                    recheck.disabled=false;
+                }
+            });
+            results.append(recheck);
+        }
         if (!data.controlAction && typeof data.outputs?.developer === 'string') {
             exportControl = window.SyndaMorphAIExport.mount(results, {html:data.outputType === 'gutenberg' ? null : data.outputs.developer, artifact:data.artifact, identity:currentIdentity, receipts:exportReceipts});
         }
@@ -454,6 +477,7 @@
             const stages=data.stageStatus;
             const qaBlocked=stages?.browserQa === 'blocked';
             const functionalBlocked=['pending','failed'].includes(stages?.functional);
+            const responsiveBlocked=['pending','failed'].includes(stages?.responsive);
             const blockers=Array.isArray(stages?.blockerIds)?stages.blockerIds.slice(0,5).join(', '):'';
             const reason=data.quality?.terminationReason || 'quality review pending';
             const detail=qaPending
@@ -464,10 +488,12 @@
                     (blockers?' · '+blockers:'')+'). Last accepted artifact preserved. WordPress editor review remains pending.'
                 : functionalBlocked ? 'Design approved · Native compilation passed · Functional QA '+stages.functional+
                     (blockers?' · '+blockers:'')+'. Review the functional evidence in History.'
+                : responsiveBlocked ? 'Design approved · Native compilation passed · Responsive QA '+stages.responsive+
+                    '. Review the viewport evidence in History.'
                 : stages ? 'Design approved · Native compilation passed · Browser QA passed · WordPress editor review pending.'
                     : data.quality?'Browser and vision evidence recorded; WordPress editor validation pending.':'AI output available; visual fidelity unverified.';
             setReview(data.status === 'uncompleted' ? 'Production uncompleted · QA needs work' : 'Generation complete · review required',detail);
-            text(notice,(qaPending||qaBlocked||functionalBlocked)?detail:'Production finished. Review every agent output; nothing was published.');
+            text(notice,(qaPending||qaBlocked||functionalBlocked||responsiveBlocked)?detail:'Production finished. Review every agent output; nothing was published.');
             appendReport(data);
             if (!replaying) tab('results');
         }

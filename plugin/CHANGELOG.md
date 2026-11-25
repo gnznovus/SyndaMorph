@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.7] - 2026-11-26
+
+### Added
+- Independent continuous responsive QA for the retained Gutenberg candidate and assembled Full Page draft. The browser samples required widths, intermediate sizes and breakpoint neighbors, then records findings and screenshot hashes.
+- Browser-only recovery for pending native responsive QA. A supplemental receipt ties to the exact archived WordPress content and rendered preview. Other required gates and editor validation still apply.
+
+### Verified
+- Pipeline regressions detect overflow at 900 px, hold incomplete evidence, preserve the compiled draft and retry its browser check with zero additional model calls.
+- The BKKGO archive extension to the deterministic benchmark held 26 of 28 scripted defect approvals. All six valid combinations passed. Live performance remains unmeasured on the upgraded workflow.
+
 ## [0.12.6] - 2026-11-26
 
 ### Added

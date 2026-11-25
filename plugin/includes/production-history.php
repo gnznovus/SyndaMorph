@@ -4,6 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 require_once __DIR__.'/production-editor-learning.php';
 require_once __DIR__.'/production-learning.php';
 require_once __DIR__.'/production-tabs.php';
+require_once __DIR__.'/production-responsive.php';
 
 function syndamorph_history_tables(): array {
     global $wpdb;
@@ -107,6 +108,31 @@ function syndamorph_history_latest(int $id,string $type): ?array {
     $raw=$wpdb->get_var($wpdb->prepare("SELECT payload FROM $events WHERE job_id=%d AND event_type=%s ORDER BY id DESC LIMIT 1",$id,$type));
     $data=is_string($raw)?json_decode($raw,true):null;
     return is_array($data)?$data:null;
+}
+
+/** Reinspection supplies supplemental evidence for the exact archived artifact and preview. */
+function syndamorph_history_responsive_result(int $id,array $final): array {
+    $original=$final['quality']['continuousResponsive']??null;
+    if(($original['status']??null)!=='pending')return $final;
+    $receipt=syndamorph_history_latest($id,'native_responsive_recheck');
+    if(!$receipt||($receipt['artifactSha256']??null)!==($final['artifact']['contentSha256']??null)||
+        ($receipt['previewSha256']??null)!==hash('sha256',$final['artifact']['preview']??''))
+        return $final;
+    $final['quality']['continuousResponsive']=$receipt;
+    $final['stageStatus']['responsive']=$receipt['status'];
+    if(($final['quality']['terminationReason']??null)==='native_responsive_pending'){
+        if($receipt['status']!=='passed')
+            $final['quality']['terminationReason']='native_responsive_'.$receipt['status'];
+        elseif(!empty($final['sourceQuality']['issues']))
+            $final['quality']['terminationReason']='source_fidelity_pending';
+        elseif(!syndamorph_functional_acceptance($final,$receipt['artifactSha256']))
+            $final['quality']['terminationReason']='functional_validation_'.($final['quality']['functionalChecks']['status']??'pending');
+        else{
+            $final['quality']['terminationReason']='quality_resolved';
+            $final['status']='needs_review';
+        }
+    }
+    return $final;
 }
 
 function syndamorph_history_touch_receipt(int $id,string $key): ?array {
@@ -341,6 +367,23 @@ add_action( 'rest_api_init', static function (): void {
                  WHERE j.id=%d AND j.category='GEN' AND j.status IN ('failed','uncompleted')
                    AND e.event_type IN ('job_error','job_complete') ORDER BY e.id DESC LIMIT 1",$id));
             $failure=is_string($raw)?json_decode($raw,true):null;
+            if(($failure['quality']['continuousResponsive']['status']??null)==='pending'){
+                $effective=syndamorph_history_responsive_result($id,$failure);
+                if($effective['quality']['continuousResponsive']['status']!=='pending')
+                    return rest_ensure_response(array('inspected'=>true,'responsive'=>$effective['quality']['continuousResponsive'],
+                        'status'=>$effective['status'],'aiCalls'=>0));
+                $result=syndamorph_native_responsive_recheck($failure);
+                if(is_wp_error($result))return $result;
+                $current=syndamorph_history_latest($id,'job_complete');
+                if(($current['artifact']['contentSha256']??null)!==$result['artifactSha256']||
+                    hash('sha256',$current['artifact']['preview']??'')!==$result['previewSha256']||
+                    ($current['quality']['continuousResponsive']['status']??null)!=='pending')
+                    return new WP_Error('sm_responsive_checkpoint','The archived candidate changed during reinspection.',array('status'=>409));
+                syndamorph_history_append($id,$result['status']==='pending'?'native_responsive_attempt':'native_responsive_recheck',$result);
+                $effective=syndamorph_history_responsive_result($id,$current);
+                return rest_ensure_response(array('inspected'=>$result['status']!=='pending','responsive'=>$result,
+                    'status'=>$effective['status'],'aiCalls'=>0));
+            }
             $checkpoint=$failure['referenceCheckpoint']??null;
             if(!is_string($checkpoint))
                 return new WP_Error('sm_inspect_checkpoint_missing','This job has no saved inspection reference.',array('status'=>404));
@@ -525,6 +568,7 @@ add_action( 'rest_api_init', static function (): void {
                 !is_string($final['artifact']['content']??null) ||
                 !hash_equals(hash('sha256',$final['artifact']['content']),$checksum))
                 return new WP_Error('sm_native_validation','Artifact or quality evidence is not eligible for completion.',array('status'=>409));
+            $final=syndamorph_history_responsive_result($id,$final);
             $parsed=parse_blocks($final['artifact']['content']);
             $actual=0;
             $verify=static function(array $nodes) use (&$verify,&$actual): bool {
@@ -547,6 +591,7 @@ add_action( 'rest_api_init', static function (): void {
                 ($sourceQa['artifactSha256']??null)===$checksum &&
                 ($sourceQa['identity']??null)===syndamorph_production_source_identity($source));
             $eligible=$sourceEligible && syndamorph_functional_acceptance($final,$checksum) &&
+                syndamorph_native_responsive_acceptance($final,$checksum) &&
                 empty($final['quality']['issues']) && !empty($final['quality']['visionInspected']) && !empty($final['quality']['browserInspected']);
             if(isset($final['sourceAcceptance']))$eligible=$eligible&& !empty($final['sourceAcceptance']['passed']) &&
                 !empty($final['quality']['bossApproved'])&&hash_equals((string)($final['sourceAcceptance']['artifactSha256']??''),$checksum);

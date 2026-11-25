@@ -1,5 +1,5 @@
 <?php
-/** Deterministic viewport planning and responsive findings for Designer artifacts. */
+/** Deterministic viewport planning and responsive findings for production artifacts. */
 if (!defined('ABSPATH')) exit;
 
 function syndamorph_design_probe_widths(string $html,array $mandatory) {
@@ -24,7 +24,7 @@ function syndamorph_design_probe_widths(string $html,array $mandatory) {
     $widths=array_values(array_unique($widths));
     rsort($widths,SORT_NUMERIC);
     if(count($widths)>32)return new WP_Error('sm_responsive_complexity',
-        'The Designer reference has more breakpoint boundaries than the browser can verify in this stage.',
+        'The artifact has more breakpoint boundaries than the browser can verify in this stage.',
         array('expectedWidths'=>$widths,'maximumSamples'=>32));
     return $widths;
 }
@@ -74,6 +74,8 @@ function syndamorph_design_responsive_findings(array $samples): array {
 }
 
 function syndamorph_design_responsive_measure(string $html,array $mandatory,array $baseline,string $rendererBuild) {
+    if(array_column($baseline,'width')!==$mandatory||array_filter($baseline,static fn($view)=>empty($view['snapshot']['elements'])))
+        return syndamorph_inspection_failure('snapshot_incomplete',array('expectedWidths'=>$mandatory));
     $widths=syndamorph_design_probe_widths($html,$mandatory);
     if(is_wp_error($widths))return $widths;
     $samples=$baseline;
@@ -89,7 +91,42 @@ function syndamorph_design_responsive_measure(string $html,array $mandatory,arra
         }
     }
     $findings=syndamorph_design_responsive_findings($samples);
-    return array('widths'=>$widths,'findings'=>$findings,'passed'=>!$findings);
+    $evidence=array();
+    foreach($samples as $sample)$evidence[$sample['width']]=hash('sha256',base64_decode($sample['screenshot'],true));
+    krsort($evidence,SORT_NUMERIC);
+    return array('widths'=>$widths,'findings'=>$findings,'passed'=>!$findings,'screenshotSha256ByWidth'=>$evidence);
+}
+
+/** The same browser checks are run afresh on the retained native artifact. */
+function syndamorph_native_responsive_receipt(string $html,array $widths,array $baseline,string $build,string $checksum): array {
+    $result=syndamorph_design_responsive_measure($html,$widths,$baseline,$build);
+    return array('artifactSha256'=>$checksum,'previewSha256'=>hash('sha256',$html))+
+        (is_wp_error($result)?array('status'=>'pending','inspection'=>syndamorph_inspection_diagnostic($result)):
+            array('status'=>$result['passed']?'passed':'failed')+$result);
+}
+
+function syndamorph_native_responsive_recheck(array $final) {
+    $old=$final['quality']['continuousResponsive']??null;
+    $artifact=$final['artifact']??array();
+    $widths=$final['quality']['viewportWidths']??array();
+    $content=$artifact['content']??null;
+    $preview=$artifact['preview']??null;
+    if(($old['status']??null)!=='pending'||!is_string($content)||!is_string($preview)||!$widths||
+        ($old['artifactSha256']??null)!==hash('sha256',$content)||($old['previewSha256']??null)!==hash('sha256',$preview))
+        return new WP_Error('sm_responsive_checkpoint','The native responsive inspection checkpoint is unavailable.',array('status'=>409));
+    $ready=syndamorph_inspection_ready($widths);
+    if(is_wp_error($ready))return $ready;
+    $build=null;
+    $baseline=syndamorph_collab_inspect($preview,$widths,$build);
+    if(is_wp_error($baseline))return $baseline;
+    if($ready['build']!==$build)
+        return syndamorph_inspection_failure('protocol_mismatch',array('expectedWidths'=>$widths,'rendererBuild'=>$build));
+    return syndamorph_native_responsive_receipt($preview,$widths,$baseline,$build,$old['artifactSha256']);
+}
+
+function syndamorph_native_responsive_acceptance(array $final,string $checksum): bool {
+    $receipt=$final['quality']['continuousResponsive']??null;
+    return $receipt===null||(($receipt['status']??null)==='passed'&&($receipt['artifactSha256']??null)===$checksum);
 }
 
 function syndamorph_design_responsive_regressions(array $prior,array $candidate): array {

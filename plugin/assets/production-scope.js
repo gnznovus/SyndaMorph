@@ -165,7 +165,10 @@
     }
     async function recheck(row) {
         const result = await request(cfg.historyUrl + '/' + row.attempts.at(-1).id + '/reinspect-reference', {});
-        message.textContent = result.message || 'Browser inspection completed. Full visual approval remains pending.';
+        manifest = await request(url());
+        message.textContent = result.responsive
+            ? 'Responsive QA ' + result.responsive.status + '. The saved artifact was used.'
+            : result.message || 'Browser inspection completed. Full visual approval remains pending.';
     }
     async function runRegion(id, action = 'run') {
         activeRegion = id;

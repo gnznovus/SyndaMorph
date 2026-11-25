@@ -8,6 +8,8 @@ v0.12.4 added browser-owned typed checks, compact semantic evidence and duplicat
 
 The hotel fixtures replayed with one candidate-independent, browser-checked work order per approved variant. A scripted approval reached handoff in all six valid fixture/mode combinations. The application held 25 of 27 defective combinations (92.6%) and let two through (7.4%), both brief-only geometry changes involving vertical padding or desktop column placement. The replay covered 8/10 brief-only, 9/9 manual URL and 8/8 scoped defects. The historical denominator below also includes archived BKKGO. No model calls occurred in this replay.
 
+The archive replay added the real BKKGO compact-heading case. Its recorded Designer candidate was blocked at source fidelity, for a combined deterministic result of 26/28 held (92.9%) and 2/28 escaped (7.1%).
+
 The four trust cases still held the Developer gate. Missing viewport evidence and an empty measurement snapshot preserved a reference checkpoint. An unsupported correction and an approval with open issues both blocked handoff. These results test the application gates with fixed model responses. The model detection rate and the production escape target require a live sample.
 
 SyndaMorph benchmarked the pre-Developer design gate at `d71f0321f064964c1d1ef523d249183505a96ff1` on the feature branch. Bossy explicitly identified 5 of 11 distinct defective designs for which Haiku 5.5 returned a verdict. The complete gate withheld handoff on 9 of 11, including three requests for more evidence. A missing gold marker and a wrong background reached handoff. A broken link also reached handoff in one of three trials with the same request. Bossy's approval needs independent evidence for requirements that can be measured.

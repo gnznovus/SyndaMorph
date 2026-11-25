@@ -34,6 +34,8 @@ docker compose -f compose.yaml -f compose.reference.yaml up -d --build backend w
 
 The Compose override installs the optional dependencies, enables both ends of the receipt contract and mounts the archive volume. The default Compose configuration leaves archive acquisition disabled. SingleFile is an AGPL-3.0-or-later dependency of the opt-in capture service and is absent from the WordPress ZIP. [SingleFile version and license](https://github.com/gildas-lormeau/single-file-cli/tree/v2.27.3)
 
+Monolith remains an alternative for a future capture-service evaluation. The standalone comparison does not establish equivalent rendered browser state. This implementation installs only the selected SingleFile capture dependency.
+
 The authenticated BKKGO capture returned HTTP 200, 16 regions, and receipt `d92c36a68a0fe3ac4fbbc6f7716b8cc32ac5deab5eb66b3933021f6d94e65515`. All three offline views had zero changed pixels, zero external requests, and all five live font faces. Desktop and compact source DOM hashes differed. A separate mobile attempt timed out loading a required React script from the CDN and returned incomplete evidence. The verifier rejected it before storing a verified set.
 
 ## v0.12.2 Touch checkpoint
@@ -84,8 +86,14 @@ The WordPress fixture retained the original mobile visual and height mismatch in
 
 Both adapters admitted the captured BKKGO source archive `5d804f9fb95df28cd4367931611790fc3821a0de1822c945531eb2d002327523`. Full-page offline replay had zero changed pixels and zero external requests at 1440, 768 and 375 px. Production preflight found three eligible regions out of 16 and held 13 for missing variants, unsupported controls, assets, links or placement. Both scopes pinned the same Through Our Lens evidence, rejected a text-only visual probe and withheld unverified Pattern promotion. No BKKGO page was accepted for publication.
 
+## v0.12.7 independent responsive QA
+
+QA runs the responsive probe planner on the retained Gutenberg preview and on the assembled page draft. The intermediate and breakpoint samples look for horizontal overflow, text clipping, and sibling text collisions. The receipt records exact sample widths, screenshot hashes, findings, and the SHA-256 of the content and preview. A measured defect or missing receipt holds the native quality gate.
+
+When required browser evidence is missing, the existing History reinspection action can verify the saved native preview deterministically. The original job result, artifacts, and token records are preserved. A recovered receipt supplements only an exact matching artifact and preview. Editor verification and independent source, functional and visual gates still apply. The scoped fixture verifies that a pending receipt blocks promotion, and a successful browser-only retry restores editor review.
+
 ## Remaining acceptance
 
-The updated hotel benchmark held 25 of 27 scripted defect approvals and passed all six valid fixture/mode combinations. Live model detection, combined escape, false rejections, uncertainty, latency and cost require separate measurement. [Design validation audit](bossy-validation-audit.md#v0126-deterministic-replay)
+The updated deterministic benchmark held 26 of 28 scripted defect approvals, including the archived BKKGO compact-heading case. All six valid fixture/mode combinations passed. Live model detection, combined escape, false rejections, uncertainty, latency and cost require separate measurement. [Design validation audit](bossy-validation-audit.md#v0126-deterministic-replay)
 
 No release has been authorized for this development series. Each checkpoint records the version, actual verification and outstanding work in the plugin changelog.

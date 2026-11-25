@@ -1700,6 +1700,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     // A zero-count heuristic is not proof of visual or Gutenberg editor validity.
     $status=($best['score']===0 && $bossQaApproved) ? 'needs_review' : 'uncompleted';
     if($best['score']===0 && !$bossQaApproved)$terminationReason='boss_approval_pending';
+    $nativeResponsive=syndamorph_native_responsive_receipt($artifact['preview'],$viewports,$best['evidence'],
+        $renderer['build'],$artifact['contentSha256']);
+    if($on_event)$on_event('native_responsive',$nativeResponsive);
+    if($nativeResponsive['status']!=='passed'){
+        $status='uncompleted';
+        if($terminationReason==='quality_resolved')$terminationReason='native_responsive_'.$nativeResponsive['status'];
+    }
     $nativeChecks=array();
     $byRequirement=array_column($specification['requirements'],null,'id');
     foreach($interactions as $interaction){
@@ -1739,7 +1746,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         'stageStatus'=>array('design'=>'approved','compilation'=>'passed',
             'sourceFidelity'=>$sourceQuality===null?'not_applicable':($sourceQuality['issues']?'blocked':'passed'),
             'browserQa'=>$inspectionPending!==null?'pending':(($best['score']===0&&$bossQaApproved)?'passed':'blocked'),
-            'wordpressEditor'=>'pending','functional'=>$functional['status'],
+            'wordpressEditor'=>'pending','functional'=>$functional['status'],'responsive'=>$nativeResponsive['status'],
             'blockerIds'=>array_values(array_unique(array_merge(array_column($best['issues'],'id'),
                 array_column($sourceQuality['issues']??array(),'id'),array_column($functional['blockers']??array(),'id'))))),
         'quality'=>array('escalation'=>$escalation,'inspection'=>$inspectionPending,'capabilityNotes'=>$capabilityNotes,'issueRegistry'=>array_values($registry),'score'=>$best['score'],
@@ -1747,7 +1754,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'repairSummary'=>syndamorph_repair_summary($revisions,$metrics,$in,$out),'terminationReason'=>$terminationReason,'evidence'=>array(
             'reference'=>$evidenceSummary($inspectReference),'native'=>$evidenceSummary($best['evidence'],true)),
             'pixelComparison'=>$best['comparison'],'copyComparison'=>syndamorph_visual_copy($inspectReference,$best['evidence']),
-            'functionalChecks'=>$functional,
+            'functionalChecks'=>$functional,'continuousResponsive'=>$nativeResponsive,
             'browserInspected'=>true,'visionInspected'=>true,'bossApproved'=>$bossQaApproved,'nativeEditorVerified'=>false),
         'published'=>false,'renderedInBrowser'=>true)+($scopeRegion===null?array():array('sourceAcceptance'=>array(
             'passed'=>!$sourceQuality['issues'],'id'=>$scopeRegion['id'],'artifactSha256'=>$artifact['contentSha256'])+

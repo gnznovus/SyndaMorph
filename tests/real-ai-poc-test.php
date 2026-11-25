@@ -85,6 +85,8 @@ function wp_remote_post($url,$args) {
         $native=str_contains($input['html'],'<!-- wp:');
         $designProbe=in_array('syndamorph_design_responsive_measure',
             array_column(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,6),'function'),true);
+        if($native&&$designProbe&&($GLOBALS['native_responsive_test']??null)==='missing')
+            $input['viewports']=array_values(array_filter($input['viewports'],static fn($width)=>$width!==900));
         if($designProbe)$GLOBALS['responsive_probe_widths'][]=$input['viewports'];
         else {
             $GLOBALS['inspection_calls'][]=$native?'native':'reference';
@@ -94,7 +96,8 @@ function wp_remote_post($url,$args) {
         }
         return inspection_reply(array('evidence'=>array_map(
             static fn($width)=>array('width'=>$width,'screenshot'=>inspection_fixture_jpeg($width),'a11y'=>array(),'snapshot'=>(isset($GLOBALS['source_fixture_copy'])?array('copy'=>$GLOBALS['source_fixture_copy']):array())+array(
-                'overflow'=>$designProbe&&$width===900&&str_contains($input['html'],'--test-overflow:1'),
+                'overflow'=>$designProbe&&$width===900&&(str_contains($input['html'],'--test-overflow:1')||
+                    ($native&&($GLOBALS['native_responsive_test']??null)==='overflow')),
                 'elements'=>array(array('tag'=>'H2','id'=>'','text'=>'Welcome & enjoy',
                 'rect'=>array(0,0,300,70),'wrapChangesGeometry'=>str_contains($input['html'],'text-wrap:balance'),
                 'styles'=>array('textWrapStyle'=>'balance','fontSize'=>'32px','fontWeight'=>'700','color'=>'rgb(0, 0, 0)','letterSpacing'=>'normal'))))),
@@ -1969,3 +1972,25 @@ foreach(array('pass','false-approval') as $case){
 }
 unset($GLOBALS['design_requirement_test'],$GLOBALS['source_fixture_copy']);
 echo "PASS: browser-owned requirement verdicts across real pipeline handoffs\n";
+
+foreach(array('overflow'=>'failed','missing'=>'pending') as $injection=>$expected){
+    $GLOBALS['native_responsive_test']=$injection;
+    $GLOBALS['generations']=array();
+    $result=syndamorph_collab_run('Build a native section and verify intermediate widths.',false,null,false);
+    expect(is_array($result)&&$result['status']==='uncompleted'&&$result['stageStatus']['responsive']===$expected&&
+        $result['quality']['continuousResponsive']['artifactSha256']===$result['artifact']['contentSha256']&&
+        !syndamorph_native_responsive_acceptance($result,$result['artifact']['contentSha256'])&&
+        count($GLOBALS['generations'])===5,
+        'Incomplete native responsive QA lost the draft or advanced the affected quality gate.');
+    if($expected==='failed'){
+        expect($result['quality']['continuousResponsive']['findings'][0]['width']===900,
+            'Native responsiveness ignored an intermediate width.');
+    }else{
+        unset($GLOBALS['native_responsive_test']);
+        $rechecked=syndamorph_native_responsive_recheck($result);
+        expect(is_array($rechecked)&&$rechecked['status']==='passed'&&count($GLOBALS['generations'])===5,
+            'Responsive recheck failed to recover the saved artifact without provider calls.');
+    }
+}
+unset($GLOBALS['native_responsive_test']);
+echo "PASS: independent native responsive acceptance and deterministic recovery\n";
