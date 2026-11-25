@@ -75,6 +75,8 @@ function syndamorph_team_real_run( string $brief, bool $stream = true, ?callable
     $metrics = array();
 
     foreach ( $roles as $role => $instruction ) {
+        $control=syndamorph_job_control_gate();
+        if(is_wp_error($control))return $control;
         $max_output = $output_caps[ $role ];
         $agent = 'validator' === $role ? 'boss' : $role;
         $role_started = microtime( true );
