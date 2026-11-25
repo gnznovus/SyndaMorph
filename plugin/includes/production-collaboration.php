@@ -392,6 +392,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $call=static function(string $role,string $instruction,array $context,int $cap,array $images=array(),string $stage='',
         float $nextAllowance=0.0) use (&$usage,&$metrics,&$events,&$calls,$provider,$model,$in,$out,$max,$cutoff,$stream,$on_event,$prefix) {
         $stage=$stage ?: $role;
+        $control=syndamorph_job_control_gate();
+        if(is_wp_error($control))return $control;
         if(!syndamorph_agent_scope($role,$stage))return new WP_Error('sm_agent_scope','Task outside agent scope.');
         $cap=min($cap,syndamorph_collab_output_cap());
         $encoded=wp_json_encode($context);
@@ -498,6 +500,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $approvedReference=false;$designReviews=0;$handoffs=array($assignment);
     $priorDesignMeasurements=null;$priorDesignReview=null;$priorDesignDiff=null;
     for($designRound=1;;$designRound++){
+        $control=syndamorph_job_control_gate();
+        if(is_wp_error($control))return $control;
         $reference=trim($reference);
         if(preg_match('/^`{3}(?:html)?\\s*([\\s\\S]*?)\\s*`{3}$/iD',$reference,$fenced))$reference=trim($fenced[1]);
         if(!preg_match('~<section\\b~i',$reference) ||
@@ -774,6 +778,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $reviewReserve=syndamorph_collab_allowance(24000+strlen($prefix)+2000,2,$reviewCap,$in,$out);
     // Keep 20% for final issue reporting. No fixed QA attempt or stagnation cutoff.
     for($round=1;count($issues)>0;$round++) {
+        $control=syndamorph_job_control_gate();
+        if(is_wp_error($control))return $control;
         if(microtime(true)-$started>1000) { $terminationReason='runtime_limit';break; }
         if(syndamorph_collab_cost($usage,$in,$out)+$reviewReserve>$cutoff) {
             $terminationReason='budget_80_percent';break;
