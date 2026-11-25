@@ -372,6 +372,7 @@ function syndamorph_design_surgery(string $reference,array $response) {
 function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bool $useLearning=true) {
     $GLOBALS['syndamorph_production_tool_cache']=array();
     $GLOBALS['syndamorph_production_tool_count']=0;
+    unset($GLOBALS['syndamorph_current_reference']);
     $viewports=syndamorph_collab_viewports($brief);
     if(is_wp_error($viewports))return $viewports;
     $renderer=syndamorph_inspection_ready($viewports);
@@ -392,7 +393,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if (function_exists('set_time_limit')) @set_time_limit(1200);
     $prefix=syndamorph_production_cached_contract();
     $call=static function(string $role,string $instruction,array $context,int $cap,array $images=array(),string $stage='',
-        float $nextAllowance=0.0) use (&$usage,&$metrics,&$events,&$calls,$provider,$model,$in,$out,$max,$cutoff,$stream,$on_event,$prefix) {
+        float $nextAllowance=0.0) use (&$call,&$usage,&$metrics,&$events,&$calls,$provider,$model,$in,$out,$max,$cutoff,$stream,$on_event,$prefix,$viewports) {
         $stage=$stage ?: $role;
         $control=syndamorph_job_control_gate();
         if(is_wp_error($control))return $control;
@@ -405,14 +406,20 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $calls++;
             $events[]=array('role'=>$role,'task'=>$stage,'status'=>'completed',
                 'model'=>$model,'replayed'=>true);
-            return $cached['text'];
+            $followup=syndamorph_production_tool_followup($cached['text'],$role,$stage,
+                $instruction,$context,$cap,$images,$nextAllowance,$viewports,$on_event,$call);
+            return $followup===null?$cached['text']:$followup;
         }
         if(!syndamorph_agent_scope($role,$stage))return new WP_Error('sm_agent_scope','Task outside agent scope.');
         $cap=min($cap,syndamorph_collab_output_cap());
+        $context['availableTools']=syndamorph_production_tool_catalog($role);
         $encoded=wp_json_encode($context);
         $contextLimit=in_array($stage,array('repair','revision_validation'),true)?24000:160000;
         if (!is_string($encoded) || strlen($encoded)>$contextLimit) return new WP_Error('sm_team_context','Agent context exceeds safe limit.',array('stage'=>'context','role'=>$role,'task'=>$stage,'completedCalls'=>$calls));
-        $system=syndamorph_production_task_context($role,$stage)."\n".$instruction;
+        $system=syndamorph_production_task_context($role,$stage)."\n".$instruction.
+            "\nIf needed to resolve a concrete uncertainty, you may return ONLY JSON ".
+            '{"action":"tool_request","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"specific measurable question"}}. '.
+            'The orchestrator will return cached browser evidence, then you must complete the original assignment. Never ask for tools merely to defer your work.';
         $allowance=syndamorph_collab_allowance(strlen($encoded)+strlen($prefix)+strlen($system),count($images),$cap,$in,$out);
         if (syndamorph_collab_cost($usage,$in,$out)+$allowance+$nextAllowance>($stage==='scope_resolution'?$max:$cutoff))
             return new WP_Error('sm_team_budget','No safe budget for another model call.',array('stage'=>'budget','role'=>$role,'task'=>$stage,'completedCalls'=>$calls));
@@ -443,7 +450,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $calls++;
         $events[]=array('role'=>$role,'task'=>$stage,'status'=>'completed','model'=>$result['model']);
         if ($on_event) $on_event('agent_complete',array('role'=>$role,'task'=>$stage,'metric'=>$metric));
-        return $result['text'];
+        $followup=syndamorph_production_tool_followup($result['text'],$role,$stage,
+            $instruction,$context,$cap,$images,$nextAllowance,$viewports,$on_event,$call);
+        return $followup===null?$result['text']:$followup;
     };
     $deferInspection=static function(WP_Error $error,string $html,string $stage,string $role,array $capabilityNotes,
         ?array $artifact=null,array $surgery=array(),array $designMemo=array())use(
@@ -523,6 +532,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             preg_match('~<\\s*(?:script|iframe|object|embed|form|link|meta)\\b|\\bon[a-z]+\\s*=|\\b(?:javascript:|https?://|@import)~i',$reference))
             return new WP_Error('sm_reference_unsafe','Designer reference failed HTML safety checks.',
                 array('stage'=>'design','designRound'=>$designRound));
+        $GLOBALS['syndamorph_current_reference']=$reference;
         $capabilityNotes=syndamorph_reference_capability_notes($reference);
         $inspectReference=syndamorph_production_tool_cached_inspection($reference,$viewports);
         if($inspectReference===null)
