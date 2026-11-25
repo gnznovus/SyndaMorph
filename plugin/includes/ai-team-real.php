@@ -211,6 +211,7 @@ function syndamorph_team_sse_run( string $brief, string $format = 'html' ): void
         exit;
     }
     $id = $record['id'];
+    $GLOBALS['syndamorph_active_job_id']=$id;
     // Persist each generated delta before delivery. An interrupted HTTP client
     // cannot erase already committed events. No retries of paid requests.
     $emit = static function ( string $type, array $data ) use ( $id ): void {
@@ -221,7 +222,12 @@ function syndamorph_team_sse_run( string $brief, string $format = 'html' ): void
         $emit( 'ready', array_merge( $record, array( 'outputType' => $format, 'roles' => array( 'boss', 'designer', 'developer' ) ) ) );
         $result = syndamorph_team_real_run( $brief, true, $emit, $format );
         if ( is_wp_error( $result ) ) {
-            $emit( 'job_error', syndamorph_team_failure_payload( $result ) );
+            if(in_array($result->get_error_code(),array('sm_team_stop','sm_team_abort'),true)){
+                $action=$result->get_error_code()==='sm_team_stop'?'stopped':'aborted';
+                $emit('job_complete',array('status'=>$action,'controlAction'=>$action,
+                    'message'=>$result->get_error_message(),'outputType'=>$format,
+                    'published'=>false,'resumeAvailable'=>false));
+            }else $emit( 'job_error', syndamorph_team_failure_payload( $result ) );
         } else {
             $emit( 'job_complete', $result );
         }
@@ -230,6 +236,7 @@ function syndamorph_team_sse_run( string $brief, string $format = 'html' ): void
         try { syndamorph_history_append( $id, 'job_error', $failure ); } catch ( Throwable $ignored ) {}
         syndamorph_team_sse_emit( 'job_error', $failure );
     } finally {
+        unset($GLOBALS['syndamorph_active_job_id']);
         delete_transient( 'syndamorph_ai_real_job_lock' );
     }
     exit;
