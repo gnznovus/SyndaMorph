@@ -11,6 +11,54 @@ function syndamorph_native_json_text(string $raw): string {
     if(preg_match('/^```(?:json)?\\s*([\\s\\S]*?)\\s*```$/iD',$raw,$m))return trim($m[1]);
     return $raw;
 }
+/**
+ * Actionable validation expectations. Keep these synchronized with the explicit
+ * allowlists and patterns in syndamorph_compile_block_plan().
+ */
+function syndamorph_block_plan_expected(string $reason,string $field): array {
+    $styleKey='';
+    if(preg_match('/\\.style\\.([A-Za-z][A-Za-z0-9]*)$/D',$field,$m))$styleKey=$m[1];
+    $length=array(
+        'format'=>'Nonnegative number with px/rem/em/vw/vh/svh/dvh; 0; or clamp(length, length, length).',
+        'constraint'=>'Each number has at most 3 integer digits and 6 decimal digits. clamp() may use one additive middle expression with spaces around +.',
+        'example'=>'clamp(1.0625rem, 1rem + 0.5vw, 1.25rem)',
+    );
+    $map=array(
+        'Invalid length.'=>$length,
+        'Invalid color.'=>array('format'=>'Six-digit hexadecimal color','example'=>'#18283a'),
+        'Invalid two-color gradient.'=>array('format'=>'linear-gradient(angledeg,#RRGGBB,#RRGGBB); angle 0–360','example'=>'linear-gradient(135deg,#18283a,#203040)'),
+        'Invalid font weight.'=>array('format'=>'Integer or numeric string 100, 200, ..., 900','example'=>'700'),
+        'Invalid unitless line height.'=>array('format'=>'Unitless number from 1 through 2.5 with up to two decimal digits (2.x has at most one)','example'=>'1.5'),
+        'Invalid constrained content width.'=>array('format'=>'Positive px/rem/em/ch length, up to 3 integer and 3 decimal digits','example'=>'40rem'),
+        'Invalid heading level.'=>array('format'=>'Integer heading level from 1 to 6','example'=>2),
+        'Invalid local CTA URL.'=>array('format'=>'Local #fragment or /local-path only; no external URLs','example'=>'#booking-options'),
+        'Invalid layout justification.'=>array('format'=>'Group: left, center, right, stretch; buttons: left, center, right','example'=>'center'),
+        'Invalid vertical alignment.'=>array('format'=>'top, center, bottom','example'=>'center'),
+        'Invalid component ID.'=>array('format'=>'1–100 ASCII letters, digits, underscore, dot, hyphen or square brackets','example'=>'hero-title'),
+        'Invalid text.'=>array('format'=>'Nonempty UTF-8 text, up to 8000 bytes','example'=>'Welcome to our hotel'),
+        'Invalid spacing sides.'=>array('format'=>'Nonempty object with only top/right/bottom/left keys, or one supported length','example'=>array('top'=>'1rem','bottom'=>'1rem')),
+        'Invalid style.'=>array('format'=>'Style object keyed by supported native properties','example'=>array('fontSize'=>'2rem')),
+        'Alignment belongs inside style.align.'=>array('format'=>'Put alignment under style.align, not as a node-level field','example'=>array('style'=>array('align'=>'center'))),
+        'Constrained layout and flex alignment must use separate groups.'=>array('format'=>'Use distinct nested groups for contentWidth and justifyContent/verticalAlignment','example'=>'Outer constrained group with inner flex group'),
+        'Invalid children.'=>array('format'=>'Nonempty list of supported child blocks; columns require 2–4 columns','example'=>'group.children = [heading, paragraph]'),
+        'Unsupported block or nesting.'=>array('format'=>'Use supported core block types and their allowed parent/child relationships','example'=>'group > heading + paragraph + buttons'),
+        'Expected one root group in a version 1 plan.'=>array('format'=>'Object with version:1 and exactly one root group in blocks[]','example'=>array('version'=>1,'blocks'=>array(array('type'=>'group','children'=>array())))),
+        'Unsupported node field.'=>array('format'=>'Only type, id, style, children (containers), text (leaves), level (heading), href (button)','example'=>'Put typography under style.fontSize'),
+        'Unsupported style for block.'=>array('format'=>'Only supported native style keys on compatible block types','example'=>'heading.style.fontSize = 2rem'),
+    );
+    if($reason==='Invalid length.' && $styleKey==='letterSpacing') {
+        $length['constraint'].=' Negative px/rem/em values are also supported for letterSpacing.';
+        $length['example']='-0.01em';
+        return $length;
+    }
+    if($reason==='Invalid length.' && $styleKey==='gap') {
+        $length['constraint'].=' Some WordPress themes may not render clamp() blockGap despite compiler acceptance; verify in WordPress.';
+        return $length;
+    }
+    if(isset($map[$reason]))return $map[$reason];
+    return array('format'=>'Valid native block plan satisfying the compiler contract','example'=>'Consult the minimal native block plan contract.');
+}
+
 function syndamorph_compile_block_plan( string $raw ) {
     try {
         if ( strlen( $raw ) > 120000 ) { throw new InvalidArgumentException( 'Plan too large.' ); }
@@ -198,6 +246,6 @@ function syndamorph_compile_block_plan( string $raw ) {
         return array('schemaVersion'=>1,'content'=>$content,'preview'=>$preview,'blockCount'=>$count,
             'layoutNotes'=>array_values(array_unique($layoutNotes)),
             'checks'=>array('valid_plan'=>true,'native_blocks_only'=>true,'contains_heading'=>$headings>0,'no_active_markup'=>true));
-    } catch ( InvalidArgumentException | JsonException $e ) { return new WP_Error('sm_block_plan_invalid','Native block plan rejected: '.$e->getMessage(),array('status'=>422,'field'=>$field ?? 'plan')); }
+    } catch ( InvalidArgumentException | JsonException $e ) { return new WP_Error('sm_block_plan_invalid','Native block plan rejected: '.$e->getMessage(),array('status'=>422,'field'=>$field ?? 'plan','expected'=>syndamorph_block_plan_expected($e->getMessage(),$field ?? 'plan'))); }
     catch ( Throwable $e ) { return new WP_Error('sm_block_plan_system','Native block compilation encountered an internal error.',array('status'=>500)); }
 }
