@@ -3,7 +3,8 @@
 if (!defined('ABSPATH')) exit;
 function syndamorph_agent_scope(string $role,string $task): bool {
     return in_array($task,array(
-        'boss'=>array('boss','validation','revision_validation','final_approval','scope_resolution'),
+        'boss'=>array('boss','final_approval','scope_resolution'),
+        'validator'=>array('validation','revision_validation'),
         'designer'=>array('designer','design_correction'),
         'developer'=>array('reference','developer','schema_repair','repair')
     )[$role]??array(),true);

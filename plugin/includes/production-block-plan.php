@@ -1,6 +1,7 @@
 <?php
 /** Native block plan v1: no arbitrary markup, CSS or block attributes. */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
+require_once __DIR__.'/production-tabs.php';
 
 function syndamorph_block_plan_decorative_group_rule(): string {
     return 'A nested decorative Group may have no children when it has a minHeight and a background color or gradient. Keep it empty to preserve literal copy.';
@@ -8,7 +9,7 @@ function syndamorph_block_plan_decorative_group_rule(): string {
 
 function syndamorph_block_plan_contract(): string {
     $buttonWidth=syndamorph_native_full_button_width()?' Button style.width accepts 100% across all viewports, using current core dimensions support.':'';
-    return 'Return a JSON object {"version":1,"blocks":[...]} with exactly one root group. Each node has type, a stable unique id and optional style. Supported nodes: group (children), columns (children of type column, 2–4), column (children), heading (text, level 1–6), paragraph (text), buttons (children of type button), button (text, href: #fragment or /local-path). Only group/column may contain ordinary content blocks. '.syndamorph_block_plan_decorative_group_rule().' Styles: color, background (six-digit hex), fontSize, fontWeight (100–900, integer or numeric string), lineHeight (1–2.5, number or numeric string), letterSpacing (px/rem/em), padding (single length or object with top/right/bottom/left lengths on any supported node), margin (single length or sides on heading/paragraph; top and bottom sides only on group/columns/buttons), textTransform (heading/paragraph/button: none, uppercase, lowercase, capitalize), gap (group/columns/buttons: simple length with theme block-gap support), borderRadius (button), gradient (group/column/button, safe two-color linear-gradient), minHeight (group), align (heading/paragraph left/center/right). Lengths: nonnegative px/rem/em/vw/vh/svh/dvh or clamp(length,length,length), including a bounded additive or subtractive middle expression such as 1.2rem + 3.5vw. Negative letterSpacing is supported. Group contentWidth (px/rem/em/ch) uses native constrained layout and applies the width to its children. contentAlignment (left/center/right) controls horizontal positioning within that constrained group. For a sole constrained Group inside a vertical flex Group, the outer justifyContent stretch lets the inner Group center its bounded children. Theme default horizontal padding may be overridden with explicit native padding matching the approved design. Group justifyContent (left/center/right/stretch) and verticalAlignment (top/center/bottom) use native vertical flex layout, incompatible with contentWidth on the same node. Buttons justifyContent (left/center/right) uses native flex layout. For a vertically centered section with bounded content, use separate flex and constrained groups. The element being constrained must be a child of the constrained group. Keep alignment, minHeight and width on the appropriate separate groups. Do not propose fluid blockGap: WordPress core discards clamp() for blockGap. Use responsive spacing on supported children if it matches the design. Mobile-only full-width CTA and breakpoint-specific per-block spacing are outside this contract.'.$buttonWidth.' Do not substitute an always-full-width CTA or arbitrary leaf max-width. Font family is inherited from the host; use system-ui in reference. Native hover/focus styling is host-owned. Use a heading and meaningful CTA. No HTML, arbitrary CSS, remote URLs, custom blocks or invented attributes. When the approved design uses responsive Columns, match the native default: stack through 781 CSS pixels and use the side-by-side layout from 782 CSS pixels. Verify the 768 px layout. Do not force fixed widths. Example {"version":1,"blocks":[{"type":"group","style":{"background":"#18283a","padding":"clamp(2rem,5vw,5rem)"},"children":[{"type":"heading","level":2,"text":"Welcome","style":{"color":"#ffffff","fontSize":"clamp(2rem,5vw,4rem)"}},{"type":"paragraph","text":"Discover our hotel","style":{"color":"#ffffff"}},{"type":"buttons","children":[{"type":"button","text":"Explore","href":"#explore"}]}]}]}.';
+    return 'Return a JSON object {"version":1,"blocks":[...]} with exactly one root group. Each node has type, a stable unique id and optional style. Supported nodes: group (children), columns (children of type column, 2–4), column (children), heading (text, level 1–6), paragraph (text), buttons (children of type button), button (text, href: #fragment or /local-path), tabs (panels; no inline style). Only group/column may contain ordinary content blocks. The tabs node is the registered local Content Tabs block. Use it only for an approved tabbed-content capability. It accepts two to six ordered panels, each with unique lowercase id, plain label, heading and body. Tabs use local state and have no external integration. '.syndamorph_block_plan_decorative_group_rule().' Styles: color, background (six-digit hex), fontSize, fontWeight (100–900, integer or numeric string), lineHeight (1–2.5, number or numeric string), letterSpacing (px/rem/em), padding (single length or object with top/right/bottom/left lengths on ordinary nodes), margin (single length or sides on heading/paragraph; top and bottom sides only on group/columns/buttons), textTransform (heading/paragraph/button: none, uppercase, lowercase, capitalize), gap (group/columns/buttons: simple length with theme block-gap support), borderRadius (button), gradient (group/column/button, safe two-color linear-gradient), minHeight (group), align (heading/paragraph left/center/right). Lengths: nonnegative px/rem/em/vw/vh/svh/dvh or clamp(length,length,length), including a bounded additive or subtractive middle expression such as 1.2rem + 3.5vw. Negative letterSpacing is supported. Group contentWidth (px/rem/em/ch) uses native constrained layout and applies the width to its children. contentAlignment (left/center/right) controls horizontal positioning within that constrained group. For a sole constrained Group inside a vertical flex Group, the outer justifyContent stretch lets the inner Group center its bounded children. Theme default horizontal padding may be overridden with explicit native padding matching the approved design. Group justifyContent (left/center/right/stretch) and verticalAlignment (top/center/bottom) use native vertical flex layout, incompatible with contentWidth on the same node. Buttons justifyContent (left/center/right) uses native flex layout. For a vertically centered section with bounded content, use separate flex and constrained groups. The element being constrained must be a child of the constrained group. Keep alignment, minHeight and width on the appropriate separate groups. Do not propose fluid blockGap: WordPress core discards clamp() for blockGap. Use responsive spacing on supported children if it matches the design. Mobile-only full-width CTA and breakpoint-specific per-block spacing are outside this contract.'.$buttonWidth.' Do not substitute an always-full-width CTA or arbitrary leaf max-width. Font family is inherited from the host; use system-ui in reference. Native hover/focus styling is host-owned. Use a heading and meaningful CTA. No HTML, arbitrary CSS, remote URLs, unregistered blocks or invented attributes. When the approved design uses responsive Columns, match the native default: stack through 781 CSS pixels and use the side-by-side layout from 782 CSS pixels. Verify the 768 px layout. Do not force fixed widths. Example {"version":1,"blocks":[{"type":"group","style":{"background":"#18283a","padding":"clamp(2rem,5vw,5rem)"},"children":[{"type":"heading","level":2,"text":"Welcome","style":{"color":"#ffffff","fontSize":"clamp(2rem,5vw,4rem)"}},{"type":"paragraph","text":"Discover our hotel","style":{"color":"#ffffff"}},{"type":"buttons","children":[{"type":"button","text":"Explore","href":"#explore"}]}]}]}.';
 }
 
 function syndamorph_native_full_button_width(): bool {
@@ -111,6 +112,14 @@ function syndamorph_block_plan_expected(string $reason,string $field,string $blo
 function syndamorph_native_core_preview(array $blocks,?array $ids=null): string {
     $index=0;$types=array();
     $annotate=static function(array $block)use(&$annotate,&$index,&$types,$ids):array {
+        if($block['blockName']==='syndamorph/tabs'){
+            $types[$block['blockName']]=true;
+            if($ids!==null){
+                if(!isset($ids[$index]))throw new RuntimeException('Tabs preview identity missing.');
+                $block['attrs']['component']=$ids[$index++];
+            }
+            return $block;
+        }
         if($ids!==null){
             $tag=new WP_HTML_Tag_Processor($block['innerContent'][0]??'');
             if(!$tag->next_tag()||!isset($ids[$index]))throw new RuntimeException('Native block preview identity missing.');
@@ -137,6 +146,10 @@ function syndamorph_native_core_preview(array $blocks,?array $ids=null): string 
     });
     $css=wp_get_global_stylesheet();
     foreach(array_keys($types) as $type) {
+        if($type==='syndamorph/tabs'){
+            $css.=syndamorph_tabs_asset('production-tabs.css');
+            continue;
+        }
         $path=ABSPATH.WPINC.'/blocks/'.$type.'/style.min.css';
         if(is_readable($path))$css.=file_get_contents($path);
     }
@@ -161,7 +174,7 @@ function syndamorph_compile_block_plan( string $raw ) {
             ! is_array( $plan['blocks'] ?? null ) || ! array_is_list( $plan['blocks'] ) || count( $plan['blocks'] ) !== 1 || ( $plan['blocks'][0]['type'] ?? '' ) !== 'group' ) {
             throw new InvalidArgumentException( 'Expected one root group in a version 1 plan.' );
         }
-        $count = 0; $headings = 0; $field = 'blocks[0]'; $previewIds = array(); $layoutFacts=array(); $schemaFacts=array(); $block='';
+        $count = 0; $headings = 0; $field = 'blocks[0]'; $previewIds = array(); $layoutFacts=array(); $schemaFacts=array(); $tabs=array(); $block='';
         $escape = static fn( string $s ): string => htmlspecialchars( $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' );
         $length = static function ( $v ): string {
             $unit = '[0-9]{1,3}(?:\.[0-9]{1,6})?(?:px|rem|em|vw|vh|svh|dvh)';
@@ -169,15 +182,16 @@ function syndamorph_compile_block_plan( string $raw ) {
             if ( ! is_string( $v ) || ! preg_match( '~^(?:0|' . $unit . '|clamp\(\s*' . $unit . '\s*,\s*' . $unit . '(?:\s+[+-]\s+' . $unit . ')?\s*,\s*' . $unit . '\s*\))$~D', $v ) ) { throw new InvalidArgumentException( 'Invalid length.' ); }
             return $v === '0' ? '0px' : $v;
         };
-        $build = static function ( $node, string $parent, int $depth, string $path ) use ( &$build, &$count, &$headings, &$field, &$previewIds, &$layoutFacts, &$schemaFacts, &$block, $escape, $length ): string {
+        $build = static function ( $node, string $parent, int $depth, string $path ) use ( &$build, &$count, &$headings, &$field, &$previewIds, &$layoutFacts, &$schemaFacts, &$tabs, &$block, $escape, $length ): string {
             $field = $path;$block='';
             if ( ! is_array( $node ) || ++$count > 120 || $depth > 12 ) { throw new InvalidArgumentException( 'Invalid node or plan limit exceeded.' ); }
             $type = $node['type'] ?? '';
-            $allowed = array( 'root'=>array('group'), 'group'=>array('group','columns','heading','paragraph','buttons'), 'column'=>array('group','columns','heading','paragraph','buttons'), 'columns'=>array('column'), 'buttons'=>array('button') );
+            $allowed = array( 'root'=>array('group'), 'group'=>array('group','columns','heading','paragraph','buttons','tabs'), 'column'=>array('group','columns','heading','paragraph','buttons','tabs'), 'columns'=>array('column'), 'buttons'=>array('button') );
             if ( ! is_string( $type ) || ! in_array( $type, $allowed[$parent] ?? array(), true ) ) { throw new InvalidArgumentException( 'Unsupported block or nesting.' ); }
             $block=$type;
             $container = in_array( $type, array('group','columns','column','buttons'), true );
-            $keys = array_merge( array('type','style','id'), $container ? array('children') : array('text'), $type==='heading'?array('level'):array(), $type==='button'?array('href'):array() );
+            $keys = array_merge(array('type','style','id'),$container?array('children'):($type==='tabs'?array('panels'):array('text')),
+                $type==='heading'?array('level'):array(),$type==='button'?array('href'):array());
             if ( $unknown = array_diff( array_keys($node), $keys ) ) {
                 $key = (string) reset($unknown);
                 $field = $path . '.' . preg_replace('/[^a-zA-Z0-9_-]/', '?', substr($key,0,64));
@@ -187,6 +201,20 @@ function syndamorph_compile_block_plan( string $raw ) {
             $previewIds[] = $node['id'] ?? $path;
             $style = $node['style'] ?? array();
             if ( ! is_array($style) ) { $field=$path.'.style'; throw new InvalidArgumentException('Invalid style.'); }
+            if($type==='tabs'){
+                $field=$path.'.panels';
+                $panels=syndamorph_tabs_panels($node['panels']??null);
+                if($panels===null||$style)throw new InvalidArgumentException('Tabs need two to six identified plain-text panels and no inline style.');
+                $headings+=count($panels);
+                $schemaFacts['interactive-tabs']=true;
+                $attrs=array('component'=>$node['id']??$path,'panelData'=>base64_encode(
+                    json_encode($panels,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)));
+                if(isset($tabs[$attrs['component']])||count($tabs)>=12)throw new InvalidArgumentException('Duplicate tabs ID or widget limit exceeded.');
+                $tabs[$attrs['component']]=$panels;
+                $json=function_exists('serialize_block_attributes')?serialize_block_attributes($attrs):
+                    str_replace('--','\u002d\u002d',json_encode($attrs,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_THROW_ON_ERROR));
+                return '<!-- wp:syndamorph/tabs '.$json.' /-->';
+            }
             $attrs = array(); $css = array(); $classes = array();
             if ( $type !== 'paragraph' ) { $classes[] = 'wp-block-' . $type; }
             if ( $type === 'group' ) { $attrs['layout'] = array('type'=>'flex','orientation'=>'vertical'); $classes[]='is-layout-flex'; }
@@ -315,7 +343,7 @@ function syndamorph_compile_block_plan( string $raw ) {
         if(function_exists('parse_blocks')){
             $verify=static function(array $blocks)use(&$verify):void{
                 foreach($blocks as $b){
-                    if(!in_array($b['blockName'],array('core/group','core/columns','core/column','core/heading','core/paragraph','core/buttons','core/button'),true))throw new InvalidArgumentException('Unexpected parsed block.');
+                    if(!in_array($b['blockName'],array('core/group','core/columns','core/column','core/heading','core/paragraph','core/buttons','core/button','syndamorph/tabs'),true))throw new InvalidArgumentException('Unexpected parsed block.');
                     $verify($b['innerBlocks']);
                 }
             };
@@ -369,10 +397,14 @@ function syndamorph_compile_block_plan( string $raw ) {
             return '<!-- wp:'.$m[1].' '.$m[2].' --><div'.$opening.'>';
         },$preview);
         $previewIndex = 0;
-        $preview=preg_replace_callback('~<!-- wp:(group|columns|column|heading|paragraph|buttons|button)(?: (\{[^\n]*?\}))? -->\s*<(?:div|h[1-6]|p)(?=[ >])~',
+        $preview=preg_replace_callback('~<!-- wp:(?:syndamorph/tabs (\{[^\n]*?\}) /-->|(group|columns|column|heading|paragraph|buttons|button)(?: (\{[^\n]*?\}))? -->\s*<(?:div|h[1-6]|p)(?=[ >]))~',
             static function(array $match)use(&$previewIndex,$previewIds,$escape):string {
+                if($match[1]!==''){
+                    $previewIndex++;
+                    return $match[0].syndamorph_tabs_render(json_decode($match[1],true));
+                }
                 $opening=$match[0].' data-sm-node="'.$escape($previewIds[$previewIndex++]).'"';
-                $attrs=$match[1]==='button' && isset($match[2])?json_decode($match[2],true):array();
+                $attrs=$match[2]==='button' && isset($match[3])?json_decode($match[3],true):array();
                 if(($attrs['style']['dimensions']['width']??null)==='100%')$opening.=' data-sm-button-full';
                 return $opening;
             },$preview);
@@ -380,10 +412,12 @@ function syndamorph_compile_block_plan( string $raw ) {
         $corePreview=$parsedBlocks!==null && function_exists('render_block') && class_exists('WP_Style_Engine') &&
             class_exists('WP_HTML_Tag_Processor');
         $preview=$corePreview?syndamorph_native_core_preview($parsedBlocks,$previewIds):'<style>'.$layoutCss.'</style>'.$preview;
+        if(!$corePreview&&$tabs)$preview='<style>'.syndamorph_tabs_asset('production-tabs.css').'</style>'.$preview;
         if(str_contains($content,'"className":"sm-view-'))$preview='<style>'.syndamorph_native_visibility_css().'</style>'.$preview;
         return array('schemaVersion'=>1,'content'=>$content,'preview'=>$preview,'blockCount'=>$count,
             'previewRendering'=>$corePreview?'wordpress-core':'standalone','layoutFacts'=>$layoutFacts,
             'layoutNotes'=>array_values(array_unique($layoutNotes)),'schemaFacts'=>array_keys($schemaFacts),
+            'tabWidgets'=>$tabs,
             'checks'=>array('valid_plan'=>true,'native_blocks_only'=>true,'contains_heading'=>$headings>0,'no_active_markup'=>true));
     } catch ( InvalidArgumentException | JsonException $e ) { return new WP_Error('sm_block_plan_invalid','Native block plan rejected: '.$e->getMessage(),array('status'=>422,'field'=>$field ?? 'plan','block'=>$block??'','expected'=>syndamorph_block_plan_expected($e->getMessage(),$field ?? 'plan',$block??''))); }
     catch ( Throwable $e ) { return new WP_Error('sm_block_plan_system','Native block compilation encountered an internal error.',array('status'=>500)); }

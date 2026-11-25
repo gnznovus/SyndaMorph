@@ -50,8 +50,25 @@ function syndamorph_production_specification(array $data) {
             $requirements[$key]['check']=$check;
         }
     }
+    $interactions=$data['interactions']??array();
+    if(!is_array($interactions)||!array_is_list($interactions)||count($interactions)>12)
+        return $invalid('interactions');
+    $classified=array();
+    foreach($interactions as $interaction){
+        if(!is_array($interaction)||!$id($interaction['id']??null)||!$id($interaction['kind']??null)||
+            !$id($interaction['requirementId']??null)||!isset($requirements[$interaction['requirementId']])||
+            $requirements[$interaction['requirementId']]['dimension']!=='functional'||
+            !in_array($interaction['classification']??null,array('native','reusable','new_special','external','unsupported'),true)||
+            !$text($interaction['behavior']??null,240)||isset($classified[$interaction['id']]))
+            return $invalid('interaction identities, behavior and functional requirements');
+        $requirement=$requirements[$interaction['requirementId']];
+        $classified[$interaction['id']]=array('id'=>$interaction['id'],'kind'=>$interaction['kind'],
+            'requirementId'=>$requirement['id'],'target'=>$requirement['target'],
+            'classification'=>$interaction['classification'],'behavior'=>trim($interaction['behavior']));
+    }
     return array('version'=>1,'format'=>'structured','title'=>trim($data['title']),
-        'sections'=>array_values($sections),'requirements'=>array_values($requirements));
+        'sections'=>array_values($sections),'requirements'=>array_values($requirements))+
+        ($classified?array('interactions'=>array_values($classified)):array());
 }
 
 /** Normalize archived work orders without asserting a dimension or source for old criteria. */

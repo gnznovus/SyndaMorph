@@ -42,7 +42,8 @@
         function visit(blocks) {
             for(const block of blocks) {
                 count++;
-                if (count>limit || !block?.name?.startsWith('core/') || !api.getBlockType(block.name))
+                const supported = block?.name?.startsWith('core/') || block?.name === 'syndamorph/tabs';
+                if (count>limit || !supported || !api.getBlockType(block.name))
                     throw new Error('Unknown or unsupported Gutenberg block.');
                 const check=api.validateBlock(block);
                 const valid=Array.isArray(check) ? check[0] === true : check?.isValid === true;

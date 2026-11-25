@@ -87,7 +87,7 @@ function runBrowserWorker(html, viewports, signal, options = {}) {
             return resolve(result.html);
         });
         child.stdin.on('error', () => {});
-        child.stdin.end(JSON.stringify({ html, inspect, viewports, extent: options.extent }));
+        child.stdin.end(JSON.stringify({ html, inspect, viewports, extent:options.extent,tabsRuntime:options.tabsRuntime }));
     });
 }
 
@@ -127,7 +127,7 @@ function createRendererServer(render = runBrowserWorker) {
             res.end(bytes);
         }
         if (req.method === 'GET' && req.url === '/healthz') return reply(200, diagnostic);
-        if (req.method !== 'POST' || !['/render','/inspect','/compare','/crop'].includes(req.url))
+        if (req.method !== 'POST' || !['/render','/inspect','/compare','/crop','/check-tabs'].includes(req.url))
             return reply(404, { error: 'not_found' });
         if (busy) {
             req.resume();
@@ -146,11 +146,16 @@ function createRendererServer(render = runBrowserWorker) {
                 body.reference,body.native,body.fitExtent===true,body.includeOverlay===true) });
             if (typeof body.html !== 'string' || !body.html.trim()) throw new RendererError('invalid_html', 400);
             if (Buffer.byteLength(body.html) > MAX_HTML) throw new RendererError('request_limit', 413);
-            if (req.url !== '/inspect') return reply(200, { html: await render(body.html, null, controller.signal) });
+            if (req.url === '/render') return reply(200, { html: await render(body.html, null, controller.signal) });
             if (Object.hasOwn(body, 'inspectionProtocol') && body.inspectionProtocol !== PROTOCOL)
                 throw new RendererError('protocol_mismatch', 409);
             const viewports = Object.hasOwn(body, 'viewports') ? body.viewports : DEFAULT_VIEWPORTS;
             if (!validViewports(viewports)) throw new RendererError('invalid_viewports', 400);
+            if(req.url==='/check-tabs'){
+                if(typeof body.runtime!=='string'||!body.runtime||Buffer.byteLength(body.runtime)>16384)
+                    throw new RendererError('invalid_html',400);
+                return reply(200,{evidence:await render(body.html,viewports,controller.signal,{tabsRuntime:body.runtime})});
+            }
             if (body.extent !== undefined && !['section', 'page', 'page-fold'].includes(body.extent)) throw new RendererError('invalid_html', 400);
             reply(200, { evidence: await render(body.html, viewports, controller.signal, { extent: body.extent }) });
         } catch (error) {

@@ -27,8 +27,8 @@
     const title = $('syndamorph-team-result-title');
     if (!cfg || !root || !run || !brief || !timeline || !results) return;
 
-    const roles = ['boss', 'designer', 'developer'];
-    const taskRoles = {reference:'developer',validator:'boss',validation:'boss',revision_validation:'boss'};
+    const roles = ['boss', 'designer', 'developer', 'validator'];
+    const taskRoles = {reference:'developer',validation:'validator',revision_validation:'validator'};
     const taskLabels = {reference:'HTML reference',validation:'QA validation',validator:'QA validation',revision_validation:'Scoped QA validation',repair:'Technical repair',schema_repair:'Schema repair',final_approval:'Final approval'};
     const initialRoles = () => roles;
     let legacyNativeReplay = false;
@@ -36,7 +36,7 @@
         ['boss','designer',legacyNativeReplay?'reference':'final_approval','developer','validation'] :
         ['boss','designer','developer','validator'];
     const completedRoles = new Set();
-    const labels = {boss:'Boss', designer:'Designer', reference:'HTML Reference', developer:'Developer', validator:'Validator'};
+    const labels = {boss:'Boss', designer:'Designer', reference:'HTML Reference', developer:'Developer', validator:'QA'};
     const syncRoster = () => {};
     format?.addEventListener('change', () => {
         if (!running && !replaying) { activeFormat = format.value; syncRoster(); }
@@ -321,7 +321,7 @@
         }
         const task=data.task || data.role;
         if (activeFormat==='gutenberg' && task==='reference' && type==='agent_start') legacyNativeReplay=true;
-        if (taskRoles[data.role]) data={...data,role:taskRoles[data.role],task};
+        if (taskRoles[task]) data={...data,role:taskRoles[task],task};
         if (task==='validator' && activeFormat==='gutenberg') data={...data,task:'validation'};
         if (type === 'ready') {
             legacyNativeReplay = false;
@@ -391,7 +391,7 @@
             const label=data.type==='assignment'?'Work order assigned':
                 data.type==='design_review'?'Design '+(data.decision==='approved'?'approved':'revision requested'):
                 data.type==='approved_design'?'Approved design handed to Developer':
-                data.type==='qa_review'||data.type==='revision_qa'?'Boss QA '+(data.decision==='approved'?'approved':'changes requested'):
+                data.type==='qa_review'||data.type==='revision_qa'?'Implementation QA '+(data.decision==='approved'?'approved':'changes requested'):
                 data.type==='repair_scope'?'Repair scope authorized':'Team handoff';
             item.textContent=label+' · '+(data.from||'agent')+' → '+(data.to||'team')+
                 (Array.isArray(data.issues)&&data.issues.length?' · '+data.issues.length+' issues':'');
@@ -453,6 +453,7 @@
             setFeed(requiredTasks().length+' initial tasks finished · '+(data.status || 'review'), data.status === 'uncompleted' ? 'error' : 'success');
             const stages=data.stageStatus;
             const qaBlocked=stages?.browserQa === 'blocked';
+            const functionalBlocked=['pending','failed'].includes(stages?.functional);
             const blockers=Array.isArray(stages?.blockerIds)?stages.blockerIds.slice(0,5).join(', '):'';
             const reason=data.quality?.terminationReason || 'quality review pending';
             const detail=qaPending
@@ -461,10 +462,12 @@
                 : qaBlocked
                 ? 'Design approved · Native compilation passed · Visual QA blocked ('+reason+
                     (blockers?' · '+blockers:'')+'). Last accepted artifact preserved. WordPress editor review remains pending.'
+                : functionalBlocked ? 'Design approved · Native compilation passed · Functional QA '+stages.functional+
+                    (blockers?' · '+blockers:'')+'. Review the functional evidence in History.'
                 : stages ? 'Design approved · Native compilation passed · Browser QA passed · WordPress editor review pending.'
                     : data.quality?'Browser and vision evidence recorded; WordPress editor validation pending.':'AI output available; visual fidelity unverified.';
-            setReview(data.status === 'uncompleted' ? 'Production uncompleted · visual QA needs work' : 'Generation complete · review required',detail);
-            text(notice,(qaPending||qaBlocked)?detail:'Production finished. Review every agent output; nothing was published.');
+            setReview(data.status === 'uncompleted' ? 'Production uncompleted · QA needs work' : 'Generation complete · review required',detail);
+            text(notice,(qaPending||qaBlocked||functionalBlocked)?detail:'Production finished. Review every agent output; nothing was published.');
             appendReport(data);
             if (!replaying) tab('results');
         }

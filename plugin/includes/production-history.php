@@ -3,6 +3,7 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 require_once __DIR__.'/production-editor-learning.php';
 require_once __DIR__.'/production-learning.php';
+require_once __DIR__.'/production-tabs.php';
 
 function syndamorph_history_tables(): array {
     global $wpdb;
@@ -180,7 +181,8 @@ function syndamorph_job_resume_take(string $role,string $task){
         return null;
     }
     $saved=$calls[$index];
-    if($saved['role']!==$role||$saved['task']!==$task)
+    $legacyQa=$saved['role']==='boss'&&$role==='validator'&&in_array($task,array('validation','revision_validation'),true);
+    if((!$legacyQa&&$saved['role']!==$role)||$saved['task']!==$task)
         return new WP_Error('sm_resume_diverged','Replay call sequence differs from the paused checkpoint; no paid call was retried.',
             array('expectedRole'=>$saved['role'],'expectedTask'=>$saved['task'],'actualRole'=>$role,'actualTask'=>$task));
     $GLOBALS['syndamorph_resume_index']=$index+1;
@@ -507,7 +509,7 @@ add_action( 'rest_api_init', static function (): void {
                 $kind=(string)$request->get_param('failureKind');
                 if(!in_array($kind,array('registry','parser','serialization','unknown'),true))$kind='unknown';
                 $block=(string)$request->get_param('blockName');
-                if(!preg_match('~^core/[a-z-]+$~D',$block))$block='';
+                if(!preg_match('~^core/[a-z-]+$~D',$block)&&$block!=='syndamorph/tabs')$block='';
                 try{syndamorph_history_append($id,'editor_validation',array('passed'=>false,'contentSha256'=>$checksum,'failureKind'=>$kind,'blockName'=>$block,'verifiedLesson'=>false));syndamorph_editor_learning_observe($id,$checksum,$kind,$block);}
                 catch(Throwable $error){return new WP_Error('sm_history_write','Could not record editor failure.',array('status'=>503));}
                 return rest_ensure_response(array('status'=>$job['status'],'recorded'=>true));
@@ -527,7 +529,10 @@ add_action( 'rest_api_init', static function (): void {
             $actual=0;
             $verify=static function(array $nodes) use (&$verify,&$actual): bool {
                 foreach($nodes as $node) {
-                    if(!is_string($node['blockName']??null) || !str_starts_with($node['blockName'],'core/'))return false;
+                    $name=$node['blockName']??null;
+                    if(!is_string($name)||(!str_starts_with($name,'core/')&&$name!=='syndamorph/tabs'))return false;
+                    if($name==='syndamorph/tabs'&&(!WP_Block_Type_Registry::get_instance()->is_registered($name)||
+                        syndamorph_tabs_decode($node['attrs']['panelData']??null)===null))return false;
                     $actual++;
                     if($actual>200 || !$verify($node['innerBlocks']??array()))return false;
                 }
@@ -541,7 +546,8 @@ add_action( 'rest_api_init', static function (): void {
             $sourceEligible=$source===null || (is_array($sourceQa)&&isset($sourceQa['issues'])&&!$sourceQa['issues'] &&
                 ($sourceQa['artifactSha256']??null)===$checksum &&
                 ($sourceQa['identity']??null)===syndamorph_production_source_identity($source));
-            $eligible=$sourceEligible && empty($final['quality']['issues']) && !empty($final['quality']['visionInspected']) && !empty($final['quality']['browserInspected']);
+            $eligible=$sourceEligible && syndamorph_functional_acceptance($final,$checksum) &&
+                empty($final['quality']['issues']) && !empty($final['quality']['visionInspected']) && !empty($final['quality']['browserInspected']);
             if(isset($final['sourceAcceptance']))$eligible=$eligible&& !empty($final['sourceAcceptance']['passed']) &&
                 !empty($final['quality']['bossApproved'])&&hash_equals((string)($final['sourceAcceptance']['artifactSha256']??''),$checksum);
             $status=$eligible?'completed':$job['status'];

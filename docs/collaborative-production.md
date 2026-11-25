@@ -6,6 +6,8 @@ This specification applies only when **Native Gutenberg** is selected. HTML/CSS 
 
 The v0.12 native path carries an application-bound production specification throughout the existing handoffs. [Current responsibilities and contract](production-team-upgrade.md)
 
+From v0.12.5, Bossy approves design, Developer owns the persistent block plan, and the separate read-only QA role reviews the implementation. Content Tabs requires an artifact-bound functional receipt before editor verification can promote the job. [Interactive implementation and acceptance](production-team-upgrade.md#v0125-developer-and-independent-qa-checkpoint)
+
 ## Contract
 
 1. Boss defines criteria. Designer produces the scoped HTML/CSS visual reference, renders it in Playwright, and submits real desktop/mobile evidence to Boss. Boss explicitly approves or requests a targeted design correction (at most two review rounds). Developer cannot start before approval.

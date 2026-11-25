@@ -64,10 +64,19 @@ The renderer's optional overlap image distinguishes matching pixels, source-only
 
 The historical live audit remains the detection baseline. These deterministic tests establish rule behavior for the fixtures. Intentional source deviations still need an application-owned authorization path. Pinned fidelity thresholds continue to apply.
 
+## v0.12.5 Developer and independent QA checkpoint
+
+Bossy classifies an interactive component as native, reusable, new special block, external, or unsupported. Each entry names the corresponding functional requirement and stable component ID and states the required behavior. The normalized specification reaches Designer, Developer and implementation QA. A native local link with an explicit browser predicate can be checked against the compiled candidate. An unclassified functional requirement or an external service without verifiable behavior holds acceptance.
+
+Content Tabs is the first reusable special block. Designer supplies the approved panel identities and literal content. Developer uses the same IDs in the persistent native plan. The existing compiler serializes the registered `syndamorph/tabs` block, and the existing surgical work order governs plan edits and rollback. Gutenberg provides editable panel labels, headings and body content. WordPress renders buttons and accessible tab panels with a local script, independent state, and support for arrow keys, Home and End.
+
+Implementation QA receives the compiled candidate and has separate agent authority and read-only tool grants. The application also checks the approved panel copy against the compiled plan and runs an isolated Chromium check at each requested width. The check exercises each tab, keyboard navigation, active panel visibility, two-way ARIA references, and independent state across widgets. Its receipt pins the exact compiled content hash. A failed or missing receipt prevents completion and Pattern promotion. Draft artifacts and measurements remain available to review.
+
+The isolated WordPress regression compiled two instances, edited and saved a panel in Gutenberg, reloaded it, and verified frontend click and keyboard behavior at 1440, 768 and 375 px. Tests also cover duplicate IDs, omitted widgets, changed inactive panel copy, broken ARIA structure, unsupported external requirements and stale artifact hashes. The runtime has no remote dependencies. Captured site actions still enter the source adapters' existing preflight gate. A captured BKKGO menu or booking workflow requires its own native implementation and functional evidence.
+
 ## Next checkpoints
 
 1. Record explicitly authorized source deviations independently of content, responsive quality, behavior and feasibility.
-2. Trial an editable local tabbed-content block. The application owns its capability contract and scripts. Developer owns block architecture and recovery. Independent QA exercises browser state transitions and the WordPress editor rather than inheriting Bossy’s Touch observation.
-3. Verify both production adapters and rerun the defect benchmark with approval for any paid calls. Report detection, escape, false rejections, uncertainty, latency and cost. BKKGO establishes a scenario, while broader acceptance is measured separately.
+2. Verify both production adapters and rerun the defect benchmark with approval for any paid calls. Report detection, escape, false rejections, uncertainty, latency and cost. BKKGO establishes a scenario, while broader acceptance is measured separately.
 
 No release has been authorized for this development series. Each checkpoint records the version, actual verification and outstanding work in the plugin changelog.

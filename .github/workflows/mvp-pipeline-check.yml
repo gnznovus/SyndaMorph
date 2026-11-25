@@ -47,6 +47,7 @@ on:
       - 'tests/adaptive-surgery-benchmark.*'
       - 'tests/fixtures/gen-015-repair.json'
       - 'tests/gutenberg-native-*'
+      - 'tests/production-tabs-wordpress.php'
       - 'plugin/includes/production-editor-learning.php'
       - 'plugin/includes/ai-integration.php'
       - 'plugin/syndamorph.php'
@@ -98,6 +99,7 @@ on:
       - 'tests/adaptive-surgery-benchmark.*'
       - 'tests/fixtures/gen-015-repair.json'
       - 'tests/gutenberg-native-*'
+      - 'tests/production-tabs-wordpress.php'
       - 'plugin/includes/production-editor-learning.php'
       - 'plugin/includes/ai-integration.php'
       - 'plugin/syndamorph.php'
@@ -137,6 +139,7 @@ jobs:
           php -l plugin/includes/production-responsive.php
           php -l plugin/includes/production-design-evidence.php
           php -l tests/designer-responsive-wordpress.php
+          php -l tests/production-tabs-wordpress.php
           php -l plugin/includes/production-source.php
           node --check backend/production-source.js
           php -l plugin/includes/production-inspection.php
@@ -208,6 +211,7 @@ jobs:
           docker compose cp tests/fixtures/bossy-approved-gen-000002.html wordpress:/tmp/sm-bossy-audit/bossy-approved-gen-000002.html
           docker compose cp tests/fixtures/bossy-design-cases.json wordpress:/tmp/sm-bossy-audit/bossy-design-cases.json
           docker compose exec -T -e SM_BOSS_AUDIT_LIVE=0 -e SM_BOSS_AUDIT_TRUST_ONLY=1 -e SM_BOSS_AUDIT_REQUIRE_FIXES=1 wordpress php < tests/bossy-design-audit.php
+          docker compose exec -T wordpress php < tests/production-tabs-wordpress.php
           docker compose cp tests/gutenberg-native-fixture.php wordpress:/var/www/html/sm-native-fixture.php
           cd backend && npx playwright install --with-deps chromium && cd ..
           node tests/gutenberg-native-browser.cjs

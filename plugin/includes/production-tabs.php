@@ -1,0 +1,178 @@
+<?php
+/** Bounded editable, local-only tabbed content for the native production engine. */
+if (!defined('ABSPATH')) exit;
+
+function syndamorph_tabs_panels($panels): ?array {
+    if(!is_array($panels)||!array_is_list($panels)||count($panels)<2||count($panels)>6)return null;
+    $result=array();
+    foreach($panels as $panel){
+        if(!is_array($panel)||array_diff(array_keys($panel),array('id','label','heading','body'))||
+            !is_string($panel['id']??null)||preg_match('/^[a-z][a-z0-9-]{0,31}$/D',$panel['id'])!==1||
+            isset($result[$panel['id']]))return null;
+        $limits=array('label'=>80,'heading'=>160,'body'=>1600);
+        $normalized=array('id'=>$panel['id']);
+        foreach($limits as $field=>$limit){
+            if(!is_string($panel[$field]??null)||trim($panel[$field])===''||mb_strlen(trim($panel[$field]))>$limit)return null;
+            $normalized[$field]=trim($panel[$field]);
+        }
+        $result[$panel['id']]=$normalized;
+    }
+    return array_values($result);
+}
+
+function syndamorph_tabs_render(array $attributes): string {
+    $panels=syndamorph_tabs_decode($attributes['panelData']??null);
+    if($panels===null)return '';
+    $escape=static fn(string $text): string => htmlspecialchars($text,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
+    $component=$attributes['component']??'';
+    static $fallback=0;
+    $prefix=function_exists('wp_unique_id')?wp_unique_id('sm-tabs-'):'sm-tabs-'.(++$fallback);
+    $markup='<div class="wp-block-syndamorph-tabs" data-sm-tabs'.
+        (is_string($component)&&$component!==''?' data-sm-node="'.$escape($component).'"':'').'>';
+    $markup.='<div class="sm-tabs-list" role="tablist" aria-label="Content tabs">';
+    foreach($panels as $index=>$panel){
+        $tab=$prefix.'-'.$panel['id'];
+        $markup.='<button type="button" id="'.$escape($tab).'" role="tab" aria-controls="'.$escape($tab.'-panel').'"'.
+            ' aria-selected="'.($index===0?'true':'false').'" tabindex="'.($index===0?'0':'-1').'">'.
+            $escape($panel['label']).'</button>';
+    }
+    $markup.='</div>';
+    foreach($panels as $index=>$panel){
+        $tab=$prefix.'-'.$panel['id'];
+        $markup.='<div class="sm-tabs-panel" id="'.$escape($tab.'-panel').'" role="tabpanel" aria-labelledby="'.
+            $escape($tab).'" tabindex="0"'.($index===0?'':' hidden').'><h3>'.$escape($panel['heading']).
+            '</h3><p>'.$escape($panel['body']).'</p></div>';
+    }
+    return $markup.'</div>';
+}
+
+/** Use a plain-text transport that WordPress's HTML attribute filter preserves. */
+function syndamorph_tabs_decode($encoded): ?array {
+    if(!is_string($encoded)||strlen($encoded)>64000)return null;
+    $json=base64_decode($encoded,true);
+    return $json===false?null:syndamorph_tabs_panels(json_decode($json,true,8));
+}
+
+function syndamorph_tabs_asset(string $name): string {
+    $path=dirname(__DIR__).'/assets/'.$name;
+    $content=is_readable($path)?file_get_contents($path):false;
+    return is_string($content)?$content:'';
+}
+
+function syndamorph_tabs_design_copy(string $html,array $interactions): array {
+    $tabIds=array_column(array_filter($interactions,static fn($item)=>$item['kind']==='tabs'),'id');
+    if(!$tabIds||!class_exists('DOMDocument'))return array();
+    $document=new DOMDocument();
+    if(!@$document->loadHTML('<meta charset="utf-8">'.$html,LIBXML_NONET|LIBXML_NOERROR|LIBXML_NOWARNING))
+        return array();
+    $xpath=new DOMXPath($document);
+    $copy=array();
+    foreach($tabIds as $id){
+        $widget=$xpath->query('//*[@data-sm-tabs-reference="'.$id.'"]');
+        if($widget->length!==1)continue;
+        $panels=array();
+        foreach($xpath->query('./*[@data-sm-tab-panel]',$widget->item(0)) as $panel){
+            $fields=array('id'=>$panel->getAttribute('data-sm-tab-panel'));
+            foreach(array('label','heading','body') as $field){
+                $nodes=$xpath->query('./*[@data-sm-tab-'.$field.']',$panel);
+                $fields[$field]=$nodes->length===1?trim($nodes->item(0)->textContent):'';
+            }
+            $panels[]=$fields;
+        }
+        $verified=syndamorph_tabs_panels($panels);
+        if($verified!==null)$copy[$id]=$verified;
+    }
+    return $copy;
+}
+
+function syndamorph_tabs_verify(array $artifact,array $widths,array $interactions=array(),array $designTabs=array(),
+    array $nativeChecks=array()): array {
+    $expected=$artifact['tabWidgets']??array();
+    if(!$expected&&!$interactions)
+        return array('status'=>'not_applicable','viewports'=>array());
+    $receipt=array('artifactSha256'=>hash('sha256',$artifact['content']),'viewports'=>array(),
+        'requestedWidths'=>$widths,'status'=>'pending','blockers'=>array(),'nativeChecks'=>$nativeChecks);
+    $planned=array();
+    foreach($interactions as $interaction){
+        if($interaction['kind']==='tabs' && in_array($interaction['classification'],array('reusable','new_special'),true))
+            $planned[$interaction['id']]=true;
+        elseif(($nativeChecks[$interaction['id']]['status']??null)!=='verified')
+            $receipt['blockers'][]=array('id'=>$interaction['id'],'reason'=>'independent_functional_test_unavailable');
+    }
+    foreach(array_diff_key($planned,$expected) as $id=>$_)
+        $receipt['blockers'][]=array('id'=>$id,'reason'=>'implementation_missing');
+    foreach(array_diff_key($expected,$planned) as $id=>$_)
+        $receipt['blockers'][]=array('id'=>$id,'reason'=>'interaction_not_in_specification');
+    foreach(array_intersect_key($expected,$planned) as $id=>$panels){
+        if(($designTabs[$id]??null)!==$panels)
+            $receipt['blockers'][]=array('id'=>$id,'reason'=>'approved_panel_copy_mismatched_or_unavailable');
+    }
+    if(!$expected){
+        if(!$receipt['blockers'])$receipt['status']='passed';
+        return $receipt;
+    }
+    $url=getenv('SYNDAMORPH_RENDERER_URL');
+    $script=syndamorph_tabs_asset('production-tabs-view.js');
+    if($url!=='http://renderer:3000/render'||$script===''){
+        $receipt['blockers'][]=array('reason'=>'functional_renderer_unavailable','widths'=>$widths);
+        return $receipt;
+    }
+    $receipt['runtimeSha256']=hash('sha256',$script);
+    $passed=true;
+    foreach(array_chunk($widths,5) as $batch){
+        $payload=wp_json_encode(array('html'=>$artifact['preview'],'runtime'=>$script,'viewports'=>$batch));
+        $response=wp_remote_post('http://renderer:3000/check-tabs',array('timeout'=>65,'redirection'=>0,
+            'limit_response_size'=>64000,'headers'=>array('Content-Type'=>'application/json'),'body'=>$payload));
+        $status=is_wp_error($response)?null:wp_remote_retrieve_response_code($response);
+        $data=$status===200?json_decode(wp_remote_retrieve_body($response),true):null;
+        if(!is_array($data['evidence']??null)||array_column($data['evidence'],'width')!==$batch){
+            $receipt['blockers'][]=array('reason'=>'functional_evidence_incomplete','widths'=>$batch,'httpStatus'=>$status);
+            continue;
+        }
+        foreach($data['evidence'] as $row){
+            $checks=is_array($row['checks']??null)?$row['checks']:array();
+            $valid=array_column($checks,'component')===array_keys($expected);
+            foreach($checks as &$check){
+                $panels=$expected[$check['component']??'']??array();
+                $copy=array_map(static fn($panel)=>array_intersect_key($panel,array_flip(array('label','heading','body'))),$panels);
+                $check['contentMatches']=($check['copy']??null)===$copy;
+                unset($check['copy']);
+                $valid=$valid&&$check['contentMatches']&&($check['initial']??null)===true&&($check['structure']??null)===true&&
+                    ($check['click']??null)===true&&($check['keyboard']??null)===true&&($check['isolation']??null)===true;
+            }
+            unset($check);
+            $passed=$passed&&$valid;
+            $receipt['viewports'][]=array('width'=>$row['width'],'passed'=>$valid,'checks'=>$checks);
+        }
+    }
+    if(!$passed)$receipt['status']='failed';
+    elseif(!$receipt['blockers']&&array_column($receipt['viewports'],'width')===$widths)$receipt['status']='passed';
+    return $receipt;
+}
+
+function syndamorph_functional_acceptance(array $final,string $checksum): bool {
+    $receipt=$final['quality']['functionalChecks']??null;
+    if($receipt===null||($receipt['status']??null)==='not_applicable'){
+        return !str_contains($final['artifact']['content']??'','<!-- wp:syndamorph/tabs ')&&
+            empty($final['designApproval']['productionSpecification']['interactions']);
+    }
+    return ($receipt['status']??null)==='passed'&&($receipt['artifactSha256']??null)===$checksum;
+}
+
+function syndamorph_tabs_register(): void {
+    $plugin=dirname(__DIR__).'/syndamorph.php';
+    $url=static fn(string $name): string => plugins_url('assets/'.$name,$plugin);
+    $version=static fn(string $name): string => (string)filemtime(dirname(__DIR__).'/assets/'.$name);
+    wp_register_script('syndamorph-tabs-editor',$url('production-tabs-editor.js'),
+        array('wp-blocks','wp-element','wp-components','wp-block-editor'),$version('production-tabs-editor.js'),true);
+    wp_register_script('syndamorph-tabs-view',$url('production-tabs-view.js'),array(),$version('production-tabs-view.js'),true);
+    wp_register_style('syndamorph-tabs',$url('production-tabs.css'),array(),$version('production-tabs.css'));
+    register_block_type('syndamorph/tabs',array(
+        'api_version'=>3,'title'=>'Content Tabs','category'=>'design','supports'=>array('html'=>false),
+        'attributes'=>array('panelData'=>array('type'=>'string','default'=>''),'component'=>array('type'=>'string')),
+        'editor_script'=>'syndamorph-tabs-editor','view_script'=>'syndamorph-tabs-view','style'=>'syndamorph-tabs',
+        'render_callback'=>'syndamorph_tabs_render',
+    ));
+}
+
+if(function_exists('add_action'))add_action('init','syndamorph_tabs_register');

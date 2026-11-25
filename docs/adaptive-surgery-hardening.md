@@ -1,5 +1,7 @@
 # Adaptive Surgery hardening
 
+The v0.12.5 native pipeline separates implementation QA from Bossy's design authority. Functional acceptance runs on the retained candidate after surgery and requires a matching content hash. [Current responsibility and receipt](production-team-upgrade.md#v0125-developer-and-independent-qa-checkpoint)
+
 The v0.12 upgrade retains separate Designer HTML and Developer native-plan surgery. The specification reaches both roles through the existing handoffs. Designer’s intermediate viewport probes, persisted candidates and rollback are documented in the [upgrade checkpoints](production-team-upgrade.md#v0123-designer-responsiveness-checkpoint).
 
 **Branch** `feat/secure-gateway-leasing-v1`

@@ -6,6 +6,18 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.5] - 2026-11-26
+
+### Added
+- Typed interaction classification in Bossy's work order and a separate implementation QA role with read-only tool access.
+- Editable Content Tabs with local click and keyboard behavior, 2–6 panels and a compiler contract that preserves approved labels, headings, and copy.
+- Exact-width Chromium functional receipts tied to the compiled artifact. Missing, changed or unsupported requirements hold completion while the draft remains in History.
+
+### Verified
+- On disposable WordPress, the native compiler and actual Gutenberg registry accepted two independent Content Tabs blocks. Gutenberg edited, saved and reloaded a panel. The WordPress preview passed interaction at 1440, 768 and 375 px.
+- Chromium and PHP tests covered missing widgets, mismatched approved panel copy, unsupported external services and broken ARIA structure. A changed artifact could not reuse a passing receipt. The tests used zero live model calls.
+- Captured-action mapping remains gated in the source adapters. BKKGO menus, carousels and external booking still need implementation and acceptance evidence.
+
 ## [0.12.4] - 2026-11-26
 
 ### Added

@@ -1,0 +1,49 @@
+.wp-block-syndamorph-tabs {
+    min-width: 0;
+    width: 100%;
+}
+
+.wp-block-syndamorph-tabs .sm-tabs-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    border-bottom: 1px solid currentColor;
+}
+
+.wp-block-syndamorph-tabs [role="tab"] {
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    min-height: 44px;
+    overflow-wrap: anywhere;
+    padding: .6rem .85rem;
+}
+
+.wp-block-syndamorph-tabs [aria-selected="true"] {
+    border-bottom-color: currentColor;
+    font-weight: 700;
+}
+
+.wp-block-syndamorph-tabs [role="tab"]:focus-visible,
+.wp-block-syndamorph-tabs [role="tabpanel"]:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+.wp-block-syndamorph-tabs .sm-tabs-panel {
+    overflow-wrap: anywhere;
+    padding-block: .75rem;
+}
+
+.wp-block-syndamorph-tabs .sm-tabs-panel[hidden] {
+    display: none;
+}
+
+.wp-block-syndamorph-tabs .sm-tabs-editor-fields {
+    border: 1px solid #dcdcde;
+    margin-block-end: 1rem;
+    padding: 1rem;
+}

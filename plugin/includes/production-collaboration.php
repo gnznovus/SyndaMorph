@@ -629,7 +629,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     };
     $touchNote=isset($source['referenceArchive']['runtimeSha256'])?' For a concrete interaction uncertainty, use the available Touch tool. First request the pinned width with actions:[]. Use only discovered target IDs in subsequent actions. A blocked request or inferred destination does not verify real behavior.':'';
     $boss=$call('boss','Classify the job into a concise production specification. Return ONLY JSON {"version":1,"title":"short job title","sections":[{"id":"hero","label":"Hero","parent":null}],"requirements":[{"id":"hero-heading","target":"hero","dimension":"content","basis":"brief","requirement":"required result","acceptance":"observable pass condition"}]}. Put parents before children. A target is a section ID or page. Use short lowercase IDs, up to 12 sections and 24 requirements. Dimensions are content, visual, responsive, functional, implementation, accessibility. Basis is brief, source, or standard. Capture each explicit requirement, use the supplied viewport widths, and record unknown dependencies as verification needs. For directly stated browser assertions use optional check {kind:text|element|link|style,selector:one simple tag/.class/#id,value:expected literal,field:computed property for style,widths:optional exact widths}. Text needs a value, element needs a selector, link needs both. Never invent a selector or asserted value. For an unsourced brief, permit generic marketing copy and provisional local CTAs without invented real-world facts.'.$sourceNote.$touchNote,
-        array('brief'=>$brief,'viewportWidths'=>$viewports)+$sourceContext,
+        array('brief'=>$brief,'viewportWidths'=>$viewports,'interactionClassification'=>array(
+            'classes'=>array('native','reusable','new_special','external','unsupported'),
+            'supported'=>array('tabs'=>'reusable local Content Tabs block, two to six editable text panels'),
+            'contract'=>'For every required interactive behavior include interactions:[{id,kind,requirementId,classification,behavior}]. Use the stable block ID as interaction ID, reference a functional requirement and describe its observable behavior. Do not conflate visual scaffolds with external services.'))+$sourceContext,
         syndamorph_collab_output_cap($provider,$model),$sourceImages,'boss',0.0,
         isset($source['referenceArchive'])?array('sourceArchive'=>$source['referenceArchive']):array());
     if(is_wp_error($boss))return $boss;
@@ -637,6 +640,15 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if(is_wp_error($bossBrief))return $bossBrief;
     $specification=$bossBrief['specification'];
     $specificationReceipt=syndamorph_production_specification_receipt($specification,$brief,$viewports,$source);
+    $interactions=$specification['interactions']??array();
+    $classifiedRequirements=array_column($interactions,'requirementId');
+    foreach($specification['requirements'] as $requirement){
+        if($requirement['dimension']==='functional'&&!in_array($requirement['id'],$classifiedRequirements,true))
+            $interactions[]=array('id'=>$requirement['id'],'requirementId'=>$requirement['id'],
+                'kind'=>'unclassified','classification'=>'unsupported');
+    }
+    $tabsDesignNote=in_array('tabs',array_column($interactions,'kind'),true)?
+        ' For each classified tabs interaction include a wrapper with data-sm-tabs-reference equal to the exact interaction ID. Inside the wrapper place each panel in an ordered direct child with a unique data-sm-tab-panel ID. Give each panel three direct children with data-sm-tab-label, data-sm-tab-heading, and data-sm-tab-body respectively. Show the initial active panel and use HTML hidden on other panel content. Do not add runtime behavior to the design reference.':'';
     $touchScenarios=array();
     foreach($GLOBALS['syndamorph_touch_receipts'] as $touch){
         foreach($touch['result']['scenarios'] as $scenario){
@@ -658,7 +670,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
 
     // Designer owns the visual deliverable; Boss reviews real browser evidence
     // before the Developer receives the approved reference.
-    $reference=$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Use the 1440px view for design identity and adapt continuously through 375px. Account for required checkpoints, neighboring breakpoint widths, and intermediate sizes. Use fluid containers and type while preserving content, hierarchy and required states. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.'.$sourceNote,
+    $reference=$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Use the 1440px view for design identity and adapt continuously through 375px. Account for required checkpoints, neighboring breakpoint widths, and intermediate sizes. Use fluid containers and type while preserving content, hierarchy and required states. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.'.$sourceNote.$tabsDesignNote,
         array('brief'=>$brief,'requirements'=>$bossBrief)+$sourceContext+$touchContext,
         syndamorph_collab_output_cap($provider,$model),$sourceImages);
     if(is_wp_error($reference))return $reference;
@@ -994,12 +1006,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $designMemo=array('decision'=>'approved','referenceSha256'=>hash('sha256',$reference),
         'reviewRounds'=>$designReviews,'capabilityNotes'=>$capabilityNotes,'acceptedCapabilityDeviations'=>$deviations,
         'bossApproval'=>$approval,'productionSpecification'=>$specification,'specificationReceipt'=>$specificationReceipt,
-        'continuousResponsive'=>$responsive,'requirementResults'=>$requirementResults)+$touchContext;
+        'continuousResponsive'=>$responsive,'requirementResults'=>$requirementResults,
+        'tabPanelSpecification'=>syndamorph_tabs_design_copy($reference,$interactions))+$touchContext;
     $handoffs[]=array('from'=>'boss','to'=>'developer','type'=>'approved_design',
         'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews,'agentPayload'=>$approval,
         'specificationReceipt'=>$specificationReceipt);
     if($on_event)$on_event('handoff',end($handoffs));
-    $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON using the cached compiler contract. Preserve content and visual intent. Return JSON only, with stable unique IDs and supported native styles.'.$sourceNote,
+    $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON using the cached compiler contract. Preserve content and visual intent. For classified tabs use the exact interaction ID as the tabs node ID and preserve all approved panel labels, headings and copy. Return JSON only, with stable unique IDs and supported native styles.'.$sourceNote,
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,
             'imageOrder'=>array_intersect_key($viewports,array_flip($visionViewports)),
             'learnedRules'=>$useLearning?syndamorph_learning_retrieve('developer'):array(),
@@ -1178,7 +1191,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         if($useLearning)syndamorph_learning_compiler_receipt($verified,$learningSource.':schema:'.$lesson['attempt']);
     }
     $outputs['developer']=wp_json_encode($plan);
-    $implementationHandoff=array('from'=>'developer','to'=>'boss','type'=>'implementation_candidate',
+    $implementationHandoff=array('from'=>'developer','to'=>'validator','type'=>'implementation_candidate',
         'sourcePlanSha256'=>SyndaMorph_Job_Memory::fingerprint($originalPlan),
         'compiledPlanSha256'=>SyndaMorph_Job_Memory::fingerprint($plan),
         'compilerCorrections'=>$surgery['compilerCorrections']??array());
@@ -1230,7 +1243,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         }
     }
     $copyCheck=syndamorph_visual_copy($inspectReference,$inspectNative);
-    $review=$call('boss','Assess the frozen design and browser evidence for the implementation. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"measurable defect and suggested correction","kind":"implementation","status":"open","repairStrategy":"optional: style|structure|hybrid"}],"summary":"..."}. Use category content for literal copy disputes and consult copyComparison. Reuse deterministic issue IDs where applicable. Compiler checks are authoritative. Put host responsibilities, unsupported capabilities and pending editor verification in notes. Approve only with no actionable defects.',
+    $review=$call('validator','Assess the frozen design and browser evidence for the implementation. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"measurable defect and suggested correction","kind":"implementation","status":"open","repairStrategy":"optional: style|structure|hybrid"}],"summary":"..."}. Use category content for literal copy disputes and consult copyComparison. Reuse deterministic issue IDs where applicable. Compiler checks are authoritative. Put host responsibilities, unsupported capabilities and pending editor verification in notes. Approve only with no actionable defects.',
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$modelEvidence($inspectReference),'native'=>$modelEvidence($inspectNative),
             'deterministicIssues'=>$issues,'copyComparison'=>$copyCheck,'pixelComparison'=>$comparison,
             'implementationHandoff'=>$implementationHandoff,'compiledLayout'=>$artifact['layoutFacts'],
@@ -1240,26 +1253,26 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         array('reference'=>$reference,'native'=>$artifact['preview'],'plan'=>$plan));
     if (is_wp_error($review)) return $review;$outputs['validator']=$review;
     $parsed=json_decode(syndamorph_native_json_text($review),true);
-    $qaRecord=syndamorph_authority_decision('boss','implementation_qa',$parsed,
+    $qaRecord=syndamorph_authority_decision('validator','implementation_qa',$parsed,
         array('approved','changes_requested'),$on_event);
     if(is_wp_error($qaRecord))return $qaRecord;
     if(!is_array($parsed['issues']??null))
-        return new WP_Error('sm_boss_qa_contract','Boss QA must return a structured issues list.',
+        return new WP_Error('sm_boss_qa_contract','Implementation QA must return a structured issues list.',
             array('stage'=>'implementation_qa'));
     $bossQaApproved=$qaRecord['decision']==='approved';
     if($bossQaApproved&&!empty($parsed['issues'])){
-        syndamorph_authority_gate($qaRecord,'blocked','Boss approved while reporting open QA issues.',$on_event);
+        syndamorph_authority_gate($qaRecord,'blocked','Implementation QA approved while reporting open issues.',$on_event);
         return new WP_Error('sm_boss_qa_contract',
-            'Boss QA approval contradicts its issue list; no repair was authorized.',
+            'Implementation QA approval contradicts its issue list; no repair was authorized.',
             array('stage'=>'implementation_qa','issues'=>$parsed['issues']));
     }
     syndamorph_authority_gate($qaRecord,
         $bossQaApproved&&empty($issues)?'ready':'blocked',
-        !$bossQaApproved?'Boss requested implementation changes.':
-            (!empty($issues)?'Deterministic implementation checks remain open.':'Boss and deterministic QA checks passed.'),
+        !$bossQaApproved?'QA requested implementation changes.':
+            (!empty($issues)?'Deterministic implementation checks remain open.':'Implementation visual QA checks passed.'),
         $on_event);
     $bossFindings=$qaRecord['issues'];
-    $qaHandoff=array('from'=>'boss','to'=>'developer','type'=>'qa_review',
+    $qaHandoff=array('from'=>'validator','to'=>'developer','type'=>'qa_review',
         'decision'=>$qaRecord['decision'],'issues'=>$bossFindings);
     $handoffs[]=$qaHandoff;
     if($on_event)$on_event('handoff',$qaHandoff);
@@ -1528,14 +1541,14 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $terminationReason='visual_crop_blocked';$reject('Scoped evidence unavailable','blocked','browser');break;
         }
         $scopedScreenshots=$scope['images'];
-        $candidateHandoff=array('from'=>$route,'to'=>'boss','type'=>'revision_candidate','id'=>$id,
+        $candidateHandoff=array('from'=>$route,'to'=>'validator','type'=>'revision_candidate','id'=>$id,
             'candidateSha256'=>SyndaMorph_Job_Memory::fingerprint($candidate['plan']),
             'operation'=>$patch);
         $handoffs[]=$candidateHandoff;
         if($on_event)$on_event('handoff',$candidateHandoff);
         // Each repair receives a fresh vision review of its changed component,
         // not the entire design report. Unaffected model findings are retained.
-        $targetReview=$call('boss',
+        $targetReview=$call('validator',
             'Inspect changed components and affected layout with the browser evidence. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"reference, previous and candidate evidence","repairStrategy":"optional: style|structure|hybrid"}]}. Use category content for literal copy disputes and consult copyComparison. Reuse issue IDs. A newly noticed defect does not imply a regression. Before claiming copy was added or removed, compare literal reference and candidate text; do not mistake excerpted measurements for complete copy. Report only open actionable issues; compiler checks are authoritative.',
             array('id'=>$id,'candidateHandoff'=>$candidateHandoff,'changedNodes'=>syndamorph_surgery_context(
                     syndamorph_collab_find($candidate['plan']['blocks'],$id)),
@@ -1554,7 +1567,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $reject('Scoped visual validation unavailable','blocked','vision');break;
         }
         $parsedTarget=json_decode(syndamorph_native_json_text($targetReview),true);
-        $targetRecord=syndamorph_authority_decision('boss','revision_validation',$parsedTarget,
+        $targetRecord=syndamorph_authority_decision('validator','revision_validation',$parsedTarget,
             array('approved','changes_requested'),$on_event);
         if(is_wp_error($targetRecord)||!is_array($parsedTarget['issues']??null)||
             (($parsedTarget['decision']??'')==='approved'&&!empty($parsedTarget['issues']))) {
@@ -1565,7 +1578,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         syndamorph_authority_gate($targetRecord,
             $targetRecord['decision']==='approved'?'pending_validation':'blocked',
             'Deterministic comparison and repair acceptance remain independently enforced.',$on_event);
-        $reviewHandoff=array('from'=>'boss','to'=>'developer','type'=>'revision_qa','id'=>$id,
+        $reviewHandoff=array('from'=>'validator','to'=>'developer','type'=>'revision_qa','id'=>$id,
             'decision'=>$targetRecord['decision'],'issues'=>$targetRecord['issues']);
         $handoffs[]=$reviewHandoff;
         if($on_event)$on_event('handoff',$reviewHandoff);
@@ -1686,6 +1699,20 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     // A zero-count heuristic is not proof of visual or Gutenberg editor validity.
     $status=($best['score']===0 && $bossQaApproved) ? 'needs_review' : 'uncompleted';
     if($best['score']===0 && !$bossQaApproved)$terminationReason='boss_approval_pending';
+    $nativeChecks=array();
+    $byRequirement=array_column($specification['requirements'],null,'id');
+    foreach($interactions as $interaction){
+        $check=$byRequirement[$interaction['requirementId']]['check']??null;
+        if($interaction['classification']==='native'&&$interaction['kind']==='link'&&($check['kind']??'')==='link')
+            $nativeChecks[$interaction['id']]=syndamorph_design_run_check($check,$best['evidence']);
+    }
+    $functional=syndamorph_tabs_verify($artifact,$viewports,$interactions,$designMemo['tabPanelSpecification'],$nativeChecks);
+    if(!in_array($functional['status'],array('not_applicable','passed'),true)){
+        $status='uncompleted';
+        if($terminationReason==='quality_resolved')$terminationReason='functional_validation_'.$functional['status'];
+    }
+    if($functional['status']!=='not_applicable'&&$on_event)$on_event('functional_validation',
+        array('artifactSha256'=>$artifact['contentSha256'])+$functional);
     $sourceQuality=null;
     if($source!==null){
         if($scopeRegion===null)$sourceQuality=syndamorph_production_source_assess($source,$best['evidence']);
@@ -1711,13 +1738,15 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         'stageStatus'=>array('design'=>'approved','compilation'=>'passed',
             'sourceFidelity'=>$sourceQuality===null?'not_applicable':($sourceQuality['issues']?'blocked':'passed'),
             'browserQa'=>$inspectionPending!==null?'pending':(($best['score']===0&&$bossQaApproved)?'passed':'blocked'),
-            'wordpressEditor'=>'pending',
-            'blockerIds'=>array_values(array_unique(array_merge(array_column($best['issues'],'id'),array_column($sourceQuality['issues']??array(),'id'))))),
+            'wordpressEditor'=>'pending','functional'=>$functional['status'],
+            'blockerIds'=>array_values(array_unique(array_merge(array_column($best['issues'],'id'),
+                array_column($sourceQuality['issues']??array(),'id'),array_column($functional['blockers']??array(),'id'))))),
         'quality'=>array('escalation'=>$escalation,'inspection'=>$inspectionPending,'capabilityNotes'=>$capabilityNotes,'issueRegistry'=>array_values($registry),'score'=>$best['score'],
             'bestCandidate'=>$best['identity'],'scoringVersion'=>3,'viewportWidths'=>$viewports,'issues'=>$best['issues'],'revisions'=>$revisions,
             'repairSummary'=>syndamorph_repair_summary($revisions,$metrics,$in,$out),'terminationReason'=>$terminationReason,'evidence'=>array(
             'reference'=>$evidenceSummary($inspectReference),'native'=>$evidenceSummary($best['evidence'],true)),
             'pixelComparison'=>$best['comparison'],'copyComparison'=>syndamorph_visual_copy($inspectReference,$best['evidence']),
+            'functionalChecks'=>$functional,
             'browserInspected'=>true,'visionInspected'=>true,'bossApproved'=>$bossQaApproved,'nativeEditorVerified'=>false),
         'published'=>false,'renderedInBrowser'=>true)+($scopeRegion===null?array():array('sourceAcceptance'=>array(
             'passed'=>!$sourceQuality['issues'],'id'=>$scopeRegion['id'],'artifactSha256'=>$artifact['contentSha256'])));

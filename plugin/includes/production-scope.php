@@ -3,6 +3,7 @@
 if (!defined('ABSPATH')) { exit; }
 require_once __DIR__.'/production-source.php';
 require_once __DIR__.'/production-scope-source.php';
+require_once __DIR__.'/production-tabs.php';
 
 const SYNDAMORPH_SCOPE_WORKFLOW = 'source-scope-v1';
 
@@ -185,7 +186,8 @@ function syndamorph_scope_candidate(array $manifest,string $key): ?array {
         'checksum'=>$checksum,'sourceAcceptance'=>$final['sourceAcceptance']??null,
         'eligible'=>!empty($final['sourceAcceptance']['passed'])&&!empty($final['quality']['bossApproved'])&&
             ($final['sourceAcceptance']['id']??null)===$key&&hash_equals((string)($final['sourceAcceptance']['artifactSha256']??''),$checksum)&&
-            !empty($final['quality']['visionInspected'])&&!empty($final['quality']['browserInspected'])&&empty($final['quality']['issues']));
+            !empty($final['quality']['visionInspected'])&&!empty($final['quality']['browserInspected'])&&
+            empty($final['quality']['issues'])&&syndamorph_functional_acceptance($final,$checksum));
 }
 
 function syndamorph_scope_find_post(string $type,string $key): ?WP_Post {
@@ -373,7 +375,9 @@ function syndamorph_scope_block_count(array $nodes): int {
     $total=0;
     foreach($nodes as $node) {
         if(($node['blockName']??null)===null&&trim($node['innerHTML']??'')==='')continue;
-        if(!str_starts_with($node['blockName']??'','core/'))return -1;
+        $name=$node['blockName']??'';
+        if(!str_starts_with($name,'core/')&&$name!=='syndamorph/tabs')return -1;
+        if($name==='syndamorph/tabs'&&syndamorph_tabs_decode($node['attrs']['panelData']??null)===null)return -1;
         $children=syndamorph_scope_block_count($node['innerBlocks']??array());
         if($children<0)return -1;
         $total+=1+$children;

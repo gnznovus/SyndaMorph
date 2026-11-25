@@ -1,5 +1,44 @@
 const assert=require('node:assert/strict');
 const {chromium}=require('../backend/node_modules/playwright');
+const origin=process.env.SM_SCOPE_ORIGIN||'http://127.0.0.1:8085';
+
+async function verifyEditableTabs(page,post) {
+ const login=process.env.SM_SCOPE_USER||'ciadmin';
+ const password=process.env.SM_SCOPE_PASSWORD||'ci-only-test-password';
+ await page.goto(origin+'/wp-login.php');
+ await page.locator('#user_login').fill(login);
+ await page.locator('#user_pass').fill(password);
+ await page.locator('#wp-submit').click();
+ await page.waitForURL(/\/wp-admin\//);
+ await page.goto(origin+'/wp-admin/post.php?post='+post+'&action=edit');
+ await page.waitForFunction(id=>window.wp?.data?.select('core/editor')?.getCurrentPostId()===id,post);
+ const canvas=page.frameLocator('iframe[name="editor-canvas"]');
+ const sidebar=page.locator('body');
+ const locate=label=>canvas.getByRole('textbox',{name:label,exact:true}).first()
+  .or(sidebar.getByRole('textbox',{name:label,exact:true}).first()).first();
+ const panel=locate('Panel text');
+ await panel.fill('Updated from the Gutenberg editor.');
+ await page.waitForFunction(()=>wp.data.select('core/editor').isEditedPostDirty());
+ await page.evaluate(()=>wp.data.dispatch('core/editor').savePost());
+ await page.waitForFunction(()=>!wp.data.select('core/editor').isSavingPost()&&
+  wp.data.select('core/editor').didPostSaveRequestSucceed());
+ await page.reload();
+ await panel.waitFor();
+ assert.equal(await panel.inputValue(),'Updated from the Gutenberg editor.');
+ const frontend=await page.goto(origin+'/?page_id='+post+'&preview=true');
+ assert.equal(frontend.status(),200);
+ for(const width of [1440,768,375]){
+  await page.setViewportSize({width,height:900});
+  const widget=page.locator('[data-sm-tabs]').first();
+  await widget.getByRole('tab',{name:'Rooms',exact:true}).click();
+  assert.equal(await widget.getByRole('tabpanel').innerText(),'Room details\n\nKing & twin rooms — à la carte.');
+  await widget.getByRole('tab',{name:'Rooms',exact:true}).press('Home');
+  assert.match(await widget.getByRole('tabpanel').innerText(),/Updated from the Gutenberg editor/);
+  assert.equal(await page.locator('[data-sm-tabs]').last().getByRole('tab',{name:'Overview'}).getAttribute('aria-selected'),'true');
+ }
+ console.log('PASS: real Gutenberg tab edit, save, reload, and WordPress frontend interaction at all three widths.');
+}
+
 (async()=>{
  const channel=process.env.SM_BROWSER_CHANNEL;
  const browser=await chromium.launch({headless:true,args:['--no-sandbox'],...(channel?{channel}:{})});
@@ -7,7 +46,7 @@ const {chromium}=require('../backend/node_modules/playwright');
   const page=await browser.newPage();
   page.on('console',m=>{if(m.type()==='error'||m.type()==='warning')console.log(m.text());});
   page.on('pageerror',e=>console.error(e));
-  const response=await page.goto('http://127.0.0.1:8085/sm-native-fixture.php');
+  const response=await page.goto(origin+'/sm-native-fixture.php');
   assert.equal(response.status(),200);
   const result=await page.evaluate(()=>{
    const a=window.nativeFixture, validate=window.SyndaMorphAIExport.validateNative;
@@ -29,16 +68,18 @@ const {chromium}=require('../backend/node_modules/playwright');
    const gen9=window.nativeFixtures['GEN9 custom CTA font'].content;
    let missingFontClassRejected=false;
    try{validate(gen9.replace(' has-custom-font-size',''));}catch(e){missingFontClassRejected=/serialization invalid/.test(e.message);}
-   return {initial,count,registered,expected:a.blockCount,rejected,cases,missingFontClassRejected};
+   const tabBlocks=window.tabsPost?validate(window.tabsContent):0;
+   return {initial,count,registered,expected:a.blockCount,rejected,cases,missingFontClassRejected,tabBlocks,tabsPost:window.tabsPost};
   });
   console.log(result);
-  assert.equal(result.initial,0);
+  assert.ok(result.initial<=1,'Only the custom tabs block should be registered before the native validator sets up core.');
   assert.equal(result.count,result.expected);
   assert.ok(result.registered>=7);
   assert.ok(result.rejected,'Original inline gap defect must fail real Gutenberg validation');
   assert.ok(result.cases.length>=20);
   assert.deepEqual(result.cases.filter(c=>!c.passed),[]);
   assert.ok(result.missingFontClassRejected,'GEN9 missing font class must fail real Gutenberg validation');
+  assert.equal(result.tabBlocks,4,'The custom tabs block must pass registered Gutenberg serialization.');
   for (const width of [1440,768,375]) {
    const geometry=await page.evaluate(async width=>{
     const measure=async (html,selector)=>{
@@ -117,5 +158,6 @@ const {chromium}=require('../backend/node_modules/playwright');
     else assert.ok(Math.abs(boxes[1][0]-boxes[0][0])<1 && boxes[1][2]>=boxes[0][3],'Narrow columns must stack');
    }
   }
+  await verifyEditableTabs(page,result.tabsPost);
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

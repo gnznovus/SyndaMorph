@@ -5,7 +5,7 @@
 **Experimental branch:** `feat/secure-gateway-leasing-v1`  
 **GEN-000025 progression:** [Best candidate baseline and outcome-aware repairs](adaptive-surgery-hardening.md#gen-000025-and-the-verified-best-candidate).
 
-**v0.12 development series:** [AI Production Team responsibilities and checkpoints](production-team-upgrade.md). The first checkpoint introduces versioned work orders on the native production path.
+**v0.12 development series:** Versioned work orders, verified source archives, Touch, responsive Designer, Bossy evidence review, and the editable Content Tabs block use the shared native production path. [AI Production Team responsibilities and checkpoints](production-team-upgrade.md)
 
 **GEN-000023 investigation:** [Ranked causes, replay, and remaining limits](adaptive-surgery-hardening.md#independent-investigation-of-gen-000019-through-gen-000023).
 

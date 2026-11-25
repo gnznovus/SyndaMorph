@@ -30,22 +30,99 @@ process.stdin.on('end', async () => {
     let crashed = false;
     const evidence = [];
     try {
-        const { html, inspect, extent, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
+        const { html, inspect, extent, tabsRuntime, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
             headless: true, timeout: 10000,
             args: [ '--no-sandbox', '--disable-dev-shm-usage' ],
         });
         const context = await browser.newContext({
-            javaScriptEnabled: !inspect,
+            javaScriptEnabled: !inspect || Boolean(tabsRuntime),
             serviceWorkers: 'block',
             acceptDownloads: false,
         });
         // Completely deny external scripts, stylesheets, images and API calls.
         // This preview only supports inline scripts and inline styles.
         await context.route('**/*', (route) => route.abort('blockedbyclient'));
+        await context.routeWebSocket(/.*/,socket=>socket.close({code:1008,reason:'Offline verification'}));
         const page = await context.newPage();
         page.on('crash', () => { crashed = true; });
         page.on('popup', (popup) => popup.close().catch(() => {}));
+        if(tabsRuntime){
+            const fixture = 'https://functional.invalid/';
+            await page.route(fixture+'document',route=>route.fulfill({contentType:'text/html;charset=utf-8',
+                headers:{'content-security-policy':"default-src 'none'; script-src https://functional.invalid/tabs-runtime.js; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"},
+                body:'<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1">'+html+
+                    '<script src="/tabs-runtime.js"></script>'}));
+            await page.route(fixture+'tabs-runtime.js',route=>route.fulfill({
+                contentType:'application/javascript',body:tabsRuntime}));
+            for(const width of viewports){
+                await page.setViewportSize({width,height:HEIGHT});
+                await page.goto(fixture+'document',{waitUntil:'domcontentloaded',timeout:5000});
+                const widgets=page.locator('[data-sm-tabs]');
+                const count=await widgets.count();
+                if(count>12)throw new RendererError('evidence_limit',507);
+                const checks=[];
+                for(let i=0;i<count;i++){
+                    const widget=widgets.nth(i);
+                    const component=await widget.getAttribute('data-sm-node');
+                    const controls=widget.locator(':scope > [role="tablist"] > [role="tab"]');
+                    const panels=widget.locator(':scope > [role="tabpanel"]');
+                    const total=await controls.count();
+                    const state=()=>widget.evaluate(el=>{
+                        const tabs=[...el.querySelectorAll(':scope > [role="tablist"] > [role="tab"]')];
+                        const select=tabs.map((tab,index)=>tab.getAttribute('aria-selected')==='true'?index:-1).filter(index=>index>=0);
+                        const targets=tabs.map(tab=>document.getElementById(tab.getAttribute('aria-controls')));
+                        const visible=targets.map((panel,index)=>panel&&panel.parentElement===el&&!panel.hidden&&
+                            panel.getClientRects().length?index:-1).filter(index=>index>=0);
+                        return {select,visible,tabStops:tabs.map((tab,index)=>tab.tabIndex===0?index:-1).filter(index=>index>=0),
+                            structure:new Set(targets).size===tabs.length&&tabs.every((tab,index)=>{
+                                const panel=targets[index];
+                                return tab.id&&tab.textContent.trim()&&panel?.parentElement===el&&
+                                    panel.getAttribute('aria-labelledby')===tab.id&&panel.getAttribute('role')==='tabpanel';
+                            }),
+                            copy:tabs.map((tab,index)=>({label:tab.textContent,
+                                heading:targets[index]?.querySelector('h3')?.textContent,
+                                body:targets[index]?.querySelector('p')?.textContent})),
+                            focused:tabs.indexOf(document.activeElement)};
+                    });
+                    const only=(indices,index)=>indices.length===1&&indices[0]===index;
+                    const correct=(value,index)=>only(value.select,index)&&only(value.visible,index)&&only(value.tabStops,index);
+                    if(total<2||total>6||await panels.count()!==total){
+                        checks.push({component,total,initial:false,click:false,keyboard:false});
+                        continue;
+                    }
+                    const untouched=await widgets.evaluateAll((items,current)=>items.filter((_,index)=>index!==current)
+                        .map(item=>item.innerHTML),i);
+                    const before=await state();
+                    let click=true;
+                    let keyboard=true;
+                    try{
+                        for(let index=1;index<total;index++){
+                            await controls.nth(index).click({timeout:1500});
+                            const after=await state();
+                            click=click&&correct(after,index);
+                        }
+                        await controls.last().press('Home',{timeout:1500});
+                        const home=await state();
+                        const direction=await controls.first().evaluate(tab=>getComputedStyle(tab.parentElement).direction);
+                        await controls.first().press(direction==='rtl'?'ArrowLeft':'ArrowRight',{timeout:1500});
+                        const arrow=await state();
+                        keyboard=correct(home,0)&&home.focused===0&&correct(arrow,1)&&arrow.focused===1;
+                        await controls.nth(1).press('Home',{timeout:1500});
+                    }catch(_){
+                        click=false;
+                        keyboard=false;
+                    }
+                    const others=await widgets.evaluateAll((items,current)=>items.filter((_,index)=>index!==current)
+                        .map(item=>item.innerHTML),i);
+                    checks.push({component,total,initial:correct(before,0),structure:before.structure,copy:before.copy,
+                        click,keyboard,isolation:JSON.stringify(untouched)===JSON.stringify(others)});
+                }
+                evidence.push({width,checks});
+            }
+            process.stdout.write(JSON.stringify({evidence}));
+            return;
+        }
         await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 5000 });
         await page.waitForTimeout(600);
         if (inspect) {

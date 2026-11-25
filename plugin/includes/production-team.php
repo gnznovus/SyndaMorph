@@ -126,7 +126,7 @@ function syndamorph_team_render_tab(): void {
                         <section class="sm-card" aria-labelledby="sm-team-brief-title">
                             <div class="sm-card-header">
                                 <h2 class="sm-card-title" id="sm-team-brief-title">Production brief</h2>
-                                <p class="sm-card-caption">Boss, Designer and Developer share the same budget and quality gates for Section and Full Page conversion.</p>
+                                <p class="sm-card-caption">Boss, Designer, Developer and QA share the same budget and quality gates for Section and Full Page conversion.</p>
                             </div>
                             <div class="sm-card-body">
                                 <div class="sm-field">
@@ -201,9 +201,10 @@ function syndamorph_team_render_tab(): void {
                         <section class="sm-card" aria-labelledby="sm-team-roster-title">
                             <div class="sm-card-header"><h2 class="sm-card-title" id="sm-team-roster-title">Agent roster</h2><p class="sm-card-caption">Agent status follows real model generation and handoffs.</p></div>
                             <div class="sm-card-body">
-                                <div class="sm-team-agent" data-agent="boss"><span class="sm-team-avatar">B</span><div><strong>PM / Boss Agent</strong><p>Classification, delegation, QA validation and approval</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
+                                <div class="sm-team-agent" data-agent="boss"><span class="sm-team-avatar">B</span><div><strong>PM / Boss Agent</strong><p>Classification, delegation and design approval</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
                                 <div class="sm-team-agent" data-agent="designer"><span class="sm-team-avatar">D</span><div><strong>Designer Agent</strong><p>Design architecture and visual fidelity</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
-                                <div class="sm-team-agent" data-agent="developer"><span class="sm-team-avatar">C</span><div><strong>Developer Agent</strong><p>HTML/CSS reference, native Gutenberg and targeted fixes</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
+                                <div class="sm-team-agent" data-agent="developer"><span class="sm-team-avatar">C</span><div><strong>Developer Agent</strong><p>Native Gutenberg blocks and targeted fixes</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
+                                <div class="sm-team-agent" data-agent="validator"><span class="sm-team-avatar">Q</span><div><strong>QA Agent</strong><p>Independent implementation review</p></div><span class="sm-status-pill" data-state="idle">Standing by</span></div>
                                 <div class="sm-team-note">Native Gutenberg includes isolated browser/vision QA and WordPress block validation; HTML-only production remains review-only. Nothing publishes automatically.</div>
                                 <button type="button" class="sm-team-secondary sm-team-view-result" id="syndamorph-team-view-result" hidden>View Result</button>
                             </div>
@@ -327,7 +328,7 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
     wp_enqueue_script( 'syndamorph-rich-content', plugin_dir_url( __DIR__ ) . 'assets/production-rich-content.js', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-rich-content.js' ), true );
     wp_enqueue_script( 'wp-blocks' );
     wp_enqueue_script( 'wp-block-library' );
-    wp_enqueue_script( 'syndamorph-ai-export', plugin_dir_url( __DIR__ ) . 'assets/production-ai-export.js', array( 'syndamorph-import', 'wp-blocks', 'wp-block-library' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-ai-export.js' ), true );
+    wp_enqueue_script( 'syndamorph-ai-export', plugin_dir_url( __DIR__ ) . 'assets/production-ai-export.js', array( 'syndamorph-import', 'wp-blocks', 'wp-block-library', 'syndamorph-tabs-editor' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-ai-export.js' ), true );
     wp_enqueue_script( 'syndamorph-production-scope', plugin_dir_url( __DIR__ ) . 'assets/production-scope.js', array( 'syndamorph-team', 'syndamorph-ai-export' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-scope.js' ), true );
     wp_enqueue_script( 'syndamorph-real-team', plugin_dir_url( __DIR__ ) . 'assets/ai-team-real.js', array( 'syndamorph-team', 'syndamorph-rich-content', 'syndamorph-ai-export', 'syndamorph-production-scope' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/ai-team-real.js' ), true );
     wp_add_inline_script( 'syndamorph-real-team', 'window.SyndaMorphRealTeam=' . wp_json_encode( array(
