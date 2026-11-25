@@ -115,7 +115,12 @@ function wp_remote_post($url,$args) {
             2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
             3 => '{"decision":"approved","issues":[]}',
             4 => $GLOBALS['native_fixture'],
-            5 => '{"id":"blocks[0]","changes":[{"path":"style.background","op":"remove"},{"path":"style.gradient","value":"linear-gradient(135deg,#18283a,#203040)"}]}',
+            5 => wp_json_encode(array('acknowledged'=>array(
+                'instructionId'=>json_decode($req['messages'][0]['content'][0]['text'],true)['instructionId']??'',
+                'field'=>json_decode($req['messages'][0]['content'][0]['text'],true)['diagnostic']['field']??''),
+                'patch'=>array('id'=>'blocks[0]','changes'=>array(
+                    array('path'=>'style.background','op'=>'remove'),
+                    array('path'=>'style.gradient','value'=>'linear-gradient(135deg,#18283a,#203040)'))))),
             6 => '{"decision":"approved","issues":[],"summary":"No measured defects"}',
             default => throw new RuntimeException('Unexpected surgery paid model call '.$i),
         };
