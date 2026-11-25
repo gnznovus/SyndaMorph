@@ -11,7 +11,7 @@ function syndamorph_learning_rows(): array {
 }
 function syndamorph_learning_pattern(string $field): array {
     $parts=explode('.',$field);$name=(string)end($parts);
-    $safe=array('align','contentWidth','gap','padding','margin','fontSize','fontWeight','lineHeight','letterSpacing','gradient','minHeight','justifyContent','verticalAlignment','borderRadius','background','color','href','text','level','children','plan');
+    $safe=array('align','contentWidth','gap','padding','margin','fontSize','fontWeight','lineHeight','letterSpacing','gradient','minHeight','justifyContent','verticalAlignment','borderRadius','background','color','textTransform','href','text','level','children','plan');
     if(!in_array($name,$safe,true))$name='plan';
     return array($name,$name==='plan'?'plan':(str_contains($field,'.style.')?'style':'node'));
 }
@@ -88,9 +88,11 @@ function syndamorph_learning_compiler_rejection(array $focus,array $diagnostic,s
     $type=(string)($focus['node']['type']??'');
     $property=(string)($focus['property']??'');
     $message=(string)($diagnostic['message']??'');
-    if(str_ends_with($message,'Unsupported style for block.') && $type==='buttons' && $property==='style.margin'){
-        syndamorph_learning_record('agent','schema_repair','buttons','margin',
-            'Never set buttons.style.margin: the native compiler rejects it. Use the parent group gap for vertical spacing; validate visual fidelity.', $source,true);
+    if(str_ends_with($message,'This block supports only top and bottom margins.') &&
+        in_array($type,array('group','columns','buttons'),true) && $property==='style.margin'){
+        syndamorph_learning_record('agent','schema_repair',$type,'margin',
+            'Use '.$type.'.style.margin with only top and bottom keys. Shorthand and horizontal margins are outside this native contract.',
+            $source,true);
     }
 }
 /** Learn only evidence-backed style-property choices, not raw user copy or arbitrary markup. */

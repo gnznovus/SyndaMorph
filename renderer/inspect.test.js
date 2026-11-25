@@ -46,6 +46,17 @@ test('actual Chromium inspection provides independent responsive screenshots and
     assert.ok(images[0].data.length<result.evidence[0].screenshot.length);
 });
 
+test('literal copy retains long inline-formatted text independently of rendered casing',async()=>{
+    const intro='Approved hotel introduction. '.repeat(12)+'The complete closing sentence.';
+    const html='<section><h2 style="text-transform:uppercase">Welcome</h2><p>'+intro.replace('closing','<em>closing</em>')+'</p><p hidden>Hidden copy</p></section>';
+    const result=await request('/inspect',html,[375,768,1440]);
+    for(const {snapshot} of result.evidence) {
+        assert.equal(snapshot.copy,'Welcome '+intro);
+        assert.ok(snapshot.copy.length>250);
+        assert.equal(snapshot.elements.find(el=>el.tag==='H2').styles.textTransform,'uppercase');
+    }
+});
+
 test('existing DOM render endpoint remains available',async()=>{
     const result=await request('/render','<main><p>Original mode</p></main>');
     assert.match(result.html,/<p>Original mode<\/p>/);

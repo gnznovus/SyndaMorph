@@ -126,6 +126,7 @@ function syndamorph_inspection_validate($response,array $viewports,bool $recover
             return syndamorph_inspection_failure('a11y_incomplete',$details);
         $snapshot=$sample['snapshot']??null;
         if(!is_array($snapshot)||!is_bool($snapshot['overflow']??null)||
+            (array_key_exists('copy',$snapshot) && !is_string($snapshot['copy']))||
             !is_array($snapshot['elements']??null)||!array_is_list($snapshot['elements']))
             return syndamorph_inspection_failure('snapshot_incomplete',$details);
         foreach($snapshot['elements'] as $element)if(!is_array($element)||!is_string($element['tag']??null)||

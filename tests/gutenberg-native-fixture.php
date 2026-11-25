@@ -49,6 +49,18 @@ $add('scoped reconstruction',array(array('type'=>'group',
             array('justifyContent'=>'center')),
     ),
 )),array('contentWidth'=>'42rem','minHeight'=>'clamp(26.5rem, 20rem + 20vw, 38rem)'));
+$add('vertically centered constrained content',array(array(
+    'type'=>'group','style'=>array('contentWidth'=>'36rem','gap'=>'1rem','padding'=>0),
+    'children'=>array($heading,array_merge($paragraph,array('style'=>array(
+        'textTransform'=>'uppercase','padding'=>array('left'=>'clamp(0rem,6vw - 0.5rem,2rem)'),
+        'margin'=>array('bottom'=>'clamp(0.5rem,2vw,1.5rem)')))),
+        $wrap(array_merge($button,array('style'=>array('textTransform'=>'capitalize'))),
+            array('margin'=>array('top'=>'0.5rem','bottom'=>'0')))),
+)),array('justifyContent'=>'stretch','verticalAlignment'=>'center','minHeight'=>'24rem','padding'=>'1rem'));
+if(syndamorph_native_full_button_width()){
+    $add('fixed full width CTA',array($heading,$wrap(array_merge($button,array(
+        'style'=>array('width'=>'100%','textTransform'=>'lowercase'))))),array('justifyContent'=>'stretch'));
+}
 $parity=$fixtures['constrained layout geometry'];
 $nativeHtml=do_blocks($parity['content']);
 $baseCss='*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,sans-serif}.wp-block-button__link{display:inline-block}.has-text-align-center{text-align:center}';
@@ -63,6 +75,15 @@ $nativeColumns=do_blocks($fixtures['columns gap and column styles']['content']);
 $columnCss=file_get_contents(ABSPATH.WPINC.'/blocks/columns/style.min.css');
 $parity['columns']['frontend']='<style>'.wp_get_global_stylesheet().$columnCss.
     wp_style_engine_get_stylesheet_from_context('block-supports').$baseCss.'</style>'.$nativeColumns;
+
+$coreButtonCss=file_get_contents(ABSPATH.WPINC.'/blocks/button/style.min.css');
+foreach(array('vertically centered constrained content'=>'hybrid','fixed full width CTA'=>'fullWidth') as $fixture=>$key) {
+    if(!isset($fixtures[$fixture]))continue;
+    $case=$fixtures[$fixture];
+    $frontend=do_blocks($case['content']);
+    $parity[$key]=array('preview'=>$case['preview'],'frontend'=>'<style>'.wp_get_global_stylesheet().
+        wp_style_engine_get_stylesheet_from_context('block-supports').$coreButtonCss.$baseCss.'</style>'.$frontend);
+}
 
 if(is_wp_error($artifact)){http_response_code(500);exit($artifact->get_error_message());}
 header('Content-Type: text/html; charset=utf-8');

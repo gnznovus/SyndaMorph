@@ -2,6 +2,22 @@
 /** Compare both artifacts against the same browser geometry and score defect groups. */
 if (!defined('ABSPATH')) exit;
 
+/** Older inspection records lack literal copy; their evidence remains usable for geometry. */
+function syndamorph_visual_copy(array $reference,array $native): array {
+    $records=array();$different=array();
+    foreach($native as $i=>$sample) {
+        $a=$reference[$i]['snapshot']['copy']??null;
+        $b=$sample['snapshot']['copy']??null;
+        if(!is_string($a)||!is_string($b)||($reference[$i]['width']??null)!==$sample['width'])continue;
+        $width=$sample['width'];
+        $records[$width]=array('referenceSha256'=>hash('sha256',$a),'nativeSha256'=>hash('sha256',$b));
+        if($a!==$b)$different[]=$width;
+    }
+    $complete=$records && count($records)===count($reference) && count($records)===count($native);
+    return array('status'=>!$complete?'unavailable':($different?'different':'equal'),
+        'widthsWithDifferences'=>$different,'checksums'=>$records);
+}
+
 function syndamorph_visual_metrics(array $reference,array $native,array $plan): array {
     $root=$plan['blocks'][0]['id']??'blocks[0]';
     $metrics=array();
@@ -41,7 +57,18 @@ function syndamorph_visual_metrics(array $reference,array $native,array $plan): 
                 $add('wrapping',$id,$width,$lines,0.5,'medium',array($id));
             }
         }
-        if($rows)$add('alignment',$root,$width,$alignment,max(12,$width*0.025),'high',$alignmentNodes);
+        if($rows) {
+            $tolerance=max(12,$width*0.025);
+            $verticalCenter=static function(array $boxes,array $rootRect): float {
+                $top=min(array_column($boxes,1));
+                $bottom=max(array_map(static fn($box)=>$box[1]+$box[3],$boxes));
+                return ($top+$bottom)/2-($rootRect[1]+$rootRect[3]/2);
+            };
+            $vertical=abs($verticalCenter(array_column($rows,'ref'),$rr)-
+                $verticalCenter(array_column($rows,'native'),$nr));
+            if($vertical>$tolerance)$alignmentNodes=array_merge($alignmentNodes,array_column($rows,'id'));
+            $add('alignment',$root,$width,max($alignment,$vertical),$tolerance,'high',$alignmentNodes);
+        }
         usort($rows,static fn($a,$b)=>$a['ref'][1]<=>$b['ref'][1]);
         $spacing=0;$spacingNodes=array();$comparable=false;
         for($j=1;$j<count($rows);$j++) {
@@ -126,7 +153,9 @@ function syndamorph_visual_decision(array $before,array $after,array $oldMetrics
     $afterScore=syndamorph_issue_score($after);
     // A newly reported unresolved defect is still recorded. Exclude its
     // discovery from the comparison so classification does not tax the patch.
-    $comparableAfter=syndamorph_issue_score(array_values(array_intersect_key($current,$previous)));
+    $comparable=array_filter($current,static fn($issue,$key)=>isset($previous[$key]) ||
+        ($issue['measurement']??false) && ($states[$key]??'')!=='pre_existing',ARRAY_FILTER_USE_BOTH);
+    $comparableAfter=syndamorph_issue_score(array_values($comparable));
     $focusKeys=array_fill_keys(array_map('syndamorph_issue_key',$focus),true);
     $focusBefore=syndamorph_issue_score(array_values(array_intersect_key($previous,$focusKeys)));
     $focusAfter=syndamorph_issue_score(array_values(array_intersect_key($current,$focusKeys)));
@@ -135,7 +164,7 @@ function syndamorph_visual_decision(array $before,array $after,array $oldMetrics
     $reason=$regressions?'Verified regression':(!$pixelSafe?'Material screenshot regression':
         ($accepted?'Verified improvement with no blocking regression':'No verified improvement in the affected region'));
     return array('accepted'=>$accepted,'reason'=>$reason,'beforeScore'=>$beforeScore,'afterScore'=>$afterScore,
-        'focusBefore'=>$focusBefore,'focusAfter'=>$focusAfter,'pixelDeltas'=>$pixelDeltas,
+        'focusBefore'=>$focusBefore,'focusAfter'=>$focusAfter,'comparableAfterScore'=>$comparableAfter,'pixelDeltas'=>$pixelDeltas,
         'states'=>$states,'geometryDeltas'=>$geometryDeltas,'introducedIssues'=>array_values($regressions),
         'discoveredIssues'=>array_column($discoveries,'id'));
 }

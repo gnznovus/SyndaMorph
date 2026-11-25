@@ -218,15 +218,27 @@ function wp_remote_post($url,$args) {
         $structure='{"id":"blocks[0]","diagnosis":"An inner flex group can preserve content and apply consistent gap","wraps":[{"parent":"blocks[0]","children":["blocks[0].children[0]","blocks[0].children[1]"],"id":"text-stack","style":{"justifyContent":"center","gap":"1rem"}}],"changes":[{"path":"style.contentWidth","value":"36rem"},{"target":"blocks[0].children[0]","path":"style.margin.bottom","value":"1rem"},{"target":"blocks[0].children[0]","path":"style.align","value":"center"},{"target":"blocks[0].children[1]","path":"style.align","value":"center"}]}';
         $input=json_decode($req['messages'][0]['content'][0]['text'],true);
         $learnedStructure=$i===6 && !empty($input['learnedCorrections']);
-        $startedWithStructure=$i===7 && str_contains($GLOBALS['generations'][5]['messages'][0]['content'][0]['text'],'"strategy":"structure"');
+        $strategy=$GLOBALS['adaptive_specific_strategy']??'';
+        $specified=$strategy==='hybrid';
+        if($strategy==='unsupported' && str_contains($req['system'][1]['text']??'','Task: scope_resolution.'))
+            return array('status'=>200,'body'=>json_encode(array(
+                'model'=>'claude-dynamic-test-1','stop_reason'=>'end_turn',
+                'content'=>array(array('type'=>'text','text'=>'{"decision":"engineering_blocked","summary":"Requires clarification","nextAction":"Use a supported native operation"}')),
+                'usage'=>array('input_tokens'=>1200,'output_tokens'=>150),
+            )));
+        $bossLayout=array('id'=>'layout-spacing','component'=>'blocks[0]','category'=>'spacing','scope'=>'section',
+            'severity'=>'high','detail'=>'Keep the approved copy and move the text leaves into one native group.');
+        if($specified)$bossLayout['repairStrategy']='hybrid';
+        if($strategy==='unsupported')$bossLayout['repairStrategy']='custom_css';
+        $startedWithStructure=$i===7 && ($specified || str_contains($GLOBALS['generations'][5]['messages'][0]['content'][0]['text'],'"strategy":"structure"'));
         $text=match($i) {
             1 => '{"title":"Adaptive fixture","sections":["Hero"],"constraints":["Native layout"],"acceptance":["Suitable layout"]}',
             2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
             3 => '{"decision":"approved","issues":[]}',
             4 => $GLOBALS['native_fixture'],
             5,7 => $startedWithStructure?'{"decision":"approved","issues":[]}':
-                '{"decision":"changes_requested","issues":[{"id":"layout-spacing","component":"blocks[0]","category":"spacing","scope":"section","severity":"high","detail":"Text leaves need a shared vertical layout."}]}',
-            6 => $learnedStructure?$structure:'{"id":"blocks[0]","diagnosis":"Try explicit style first","changes":[{"path":"style.gap","value":"2rem"}]}',
+                wp_json_encode(array('decision'=>'changes_requested','issues'=>array($bossLayout))),
+            6 => $learnedStructure||$specified?$structure:'{"id":"blocks[0]","diagnosis":"Try explicit style first","changes":[{"path":"style.gap","value":"2rem"}]}',
             8 => $structure,
             9 => '{"decision":"approved","issues":[]}',
             default => throw new RuntimeException('Unexpected adaptive repair call '.$i),
@@ -464,7 +476,8 @@ expect(is_array($autoJob) && count($GLOBALS['generations'])===5 &&
     $autoJob['surgery']['deterministic']===1 && $autoJob['surgery']['paidPatches']===0 &&
     count($autoEvents)===1 && $autoEvents[0]['requiresVisualQa']===true &&
     $GLOBALS['inspection_calls']===array('reference','native') &&
-    !array_key_exists('margin',json_decode($autoJob['outputs']['developer']??'{}',true)['blocks'][0]['children'][2]['style']??array()) &&
+    (json_decode($autoJob['outputs']['developer']??'{}',true)['blocks'][0]['children'][2]['style']['margin']??null)===array('top'=>'0.5rem','bottom'=>'0') &&
+    syndamorph_surgery_load($autoJob['surgery']['originalPlanId'])['plan']['blocks'][0]['children'][2]['style']['margin']==='0.5rem 0 0 0' &&
     array_key_exists('margin',$autoFixture['blocks'][0]['children'][2]['style']),
     'GEN-000019 should finish native compilation with one auto-repair and zero paid repair calls');
 $verifiedRules=syndamorph_learning_retrieve('developer');
@@ -474,8 +487,27 @@ $GLOBALS['native_fixture']=$beforeAutoFixture;
 $GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
 $followupJob=syndamorph_team_real_run('Avoid repeating known invalid native schema properties.',false,null,'gutenberg');
 expect(is_array($followupJob)&&count($GLOBALS['generations'])===5&&
-    str_contains(wp_json_encode($GLOBALS['generations'][3]),'Never set buttons.style.margin'),
+    str_contains(wp_json_encode($GLOBALS['generations'][3]),'Use buttons.style.margin'),
     'Next Developer generation did not receive verified cross-job compiler learning');
+$rollbackPlan=$autoFixture;
+$rollbackPlan['blocks'][0]['style']['gradient']='linear-gradient(135deg,#18283a 0%,#203040 100%)';
+$rollbackPlan['blocks'][0]['children'][2]['style']['margin']='0.5rem 1rem 0 0';
+$GLOBALS['native_fixture']=wp_json_encode($rollbackPlan);
+$GLOBALS['generations']=array();
+$rollbacks=array();
+$rollbackJob=syndamorph_collab_run('Retain an unsupported horizontal margin as a design blocker.',false,
+    static function(string $type,array $data)use(&$rollbacks):void {
+        if($type==='compiler_auto_repair')$rollbacks[]=$data;
+    },false);
+$rollbackData=$rollbackJob->get_error_data();
+$original=syndamorph_surgery_load($rollbackData['workingPlanId']);
+$staged=syndamorph_surgery_load($rollbackData['surgery']['schemaCandidateId']);
+expect($rollbackJob->get_error_code()==='sm_native_capability' && count($GLOBALS['generations'])===4 &&
+    array_column($rollbacks,'status')===array('rolled_back') &&
+    $original['plan']===syndamorph_collab_ids($rollbackPlan) &&
+    $staged['plan']['blocks'][0]['style']['gradient']==='linear-gradient(135deg,#18283a,#203040)' &&
+    $staged['plan']['blocks'][0]['children'][2]['style']['margin']==='0.5rem 1rem 0 0',
+    'Compiler must roll back the transaction and preserve an unsupported design request without paying for deletion');
 $GLOBALS['options'][SYNDAMORPH_LEARNING_OPTION]=$beforeAutoLearning;
 $GLOBALS['native_fixture']=$beforeAutoFixture;
 $GLOBALS['generations']=$beforeReplayGenerations;
@@ -514,13 +546,13 @@ $richPlan['blocks'][0]['children'][0]['style']=array('color'=>'#ffffff','fontSiz
 $richPlan['blocks'][0]['children'][2]['children'][0]['style']=array('background'=>'#ffffff','color'=>'#18283a','borderRadius'=>'8px','padding'=>'1rem');
 $styled=syndamorph_compile_block_plan(wp_json_encode($richPlan));
 expect(!is_wp_error($styled),'Expanded Gutenberg native style schema failed to compile');
-// GEN-000019: schema auto-repair removes only an unsupported buttons margin.
+// GEN-000019: compiler preserves the authored vertical margin as native sides.
 // Compiler-success is not final visual approval; browser QA still runs later.
 $badButtonsPlan=syndamorph_collab_ids($richPlan);
 $badButtonsPlan['blocks'][0]['children'][2]['style']=array(
     'justifyContent'=>'left','margin'=>'0.5rem 0 0 0');
 $badButtonsError=syndamorph_compile_block_plan(wp_json_encode($badButtonsPlan));
-expect(is_wp_error($badButtonsError)&&str_ends_with($badButtonsError->get_error_message(),'Unsupported style for block.')&&
+expect(is_wp_error($badButtonsError)&&str_ends_with($badButtonsError->get_error_message(),'This block supports only top and bottom margins.')&&
     str_ends_with($badButtonsError->get_error_data()['field']??'','.style.margin'),
     'GEN-000019 buttons.margin fixture no longer reproduces native compiler rejection');
 $buttonsDiagnostic=array('code'=>$badButtonsError->get_error_code(),
@@ -528,11 +560,11 @@ $buttonsDiagnostic=array('code'=>$badButtonsError->get_error_code(),
     'field'=>$badButtonsError->get_error_data()['field']);
 $autoButtons=syndamorph_compiler_auto_repair($badButtonsPlan,$buttonsDiagnostic);
 expect(is_array($autoButtons)&&$autoButtons['compiled']===true &&
-    !array_key_exists('margin',$autoButtons['plan']['blocks'][0]['children'][2]['style']) &&
+    $autoButtons['plan']['blocks'][0]['children'][2]['style']['margin']===array('top'=>'0.5rem','bottom'=>'0') &&
     ($autoButtons['plan']['blocks'][0]['children'][2]['style']['justifyContent']??null)==='left' &&
     $autoButtons['plan']['blocks'][0]['children'][0]===$badButtonsPlan['blocks'][0]['children'][0] &&
     array_key_exists('margin',$badButtonsPlan['blocks'][0]['children'][2]['style']),
-    'Compiler auto-repair did not transactionally remove only invalid buttons.margin');
+    'Compiler auto-repair did not preserve GEN-000019 vertical margin while correcting its format');
 $buttonId=$badButtonsPlan['blocks'][0]['children'][2]['id'];
 $explicitDelete=syndamorph_surgery_apply($badButtonsPlan,array('id'=>$buttonId,
     'changes'=>array(array('path'=>'style.margin','op'=>'remove'))));
@@ -856,8 +888,8 @@ expect(str_contains($case['artifact']['content'],'linear-gradient(135deg')&&
     str_contains($case['artifact']['content'],'Welcome &amp; enjoy'),
     'Compiled surgical plan lost the gradient or original content');
 $persisted=syndamorph_surgery_load($case['surgery']['workingPlanId']);
-expect(is_array($persisted)&&$persisted['revision']===2,
-    'Resolved surgical plan was not persisted as a second draft revision');
+expect(is_array($persisted)&&$persisted['plan']!==syndamorph_surgery_load($case['surgery']['originalPlanId'])['plan'],
+    'Resolved surgical plan must have a checkpoint distinct from the original.');
 expect(count(syndamorph_learning_retrieve('developer'))>0,'Accepted GEN-012 compiler fix was not retained as verified learning');
 // Keep unrelated legacy editor-learning fixtures isolated from this recovery benchmark.
 $GLOBALS['options'][SYNDAMORPH_LEARNING_OPTION]=array();
@@ -908,7 +940,7 @@ expect(str_contains($revised['artifact']['content'],'A premium hotel experience.
 expect($revised['quality']['revisions'][0]['imageScope']==='component','Scoped review did not use crops');
 expect($GLOBALS['crop_calls']===2,'Developer and QA crop endpoints not exercised');
 expect(count($GLOBALS['generations'][5]['messages'][0]['content'])===3,'Developer repair lacks selected reference/native image pair');
-expect($GLOBALS['generations'][5]['max_tokens']===16384 && $GLOBALS['generations'][6]['max_tokens']===4096,
+expect($GLOBALS['generations'][5]['max_tokens']===4096 && $GLOBALS['generations'][6]['max_tokens']===4096,
     'Developer and Boss repair calls ignored task output limits');
 expect($revised['quality']['revisions'][0]['usage']['stages']===array('repair','revision_validation') &&
     $revised['quality']['revisions'][0]['usage']['inputTokens']===2400 &&
@@ -994,7 +1026,39 @@ $styles=syndamorph_collab_style_findings($referenceEvidence,$gen015['evidence'][
 $cta=array_values(array_filter($styles,static fn($issue)=>$issue['component']==='sm-hero-cta'));
 expect(count($cta)===1 && count($cta[0]['views'])===3 && syndamorph_issue_score($cta)===4,
     'A single CTA typography defect was counted separately by viewport');
-echo "PASS: GEN-015 partial repair retention, stable defect identity and genuine regression veto\n";
+$archivedDefects=array_map(static fn($i,$severity)=>array('id'=>'defect-'.$i,'component'=>'root','severity'=>$severity),
+    range(1,4),array('high','medium','medium','medium'));
+$archivedDefects[]=array('id'=>'defect-5','component'=>'root','severity'=>'medium');
+$withDiscovery=array_merge($archivedDefects,array(array('id'=>'historical-gap','component'=>'inner','severity'=>'low')));
+$oldRatios=array_map(static fn($width)=>array('width'=>$width,'pixelDifferenceRatio'=>0.2),array(375,768,1440));
+$newRatios=array_map(static fn($index,$delta)=>array('width'=>$oldRatios[$index]['width'],'pixelDifferenceRatio'=>0.2+$delta),
+    array(0,1,2),array(-0.04583,-0.00789,0.00239));
+$historical=syndamorph_visual_decision($archivedDefects,$withDiscovery,array(),array(),$oldRatios,$newRatios,$archivedDefects,false);
+expect($historical['accepted'] && $historical['beforeScore']===26 && $historical['afterScore']===27 &&
+    $historical['comparableAfterScore']===26 && $historical['states']['inner|historical-gap']==='unverified_discovery',
+    'Historical 26-to-27 partial improvement must separate the new report from proven regressions');
+$intro=str_repeat('Full text needed beyond the geometry excerpt. ',8).'Plan your visit and let us prepare the rest.';
+$referenceCopy=array_map(static fn($width)=>array('width'=>$width,'snapshot'=>array('copy'=>$intro)),array(375,768,1440));
+$oldCopy=syndamorph_visual_copy($referenceCopy,$referenceCopy);
+$shortCopy=$referenceCopy;
+$shortCopy[0]['snapshot']['copy']=mb_substr($intro,0,250);
+expect($oldCopy['status']==='equal' &&
+    syndamorph_visual_copy($referenceCopy,$shortCopy)['widthsWithDifferences']===array(375),
+    'Copy QA ignored text beyond the geometry excerpt');
+$copyIssues=syndamorph_collab_evidence($referenceCopy,array_map(static function($sample){
+    $sample['snapshot']['overflow']=false;
+    return $sample;
+},$shortCopy));
+$copyVerdict=syndamorph_visual_decision(array(),$copyIssues,array(),array(),
+    array(array('width'=>375,'pixelDifferenceRatio'=>0.2)),array(array('width'=>375,'pixelDifferenceRatio'=>0.1)),array(),true);
+expect(!$copyVerdict['accepted'] && $copyVerdict['introducedIssues']===array('copy-reference-mismatch'),
+    'A genuine copy regression must override screenshot improvement');
+expect(syndamorph_anthropic_reported_usage(array('input_tokens'=>18,'output_tokens'=>31),
+    array('inputTokens'=>12,'outputTokens'=>20,'cacheReadTokens'=>5))===
+        array('inputTokens'=>18,'outputTokens'=>31,'cacheReadTokens'=>5),
+    'Cumulative provider usage was double-counted or lost');
+expect(syndamorph_anthropic_reported_usage(array())===array(),'Missing usage was mislabeled as provider-reported zeros');
+echo "PASS: GEN-015 partial repair retention, stable defect identity, complete copy and genuine regression veto\n";
 $historyMemory=new SyndaMorph_Job_Memory('archive replay');
 $historyMemory->record('sm-hero-root',array('round'=>2,'id'=>'sm-hero-root','accepted'=>false,
     'changes'=>$gen015['rounds'][1]['patch']['changes'],'touched'=>array('sm-hero-eyebrow'),
@@ -1006,7 +1070,7 @@ expect(count($descendantFeedback)===1 && $descendantFeedback[0]['attemptedChange
 expect(syndamorph_repair_prioritize(array(array('id'=>'first','severity'=>'medium'),array('id'=>'root','severity'=>'high')))[0]['id']==='root',
     'Boss escalation did not prioritize a high-impact blocker');
 $notes=syndamorph_reference_capability_notes('<section><style>.k{text-transform:uppercase}</style></section>');
-expect(count($notes)===1 && str_contains($notes[0],'typography'),'Text transform was misclassified as an advanced layout effect');
+expect($notes===array(),'Native text-transform must not be reported as unsupported');
 $GLOBALS['adaptive_test']=true;
 $GLOBALS['generations']=array();
 $GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=1.0;
@@ -1018,7 +1082,7 @@ $adaptivePlan=json_decode($adaptive['outputs']['developer'],true);
 expect($adaptivePlan['blocks'][0]['children'][0]['id']==='text-stack' &&
     $adaptivePlan['blocks'][0]['children'][1]['id']==='blocks[0].children[2]' &&
     count($adaptive['quality']['revisions'][1]['changedFields'])===4 &&
-    syndamorph_surgery_load($adaptive['surgery']['workingPlanId'])['revision']===2,
+    syndamorph_surgery_load($adaptive['surgery']['workingPlanId'])['plan']===$adaptivePlan,
     'Combined structural and four style changes did not commit atomically with sibling preservation');
 $groupSummary=$adaptive['quality']['repairSummary']['groups'][0];
 expect($groupSummary['attempts']===2 && $groupSummary['usage']['calls']===4 &&
@@ -1027,11 +1091,73 @@ expect($groupSummary['attempts']===2 && $groupSummary['usage']['calls']===4 &&
 $adaptiveRequest=json_decode($GLOBALS['generations'][7]['messages'][0]['content'][0]['text'],true);
 expect(($adaptiveRequest['previousAttempts'][0]['reason']??'')==='No verified improvement in the affected region',
     'Structural diagnosis did not receive failed style validation');
+$GLOBALS['adaptive_specific_strategy']='hybrid';
+$GLOBALS['generations']=array();
+$handoffJob=syndamorph_collab_run('Exercise explicit Boss hybrid instructions with a targeted Developer patch.',false,null,false);
+unset($GLOBALS['adaptive_specific_strategy']);
+$firstRepair=json_decode($GLOBALS['generations'][5]['messages'][0]['content'][0]['text'],true);
+$qaHandoffs=array_column($handoffJob['handoffs'],null,'type');
+expect($firstRepair['repairScope']['bossInstructions']===$qaHandoffs['qa_review']['issues'] &&
+    $firstRepair['repairScope']['requestedStrategies']===array('hybrid') &&
+    $firstRepair['repairScope']['allowedOperations']===array('style','structure','hybrid') &&
+    $handoffJob['quality']['revisions'][0]['operationMode']==='hybrid' &&
+    $handoffJob['quality']['revisions'][0]['accepted'] && count($GLOBALS['generations'])===7,
+    'Boss instructions were rewritten or hybrid surgery was withheld before a failed style attempt');
+expect($handoffJob['agentMetrics'][5]['metering']==='provider_reported' &&
+    $handoffJob['agentMetrics'][5]['responseBytes']>0 && $handoffJob['agentMetrics'][5]['outputCap']===4096,
+    'Repair metering must distinguish provider totals from serialized response bytes');
+$GLOBALS['adaptive_specific_strategy']='unsupported';
+$GLOBALS['generations']=array();$blockedHandoffEvents=array();
+$blockedHandoff=syndamorph_collab_run('Exercise an unsupported Boss request.',false,
+    static function(string $type,array $data)use(&$blockedHandoffEvents):void {
+        if($type==='execution_gate')$blockedHandoffEvents[]=$data;
+    },false);
+unset($GLOBALS['adaptive_specific_strategy']);
+expect(is_array($blockedHandoff)&&$blockedHandoff['quality']['terminationReason']==='repair_scope_unsupported' &&
+    array_column($blockedHandoff['agentMetrics'],'task')===array('boss','designer','final_approval','developer','validation','scope_resolution') &&
+    $blockedHandoffEvents[count($blockedHandoffEvents)-2]['owner']==='orchestrator',
+    'Unsupported Boss instruction must block routing to Developer and request clarification');
 $unauthorized=array('id'=>'sm-hero-root','wraps'=>array(array('parent'=>'sm-hero-root',
     'children'=>array('sm-hero-title','sm-hero-eyebrow'),'id'=>'reordered')));
 expect(is_wp_error(syndamorph_surgery_operation($gen015['plan'],$unauthorized,array('id'=>'sm-hero-root','mode'=>'structure',
     'nodes'=>array('sm-hero-root','sm-hero-eyebrow','sm-hero-title'),'wrapParents'=>array('sm-hero-root')))),
     'Structural surgery accepted reordered protected children');
+$fluidPatch=array('id'=>'blocks[0]','changes'=>array(array('path'=>'style.gap','value'=>'clamp(1rem,2vw,2rem)')));
+$handoffPlan=syndamorph_collab_ids(json_decode($GLOBALS['native_fixture'],true));
+$fluid=syndamorph_surgery_operation($handoffPlan,$fluidPatch,
+    array('id'=>'blocks[0]','nodes'=>array('blocks[0]'),'mode'=>'adaptive'));
+expect(is_wp_error($fluid)&&$fluid->get_error_code()==='sm_surgery_capability',
+    'A newly proposed fluid blockGap must stop before browser or model QA');
+$leafFinding=array('id'=>'leaf-hybrid','component'=>'blocks[0].children[0]','severity'=>'high','detail'=>'Try wrapping','repairStrategy'=>'hybrid');
+$leafAssignment=syndamorph_repair_assignment($handoffPlan,array($leafFinding),new SyndaMorph_Job_Memory('leaf'));
+expect(syndamorph_repair_handoff(array($leafFinding),$leafAssignment,$handoffPlan)['unsupported'],
+    'An unsupported Boss instruction must request clarification rather than substitute a style edit');
+$pureWrap=array('id'=>'blocks[0]','wraps'=>array(array('parent'=>'blocks[0]',
+    'children'=>array('blocks[0].children[0]'),'id'=>'one-heading-group','style'=>array('contentWidth'=>'40rem'))));
+$wrapAuthority=array('id'=>'blocks[0]','nodes'=>array('blocks[0]','blocks[0].children[0]'),
+    'mode'=>'adaptive','wrapParents'=>array('blocks[0]'));
+$geometryCandidate=syndamorph_surgery_operation($handoffPlan,$pureWrap,$wrapAuthority);
+expect(!is_wp_error($geometryCandidate) && !is_wp_error($geometryCandidate['error']) &&
+    $geometryCandidate['plan']['blocks'][0]['children'][0]['children'][0]['id']==='blocks[0].children[0]',
+    'Pure structure must wrap one authorized direct child without changing its existing ID');
+$duplicateWrap=$geometryCandidate['plan'];
+$duplicateWrap['blocks'][0]['children'][0]['id']='same-layout-fresh-id';
+$wrapMemory=new SyndaMorph_Job_Memory('duplicate wrapper');
+$wrapMemory->remember($geometryCandidate['plan']);
+expect($wrapMemory->seen($duplicateWrap),'A fresh wrapper ID must not bypass candidate deduplication');
+$memoryForStrategy=new SyndaMorph_Job_Memory('scope evidence progression');
+$reuseFinding=array('id'=>'leaf-style','component'=>'blocks[0].children[0]','severity'=>'high','detail'=>'Measure style','category'=>'typography');
+$existingEvidence=array('blocks[0].children[0]|leaf-style'=>array('views'=>array(375=>array('error'=>13,'tolerance'=>10))));
+$nextEvidence=$existingEvidence;
+$nextEvidence['blocks[0].children[0]|leaf-style']['views'][375]['error']=24;
+$existingAssignment=syndamorph_repair_assignment($handoffPlan,array($reuseFinding),$memoryForStrategy,false,$existingEvidence);
+$memoryForStrategy->record($existingAssignment['id'],array('strategyFingerprint'=>$existingAssignment['strategyFingerprint'],
+    'issueGroup'=>$existingAssignment['group'],'strategy'=>'style','operationMode'=>'style','validation'=>'no_improvement'));
+$unrelatedPlan=$handoffPlan;
+$unrelatedPlan['blocks'][0]['children'][1]['style']['fontSize']='3rem';
+expect(syndamorph_repair_assignment($unrelatedPlan,array($reuseFinding),$memoryForStrategy,false,$existingEvidence)===null &&
+    syndamorph_repair_assignment($unrelatedPlan,array($reuseFinding),$memoryForStrategy,false,$nextEvidence)['strategy']==='style',
+    'Unrelated edits restarted a failed strategy or new measured evidence failed to reopen it');
 $learningRows=$GLOBALS['options'][SYNDAMORPH_LEARNING_OPTION]??array();
 $scriptedAssignment=array('focus'=>array(array('category'=>'spacing')),'group'=>array('spacing|fixture'),
     'node'=>array('type'=>'group'),'nodes'=>array('fixture','fixture-heading'),'mode'=>'structure');
@@ -1081,7 +1207,7 @@ expect(in_array('blocks[0].children[1]',$parentCase['quality']['revisions'][0]['
     'Untouched sibling lost component identity reuse');
 expect(str_contains($parentCase['artifact']['content'],'margin-bottom:1rem'),
     'Accepted child margin surgery was not applied');
-expect(syndamorph_surgery_load($parentCase['surgery']['workingPlanId'])['revision']===2,
+expect(syndamorph_surgery_load($parentCase['surgery']['workingPlanId'])['plan']===json_decode($parentCase['outputs']['developer'],true),
     'QA surgery did not persist an accepted revision');
 expect(count($GLOBALS['generations'])===7,'Parent-owned issue unexpectedly retried or regenerated a full component');
 expect(!str_contains(wp_json_encode($GLOBALS['generations'][5]['messages'][0]['content']),

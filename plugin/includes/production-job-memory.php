@@ -19,8 +19,17 @@ final class SyndaMorph_Job_Memory {
     public static function fingerprint(array $plan): string {
         return hash('sha256',wp_json_encode(self::canonical($plan)));
     }
-    public function remember(array $plan): void { $this->seen[self::fingerprint($plan)]=true; }
-    public function seen(array $plan): bool { return isset($this->seen[self::fingerprint($plan)]); }
+    private static function candidateFingerprint(array $plan): string {
+        $stripIds=static function(array $block)use(&$stripIds):array {
+            unset($block['id']);
+            if(isset($block['children']))$block['children']=array_map($stripIds,$block['children']);
+            return $block;
+        };
+        $plan['blocks']=array_map($stripIds,$plan['blocks']);
+        return self::fingerprint($plan);
+    }
+    public function remember(array $plan): void { $this->seen[self::candidateFingerprint($plan)]=true; }
+    public function seen(array $plan): bool { return isset($this->seen[self::candidateFingerprint($plan)]); }
     public function record(string $id,array $attempt): void {
         $this->attempts[$id][]=$attempt;
         $this->stalled[$id]=!empty($attempt['accepted'])?0:($this->stalled[$id]??0)+1;
@@ -31,7 +40,7 @@ final class SyndaMorph_Job_Memory {
     public function operationsOn(string $artifact,array $group): array {
         $matching=array();
         foreach($this->attempts as $entries)foreach($entries as $entry) {
-            if(($entry['baselineFingerprint']??null)===$artifact && ($group[0]??null)===($entry['issueGroup'][0]??null))
+            if(($entry['strategyFingerprint']??$entry['baselineFingerprint']??null)===$artifact && ($group[0]??null)===($entry['issueGroup'][0]??null))
                 $matching[]=$entry;
         }
         return $matching;
@@ -46,7 +55,7 @@ final class SyndaMorph_Job_Memory {
         usort($attempts,static fn($a,$b)=>($a['round']??0)<=>($b['round']??0));
         return array_map(static function(array $entry):array {
             $delta=array_intersect_key($entry,array_flip(array('round','id','status','accepted','detail','reason','scoreBefore','scoreAfter',
-                'focusScoreBefore','focusScoreAfter','route','issueGroup','diagnosis','strategy','wraps','validation','nextDirection','pixelDeltas','introducedIssues')));
+                'focusScoreBefore','focusScoreAfter','route','issueGroup','diagnosis','strategy','operationMode','strategyDeviation','wraps','validation','nextDirection','pixelDeltas','introducedIssues')));
             if(isset($entry['geometryDeltas']))$delta['geometryDeltas']=array_slice($entry['geometryDeltas'],0,4,true);
             if(isset($entry['replacement'])) {
                 $delta['attemptedStyle']=$entry['replacement']['style']??array();

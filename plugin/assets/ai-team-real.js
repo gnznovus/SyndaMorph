@@ -329,7 +329,8 @@
             const label=data.type==='assignment'?'Work order assigned':
                 data.type==='design_review'?'Design '+(data.decision==='approved'?'approved':'revision requested'):
                 data.type==='approved_design'?'Approved design handed to Developer':
-                data.type==='qa_review'?'Boss QA '+(data.decision==='approved'?'approved':'changes requested'):'Team handoff';
+                data.type==='qa_review'||data.type==='revision_qa'?'Boss QA '+(data.decision==='approved'?'approved':'changes requested'):
+                data.type==='repair_scope'?'Repair scope authorized':'Team handoff';
             item.textContent=label+' · '+(data.from||'agent')+' → '+(data.to||'team')+
                 (Array.isArray(data.issues)&&data.issues.length?' · '+data.issues.length+' issues':'');
             timeline.append(item);followLatest();
@@ -346,7 +347,7 @@
         } else if (type === 'compiler_auto_repair') {
             const item=document.createElement('li');item.className='sm-team-step';
             item.textContent='Compiler auto-repair · '+(data.status||'applied')+' · '+(data.field||'')+
-                (data.compiled?' · schema passed':' · next schema check')+' · browser QA required';
+                (data.compiled?' · schema passed · browser QA required':' · original plan retained');
             timeline.append(item);followLatest();
         } else if (type === 'schema_repair') {
             const item=document.createElement('li');item.className='sm-team-step';

@@ -3,6 +3,8 @@
 **Updated:** 2026-11-24 (Asia/Bangkok)  
 **Repository:** https://github.com/gnznovus/SyndaMorph  
 **Experimental branch:** `feat/secure-gateway-leasing-v1`  
+**November 25 hardening checkpoint:** [GEN-000019 through GEN-000021 findings, tests, and GEN-000022 gate](adaptive-surgery-hardening.md).
+
 **Adaptive Surgery v2 checkpoint:** [`54a1833`](https://github.com/gnznovus/SyndaMorph/commit/54a1833354081a04421138b6e993b2c347ccdc1e)  
 **Stable release:** `v0.11.1`; protect `main`, tags, release ZIPs and updater workflow unless explicitly authorized.
 
@@ -43,6 +45,7 @@ Original team architecture includes a **temporary freelance worker** option for 
 | Operations Board, real-AI POC and logical agent roles | **DONE (MVP)** | Setup / Production / Results / History and integration settings; not independent parallel queues yet. |
 | Isolated Playwright renderer and bounded native compiler | **DONE (existing)** | Known gaps for native fluid `blockGap`, `text-transform`, and advanced dynamic behavior. |
 | Adaptive Surgery v2 | **DONE (engineering)** | F01–F10 corrected; [commit `54a1833`](https://github.com/gnznovus/SyndaMorph/commit/54a1833354081a04421138b6e993b2c347ccdc1e); [MVP CI](https://github.com/gnznovus/SyndaMorph/actions/runs/45436215694) successful. |
+| GEN-000019 through GEN-000021 hardening | **DETERMINISTICALLY VERIFIED** | Scoped hybrid surgery, immutable handoffs, compiler rollback, native mappings, literal-copy QA and conservative metering. [Handoff and remaining limits](adaptive-surgery-hardening.md). |
 | Surgery v2 with live AI across representative pages | **VALIDATION NEEDED — NEXT** | Deterministic benchmark success does not quantify live repair success or savings. |
 | Secure Gateway/client-key package leasing | **PARTIAL / EXPERIMENTAL** | Branch implementation and dedicated contract; not assumed production-accepted. |
 | AI Knowledge, full source+visual Boss discovery, custom block factory | **PLANNED** | Not part of Surgery v2 implementation. |
@@ -79,7 +82,7 @@ Original team architecture includes a **temporary freelance worker** option for 
 
 **Controlled learning fixture:** matched scripted trials reduced repair/review calls **8→4**, total calls **18→14**, simulated repair input tokens **9,600→4,800** and output tokens **1,200→600**, with equivalent retained score. These are fixture outcomes, not measured live-model improvements. Archived GEN-015 consumed **36,572 uncached input**, **11,939 output**, and **8,514 cache-read** tokens at approximately **$0.009712**; its offline Chromium replay required no model calls.
 
-**Remaining capability gaps:** native `blockGap` fluid serialization (archived WordPress 7.1 case), lack of native `text-transform`, residual typography and spacing issues. Boss must choose native alternative, explicit design decision, or approved custom engineering; do not silently claim fidelity.
+**Remaining capability gaps:** fluid `blockGap` in the tested WordPress core, breakpoint-only CTA width and block spacing, and theme-dependent front-end defaults. Native casing and fixed CTA width are mapped where supported. [Current capability matrix](adaptive-surgery-hardening.md#native-capability-contract).
 
 ## 5. AI Colosseum — future model routing
 
@@ -144,7 +147,7 @@ JS-rendered Hotel Indigo Bangkok Thonglor prototype: two-level navigation, hero 
 | 0 | HTML importer/patterns + released `v0.11.1` | **DONE**; stable branch/release protected. |
 | 1 | Real AI Team MVP + native compiler/Playwright foundations | **DONE (POC)**; not full production conversion. |
 | 2 | Adaptive Surgery v2 F01–F10 | **DONE (engineering)**; `54a1833`, CI, archived replay, deterministic benchmark. |
-| 3 | **Live-model Surgery v2 trials** | **NEXT — VALIDATION NEEDED**; actual provider usage, outcomes, Gutenberg integrity, and safe regressions. |
+| 3 | **GEN-000022 with Haiku 5.5** | **NEXT — VALIDATION NEEDED**; actual provider usage, outcomes, Gutenberg integrity, and safe regressions. |
 | 4 | AI Knowledge management | **PLANNED**; board UI, role-scoped/versioned instructions, verified learning registry. |
 | 5 | Boss source+visual discovery and implementation manifest | **PLANNED**; auditable structural/behavior classification. |
 | 6 | Developer custom interactive block factory | **PLANNED**; registered reusable block with working editor/frontend. |
@@ -170,4 +173,4 @@ This order describes dependencies, **not promised release dates**. Do not expand
 - **Current branch:** `feat/secure-gateway-leasing-v1`; keep `main`, `v0.11.1`, published tags/releases and production behavior untouched until approval.
 - **Canonical source:** Update **this file in place** when a milestone changes; other documents link here and preserve historical POC procedures.
 - Record date, exact version/commit, tests/CI, actual limitations and acceptance class whenever moving a milestone.
-- **Next action:** controlled live AI Surgery v2 validation; then explicitly scope and implement deferred AI Knowledge. Do not confuse green CI/fixture benchmarks with representative production acceptance.
+- **Next action:** obtain explicit approval for the GEN-000022 validation described in the hardening handoff. AI Knowledge remains planned.

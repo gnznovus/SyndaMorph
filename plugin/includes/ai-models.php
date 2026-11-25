@@ -113,6 +113,15 @@ function syndamorph_models_settings(): array {
  * endpoint still returns one JSON result when the four-agent job completes.
  * No model-generated text is ever streamed directly to an executable page.
  */
+function syndamorph_anthropic_reported_usage(array $values,array $prior=array()): array {
+    foreach(array('input_tokens'=>'inputTokens','output_tokens'=>'outputTokens',
+        'cache_read_input_tokens'=>'cacheReadTokens','cache_creation_input_tokens'=>'cacheWriteTokens') as $provider=>$key) {
+        if(is_int($values[$provider]??null) && $values[$provider]>=0)
+            $prior[$key]=max($prior[$key]??0,$values[$provider]);
+    }
+    return $prior;
+}
+
 function syndamorph_anthropic_sse_request( string $key, array $payload, ?callable $on_delta = null ) {
     if ( ! function_exists( 'curl_init' ) ) {
         return new WP_Error( 'sm_stream_unavailable', 'PHP cURL is required for the streaming baseline.', array( 'status' => 503 ) );
@@ -125,7 +134,7 @@ function syndamorph_anthropic_sse_request( string $key, array $payload, ?callabl
     $pending = '';
     $stop_reason = null;
     $model = (string) ( $payload['model'] ?? '' );
-    $usage = array( 'inputTokens' => 0, 'outputTokens' => 0, 'cacheReadTokens' => 0, 'cacheWriteTokens' => 0 );
+    $usage = array();
     $saw_start = false;
     $saw_stop = false;
     $overflow = false;
@@ -151,9 +160,7 @@ function syndamorph_anthropic_sse_request( string $key, array $payload, ?callabl
                     $model = (string) ( $message['model'] ?? $model );
                     $initial = $message['usage'] ?? array();
                     if ( is_array( $initial ) ) {
-                        $usage['inputTokens'] = max( 0, (int) ( $initial['input_tokens'] ?? 0 ) );
-                        $usage['cacheReadTokens'] = max( 0, (int) ( $initial['cache_read_input_tokens'] ?? 0 ) );
-                        $usage['cacheWriteTokens'] = max( 0, (int) ( $initial['cache_creation_input_tokens'] ?? 0 ) );
+                        $usage = syndamorph_anthropic_reported_usage($initial,$usage);
                     }
                 }
                 break;
@@ -171,7 +178,7 @@ function syndamorph_anthropic_sse_request( string $key, array $payload, ?callabl
                 }
                 $delta_usage = $event['usage'] ?? array();
                 if ( is_array( $delta_usage ) ) {
-                    $usage['outputTokens'] = max( $usage['outputTokens'], (int) ( $delta_usage['output_tokens'] ?? 0 ) );
+                    $usage = syndamorph_anthropic_reported_usage($delta_usage,$usage);
                 }
                 break;
             case 'message_stop':
@@ -247,10 +254,10 @@ function syndamorph_anthropic_sse_request( string $key, array $payload, ?callabl
         return new WP_Error( 'sm_generation_upstream', $reason . ' (Anthropic HTTP ' . $http . ').', array( 'status' => 502 ) );
     }
     if ( $overflow ) {
-        return new WP_Error( 'sm_generation_oversize', 'Streaming output exceeded the safety size bound.', array( 'status' => 502, 'outputTokens' => $usage['outputTokens'], 'usage' => $saw_start ? $usage : null ) );
+        return new WP_Error( 'sm_generation_oversize', 'Streaming output exceeded the safety size bound.', array( 'status' => 502, 'outputTokens' => $usage['outputTokens']??0, 'usage' => $usage ) );
     }
     if ( false === $ok || $provider_error || ! $saw_start || ! $saw_stop ) {
-        return new WP_Error( 'sm_generation_transport', 'Anthropic streaming ended unexpectedly or timed out.', array( 'status' => 502, 'outputTokens' => $usage['outputTokens'], 'usage' => $saw_start ? $usage : null ) );
+        return new WP_Error( 'sm_generation_transport', 'Anthropic streaming ended unexpectedly or timed out.', array( 'status' => 502, 'outputTokens' => $usage['outputTokens']??0, 'usage' => $usage ) );
     }
     return array( 'model' => $model, 'text' => $text, 'stop_reason' => $stop_reason, 'usage' => $usage );
 }
@@ -313,12 +320,7 @@ function syndamorph_models_generate( string $provider, string $model, string $sy
         $json = array(
             'text' => $text, 'model' => $raw['model'] ?? $model,
             'stop_reason' => $raw['stop_reason'] ?? null,
-            'usage' => array(
-                'inputTokens' => max( 0, (int) ( $raw['usage']['input_tokens'] ?? 0 ) ),
-                'outputTokens' => max( 0, (int) ( $raw['usage']['output_tokens'] ?? 0 ) ),
-                'cacheReadTokens' => max( 0, (int) ( $raw['usage']['cache_read_input_tokens'] ?? 0 ) ),
-                'cacheWriteTokens' => max( 0, (int) ( $raw['usage']['cache_creation_input_tokens'] ?? 0 ) ),
-            ),
+            'usage' => syndamorph_anthropic_reported_usage((array)($raw['usage']??array())),
         );
     }
     $stop_reason = $json['stop_reason'] ?? null;
@@ -338,12 +340,14 @@ function syndamorph_models_generate( string $provider, string $model, string $sy
         );
     }
     if ( '' === trim( (string) $json['text'] ) || strlen( $json['text'] ) > 120000 ) {
-        return new WP_Error( 'sm_generation_invalid', 'Model returned invalid or oversized output.', array( 'status' => 502 ) );
+        return new WP_Error( 'sm_generation_invalid', 'Model returned invalid or oversized output.', array( 'status' => 502, 'usage'=>$json['usage'] ) );
     }
     return array(
         'text' => $json['text'],
         'model' => sanitize_text_field( (string) $json['model'] ),
-        'usage' => $json['usage'],
+        'usage' => $json['usage']+array('inputTokens'=>0,'outputTokens'=>0,'cacheReadTokens'=>0,'cacheWriteTokens'=>0),
+        'metering' => isset($json['usage']['inputTokens'],$json['usage']['outputTokens'])?'provider_reported':
+            ($json['usage']?'partial':'unavailable'),
     );
 }
 

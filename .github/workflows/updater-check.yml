@@ -3,7 +3,7 @@ name: Native Updater and Release Package Checks
 on:
   pull_request:
   push:
-    branches: [feat/p4b-layout-conversion, feat/mvp-autonomous-pipeline, main]
+    branches: [feat/p4b-layout-conversion, feat/mvp-autonomous-pipeline, feat/secure-gateway-leasing-v1, main]
 
 permissions:
   contents: read

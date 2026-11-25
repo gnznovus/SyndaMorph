@@ -66,7 +66,28 @@ process.stdin.on('end', async () => {
                     const elements = [...document.body.querySelectorAll('*')].filter(el => !['STYLE','SCRIPT'].includes(el.tagName));
                     const positions = new Map(elements.map((el, index) => [el, index]));
                     const rect = r => [r.x, r.y, r.width, r.height].map(value => Math.round(value * 10) / 10);
+                    // Compare literal authored copy, including inline formatting and
+                    // long text, independently of geometry and text-transform.
+                    const copyParts = [];
+                    function gatherCopy(node) {
+                        if (node.nodeType === Node.TEXT_NODE) {
+                            copyParts.push(node.nodeValue);
+                            return;
+                        }
+                        if (node.nodeType !== Node.ELEMENT_NODE ||
+                            /^(?:STYLE|SCRIPT|NOSCRIPT|TEMPLATE|SVG)$/.test(node.tagName)) return;
+                        const { display, visibility } = getComputedStyle(node);
+                        if (display === 'none') return;
+                        const boundary = node.tagName === 'BR' || !/^(?:inline|contents)/.test(display);
+                        if (boundary) copyParts.push(' ');
+                        for (const child of node.childNodes) {
+                            if (child.nodeType !== Node.TEXT_NODE || visibility === 'visible') gatherCopy(child);
+                        }
+                        if (boundary) copyParts.push(' ');
+                    }
+                    gatherCopy(document.body);
                     return {
+                        copy: copyParts.join('').replace(/\s+/gu, ' ').trim(),
                         overflow: document.documentElement.scrollWidth > innerWidth,
                         height: document.documentElement.scrollHeight,
                         elements: elements.slice(0, 200).map(el => {

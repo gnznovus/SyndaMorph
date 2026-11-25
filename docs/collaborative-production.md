@@ -83,7 +83,7 @@ R39–R46 are learning infrastructure, *not* self-modifying code. Compiler Self-
 
 **Learning:** A compilation failure is recorded as an *observed* candidate rule, never injected into later prompts until the final corrected plan compiles. Accepted repairs upgrade matching evidence to *verified*. Native compiler revision hashes invalidate stale lessons. GEN-012's hex colors, gradient placement and two-color gradient formats are now covered by allowlisted learning rules. Failures or unverifiable outputs do not produce reusable model instructions.
 
-**Evaluation metrics:** `surgery` reports the persistent draft key, deterministic corrections, paid patch calls, full-plan regenerations (expected zero), ordered patch outcomes and accepted QA revisions. Mock CI includes a GEN-012-like invalid background-to-gradient correction and asserts one targeted paid patch, unchanged content, persisted second draft revision and a verified lesson. This is a regression fixture, **not** a live cost, fidelity or production-readiness benchmark.
+**Evaluation metrics:** `surgery` reports the persistent draft key, deterministic corrections, paid patch calls, full-plan regenerations (expected zero), ordered patch outcomes and accepted QA revisions. Mock CI includes a GEN-012-like invalid background-to-gradient correction and asserts one targeted paid patch, unchanged content, separate original and corrected checkpoints and a verified lesson. This is a regression fixture, **not** a live cost, fidelity or production-readiness benchmark.
 
 **Global promotion gate:** Do not make this the default method for all agents yet. Run equivalent jobs through the old and new flows, compare success rate, valid editor round-trips, accepted/rejected repair rates, total tokens/cost, elapsed time and unchanged approved sibling hashes. Promote only if repair safety and quality are at least as good and measured cost/latency justify it. Automatic Boss escalation of stalled QA is implemented as a terminal advisory; autonomous cross-agent delegation and design reapproval remain future milestones, not completed features.
 
@@ -95,6 +95,8 @@ This does **not** mean the web request can run indefinitely: the existing server
 
 
 ## Adaptive Surgery v2 — current contract (2026-11-24)
+
+**November 25 hardening:** the active handoff, compiler transaction, capability matrix, inspection copy contract and metering changes are documented in [Adaptive Surgery hardening](adaptive-surgery-hardening.md). The statuses and benchmark below describe the original v2 checkpoint.
 
 **Implementation status:** completed on `feat/secure-gateway-leasing-v1` at [`54a1833`](https://github.com/gnznovus/SyndaMorph/commit/54a1833354081a04421138b6e993b2c347ccdc1e). [MVP CI](https://github.com/gnznovus/SyndaMorph/actions/runs/45436215694) passed. This **supersedes** conflicting v1 contract statements above, without retroactively changing historical experiments.
 

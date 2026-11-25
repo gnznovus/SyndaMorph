@@ -22,7 +22,7 @@ function syndamorph_authority_decision(string $owner,string $stage,$payload,arra
             array('stage'=>$stage,'owner'=>$owner));
     $decision=array('owner'=>$owner,'stage'=>$stage,'decision'=>$payload['decision'],
         'issues'=>is_array($payload['issues']??null)?$payload['issues']:array(),
-        'summary'=>mb_substr((string)($payload['summary']??''),0,400));
+        'summary'=>mb_substr((string)($payload['summary']??''),0,400),'payload'=>$payload);
     if($on_event)$on_event('agent_decision',$decision);
     return $decision;
 }
@@ -69,16 +69,16 @@ function syndamorph_collab_allowance(int $bytes,int $images,int $cap,float $inpu
 
 function syndamorph_operation_usage(array $metrics,float $input,float $output): array {
     $usage=array();
-    foreach(array('inputTokens','outputTokens','cacheReadTokens','cacheWriteTokens','contextBytes','imageBytes','elapsedMs') as $key) {
+    foreach(array('inputTokens','outputTokens','cacheReadTokens','cacheWriteTokens','contextBytes','imageBytes','responseBytes','elapsedMs','unmeteredReserveUsd') as $key) {
         $usage[$key]=array_sum(array_column($metrics,$key));
     }
     return array_merge($usage,array('calls'=>count($metrics),'stages'=>array_column($metrics,'task'),
-        'unmeteredCalls'=>count(array_filter($metrics,static fn($metric)=>($metric['metering']??'')==='unavailable')),
+        'unmeteredCalls'=>count(array_filter($metrics,static fn($metric)=>in_array($metric['metering']??'',array('partial','unavailable'),true))),
         'estimatedCostUsd'=>round(syndamorph_collab_cost($usage,$input,$output),6)));
 }
 function syndamorph_repair_summary(array $revisions,array $metrics,float $input,float $output): array {
     $repair=array_values(array_filter($metrics,static fn($metric)=>in_array(($metric['task']??''),
-        array('repair','revision_validation','scope_resolution'),true)));
+        array('schema_repair','repair','revision_validation','scope_resolution'),true)));
     $groups=array();
     foreach($revisions as $revision) {
         $key=($revision['baselineFingerprint']??'').'|'.($revision['issueGroup'][0]??'');
@@ -234,6 +234,13 @@ function syndamorph_collab_compare(array $reference,array $native) {
 }
 function syndamorph_collab_evidence(array $reference, array $native): array {
     $findings=array();
+    $copy=syndamorph_visual_copy($reference,$native);
+    if($copy['status']==='different') {
+        $findings[]=array('id'=>'copy-reference-mismatch','category'=>'content','source'=>'browser',
+            'component'=>$native[0]['snapshot']['elements'][0]['node']??'blocks[0]',
+            'severity'=>'high','critical'=>true,'measurement'=>true,'views'=>$copy['widthsWithDifferences'],
+            'detail'=>'Literal section copy differs from the approved reference.');
+    }
     foreach (array_keys($native) as $i) {
         $out=$native[$i]['snapshot']??array();$width=(int)($native[$i]['width']??0);
         $root=$out['elements'][0]['node']??'blocks[0]';
@@ -421,11 +428,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $usage=array('inputTokens'=>0,'outputTokens'=>0,'cacheReadTokens'=>0,'cacheWriteTokens'=>0);
     $metrics=array();$outputs=array();$events=array();$issues=array();$revisions=array();$evidence=array();$best=null;
     $learningSource='job:'.bin2hex(random_bytes(8));
-    $started=microtime(true);$calls=0;$cutoff=$max*0.8;$memory=new SyndaMorph_Job_Memory($brief);
+    $started=microtime(true);$calls=0;$cutoff=$max*0.8;$unmeteredReserve=0.0;$memory=new SyndaMorph_Job_Memory($brief);
     if (function_exists('set_time_limit')) @set_time_limit(1200);
     $prefix=syndamorph_production_cached_contract();
     $call=static function(string $role,string $instruction,array $context,int $cap,array $images=array(),string $stage='',
-        float $nextAllowance=0.0) use (&$call,&$usage,&$metrics,&$events,&$calls,$provider,$model,$in,$out,$max,$cutoff,$stream,$on_event,$prefix,$viewports) {
+        float $nextAllowance=0.0) use (&$call,&$usage,&$metrics,&$events,&$calls,&$unmeteredReserve,$provider,$model,$in,$out,$max,$cutoff,$stream,$on_event,$prefix,$viewports) {
         $stage=$stage ?: $role;
         $control=syndamorph_job_control_gate();
         if(is_wp_error($control))return $control;
@@ -435,6 +442,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $priorMetric=(array)($cached['metric']??array());
             foreach($usage as $key=>$_)$usage[$key]+=(int)($priorMetric[$key]??0);
             $metrics[]=$priorMetric;
+            $unmeteredReserve+=(float)($priorMetric['unmeteredReserveUsd']??0);
             $calls++;
             $events[]=array('role'=>$role,'task'=>$stage,'status'=>'completed',
                 'model'=>$model,'replayed'=>true);
@@ -453,7 +461,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             '{"action":"tool_request","toolRequest":{"name":"registered tool name","target":"authorized artifact","reason":"specific measurable question"}}. '.
             'The orchestrator will return measured or cached evidence; then complete the original assignment. Never request a tool merely to defer work and never request write permissions.';
         $allowance=syndamorph_collab_allowance(strlen($encoded)+strlen($prefix)+strlen($system),count($images),$cap,$in,$out);
-        if (syndamorph_collab_cost($usage,$in,$out)+$allowance+$nextAllowance>($stage==='scope_resolution'?$max:$cutoff))
+        if (syndamorph_collab_cost($usage,$in,$out)+$unmeteredReserve+$allowance+$nextAllowance>($stage==='scope_resolution'?$max:$cutoff))
             return new WP_Error('sm_team_budget','No safe budget for another model call.',array('stage'=>'budget','role'=>$role,'task'=>$stage,'completedCalls'=>$calls));
         if ($on_event) $on_event('agent_start',array('role'=>$role,'task'=>$stage));
         $start=microtime(true);
@@ -468,11 +476,16 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $charged[$key]=(int)($reported[$key]??($key==='outputTokens'?($errorData['outputTokens']??0):0));
             $usage[$key]+=$charged[$key];
         }
+        $metering=$error?(isset($reported['inputTokens'],$reported['outputTokens'])?'provider_reported':
+            ($reported?'partial':'unavailable')):$result['metering'];
+        $reserve=$metering==='provider_reported'?0.0:max(0.0,$allowance-syndamorph_collab_cost($charged,$in,$out));
+        $unmeteredReserve+=$reserve;
         $metric=array_merge($charged,array('role'=>$role,'task'=>$stage,'status'=>$error?'failed':'completed',
-            'metering'=>is_array($reported)?'provider_reported':'unavailable',
+            'metering'=>$metering,'unmeteredReserveUsd'=>$reserve,
             'elapsedMs'=>(int)((microtime(true)-$start)*1000),'estimatedCostUsd'=>round(syndamorph_collab_cost($charged,$in,$out),6),
             'reservedCostUsd'=>round($allowance,6),'outputCap'=>$cap,'contextBytes'=>strlen($encoded),
-            'imageBytes'=>array_sum(array_map(static fn($img)=>strlen($img['data']??''),$images))));
+            'imageBytes'=>array_sum(array_map(static fn($img)=>strlen($img['data']??''),$images)),
+            'responseBytes'=>$error?null:strlen($result['text'])));
         $metrics[]=$metric;
         if($error) {
             if($on_event)$on_event('agent_failure',array('role'=>$role,'task'=>$stage,'metric'=>$metric));
@@ -755,16 +768,17 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     syndamorph_learning_capability($capabilityNotes,$learningSource.':capability');
     if($on_event&&$capabilityNotes)$on_event('capability_preflight',array('notes'=>$capabilityNotes));
     $designMemo=array('decision'=>'approved','referenceSha256'=>hash('sha256',$reference),
-        'reviewRounds'=>$designReviews,'capabilityNotes'=>$capabilityNotes,'acceptedCapabilityDeviations'=>$deviations);
+        'reviewRounds'=>$designReviews,'capabilityNotes'=>$capabilityNotes,'acceptedCapabilityDeviations'=>$deviations,
+        'bossApproval'=>$approval);
     $handoffs[]=array('from'=>'boss','to'=>'developer','type'=>'approved_design',
-        'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews);
+        'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews,'agentPayload'=>$approval);
     if($on_event)$on_event('handoff',end($handoffs));
     $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON using the cached compiler contract. Preserve content and visual intent. Return JSON only, with stable unique IDs and supported native styles.',
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,
             'imageOrder'=>array_intersect_key($viewports,array_flip($visionViewports)),
             'learnedRules'=>$useLearning?syndamorph_learning_retrieve('developer'):array(),
             'compilerPitfalls'=>array(
-                'buttons.style.margin is unsupported; use gap on the parent group for spacing.',
+                'Use a top/bottom sides object for group, columns and buttons margins.',
                 'Use gradient linear-gradient(135deg,#18283a,#0f1a26) with exactly two hex color endpoints and no percentage stops.',
                 'Unsupported styles must not be emitted; preserve the approved design through native-compatible groups.')),16384,$referenceImages);
     if (is_wp_error($developer)) return $developer;
@@ -776,13 +790,15 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $plan=syndamorph_collab_ids($plan);
     $workingId=syndamorph_surgery_save($plan);
     if($workingId==='')return new WP_Error('sm_surgery_persist','Working plan exceeds safe size.');
-    $surgery=array('workingPlanId'=>$workingId,'repairs'=>array(),'deterministic'=>0,'paidPatches'=>0,'fullRegenerations'=>0);
+    $originalPlan=$plan;
+    $surgery=array('workingPlanId'=>$workingId,'originalPlanId'=>$workingId,'repairs'=>array(),'deterministic'=>0,'paidPatches'=>0,'fullRegenerations'=>0);
     if($on_event)$on_event('working_plan',array('id'=>$workingId,'revision'=>1));
     $compiled=syndamorph_surgery_verify($plan,$plan);
     $lessons=array();
     // F11: bound repeated failures of the exact compiler diagnostic and unchanged plan,
     // never the total number of distinct repairs needed for a valid document.
     $schemaAttempts=array();$schemaRejected=array();$schemaRetryLimit=3;
+    $seenSchemaPlans=array(SyndaMorph_Job_Memory::fingerprint($plan)=>true);
     for($attempt=1;is_wp_error($compiled);$attempt++){
         $error=$compiled;
         $data=(array)$error->get_error_data();
@@ -814,6 +830,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $auto=syndamorph_compiler_auto_repair($plan,$diag);
         $candidate=$auto===null?null:array('plan'=>$auto['plan']);
         if($candidate===null){
+            if(str_ends_with($diag['message'],'This block supports only top and bottom margins.') ||
+                str_ends_with($diag['message'],'Unsupported style for block.')) {
+                $compiled=new WP_Error('sm_native_capability','Compiler cannot preserve this requested style in the native plan.',
+                    array('field'=>$diag['field'],'diagnostic'=>$diag['message'],'expected'=>$diag['expected']));
+                if($on_event)$on_event('schema_repair',array('field'=>$diag['field'],'status'=>'escalated','reason'=>'native_capability','role'=>'compiler'));
+                break;
+            }
             $route='developer';
             if($on_event)$on_event('schema_repair',array_merge($diag,array(
                 'attempt'=>$attempt,'status'=>'required','role'=>'developer')));
@@ -825,7 +848,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'rejectedPatches'=>array_values($schemaRejected[$errorKey]??array()),
                 'attemptsRemaining'=>$schemaRetryLimit-$schemaAttempts[$errorKey],
                 'learnedRules'=>$useLearning?syndamorph_learning_retrieve('schema_repair'):array());
-            $answer=$call('developer','Compiler Auto-Repair could not safely resolve this diagnostic. Follow diagnostic.expected exactly. Return JSON {"acknowledged":{"instructionId":"copy instructionId from context","field":"copy diagnostic.field from context"},"patch":{"id":"existing id","changes":[{"path":"style.margin","op":"remove"}]}} for unsupported properties, or {"path":"style.fontSize","value":"2rem"} for corrections. Removing a property REQUIRES op:remove; null is not deletion. Change only the failing node style. Preserve content and identity.',
+            $answer=$call('developer','Compiler Auto-Repair could not safely resolve this diagnostic. Follow diagnostic.expected. Return JSON {"acknowledged":{"instructionId":"copy instructionId from context","field":"copy diagnostic.field from context"},"patch":{"id":"assigned id","changes":[{"path":"style.fontSize","value":"2rem"}]}}. Change only the failing node style. Use op:remove only when correcting field placement while preserving the style intent. Preserve content and identity.',
                 $context,2048,array(),'schema_repair');
             if(is_wp_error($answer)){$compiled=$answer;break;}
             $surgery['paidPatches']++;
@@ -850,7 +873,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 break;
             }
             $schemaRejected[$errorKey][$patchHash]=array('proposal'=>$proposal,'reason'=>$diag['message']);
-            $candidate=is_array($proposal)?syndamorph_surgery_apply($plan,$proposal):new WP_Error('sm_surgery_contract','Invalid JSON patch.');
+            $candidate=($proposal['id']??null)===$focus['id'] ?
+                syndamorph_surgery_apply($plan,$proposal,array($focus['id'])) :
+                new WP_Error('sm_surgery_scope','Compiler repair target differs from the acknowledged diagnostic.');
             if(is_wp_error($candidate)){
                 $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],'accepted'=>false);
                 continue;
@@ -861,22 +886,48 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             }
         }else{
             $surgery['deterministic']++;
-            if($on_event)$on_event('compiler_auto_repair',array(
-                'status'=>'accepted','field'=>$diag['field'],
-                'reason'=>$diag['message'],'changedProperty'=>$auto['repair'],
-                'compiled'=>$auto['compiled'],'requiresVisualQa'=>true));
+            $autoCorrections[]=array('field'=>$diag['field'],'reason'=>$diag['message'],
+                'changedProperty'=>$auto['repair'],'candidateSha256'=>SyndaMorph_Job_Memory::fingerprint($auto['plan']));
         }
+        $fingerprint=SyndaMorph_Job_Memory::fingerprint($candidate['plan']);
+        if(isset($seenSchemaPlans[$fingerprint])) {
+            $compiled=new WP_Error('sm_schema_stagnation','Schema recovery revisited an earlier plan.',array('field'=>$diag['field']));
+            break;
+        }
+        $seenSchemaPlans[$fingerprint]=true;
         $before=$plan;$plan=$candidate['plan'];
-        $compiled=syndamorph_surgery_verify($before,$plan);
+        $compiled=$auto!==null?$auto['next']:syndamorph_surgery_verify($before,$plan);
         $lessons[]=array('field'=>$diag['field'],'message'=>$diag['message'],'attempt'=>$attempt);
-        if(syndamorph_surgery_save($plan,$workingId)==='')return new WP_Error('sm_surgery_persist','Schema recovery draft could not be saved.');
-        $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],'accepted'=>true,'compiled'=>!is_wp_error($compiled));
+        $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],'accepted'=>null,'compiled'=>!is_wp_error($compiled));
         if($on_event)$on_event('schema_repair',array('attempt'=>$attempt,'status'=>is_wp_error($compiled)?'progress':'resolved','role'=>$route==='developer'?'developer':'compiler','field'=>$diag['field'],'route'=>$route));
     }
+    $validated=!is_wp_error($compiled);
+    if($plan!==$originalPlan) {
+        $candidateId=syndamorph_surgery_save($plan);
+        if(!$candidateId)return new WP_Error('sm_surgery_persist','Schema recovery candidate could not be saved.');
+        $surgery['schemaCandidateId']=$candidateId;
+        if($validated){
+            $workingId=$candidateId;
+            $surgery['workingPlanId']=$candidateId;
+            $surgery['schemaArtifacts']=array('original'=>$originalPlan,'corrected'=>$plan);
+        }
+    }
+    foreach($surgery['repairs'] as &$repairRecord) {
+        if($repairRecord['accepted']===null)$repairRecord['accepted']=$validated;
+    }
+    unset($repairRecord);
+    foreach($autoCorrections??array() as $correction) {
+        $record=$correction+array('status'=>$validated?'accepted':'rolled_back',
+            'originalPlanId'=>$surgery['originalPlanId'],'candidatePlanId'=>$surgery['schemaCandidateId']??null,
+            'compiled'=>$validated,'requiresVisualQa'=>true);
+        $surgery['compilerCorrections'][]=$record;
+        if($on_event)$on_event('compiler_auto_repair',$record);
+    }
     if(is_wp_error($compiled))return new WP_Error($compiled->get_error_code(),$compiled->get_error_message(),
-        array_merge(array('stage'=>'compilation','role'=>'developer','task'=>'developer','completedCalls'=>$calls,
+        array_merge(array('stage'=>'compilation','role'=>$compiled->get_error_code()==='sm_native_capability'?'compiler':'developer',
+            'task'=>'developer','completedCalls'=>$calls,
             'generationCompleted'=>true,'workingPlanId'=>$workingId,'surgery'=>$surgery),(array)$compiled->get_error_data()));
-    foreach($lessons as $lesson)syndamorph_learning_schema($lesson['field'],$lesson['message'],$learningSource.':schema:'.$lesson['attempt'],true);
+    if($useLearning)foreach($lessons as $lesson)syndamorph_learning_schema($lesson['field'],$lesson['message'],$learningSource.':schema:'.$lesson['attempt'],true);
     $plan=$compiled['plan'];$artifact=$compiled['artifact'];
     $outputs['developer']=wp_json_encode($plan);
     $memory->remember($plan);
@@ -909,9 +960,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $screenshots[]=array('media_type'=>'image/jpeg','data'=>$encoded);
         }
     }
-    $review=$call('boss','Assess the frozen design and browser evidence for the implementation. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"measurable defect and suggested correction","kind":"implementation","status":"open"}],"summary":"..."}. Reuse deterministic issue IDs where applicable. Compiler checks are authoritative. Put host responsibilities, unsupported capabilities and pending editor verification in notes. Approve only with no actionable defects.',
+    $copyCheck=syndamorph_visual_copy($inspectReference,$inspectNative);
+    $review=$call('boss','Assess the frozen design and browser evidence for the implementation. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"measurable defect and suggested correction","kind":"implementation","status":"open","repairStrategy":"optional: style|structure|hybrid"}],"summary":"..."}. Use category content for literal copy disputes and consult copyComparison. Reuse deterministic issue IDs where applicable. Compiler checks are authoritative. Put host responsibilities, unsupported capabilities and pending editor verification in notes. Approve only with no actionable defects.',
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$modelEvidence($inspectReference),'native'=>$modelEvidence($inspectNative),
-            'deterministicIssues'=>$issues,'pixelComparison'=>$comparison,'componentPlan'=>$plan,'compilerChecks'=>$artifact['checks'],
+            'deterministicIssues'=>$issues,'copyComparison'=>$copyCheck,'pixelComparison'=>$comparison,
+            'components'=>syndamorph_surgery_context($plan['blocks'][0],121),'compilerChecks'=>$artifact['checks'],
             'imageOrder'=>array_merge(...array_map(static fn($index)=>array($viewports[$index].'-reference',$viewports[$index].'-native'),$visionViewports))),
         6144,$screenshots,'validation');
     if (is_wp_error($review)) return $review;$outputs['validator']=$review;
@@ -934,21 +987,22 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         !$bossQaApproved?'Boss requested implementation changes.':
             (!empty($issues)?'Deterministic implementation checks remain open.':'Boss and deterministic QA checks passed.'),
         $on_event);
-    if($on_event)$on_event('handoff',array('from'=>'boss','to'=>'developer','type'=>'qa_review',
-        'decision'=>$qaRecord['decision'],'executionStatus'=>$bossQaApproved&&empty($issues)?'ready':'blocked',
-        'issueIds'=>array_slice(array_values(array_filter(array_map(
-            static fn($i)=>is_array($i)?sanitize_key((string)($i['id']??'')):'',
-            $parsed['issues']))),0,12)));
+    $bossFindings=$qaRecord['issues'];
+    $qaHandoff=array('from'=>'boss','to'=>'developer','type'=>'qa_review',
+        'decision'=>$qaRecord['decision'],'issues'=>$bossFindings);
+    $handoffs[]=$qaHandoff;
+    if($on_event)$on_event('handoff',$qaHandoff);
     {
         foreach(array_slice($parsed['issues'],0,20) as $issue) {
             if(!is_array($issue))continue;
             $normalized=syndamorph_issue_model($issue,$plan);
-            if($normalized)$issues[]=$normalized;
+            if($normalized && (($normalized['category']??'')!=='content'||$copyCheck['status']==='unavailable'))
+                $issues[]=$normalized;
         }
     }
     // A valid finding-free model report is still not permission to advance
     // unless Boss explicitly approved the implementation.
-    if(!$bossQaApproved && is_array($parsed) && empty($parsed['issues']) && !$issues)
+    if(!$bossQaApproved && !$issues)
         $issues[]=array('id'=>'boss-approval-pending','component'=>'boss','severity'=>'high',
             'detail'=>'Boss has not approved the implementation.','source'=>'process');
     $issues=syndamorph_issue_merge($issues);
@@ -966,12 +1020,28 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $control=syndamorph_job_control_gate();
         if(is_wp_error($control))return $control;
         if(microtime(true)-$started>1000) { $terminationReason='runtime_limit';break; }
-        if(syndamorph_collab_cost($usage,$in,$out)+$reviewReserve>$cutoff) {
+        if(syndamorph_collab_cost($usage,$in,$out)+$unmeteredReserve+$reviewReserve>$cutoff) {
             $terminationReason='budget_80_percent';break;
         }
-        $assignment=syndamorph_repair_assignment($plan,$issues,$memory,$useLearning);
-        if(!$assignment) { $terminationReason='no_new_repair_strategy';break; }
+        $assignment=syndamorph_repair_assignment($plan,$issues,$memory,$useLearning,$visualMetrics);
+        if(!$assignment) {
+            $terminationReason=in_array('content',array_column($issues,'category'),true)?
+                'content_review_required':'no_new_repair_strategy';
+            break;
+        }
         $id=$assignment['id'];$focus=$assignment['focus'];$node=$assignment['node'];
+        $repairHandoff=syndamorph_repair_handoff($bossFindings,$assignment,$plan);
+        $scopeRecord=array('from'=>'orchestrator','to'=>'developer','type'=>'repair_scope','id'=>$id,
+            'authorizedNodes'=>$assignment['nodes'],'wrapParents'=>$assignment['wrapParents'],
+            'allowedOperations'=>$assignment['wrapParents']?array('style','structure','hybrid'):array('style'),
+            'bossInstructions'=>$repairHandoff['instructions'],'requestedStrategies'=>$repairHandoff['requested']);
+        $handoffs[]=$scopeRecord;
+        if($on_event)$on_event('handoff',$scopeRecord);
+        if(!empty($repairHandoff['unsupported'])) {
+            $terminationReason='repair_scope_unsupported';
+            syndamorph_authority_gate($qaRecord,'blocked','Boss requested an unsupported repair strategy for this scope.',$on_event);
+            break;
+        }
         $primary=syndamorph_repair_image_index($focus,$viewports);
         $imageOrder=array($viewports[$primary].'-reference',$viewports[$primary].'-native');
         $operationStarted=microtime(true);
@@ -989,7 +1059,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             static fn($item)=>in_array($item['id'],$assignment['nodes'],true)));
         $route=syndamorph_repair_route($focus);
         $delegated=array('designerNeeded'=>false,'reason'=>'Frozen reference: implementation repair only.');
-        $deterministic=$assignment['strategy']==='style' && count($assignment['group'])===1 ?
+        $deterministic=$assignment['strategy']==='style' && count($assignment['group'])===1 &&
+            !array_diff($repairHandoff['requested'],array('style')) ?
             (syndamorph_repair_container($node,$inspectReference,$inspectNative)??
                 syndamorph_repair_measured($node,$inspectReference,$inspectNative)) : null;
         $patch=$deterministic===null?null:syndamorph_surgery_from_replacement($node,$deterministic);
@@ -1009,8 +1080,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             if(is_wp_error($repairScope)){$terminationReason='visual_crop_blocked';break;}
             $injectedLessons=$useLearning?array_slice($matchedLessons,0,3):array();
             $repairContext=array('issueFocus'=>$focus,'id'=>$id,
-                'strategy'=>$assignment['strategy'],'authorizedNodes'=>$assignment['nodes'],
-                'wrapParents'=>$assignment['mode']==='structure'?$assignment['wrapParents']:array(),
+                'strategy'=>$assignment['strategy'],'repairScope'=>$scopeRecord,
                 'editableNodes'=>$editableNodes,
                 'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts($node),8),
                 'nativeMeasurements'=>syndamorph_memory_measurements($inspectNative,syndamorph_memory_texts($node),8),
@@ -1020,10 +1090,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                     array_flip(array('id','rule','pattern'))),$injectedLessons),
                 'imageScope'=>$repairScope['mode'],
                 'imageOrder'=>$imageOrder);
-            $instruction='Diagnose the related visual defects using the aligned reference, prior attempts and current geometry. Return only JSON {"id":"assigned owner","diagnosis":"cause with evidence","changes":[{"target":"authorized id","path":"style.margin.bottom","value":"1rem"}]}. Apply up to eight combined edits only to the explicit authorized nodes. Omit unused changes. Preserve text, links, block types, existing IDs and unrelated siblings. Never return a full node or plan. If a supported repair is impossible, use {"id":"assigned owner","blocked":"capability|design_constraint|missing_evidence","diagnosis":"why"}.';
+            $instruction='Use the Boss instructions, prior attempts and measured geometry to select the smallest supported operation. Include a concise strategyDeviation when an explicit Boss strategy differs from your operation. Use a materially different correction or state new evidence; if neither is available, report a blocker. Return only JSON {"id":"assigned owner","diagnosis":"cause with evidence","changes":[{"target":"authorized id","path":"style.margin.bottom","value":"1rem"}]}. Apply up to eight combined edits only to the explicit authorized nodes. Omit unused changes. Preserve text, links, block types, existing IDs and unrelated siblings. Never return a full node or plan. If a supported repair is impossible, use {"id":"assigned owner","blocked":"capability|design_constraint|missing_evidence","diagnosis":"why"}.';
             if($assignment['strategy']==='contract_correction')$instruction.=' Correct the specific contract failure in previousAttempts before trying new style values.';
-            if($assignment['mode']==='structure')$instruction.=' Use a different strategy: include wraps:[{"parent":"authorized parent","children":["consecutive child id","next child id"],"id":"new-group-id","style":{"justifyContent":"center","gap":"1rem"}}]. Preserve the same child order. Wrap at most twice and combine with style edits in one operation.';
-            $repair=$call('developer',$instruction,$repairContext,syndamorph_collab_output_cap(),
+            if($assignment['wrapParents'])$instruction.=' For structure, include wraps:[{"parent":"authorized parent","children":["consecutive direct child id"],"id":"new-group-id","style":{"contentWidth":"40rem"}}]. Preserve existing IDs and order. Include both wraps and changes for a hybrid operation. Core discards fluid blockGap; use supported child spacing if needed.';
+            $repair=$call('developer',$instruction,$repairContext,4096,
                 $repairScope['images'],'repair',$reviewReserve);
             if(is_wp_error($repair)) {
                 $terminationReason=$repair->get_error_code()==='sm_team_budget'?'budget_80_percent':'developer_blocked';
@@ -1034,7 +1104,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $proposedChanges=is_array($patch['changes']??null)?array_slice($patch['changes'],0,8):array();
         $wraps=is_array($patch['wraps']??null)?array_slice($patch['wraps'],0,2):array();
         $attempt=array('round'=>$round,'id'=>$id,'route'=>$route,'issueGroup'=>$assignment['group'],'affectedComponents'=>array($id),
-            'strategy'=>$assignment['strategy'],'mode'=>$assignment['mode'],'baselineFingerprint'=>$assignment['baselineFingerprint'],
+            'strategy'=>$assignment['strategy'],'mode'=>$assignment['strategy']==='structure'?'structure':'style',
+            'operationMode'=>$wraps?($proposedChanges?'hybrid':'structure'):'style',
+            'strategyDeviation'=>is_string($patch['strategyDeviation']??null)?mb_substr($patch['strategyDeviation'],0,500):null,
+            'baselineFingerprint'=>$assignment['baselineFingerprint'],'strategyFingerprint'=>$assignment['strategyFingerprint'],
             'diagnosis'=>mb_substr(is_string($patch['diagnosis']??null)?$patch['diagnosis']:(string)($focus[0]['detail']??''),0,260),
             'scoreBefore'=>syndamorph_issue_score($issues),'wraps'=>strlen(wp_json_encode($wraps))<=5000?$wraps:array(),
             'changes'=>strlen(wp_json_encode($proposedChanges))<=5000?$proposedChanges:array(),
@@ -1043,10 +1116,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'injected'=>array_column($injectedLessons,'id'),
                 'followed'=>is_array($patch)?syndamorph_learning_followed($injectedLessons,$patch):array()),
             'remainingIssues'=>array_slice(syndamorph_repair_prioritize($focus),0,5));
-        $reject=static function(string $detail,string $status='rejected',string $validation='patch_contract')
+        $reject=static function(string $detail,string $status='rejected',string $validation='patch_contract',array $evidence=array())
             use(&$memory,&$revisions,$on_event,$attempt,$meter):void {
-            $entry=array_merge($attempt,array('status'=>$status,'accepted'=>false,'detail'=>$detail,'reason'=>$detail,
-                'validation'=>$validation,'scoreAfter'=>$attempt['scoreBefore'],
+            $entry=array_merge($attempt,$evidence,array('status'=>$status,'accepted'=>false,'detail'=>$detail,'reason'=>$detail,
+                'validation'=>$validation,'scoreAfter'=>$evidence['scoreAfter']??$attempt['scoreBefore'],
                 'nextDirection'=>'Address the validation reason before proposing a materially different correction.',
                 'usage'=>$meter(),'retainedImprovement'=>0.0));
             $entry['learning']['validation']='failed';
@@ -1074,11 +1147,14 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'reason'=>$attempt['diagnosis'],'nextAction'=>'boss_scope_resolution'));
             break;
         }
-        if($assignment['mode']==='structure' && !$wraps) {
-            $reject('Structural repair requires an authorized wrap or a blocker reason.');continue;
+        if(array_diff($repairHandoff['requested'],array($attempt['operationMode'])) && !trim($attempt['strategyDeviation']??'')) {
+            $reject('Developer proposed a different strategy without explaining the deviation.');continue;
         }
         $candidate=$candidate??syndamorph_surgery_operation($plan,$patch,$assignment);
-        if(is_wp_error($candidate)){$reject($candidate->get_error_message());continue;}
+        if(is_wp_error($candidate)){
+            $validation=$candidate->get_error_code()==='sm_surgery_capability'?'unsupported_operation':'patch_contract';
+            $reject($candidate->get_error_message(),'rejected',$validation);continue;
+        }
         if(is_wp_error($candidate['error'])){$reject($candidate['error']->get_error_message(),'rejected','compiler');continue;}
         if($memory->seen($candidate['plan'])) {
             $reject('Equivalent candidate already attempted; skipped browser and AI QA.','duplicate','candidate_identity');
@@ -1102,8 +1178,18 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $terminationReason='visual_compare_blocked';$reject('Pixel comparison unavailable','blocked','browser');break;
         }
         $newMetrics=syndamorph_visual_metrics($inspectReference,$newEvidence,$candidate['plan']);
+        $newCopy=syndamorph_visual_copy($inspectReference,$newEvidence);
         $newIssues=array_merge(syndamorph_collab_block_issues($candidate['artifact']),syndamorph_collab_evidence($inspectReference,$newEvidence),
             syndamorph_collab_style_findings($inspectReference,$newEvidence,$candidate['plan']),syndamorph_visual_geometry_issues($newMetrics));
+        $deterministicVerdict=syndamorph_visual_decision($issues,syndamorph_issue_merge($newIssues),
+            $visualMetrics,$newMetrics,$comparison,$newComparison,$focus,false);
+        if($deterministicVerdict['introducedIssues']) {
+            $reject($deterministicVerdict['reason'],'rejected','deterministic_regression',array(
+                'introducedIssues'=>$deterministicVerdict['introducedIssues'],'defectStates'=>$deterministicVerdict['states'],
+                'scoreAfter'=>$deterministicVerdict['afterScore'],'pixelDeltas'=>$deterministicVerdict['pixelDeltas'],
+                'geometryDeltas'=>$deterministicVerdict['geometryDeltas'],'copyComparison'=>$newCopy));
+            continue;
+        }
         // A child spacing change affects ancestor layout metrics, even when the
         // ancestor's own attributes and fingerprint are unchanged.
         $reviewIds=syndamorph_collab_review_scope($candidate['plan'],$impact);
@@ -1118,13 +1204,14 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         // Each repair receives a fresh vision review of its changed component,
         // not the entire design report. Unaffected model findings are retained.
         $targetReview=$call('boss',
-            'Inspect changed components and affected layout with the browser evidence. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"reference, previous and candidate evidence"}]}. Reuse issue IDs. A newly noticed defect does not imply a regression. Before claiming copy was added or removed, compare literal reference and candidate text; do not mistake excerpted measurements for complete copy. Report only open actionable issues; compiler checks are authoritative.',
+            'Inspect changed components and affected layout with the browser evidence. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"reference, previous and candidate evidence","repairStrategy":"optional: style|structure|hybrid"}]}. Use category content for literal copy disputes and consult copyComparison. Reuse issue IDs. A newly noticed defect does not imply a regression. Before claiming copy was added or removed, compare literal reference and candidate text; do not mistake excerpted measurements for complete copy. Report only open actionable issues; compiler checks are authoritative.',
             array('id'=>$id,'changedNodes'=>syndamorph_surgery_context(
                     syndamorph_collab_find($candidate['plan']['blocks'],$id)),
                 'previousIssues'=>array_values(array_filter($issues,static fn($issue)=>isset($affected[$issue['component']??'']))),
                 'impact'=>$impact,'reviewScope'=>$reviewIds,'compilerChecks'=>$candidate['artifact']['checks'],'imageScope'=>$scope['mode'],
                 'previousGeometry'=>array_intersect_key($visualMetrics,array_flip($assignment['group'])),
                 'candidateGeometry'=>array_intersect_key($newMetrics,array_flip($assignment['group'])),
+                'copyComparison'=>$newCopy,
                 'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id)),8),
                 'measurements'=>syndamorph_memory_measurements($newEvidence,syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id)),8),
                 'pixelComparison'=>$newComparison,'imageOrder'=>$imageOrder),$reviewCap,$scopedScreenshots,'revision_validation');
@@ -1144,12 +1231,19 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         syndamorph_authority_gate($targetRecord,
             $targetRecord['decision']==='approved'?'pending_validation':'blocked',
             'Deterministic comparison and repair acceptance remain independently enforced.',$on_event);
+        $reviewHandoff=array('from'=>'boss','to'=>'developer','type'=>'revision_qa','id'=>$id,
+            'decision'=>$targetRecord['decision'],'issues'=>$targetRecord['issues']);
+        $handoffs[]=$reviewHandoff;
+        if($on_event)$on_event('handoff',$reviewHandoff);
+        $bossFindings=array_merge($targetRecord['issues'],array_values(array_filter($bossFindings,
+            static fn($finding)=>is_array($finding)&&is_string($finding['component']??null)&&!isset($affected[$finding['component']]))));
         foreach(array_slice($parsedTarget['issues'],0,10) as $issue) {
             if(!is_array($issue))continue;
             $normalized=syndamorph_issue_model($issue,$candidate['plan']);
             // Include newly discovered regression findings even when the model
             // assigns them to an adjacent sibling of a layout-affected parent.
-            if($normalized)$newIssues[]=$normalized;
+            if($normalized && (($normalized['category']??'')!=='content'||$newCopy['status']==='unavailable'))
+                $newIssues[]=$normalized;
         }
         // Recompute deterministic findings globally; retain only unaffected model findings.
         foreach($otherIssues as $issue) if(($issue['source']??'')==='model')$newIssues[]=$issue;
@@ -1160,8 +1254,14 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $verdict=syndamorph_visual_decision($issues,$newIssues,$visualMetrics,$newMetrics,
             $comparison,$newComparison,$focus,$parsedTarget['decision']==='approved');
         $oldScore=$verdict['beforeScore'];$newScore=$verdict['afterScore'];$accepted=$verdict['accepted'];
-        if($accepted && syndamorph_surgery_save($candidate['plan'],$workingId)==='') {
-            $terminationReason='artifact_persist_failed';$reject('Candidate could not be persisted','blocked','persistence');break;
+        if($accepted) {
+            $protected=array($surgery['originalPlanId'],$surgery['schemaCandidateId']??null);
+            $saved=syndamorph_surgery_save($candidate['plan'],in_array($workingId,$protected,true)?'':$workingId);
+            if(!$saved) {
+                $terminationReason='artifact_persist_failed';$reject('Candidate could not be persisted','blocked','persistence');break;
+            }
+            $workingId=$saved;
+            $surgery['workingPlanId']=$saved;
         }
         $attempt['learning']['validation']=$accepted?'passed':'failed';
         if($useLearning) {
@@ -1170,9 +1270,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $revisions[]=array_merge($attempt,array('status'=>$accepted?'accepted':'rejected','delegation'=>array('designerNeeded'=>$delegated['designerNeeded'],'reason'=>mb_substr((string)($delegated['reason']??''),0,160)),'impact'=>$impact,'reviewScope'=>$reviewIds,
             'changedFields'=>$patch['changes']??array(),'imageScope'=>$scope['mode'],'accepted'=>$accepted,'before'=>count($issues),'after'=>count($newIssues),'scoreBefore'=>$oldScore,'scoreAfter'=>$newScore,
             'introducedIssues'=>$verdict['introducedIssues'],'discoveredIssues'=>$verdict['discoveredIssues'],
-            'reason'=>$verdict['reason'],'defectStates'=>$verdict['states'],'focusScoreBefore'=>$verdict['focusBefore'],
+            'reason'=>$verdict['reason'],'comparableScoreAfter'=>$verdict['comparableAfterScore'],'defectStates'=>$verdict['states'],'focusScoreBefore'=>$verdict['focusBefore'],
             'focusScoreAfter'=>$verdict['focusAfter'],'pixelDeltas'=>$verdict['pixelDeltas'],
-            'usage'=>$meter(),'retainedImprovement'=>$accepted && $oldScore>0 ? round(($oldScore-$newScore)/$oldScore,6) : 0.0,
+            'usage'=>$meter(),'retainedImprovement'=>$accepted && $oldScore>0 ? round(($oldScore-$verdict['comparableAfterScore'])/$oldScore,6) : 0.0,
             'geometryDeltas'=>$verdict['geometryDeltas'],'affectedComponents'=>$reviewIds,
             'validation'=>array('compiler'=>'passed','browser'=>'passed','vision'=>$parsedTarget['decision']),
             'nextDirection'=>$accepted?'Start from the retained improvement and address the highest remaining defect.':
@@ -1213,6 +1313,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $blockerOwners=array_values(array_unique(array_column($blocked,'component')));
         if(!$blockerOwners)$blockerOwners=array('boss');
         $briefing=array('designApproval'=>$designMemo,'openIssues'=>$blocked,
+            'terminationReason'=>$terminationReason,'lastRepairHandoff'=>$scopeRecord??null,
             'blockerType'=>$escalation['blockerType'],'nativeLayoutNotes'=>$best['artifact']['layoutNotes']??array(),
             'attempts'=>$memory->feedback($blockerOwners[0],$blockerOwners,4),
             'compilerValid'=>true,'editorVerified'=>false);
@@ -1259,7 +1360,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'scoringVersion'=>2,'viewportWidths'=>$viewports,'issues'=>$best['issues'],'revisions'=>$revisions,
             'repairSummary'=>syndamorph_repair_summary($revisions,$metrics,$in,$out),'terminationReason'=>$terminationReason,'evidence'=>array(
             'reference'=>$evidenceSummary($inspectReference),'native'=>$evidenceSummary($best['evidence'])),
-            'pixelComparison'=>$best['comparison'],
+            'pixelComparison'=>$best['comparison'],'copyComparison'=>syndamorph_visual_copy($inspectReference,$best['evidence']),
             'browserInspected'=>true,'visionInspected'=>true,'bossApproved'=>$bossQaApproved,'nativeEditorVerified'=>false),
         'published'=>false,'renderedInBrowser'=>true);
 }

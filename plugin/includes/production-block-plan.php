@@ -3,7 +3,18 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 function syndamorph_block_plan_contract(): string {
-    return 'Return a JSON object {"version":1,"blocks":[...]} with exactly one root group. Each node has type, a stable unique id and optional style. Supported nodes: group (children), columns (children of type column, 2–4), column (children), heading (text, level 1–6), paragraph (text), buttons (children of type button), button (text, href: #fragment or /local-path). Only group/column may contain ordinary content blocks. Styles: color, background (six-digit hex), fontSize, fontWeight (100–900, integer or numeric string), lineHeight (1–2.5, number or numeric string), letterSpacing (px/rem/em), padding (single length or object with top/right/bottom/left lengths on group/column/button), margin (single length or sides on heading/paragraph), gap (group/columns/buttons), borderRadius (button), gradient (group/column/button, safe two-color linear-gradient), minHeight (group), align (heading/paragraph left/center/right). Lengths: nonnegative px/rem/em/vw/vh/svh/dvh or clamp(length,length,length), including a bounded additive middle expression such as 1.2rem + 3.5vw. Negative letterSpacing is supported. Group contentWidth (px/rem/em/ch) uses native constrained layout, which centers child blocks. Group justifyContent (left/center/right/stretch) and verticalAlignment (top/center/bottom) use native vertical flex layout, incompatible with contentWidth on the same node. Buttons justifyContent (left/center/right) uses native flex layout. For left-aligned content in a centered constrained group, wrap children in an inner flex group; use group gap as block spacing.  do not use arbitrary leaf max-width. Font family is inherited from the host; use system-ui in reference. Native hover/focus styling is host-owned. Use a heading and meaningful CTA. No HTML, arbitrary CSS, remote URLs, custom blocks or invented attributes. Use native columns mobile stacking; no fixed widths. Example {"version":1,"blocks":[{"type":"group","style":{"background":"#18283a","padding":"clamp(2rem,5vw,5rem)"},"children":[{"type":"heading","level":2,"text":"Welcome","style":{"color":"#ffffff","fontSize":"clamp(2rem,5vw,4rem)"}},{"type":"paragraph","text":"Discover our hotel","style":{"color":"#ffffff"}},{"type":"buttons","children":[{"type":"button","text":"Explore","href":"#explore"}]}]}]}.';
+    $buttonWidth=syndamorph_native_full_button_width()?' Button style.width accepts 100% across all viewports, using current core dimensions support.':'';
+    return 'Return a JSON object {"version":1,"blocks":[...]} with exactly one root group. Each node has type, a stable unique id and optional style. Supported nodes: group (children), columns (children of type column, 2–4), column (children), heading (text, level 1–6), paragraph (text), buttons (children of type button), button (text, href: #fragment or /local-path). Only group/column may contain ordinary content blocks. Styles: color, background (six-digit hex), fontSize, fontWeight (100–900, integer or numeric string), lineHeight (1–2.5, number or numeric string), letterSpacing (px/rem/em), padding (single length or object with top/right/bottom/left lengths on any supported node), margin (single length or sides on heading/paragraph; top and bottom sides only on group/columns/buttons), textTransform (heading/paragraph/button: none, uppercase, lowercase, capitalize), gap (group/columns/buttons: simple length with theme block-gap support), borderRadius (button), gradient (group/column/button, safe two-color linear-gradient), minHeight (group), align (heading/paragraph left/center/right). Lengths: nonnegative px/rem/em/vw/vh/svh/dvh or clamp(length,length,length), including a bounded additive or subtractive middle expression such as 1.2rem + 3.5vw. Negative letterSpacing is supported. Group contentWidth (px/rem/em/ch) uses native constrained layout, which centers child blocks. Group justifyContent (left/center/right/stretch) and verticalAlignment (top/center/bottom) use native vertical flex layout, incompatible with contentWidth on the same node. Buttons justifyContent (left/center/right) uses native flex layout. For a vertically centered section with bounded content, use separate flex and constrained groups. The element being constrained must be a child of the constrained group. Keep alignment, minHeight and width on the appropriate separate groups. Do not propose fluid blockGap: WordPress core discards clamp() for blockGap. Use responsive spacing on supported children if it matches the design. Mobile-only full-width CTA and breakpoint-specific per-block spacing are outside this contract.'.$buttonWidth.' Do not substitute an always-full-width CTA or arbitrary leaf max-width. Font family is inherited from the host; use system-ui in reference. Native hover/focus styling is host-owned. Use a heading and meaningful CTA. No HTML, arbitrary CSS, remote URLs, custom blocks or invented attributes. Use native columns mobile stacking; no fixed widths. Example {"version":1,"blocks":[{"type":"group","style":{"background":"#18283a","padding":"clamp(2rem,5vw,5rem)"},"children":[{"type":"heading","level":2,"text":"Welcome","style":{"color":"#ffffff","fontSize":"clamp(2rem,5vw,4rem)"}},{"type":"paragraph","text":"Discover our hotel","style":{"color":"#ffffff"}},{"type":"buttons","children":[{"type":"button","text":"Explore","href":"#explore"}]}]}]}.';
+}
+
+function syndamorph_native_full_button_width(): bool {
+    if(!class_exists('WP_Block_Type_Registry'))return true;
+    $button=WP_Block_Type_Registry::get_instance()->get_registered('core/button');
+    return !empty($button->supports['dimensions']['width']);
+}
+
+function syndamorph_native_gap_supported(string $gap): bool {
+    return function_exists('wp_sanitize_block_gap_value') ? wp_sanitize_block_gap_value($gap)!==null : !str_contains($gap,'(');
 }
 
 function syndamorph_native_json_text(string $raw): string {
@@ -20,7 +31,7 @@ function syndamorph_block_plan_expected(string $reason,string $field): array {
     if(preg_match('/\\.style\\.([A-Za-z][A-Za-z0-9]*)$/D',$field,$m))$styleKey=$m[1];
     $length=array(
         'format'=>'Nonnegative number with px/rem/em/vw/vh/svh/dvh; 0; or clamp(length, length, length).',
-        'constraint'=>'Each number has at most 3 integer digits and 6 decimal digits. clamp() may use one additive middle expression with spaces around +.',
+        'constraint'=>'Each number has at most 3 integer digits and 6 decimal digits. clamp() may use one additive or subtractive middle expression with spaces around + or -.',
         'example'=>'clamp(1.0625rem, 1rem + 0.5vw, 1.25rem)',
     );
     $map=array(
@@ -36,6 +47,9 @@ function syndamorph_block_plan_expected(string $reason,string $field): array {
         'Invalid vertical alignment.'=>array('format'=>'top, center, bottom','example'=>'center'),
         'Invalid component ID.'=>array('format'=>'1–100 ASCII letters, digits, underscore, dot, hyphen or square brackets','example'=>'hero-title'),
         'Invalid text.'=>array('format'=>'Nonempty UTF-8 text, up to 8000 bytes','example'=>'Welcome to our hotel'),
+        'Invalid button width.'=>array('format'=>'The supported native button width is 100% at every viewport.','example'=>'100%'),
+        'Invalid text transform.'=>array('format'=>'none, uppercase, lowercase or capitalize','example'=>'uppercase'),
+        'This block supports only top and bottom margins.'=>array('format'=>'Use a margin object with top or bottom. Preserve any horizontal spacing through an approved native composition.','example'=>array('top'=>'1rem')),
         'Invalid spacing sides.'=>array('format'=>'Nonempty object with only top/right/bottom/left keys, or one supported length','example'=>array('top'=>'1rem','bottom'=>'1rem')),
         'Invalid style.'=>array('format'=>'Style object keyed by supported native properties','example'=>array('fontSize'=>'2rem')),
         'Alignment belongs inside style.align.'=>array('format'=>'Put alignment under style.align, not as a node-level field','example'=>array('style'=>array('align'=>'center'))),
@@ -73,7 +87,7 @@ function syndamorph_compile_block_plan( string $raw ) {
         $length = static function ( $v ): string {
             $unit = '[0-9]{1,3}(?:\.[0-9]{1,6})?(?:px|rem|em|vw|vh|svh|dvh)';
             if ($v === 0 || $v === 0.0) $v='0';
-            if ( ! is_string( $v ) || ! preg_match( '~^(?:0|' . $unit . '|clamp\(\s*' . $unit . '\s*,\s*' . $unit . '(?:\s+\+\s+' . $unit . ')?\s*,\s*' . $unit . '\s*\))$~D', $v ) ) { throw new InvalidArgumentException( 'Invalid length.' ); }
+            if ( ! is_string( $v ) || ! preg_match( '~^(?:0|' . $unit . '|clamp\(\s*' . $unit . '\s*,\s*' . $unit . '(?:\s+[+-]\s+' . $unit . ')?\s*,\s*' . $unit . '\s*\))$~D', $v ) ) { throw new InvalidArgumentException( 'Invalid length.' ); }
             return $v === '0' ? '0px' : $v;
         };
         $build = static function ( $node, string $parent, int $depth, string $path ) use ( &$build, &$count, &$headings, &$field, &$previewIds, $escape, $length ): string {
@@ -123,11 +137,15 @@ function syndamorph_compile_block_plan( string $raw ) {
                     $attrs['style']['dimensions']['minHeight']=$css['min-height']=$length($value);
                 } elseif ( $key==='fontSize' && in_array($type,array('heading','paragraph','button'),true) ) {
                     $attrs['style']['typography']['fontSize']=$css['font-size']=$length($value);
-                } elseif (in_array($key,array('padding','margin'),true) && (($key==='padding' && in_array($type,array('group','column','button'),true)) || ($key==='margin' && in_array($type,array('heading','paragraph'),true)))) {
+                } elseif (in_array($key,array('padding','margin'),true) && (($key==='padding' && in_array($type,array('group','column','columns','buttons','heading','paragraph','button'),true)) || ($key==='margin' && in_array($type,array('group','columns','buttons','heading','paragraph'),true)))) {
                     if(is_array($value)) {
                         if (array_diff(array_keys($value),array('top','right','bottom','left')) || !count($value)) throw new InvalidArgumentException('Invalid spacing sides.');
                         $sides=$value;
                     } else { $sides=array_fill_keys(array('top','right','bottom','left'),$value); }
+                    if ($key==='margin' && in_array($type,array('group','columns','buttons'),true) &&
+                        array_diff(array_keys($sides),array('top','bottom'))) {
+                        throw new InvalidArgumentException('This block supports only top and bottom margins.');
+                    }
                     foreach($sides as $side=>$v) { $attrs['style']['spacing'][$key][$side]=$css[$key.'-'.$side]=$length($v); }
                 } elseif ( $key==='fontWeight' && in_array($type,array('heading','paragraph','button'),true) ) {
                     if(is_int($value)) $value=(string)$value;
@@ -140,6 +158,12 @@ function syndamorph_compile_block_plan( string $raw ) {
                 } elseif ( $key==='letterSpacing' && in_array($type,array('heading','paragraph','button'),true) ) {
                     if(is_string($value)&&preg_match('/^-[0-9]{1,3}(?:\\.[0-9]{1,3})?(?:px|rem|em)$/D',$value)) $spacing=$value; else $spacing=$length($value);
                     $attrs['style']['typography']['letterSpacing']=$css['letter-spacing']=$spacing;
+                } elseif ( $key==='textTransform' && in_array($type,array('heading','paragraph','button'),true) ) {
+                    if(!in_array($value,array('none','uppercase','lowercase','capitalize'),true))throw new InvalidArgumentException('Invalid text transform.');
+                    $attrs['style']['typography']['textTransform']=$css['text-transform']=$value;
+                } elseif ( $key==='width' && $type==='button' && syndamorph_native_full_button_width() ) {
+                    if($value!=='100%')throw new InvalidArgumentException('Invalid button width.');
+                    $attrs['style']['dimensions']['width']=$value;
                 } elseif ( $key==='borderRadius' && $type==='button' ) {
                     $attrs['style']['border']['radius']=$css['border-radius']=$length($value);
                 } elseif ( $key==='gap' && in_array($type,array('group','columns','buttons'),true) ) {
@@ -202,7 +226,7 @@ function syndamorph_compile_block_plan( string $raw ) {
             $attrs=json_decode($m[2],true);$layout=$attrs['layout']??array();$rules='';$childRules='';
             $gap=$attrs['style']['spacing']['blockGap']??null;
             if ($gap!==null && (!$themeGapSupport ||
-                (function_exists('wp_sanitize_block_gap_value') ? wp_sanitize_block_gap_value($gap)===null : str_contains($gap,'(')))) {
+                !syndamorph_native_gap_supported($gap))) {
                 $layoutNotes[]='WordPress does not apply the '.$m[1].' gap '.$gap.' in this native layout. Use a supported simple length or explicit child spacing.';
                 $gap=null;
             }
@@ -238,11 +262,15 @@ function syndamorph_compile_block_plan( string $raw ) {
             return '<!-- wp:'.$m[1].' '.$m[2].' --><div'.$opening.'>';
         },$preview);
         $previewIndex = 0;
-        $preview=preg_replace_callback('~<!-- wp:(?:group|columns|column|heading|paragraph|buttons|button)(?: \\{[^\\n]*?\\})? -->\\s*<(?:div|h[1-6]|p)(?=[ >])~',
+        $preview=preg_replace_callback('~<!-- wp:(group|columns|column|heading|paragraph|buttons|button)(?: (\{[^\n]*?\}))? -->\s*<(?:div|h[1-6]|p)(?=[ >])~',
             static function(array $match)use(&$previewIndex,$previewIds,$escape):string {
-                return $match[0].' data-sm-node="'.$escape($previewIds[$previewIndex++]).'"';
+                $opening=$match[0].' data-sm-node="'.$escape($previewIds[$previewIndex++]).'"';
+                $attrs=$match[1]==='button' && isset($match[2])?json_decode($match[2],true):array();
+                if(($attrs['style']['dimensions']['width']??null)==='100%')$opening.=' data-sm-button-full';
+                return $opening;
             },$preview);
-        if($layoutCss!=='')$preview='<style>'.$layoutCss.'</style>'.$preview;
+        $layoutCss.='[data-sm-button-full]{flex-basis:100%;width:100%;max-width:none}[data-sm-button-full] .wp-block-button__link{width:100%;text-align:center}';
+        $preview='<style>'.$layoutCss.'</style>'.$preview;
         return array('schemaVersion'=>1,'content'=>$content,'preview'=>$preview,'blockCount'=>$count,
             'layoutNotes'=>array_values(array_unique($layoutNotes)),
             'checks'=>array('valid_plan'=>true,'native_blocks_only'=>true,'contains_heading'=>$headings>0,'no_active_markup'=>true));

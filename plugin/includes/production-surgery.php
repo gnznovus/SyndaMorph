@@ -31,7 +31,7 @@ function syndamorph_surgery_extract(array $plan,array $diagnostic): ?array {
     if(!is_array($node)||!is_string($node['id']??null))return null;
     // The target may be the root group of a large five-section design.
     // Surgical context must never drag the complete descendants into a model call.
-    $local=$node;$childCount=count($local['children']??array());unset($local['children']);
+    $local=$node;$childCount=is_array($local['children']??null)?count($local['children']):0;unset($local['children']);
     return array('id'=>$node['id'],'field'=>$field,'property'=>$matches[2]??'',
         'code'=>(string)($diagnostic['code']??''),'message'=>mb_substr((string)($diagnostic['message']??''),0,180),
         'node'=>$local,'childCount'=>$childCount);
@@ -50,7 +50,7 @@ function syndamorph_surgery_apply(array $plan,array $proposal,?array $authorized
     $scope=syndamorph_collab_find($plan['blocks'],$owner);
     if($scope===null)return new WP_Error('sm_surgery_target','Assigned repair component not found.');
     $allowed=array('color','background','gradient','fontSize','fontWeight','lineHeight','letterSpacing',
-        'padding','margin','gap','minHeight','contentWidth','justifyContent','verticalAlignment','align','borderRadius');
+        'textTransform','padding','margin','gap','minHeight','contentWidth','justifyContent','verticalAlignment','align','borderRadius','width');
     $touches=array();
     foreach($changes as $change){
         if(!is_array($change)||!is_string($change['path']??null)||
@@ -106,8 +106,18 @@ function syndamorph_surgery_operation(array $plan,array $proposal,array $authori
         count($changes)+count($wraps)<1 || count($changes)+count($wraps)>8) {
         return new WP_Error('sm_surgery_contract','Expected one to eight scoped style changes or authorized wraps.');
     }
-    if($wraps && ($authority['mode']??'style')!=='structure') {
+    if($wraps && !in_array($authority['mode']??'style',array('adaptive','structure'),true)) {
         return new WP_Error('sm_surgery_scope','Structural changes require a structural repair assignment.');
+    }
+    // Current core ignores fluid blockGap. Reject a newly authored fluid gap
+    // before requesting browser or model QA, while retaining legacy plans.
+    foreach(array_merge($changes,array_map(static fn($wrap)=>array(
+        'path'=>'style.gap','value'=>$wrap['style']['gap']??null),$wraps)) as $change) {
+        $value=$change['value']??null;
+        if(($change['path']??null)==='style.gap' && is_string($value) && str_starts_with($value,'clamp(') &&
+            !syndamorph_native_gap_supported($value)) {
+            return new WP_Error('sm_surgery_capability','WordPress discards fluid blockGap. Use supported child spacing or report a capability blocker.');
+        }
     }
     if(!$wraps)return syndamorph_surgery_apply($plan,array('id'=>$id,'changes'=>$changes),$authorized);
 
@@ -122,7 +132,7 @@ function syndamorph_surgery_operation(array $plan,array $proposal,array $authori
         if(!is_string($parentId)||!in_array($parentId,$authority['wrapParents']??array(),true) ||
             !is_string($groupId)||!preg_match('/^[a-zA-Z0-9_-]{1,80}$/D',$groupId) ||
             syndamorph_collab_find($candidate['blocks'],$groupId)!==null ||
-            !is_array($children)||!array_is_list($children)||count($children)<2||count($children)>12 ||
+            !is_array($children)||!array_is_list($children)||count($children)<1||count($children)>12 ||
             !is_array($style)||array_diff(array_keys($style),array('contentWidth','justifyContent','verticalAlignment','gap','minHeight','padding'))) {
             return new WP_Error('sm_surgery_structure','Wrap exceeds the assigned native layout scope.');
         }
@@ -133,7 +143,7 @@ function syndamorph_surgery_operation(array $plan,array $proposal,array $authori
         if($parent===null||!in_array($parent['type'],array('group','column'),true)) {
             return new WP_Error('sm_surgery_structure','Wrap parent must be an existing group or column.');
         }
-        $childIds=array_column($parent['children'],'id');
+        $childIds=array_column($parent['children']??array(),'id');
         $start=array_search($children[0],$childIds,true);
         if($start===false||array_slice($childIds,$start,count($children))!==$children) {
             return new WP_Error('sm_surgery_structure','A wrap must preserve the order of consecutive direct children.');
@@ -197,14 +207,15 @@ function syndamorph_surgery_normalize(array $plan,array $diagnostic): ?array {
     $target=&syndamorph_collab_find($plan['blocks'],$focus['id']);
     if($target===null)return null;
     $before=$target;
+    if(isset($target['style'])&&!is_array($target['style']))return null;
     $key=$focus['property'];
-    $nativeStyle=array('color','background','gradient','fontSize','fontWeight','lineHeight','letterSpacing',
+    $nativeStyle=array('color','background','gradient','fontSize','fontWeight','lineHeight','letterSpacing','textTransform','width',
         'padding','margin','gap','minHeight','contentWidth','justifyContent','verticalAlignment','align','borderRadius');
     // Unsupported node-level style properties can be moved without changing their values.
     if(in_array($key,$nativeStyle,true)&&array_key_exists($key,$target)&&!array_key_exists($key,$target['style']??array())){
         $target['style'][$key]=$target[$key];unset($target[$key]);
     }elseif($key==='style.typography' && is_array($target['style']['typography']??null)){
-        $nested=$target['style']['typography'];$supported=array('fontSize','fontWeight','lineHeight','letterSpacing');
+        $nested=$target['style']['typography'];$supported=array('fontSize','fontWeight','lineHeight','letterSpacing','textTransform');
         if(array_diff(array_keys($nested),$supported) || array_intersect(array_keys($nested),array_keys($target['style'])))return null;
         unset($target['style']['typography']);foreach($nested as $k=>$v)$target['style'][$k]=$v;
     }elseif($key==='style.color' && is_array($target['style']['color']??null)){
@@ -212,13 +223,18 @@ function syndamorph_surgery_normalize(array $plan,array $diagnostic): ?array {
         if(array_diff(array_keys($nested),array_keys($mapping)))return null;
         foreach($nested as $k=>$v)if(array_key_exists($mapping[$k],$target['style']))return null;
         unset($target['style']['color']);foreach($nested as $k=>$v)$target['style'][$mapping[$k]]=$v;
-    }elseif($key==='style.margin' && ($target['type']??'')==='buttons' &&
-        str_ends_with((string)($diagnostic['message']??''),'Unsupported style for block.') &&
-        array_key_exists('margin',$target['style']??array())){
-        // Buttons margins are not part of Gutenberg plan v1. Removing them is
-        // schema-safe, but may affect spacing: the existing browser QA remains
-        // mandatory before final delivery. Never migrate a margin speculatively.
-        unset($target['style']['margin']);
+    }elseif($key==='style.margin' && in_array($target['type']??'',array('group','columns','buttons'),true) &&
+        str_ends_with((string)($diagnostic['message']??''),'This block supports only top and bottom margins.') &&
+        is_string($target['style']['margin']??null)){
+        // Native vertical margin accepts the equivalent longhand only when
+        // both omitted horizontal margins are exactly zero.
+        $sides=preg_split('/\s+/',trim($target['style']['margin']));
+        if(count($sides)!==4)return null;
+        [$top,$right,$bottom,$left]=$sides;
+        foreach(array($right,$left) as $horizontal) {
+            if(!preg_match('/^0(?:\.0+)?(?:px|rem|em|vw|vh|svh|dvh)?$/D',$horizontal))return null;
+        }
+        $target['style']['margin']=array('top'=>$top,'bottom'=>$bottom);
     }elseif($key==='style.gradient' &&
         str_ends_with((string)($diagnostic['message']??''),'Invalid two-color gradient.') &&
         in_array($target['type']??'',array('group','column','button'),true) &&

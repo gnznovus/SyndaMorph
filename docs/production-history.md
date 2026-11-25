@@ -9,6 +9,8 @@ GEN records preserve the brief, model settings (not credentials), standards snap
 
 REF currently means deterministic Source Import, not reference-conditioned AI generation. URL records retain available capture evidence; HTML records preserve original markup; ZIP records preserve the uploaded package and scan manifest. Converted pages and save receipts are recorded separately. Reference previews suppress remote assets; original ZIP is downloadable. Large archives may require database packet and PHP request limits to be adjusted. No automatic retention or cleanup policy is implemented; back up the WordPress database and restrict access to authorized administrators.
 
+The November 25 hardening extends History with immutable repair handoffs, compiler correction outcomes, provider metering and literal-copy checksums. Original and corrected successful schema artifacts are preserved in private History. [Replay evidence and compatibility](adaptive-surgery-hardening.md#archive-replay)
+
 ## Acceptance
 
 1. Start one brief-only job and confirm GEN ID appears before generation, then the Boss title replaces the placeholder.

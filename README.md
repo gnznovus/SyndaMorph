@@ -2,9 +2,11 @@
 
 **From design to editable.**
 
-## Current project status (2026-11-24)
+## Current project status (2026-11-25)
 
 **Canonical roadmap and verified progress:** [Master Plan & Progress Tracker](docs/master-plan.md). **Adaptive Surgery v2 is implemented** on this experimental branch at [`54a1833`](https://github.com/gnznovus/SyndaMorph/commit/54a1833354081a04421138b6e993b2c347ccdc1e), with passing [MVP CI](https://github.com/gnznovus/SyndaMorph/actions/runs/45436215694) and deterministic Chromium benchmarks. **Live AI repair effectiveness and production-wide cost savings are not verified.** Next gate: controlled live-provider trials. AI Knowledge, source+visual Boss discovery, custom interactive block factory, multi-section campaigns, parallel agent queues, and bidirectional non-interruptive steering are **future plans**, not currently shipped.
+
+**November 25 checkpoint:** [Adaptive Surgery hardening](docs/adaptive-surgery-hardening.md) documents archive replay, native capability limits, regression checks and the explicit approval gate for GEN-000022 with Haiku 5.5.
 
 **Surgery v2:** Repaired sections use coordinated authorized patches, safe acceptance against true new regressions, rich QA evidence, and a protected 80% correction / 20% Boss reporting budget. Historical contracts elsewhere in this README may describe earlier POC behavior; [the canonical plan](docs/master-plan.md) and the v2 addendum in [collaborative production](docs/collaborative-production.md) govern current experimental expectations.
 
@@ -390,4 +392,4 @@ The team now uses shared versioned skills, techniques and nine default criteria,
 
 ## AI-first architecture decision
 
-AI Production is the primary development and workspace path. Deterministic Source Import is retained as an explicit, collapsed fallback, not removed. The current AI path remains prompt-only HTML generation. Native Gutenberg block-plan compilation and reference-conditioned AI generation are pending; do not claim these are implemented. Retain capture, extraction, asset management, history, previews and save endpoints. Benchmark AI-native Gutenberg against the fallback on Fidelity > Editable > Reusable before considering retirement. No changes to the stable release.
+AI Production is the primary development and workspace path. Deterministic Source Import is retained as an explicit, collapsed fallback, not removed. The Native Gutenberg workflow compiles an editable block plan against its approved HTML reference. [Current verification and limits](docs/adaptive-surgery-hardening.md). Retain capture, extraction, asset management, history, previews and save endpoints. Benchmark AI-native Gutenberg against the fallback on Fidelity > Editable > Reusable before considering retirement. No changes to the stable release.

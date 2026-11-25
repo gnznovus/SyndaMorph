@@ -34,13 +34,38 @@ function syndamorph_repair_blocker_type(string $reason,array $issues,array $atte
         if(in_array($attempt['validation']??null,array('capability','design_constraint','missing_evidence'),true))
             return $attempt['validation'];
     }
+    if($reason==='content_review_required')return 'content';
+    if($reason==='repair_scope_unsupported')return 'scope';
     return $reason==='design_review_required'?'design_constraint':'implementation';
 }
 
-function syndamorph_repair_assignment(array $plan,array $issues,SyndaMorph_Job_Memory $memory,bool $useLearning=true): ?array {
+/** Keep the Boss findings intact, including instructions that accompany a measured finding. */
+function syndamorph_repair_handoff(array $findings,array $assignment,array $plan): array {
+    $instructions=array();$requested=array();
+    foreach($findings as $finding) {
+        if(!is_array($finding))continue;
+        $issue=syndamorph_issue_model($finding,$plan);
+        if(!$issue || ($issue['category']??'')==='content')continue;
+        if(!in_array(syndamorph_issue_key($issue),$assignment['group'],true) &&
+            !in_array($issue['component'],$assignment['nodes'],true))continue;
+        $instructions[]=$finding;
+        if(array_key_exists('repairStrategy',$finding)) {
+            $mode=$finding['repairStrategy'];
+            if(!in_array($mode,array('style','structure','hybrid'),true))
+                return array('instructions'=>$instructions,'unsupported'=>true,'requested'=>array());
+            $requested[$mode]=true;
+        }
+    }
+    return array('instructions'=>$instructions,'requested'=>array_keys($requested),
+        'unsupported'=>!$assignment['wrapParents'] && (isset($requested['structure'])||isset($requested['hybrid'])));
+}
+
+function syndamorph_repair_assignment(array $plan,array $issues,SyndaMorph_Job_Memory $memory,bool $useLearning=true,array $metrics=array()): ?array {
     $editable=array_values(array_filter(syndamorph_repair_prioritize($issues),
-        static fn($issue)=>syndamorph_collab_find($plan['blocks'],$issue['component'])!==null));
+        static fn($issue)=>($issue['category']??'')!=='content' &&
+            syndamorph_collab_find($plan['blocks'],$issue['component'])!==null));
     $fingerprint=SyndaMorph_Job_Memory::fingerprint($plan);
+    $fingerprints=syndamorph_collab_fingerprints($plan);
     foreach($editable as $lead) {
         $owner=$lead['component'];
         $node=syndamorph_collab_find($plan['blocks'],$owner);
@@ -48,6 +73,7 @@ function syndamorph_repair_assignment(array $plan,array $issues,SyndaMorph_Job_M
         $nodes=array($owner);
         $layoutCategories=array('spacing','alignment','height','wrapping');
         $layout=in_array($lead['category']??'', $layoutCategories,true) ||
+            in_array($lead['repairStrategy']??'',array('structure','hybrid'),true) ||
             preg_match('/spacing|layout|align|position|wrap/i',$lead['id']??'');
         $descendants=array_column(syndamorph_surgery_context($node,121),'id');
         foreach($editable as $issue) {
@@ -61,35 +87,54 @@ function syndamorph_repair_assignment(array $plan,array $issues,SyndaMorph_Job_M
             if(count($focus)>=6)break;
         }
         $wrapParents=array();
-        $directChildren=array_column($node['children']??array(),'id');
-        if($layout && in_array($node['type'],array('group','column'),true)) {
-            // Expose direct layout participants. Descendants of unrelated
-            // branches remain protected unless a finding names them.
-            array_push($nodes,...$directChildren);
-            if(count($directChildren)>=2 && count($directChildren)<=12)$wrapParents[]=$owner;
+        $nodes=array_values(array_unique($nodes));
+        if($layout) {
+            // Bound the edit scope while exposing eligible containers and their
+            // direct children. Intermediate groups on the path to a finding
+            // are valid wrap parents, even when they have just one child.
+            foreach(array_reverse(syndamorph_surgery_context($node,121)) as $entry) {
+                if(!in_array($entry['type'],array('group','column'),true))continue;
+                $container=syndamorph_collab_find($plan['blocks'],$entry['id']);
+                $children=array_column($container['children']??array(),'id');
+                if($entry['id']!==$owner && !array_intersect($children,$nodes) &&
+                    !in_array($entry['id'],$nodes,true))continue;
+                $expanded=array_values(array_unique(array_merge($nodes,array($entry['id']),$children)));
+                if(count($expanded)>24)continue;
+                $nodes=$expanded;
+                if(count($children)>=1 && count($children)<=12)$wrapParents[]=$entry['id'];
+            }
         }
         $group=array_map('syndamorph_issue_key',$focus);
-        $attempts=$memory->operationsOn($fingerprint,$group);
+        $scopeFingerprint=SyndaMorph_Job_Memory::fingerprint(array(
+            'nodes'=>array_intersect_key($fingerprints,array_flip($nodes)),
+            'measurements'=>$metrics[$group[0]]['views']??array(),
+        ));
+        $attempts=$memory->operationsOn($scopeFingerprint,$group);
         $used=array_column($attempts,'strategy');
+        $usedModes=array_column($attempts,'operationMode');
         $strategy='style';
+        $priorityNodes=array_slice($nodes,0,24);
+        $wrapParents=array_values(array_filter($wrapParents,static fn($parent)=>in_array($parent,$priorityNodes,true)));
         if($useLearning && !$used && $wrapParents &&
             syndamorph_learning_match_operation(array('focus'=>$focus,'node'=>$node,'nodes'=>array_values(array_unique($nodes)),'mode'=>'structure'))) {
             $strategy='structure';
         }
-        if(in_array($strategy,$used,true)) {
+        if(in_array($strategy,$usedModes,true) || (!$usedModes && in_array($strategy,$used,true))) {
             $failures=array_column($attempts,'validation');
             if((in_array('patch_contract',$failures,true)||in_array('compiler',$failures,true)) &&
                 !in_array('contract_correction',$used,true)) {
                 $strategy='contract_correction';
-            }elseif($wrapParents && !in_array('structure',$used,true)) {
+            }elseif($wrapParents && !in_array('structure',$used,true) &&
+                !array_intersect(array('structure','hybrid'),$usedModes)) {
                 $strategy='structure';
             }else {
                 continue;
             }
         }
         return array('id'=>$owner,'node'=>$node,'focus'=>$focus,'group'=>$group,'strategy'=>$strategy,
-            'mode'=>$strategy==='structure'?'structure':'style','nodes'=>array_slice(array_values(array_unique($nodes)),0,24),
-            'wrapParents'=>$wrapParents,'baselineFingerprint'=>$fingerprint);
+            'mode'=>$wrapParents?($strategy==='structure'?'structure':'adaptive'):'style',
+            'nodes'=>array_slice($nodes,0,24),
+            'wrapParents'=>$wrapParents,'baselineFingerprint'=>$fingerprint,'strategyFingerprint'=>$scopeFingerprint);
     }
     return null;
 }
@@ -140,6 +185,8 @@ function syndamorph_issue_model(array $issue,array $plan): ?array {
     $normalized=array('id'=>$key,'component'=>$id,
         'severity'=>in_array($issue['severity']??'',array('high','medium','low'),true)?$issue['severity']:'medium',
         'detail'=>$issue['detail'],'source'=>'model');
+    if(array_key_exists('repairStrategy',$issue))$normalized['repairStrategy']=$issue['repairStrategy'];
+    if($category==='content' || str_starts_with($key,'copy-'))$normalized['category']='content';
     if(in_array($category,array('alignment','height','spacing','typography','wrapping'),true)) {
         $owner=($issue['scope']??'')==='section'?$root:$id;
         $normalized['group']=$category.'|'.$owner;
@@ -184,8 +231,10 @@ function syndamorph_reference_capability_notes(string $html): array {
     $notes=array();
     if(preg_match('/(?<![\w-])max-width\s*:\s*[^;{}]+/i',$html))$notes[]='Leaf max-width requires a constrained group layout; verify wrapping.';
     if(preg_match('/(?<![\w-])(?:grid-template-areas\s*:|position\s*:\s*(?:absolute|fixed|sticky)|transform\s*:|clip-path\s*:)/i',$html))$notes[]='Reference contains layout effects outside current native block capabilities.';
-    if(preg_match('/(?<![\w-])(?:text-transform|text-wrap)\s*:\s*(?:uppercase|lowercase|capitalize|balance|pretty)\b/i',$html))
-        $notes[]='Reference typography uses casing or wrapping effects without a native style mapping. Check the visual impact before approval.';
+    if(preg_match('/(?<![\w-])text-wrap\s*:\s*(?:balance|pretty)\b/i',$html))
+        $notes[]='Reference uses text wrapping effects outside the native style contract.';
+    if(preg_match('/(?<![\w-])(?:row-gap|column-gap|gap)\s*:\s*clamp\(/i',$html))
+        $notes[]='Core WordPress discards fluid blockGap. Evaluate supported child spacing or request a design decision.';
     if(preg_match('/<\\s*(?:img|video|svg|canvas|table|ul|ol)\\b/i',$html))$notes[]='Reference contains elements outside current native block schema.';
     return $notes;
 }

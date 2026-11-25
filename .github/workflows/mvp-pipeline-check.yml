@@ -19,6 +19,7 @@ on:
       - 'plugin/includes/production-inspection.php'
       - 'plugin/includes/production-visual-qa.php'
       - 'plugin/includes/production-surgery.php'
+      - 'plugin/includes/production-repair.php'
       - 'plugin/includes/production-tools.php'
       - 'plugin/includes/production-block-plan.php'
       - 'plugin/includes/ai-models.php'
@@ -40,6 +41,8 @@ on:
       - '.github/workflows/mvp-pipeline-check.yml'
   pull_request:
     paths:
+      - 'plugin/includes/production-surgery.php'
+      - 'plugin/includes/production-repair.php'
       - 'plugin/includes/production-collaboration.php'
       - 'plugin/includes/production-inspection.php'
       - 'plugin/includes/production-visual-qa.php'

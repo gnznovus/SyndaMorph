@@ -49,7 +49,7 @@ const {chromium}=require('../backend/node_modules/playwright');
      await loaded;
      const doc=frame.contentDocument;
      const bounds=[...doc.querySelectorAll(selector)]
-      .map(el=>{const r=el.getBoundingClientRect();return [r.x,r.width,r.y,r.bottom];});
+      .map(el=>{const r=el.getBoundingClientRect();return [r.x,r.width,r.y,r.bottom,doc.defaultView.getComputedStyle(el).textTransform];});
      frame.remove();
      return bounds;
     };
@@ -60,6 +60,8 @@ const {chromium}=require('../backend/node_modules/playwright');
      constrained:await compare(window.nativeParity,'.wp-block-group > h2,.wp-block-group > p,.wp-block-group > .wp-block-buttons'),
      flex:await compare(window.nativeParity.flex,'.wp-block-group,.wp-block-group > h2,.wp-block-group > p'),
      columns:await compare(window.nativeParity.columns,'.wp-block-column'),
+     hybrid:await compare(window.nativeParity.hybrid,'.wp-block-group, .wp-block-group > h2, .wp-block-group > p'),
+     fullWidth:window.nativeParity.fullWidth && await compare(window.nativeParity.fullWidth,'.wp-block-buttons,.wp-block-button__link'),
     };
    },width);
    const constrained=geometry.constrained;
@@ -76,6 +78,18 @@ const {chromium}=require('../backend/node_modules/playwright');
     assert.equal(boxes.length,3);
     assert.ok(Math.abs(boxes[1][0]+boxes[1][1]/2-width/2)<1,'Vertical group must center its content');
     assert.ok(Math.abs(boxes[0][3]-boxes[2][3]-16)<1,'Vertical group must bottom-align with padding');
+   }
+   for(const boxes of Object.values(geometry.hybrid)){
+    const [outer,inner,heading,paragraph]=boxes;
+    assert.equal(paragraph[4],'uppercase');
+    assert.ok(Math.abs((outer[2]+outer[3])/2-(inner[2]+inner[3])/2)<1,'Nested content must center vertically');
+    assert.ok(Math.abs(heading[1]-Math.min(width-32,576))<1,'Constrained child must honor its maximum width');
+   }
+   const [previewHeading,frontendHeading]=[geometry.hybrid.preview[2],geometry.hybrid.frontend[2]];
+   assert.ok(Math.abs(previewHeading[0]-frontendHeading[0])<1,'Nested constrained layout must match core position');
+   if(geometry.fullWidth)for(const [buttons,link] of Object.values(geometry.fullWidth)){
+    assert.equal(link[4],'lowercase');
+    assert.ok(Math.abs(buttons[1]-link[1])<1 && Math.abs(buttons[0]-link[0])<1,'Fixed width CTA must fill its container in preview and core');
    }
    for(const boxes of Object.values(geometry.columns)){
     assert.equal(boxes.length,2);
