@@ -558,7 +558,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     for($attempt=1;is_wp_error($compiled);$attempt++){
         $error=$compiled;
         $data=(array)$error->get_error_data();
-        $diag=array('code'=>$error->get_error_code(),'message'=>$error->get_error_message(),'field'=>$data['field']??'plan');
+        $diag=array('code'=>$error->get_error_code(),'message'=>$error->get_error_message(),
+            'field'=>$data['field']??'plan','expected'=>$data['expected']??array());
         if($diag['code']!=='sm_block_plan_invalid')break;
         $focus=syndamorph_surgery_extract($plan,$diag);
         if(!$focus)break;
@@ -584,15 +585,28 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         if($candidate===null){
             $route='developer';
             $schemaAttempts[$errorKey]=($schemaAttempts[$errorKey]??0)+1;
-            $context=array('diagnostic'=>$diag,'target'=>$focus,
+            // Bind acknowledgement to this exact compiler diagnostic, including expectations.
+            $instructionId=hash('sha256',wp_json_encode(array($diag['code'],$diag['field'],
+                $diag['message'],$diag['expected'])));
+            $context=array('diagnostic'=>$diag,'instructionId'=>$instructionId,'target'=>$focus,
                 'rejectedPatches'=>array_values($schemaRejected[$errorKey]??array()),
                 'attemptsRemaining'=>$schemaRetryLimit-$schemaAttempts[$errorKey],
                 'learnedRules'=>$useLearning?syndamorph_learning_retrieve('schema_repair'):array());
-            $answer=$call('developer','Surgical schema repair. Return JSON {"id":"existing id","changes":[{"path":"style.fontSize","value":"2rem"}]}. Update only the failing node style using the cached compiler contract. Preserve content and identity.',
+            $answer=$call('developer','Compiler rejected the current plan. Follow diagnostic.expected exactly. Return JSON {"acknowledged":{"instructionId":"copy instructionId from context","field":"copy diagnostic.field from context"},"patch":{"id":"existing id","changes":[{"path":"style.fontSize","value":"2rem"}]}}. Change only the failing node style. Preserve content and identity.',
                 $context,2048,array(),'schema_repair');
             if(is_wp_error($answer)){$compiled=$answer;break;}
             $surgery['paidPatches']++;
-            $proposal=json_decode(syndamorph_native_json_text($answer),true);
+            $response=json_decode(syndamorph_native_json_text($answer),true);
+            $ack=$response['acknowledged']??null;
+            if(!is_array($ack)||($ack['instructionId']??null)!==$instructionId||
+                ($ack['field']??null)!==$diag['field']||!is_array($response['patch']??null)){
+                $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],
+                    'accepted'=>false,'reason'=>'compiler_instruction_not_acknowledged');
+                if($on_event)$on_event('schema_repair',array('field'=>$diag['field'],'status'=>'rejected',
+                    'reason'=>'compiler_instruction_not_acknowledged','attempt'=>$attempt));
+                continue;
+            }
+            $proposal=$response['patch'];
             $patchHash=hash('sha256',wp_json_encode($proposal));
             if(isset($schemaRejected[$errorKey][$patchHash])){
                 $compiled=new WP_Error('sm_schema_stagnation','Developer repeated an ineffective schema repair proposal.',
