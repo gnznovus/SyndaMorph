@@ -606,11 +606,18 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $deviations[$deviation['note']]=mb_substr($deviation['reason'],0,240);
         }
         $unresolvedNotes=array_values(array_diff($capabilityNotes,array_keys($deviations)));
-        if($decision==='approved' && $unresolvedNotes) {
-            $decision='changes_requested';
-            $approval['issues']=array_map(static fn($note)=>array('target'=>'native reference',
-                'problem'=>$note,'requiredChange'=>'Use a native-compatible alternative or identify the exact nonessential deviation for approval.'),$unresolvedNotes);
-        }
+        // Capability notes are advisory until the native compiler/QA can prove a
+        // blocker. Do not silently override an explicit, issue-free Boss approval:
+        // GEN-000018 accepted the uppercase label but produced a narrative string
+        // instead of the structured deviation object, triggering needless surgery.
+        if($decision==='approved' && $unresolvedNotes && $on_event)
+            $on_event('capability_preflight',array('notes'=>$unresolvedNotes,
+                'status'=>'advisory','decision'=>'approved',
+                'detail'=>'Carry native mapping limitations into Developer and QA validation.'));
+        if($decision==='approved' && !empty($approval['issues']))
+            return new WP_Error('sm_boss_review_contract',
+                'Boss approval contains unresolved issues; request an explicit consistent decision.',
+                array('stage'=>'design_approval','issues'=>$approval['issues']));
         $handoff=array('from'=>'boss','to'=>'designer','type'=>'design_review','decision'=>$decision,
             'referenceSha256'=>hash('sha256',$reference),'acceptedCapabilityDeviations'=>$deviations,
             'issues'=>array_slice(array_map(static function($item){
