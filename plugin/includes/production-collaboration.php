@@ -562,8 +562,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         if($diag['code']!=='sm_block_plan_invalid')break;
         $focus=syndamorph_surgery_extract($plan,$diag);
         if(!$focus)break;
-        $errorKey=hash('sha256',wp_json_encode(array($diag['code'],$diag['field'],$diag['message'],
-            hash('sha256',wp_json_encode($plan)))));
+        $errorKey=hash('sha256',wp_json_encode(array($diag['code'],$diag['field'],$diag['message'],$focus['id'])));
         if(($schemaAttempts[$errorKey]??0)>=$schemaRetryLimit){
             $compiled=new WP_Error('sm_schema_stagnation','Schema repair exhausted distinct attempts for an unchanged compiler error.',
                 array('field'=>$diag['field'],'diagnostic'=>$diag['message'],'attempts'=>$schemaAttempts[$errorKey]));
