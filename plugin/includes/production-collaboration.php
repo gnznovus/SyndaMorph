@@ -41,8 +41,18 @@ function syndamorph_authority_gate(array $decision,string $status,string $reason
     if($on_event)$on_event('execution_gate',$gate);
     return $gate;
 }
-/** Overall hard limit; each task requests a smaller cap when suitable. */
-function syndamorph_collab_output_cap(): int { return 16384; }
+/** Provider/model ceiling, never a stage-specific output quota. */
+function syndamorph_collab_output_cap(string $provider='anthropic',string $model='claude-haiku-5-5'): int {
+    return syndamorph_models_output_limit($provider,$model);
+}
+/** Allocate output from remaining authorized dollars after input reservations. */
+function syndamorph_collab_budget_output_cap(int $bytes,int $images,float $remainingUsd,
+    float $inputRate,float $outputRate,int $providerLimit): int {
+    if($providerLimit<=0 || $outputRate<=0) return 0;
+    $inputReserve=syndamorph_collab_allowance($bytes,$images,0,$inputRate,$outputRate);
+    if($remainingUsd<=$inputReserve) return 0;
+    return min($providerLimit,max(0,(int)floor(($remainingUsd-$inputReserve)*1000000/$outputRate)));
+}
 
 /** Strict, compact inter-agent assignment; the original user brief remains authoritative. */
 function syndamorph_collab_requirements(string $raw) {
@@ -451,7 +461,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             return $followup===null?$cached['text']:$followup;
         }
         if(!syndamorph_agent_scope($role,$stage))return new WP_Error('sm_agent_scope','Task outside agent scope.');
-        $cap=min($cap,syndamorph_collab_output_cap());
+        // Retain the legacy cap parameter for tool-followup call compatibility.
+        $providerLimit=syndamorph_collab_output_cap($provider,$model);
         $context['availableTools']=syndamorph_production_tool_catalog($role);
         $encoded=wp_json_encode($context);
         $contextLimit=in_array($stage,array('repair','revision_validation'),true)?24000:160000;
@@ -460,8 +471,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             "\nIf a concrete uncertainty requires one of the provided read-only availableTools, you may return ONLY JSON ".
             '{"action":"tool_request","toolRequest":{"name":"registered tool name","target":"authorized artifact","reason":"specific measurable question"}}. '.
             'The orchestrator will return measured or cached evidence; then complete the original assignment. Never request a tool merely to defer work and never request write permissions.';
+        $spent=syndamorph_collab_cost($usage,$in,$out)+$unmeteredReserve;
+        $ceiling=$stage==='scope_resolution'?$max:$cutoff;
+        $cap=syndamorph_collab_budget_output_cap(strlen($encoded)+strlen($prefix)+strlen($system),
+            count($images),$ceiling-$spent-$nextAllowance,$in,$out,$providerLimit);
         $allowance=syndamorph_collab_allowance(strlen($encoded)+strlen($prefix)+strlen($system),count($images),$cap,$in,$out);
-        if (syndamorph_collab_cost($usage,$in,$out)+$unmeteredReserve+$allowance+$nextAllowance>($stage==='scope_resolution'?$max:$cutoff))
+        if ($cap<1 || $spent+$allowance+$nextAllowance>$ceiling)
             return new WP_Error('sm_team_budget','No safe budget for another model call.',array('stage'=>'budget','role'=>$role,'task'=>$stage,'completedCalls'=>$calls));
         if ($on_event) $on_event('agent_start',array('role'=>$role,'task'=>$stage));
         $start=microtime(true);
@@ -518,7 +533,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $reply=$call('boss','The required visual gate is Pending. Choose one bounded next action. Return only JSON {"decision":"await_renderer|manual_review_required|continue_independent","nextAction":"specific safe action"}. Continue only independent static work. Do not approve, invent evidence, replace requested widths, or regenerate the saved artifact.',
             array('inspection'=>$diagnostic,'completedIndependentChecks'=>$checks,'capabilityNotes'=>$capabilityNotes,
                 'compiledDraftAvailable'=>$artifact!==null,'referenceCheckpointAvailable'=>$checkpoint!==null),
-            2048,array(),'scope_resolution');
+            syndamorph_collab_output_cap($provider,$model),array(),'scope_resolution');
         if(!is_wp_error($reply)) {
             $decision=json_decode(syndamorph_native_json_text($reply),true);
             $resolution=syndamorph_authority_decision('boss','inspection_escalation',$decision,
@@ -552,7 +567,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'published'=>false,'renderedInBrowser'=>false);
     };
     $boss=$call('boss','Classify the job into a concise work order. Return ONLY JSON {"title":"short job title","sections":["..."],"constraints":["..."],"acceptance":["..."]}. Use the supplied acceptance viewport widths exactly. Include concrete requested sections, implementability constraints and testable acceptance criteria. Maximum 12 short strings per list, no speculative objections, markdown or HTML. If unspecified, permit generic marketing copy and provisional local CTAs without invented real-world facts.',
-        array('brief'=>$brief,'viewportWidths'=>$viewports),2048);
+        array('brief'=>$brief,'viewportWidths'=>$viewports),syndamorph_collab_output_cap($provider,$model));
     if(is_wp_error($boss))return $boss;
     $bossBrief=syndamorph_collab_requirements($boss);
     if(is_wp_error($bossBrief))return $bossBrief;
@@ -565,7 +580,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     // Designer owns the visual deliverable; Boss reviews real browser evidence
     // before the Developer receives the approved reference.
     $reference=$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.',
-        array('brief'=>$brief,'requirements'=>$bossBrief),16384);
+        array('brief'=>$brief,'requirements'=>$bossBrief),syndamorph_collab_output_cap($provider,$model));
     if(is_wp_error($reference))return $reference;
     $approval=array('decision'=>'rejected','issues'=>array());
     $approvedReference=false;$designReviews=0;$handoffs=array($assignment);
@@ -627,7 +642,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'current'=>count($measurements),'changed'=>count($changedMeasurements));
         }
         $review=$call('boss','Review the Designer reference against the brief, native compiler contract and browser evidence. In diff mode, focus on changed evidence and unresolved defects. Browser-computed styles are authoritative for CSS values; do not reject a declared weight solely because a screenshot appears light. If evidence is insufficient, return JSON {"decision":"verification_required","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"specific browser diagnostic question"},"summary":"brief"} instead of requesting HTML changes. Otherwise return JSON {"decision":"approved|changes_requested","issues":[{"target":"section","problem":"measurable defect","requiredChange":"specific correction"}],"acceptedCapabilityDeviations":[],"summary":"brief"}. Request no more than three concrete issues. Do not demand browser verification from Designer.',
-            $reviewContext,4096,$referenceImages,'final_approval');
+            $reviewContext,syndamorph_collab_output_cap($provider,$model),$referenceImages,'final_approval');
         $priorDesignMeasurements=$measurements;
         if(is_wp_error($review))return $review;
         $parsed=json_decode(syndamorph_native_json_text($review),true);
@@ -717,7 +732,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $patchReply=$call('designer','Apply only actual design defects using JSON {"edits":[{"find":"exact unique fragment","replace":"replacement"}]}. Maximum five edits. If a browser diagnostic is required, return JSON {"action":"verification_required","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"specific question"}}. If Boss feedback contradicts recorded evidence, return JSON {"action":"no_change","reason":"specific evidence-based dispute"}; never fabricate an edit or return empty edits. Do not return the whole reference.',
             array('reference'=>$reference,'feedback'=>$handoff['issues'],'requirements'=>$brief,
                 'availableTools'=>syndamorph_production_tool_catalog('designer'),
-                'verificationEvidence'=>$pendingToolEvidence),syndamorph_collab_output_cap(),array(),'design_correction');
+                'verificationEvidence'=>$pendingToolEvidence),syndamorph_collab_output_cap($provider,$model),array(),'design_correction');
         if(is_wp_error($patchReply))return $patchReply;
         $parsedPatch=json_decode(syndamorph_native_json_text($patchReply),true);
         if(is_array($parsedPatch)&&($parsedPatch['action']??'')==='verification_required'){
@@ -780,7 +795,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'compilerPitfalls'=>array(
                 'Use a top/bottom sides object for group, columns and buttons margins.',
                 'Use gradient linear-gradient(135deg,#18283a,#0f1a26) with exactly two hex color endpoints and no percentage stops.',
-                'Unsupported styles must not be emitted; preserve the approved design through native-compatible groups.')),16384,$referenceImages);
+                'Unsupported styles must not be emitted; preserve the approved design through native-compatible groups.')),syndamorph_collab_output_cap($provider,$model),$referenceImages);
     if (is_wp_error($developer)) return $developer;
 
     // Native schema recovery operates on one persistent full-generation plan.
@@ -849,7 +864,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'attemptsRemaining'=>$schemaRetryLimit-$schemaAttempts[$errorKey],
                 'learnedRules'=>$useLearning?syndamorph_learning_retrieve('schema_repair'):array());
             $answer=$call('developer','Compiler Auto-Repair could not safely resolve this diagnostic. Follow diagnostic.expected. Return JSON {"acknowledged":{"instructionId":"copy instructionId from context","field":"copy diagnostic.field from context"},"patch":{"id":"assigned id","changes":[{"path":"style.fontSize","value":"2rem"}]}}. Change only the failing node style. Use op:remove only when correcting field placement while preserving the style intent. Preserve content and identity.',
-                $context,2048,array(),'schema_repair');
+                $context,syndamorph_collab_output_cap($provider,$model),array(),'schema_repair');
             if(is_wp_error($answer)){$compiled=$answer;break;}
             $surgery['paidPatches']++;
             $response=json_decode(syndamorph_native_json_text($answer),true);
@@ -973,7 +988,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'implementationHandoff'=>$implementationHandoff,
             'components'=>syndamorph_surgery_context($plan['blocks'][0],121),'compilerChecks'=>$artifact['checks'],
             'imageOrder'=>array_merge(...array_map(static fn($index)=>array($viewports[$index].'-reference',$viewports[$index].'-native'),$visionViewports))),
-        6144,$screenshots,'validation');
+        syndamorph_collab_output_cap($provider,$model),$screenshots,'validation');
     if (is_wp_error($review)) return $review;$outputs['validator']=$review;
     $parsed=json_decode(syndamorph_native_json_text($review),true);
     $qaRecord=syndamorph_authority_decision('boss','implementation_qa',$parsed,
@@ -1018,10 +1033,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $terminationReason='quality_pending';
     $inspectionPending=null;
     $inspectionCheckpoint=null;
-    $reviewCap=4096;
-    // Reserve the maximum size of the future QA request, including its one
-    // image pair and cached/task instructions, before paying for Developer.
-    $reviewReserve=syndamorph_collab_allowance(24000+strlen($prefix)+2000,2,$reviewCap,$in,$out);
+    $reviewCap=syndamorph_collab_output_cap($provider,$model);
+    // Reserve dollars for one future scoped QA call, not an arbitrary token cap.
+    $reviewReserve=min($cutoff*0.1,
+        syndamorph_collab_allowance(24000+strlen($prefix)+2000,2,$reviewCap,$in,$out));
     // Keep 20% for final issue reporting. No fixed QA attempt or stagnation cutoff.
     for($round=1;count($issues)>0;$round++) {
         $control=syndamorph_job_control_gate();
@@ -1100,7 +1115,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $instruction='Use the Boss instructions, prior attempts and measured geometry to select the smallest supported operation. Include a concise strategyDeviation when an explicit Boss strategy differs from your operation. Use a materially different correction or state new evidence; if neither is available, report a blocker. Return only JSON {"id":"assigned owner","diagnosis":"cause with evidence","changes":[{"target":"authorized id","path":"style.margin.bottom","value":"1rem"}]}. Apply up to eight combined edits only to the explicit authorized nodes. Omit unused changes. Preserve text, links, block types, existing IDs and unrelated siblings. Never return a full node or plan. If a supported repair is impossible, use {"id":"assigned owner","blocked":"capability|design_constraint|missing_evidence","diagnosis":"why"}.';
             if($assignment['strategy']==='contract_correction')$instruction.=' Correct the specific contract failure in previousAttempts before trying new style values.';
             if($assignment['wrapParents'])$instruction.=' For structure, include wraps:[{"parent":"authorized parent","children":["consecutive direct child id"],"id":"new-group-id","style":{"contentWidth":"40rem"}}]. Preserve existing IDs and order. Include both wraps and changes for a hybrid operation. Core discards fluid blockGap; use supported child spacing if needed.';
-            $repair=$call('developer',$instruction,$repairContext,4096,
+            $repair=$call('developer',$instruction,$repairContext,syndamorph_collab_output_cap($provider,$model),
                 $repairScope['images'],'repair',$reviewReserve);
             if(is_wp_error($repair)) {
                 $terminationReason=$repair->get_error_code()==='sm_team_budget'?'budget_80_percent':'developer_blocked';
@@ -1331,7 +1346,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'compilerValid'=>true,'editorVerified'=>false);
         if($inspectionPending!==null)$briefing['inspection']=$inspectionPending;
         $response=$call('boss','Resolve a stalled QA handoff without changing the approved design. Return JSON {"decision":"engineering_blocked|design_review_required|manual_review_required","summary":"precise unresolved blocker","nextAction":"concrete action"}. Never approve a defect, rewrite a design or ask Developer to retry the same patch without new evidence.',
-            $briefing,2048,array(),'scope_resolution');
+            $briefing,syndamorph_collab_output_cap($provider,$model),array(),'scope_resolution');
         if(is_wp_error($response)) {
             $escalation['nextAction']=$response->get_error_code()==='sm_team_budget'?'budget_review':'manual_review';
         }else {

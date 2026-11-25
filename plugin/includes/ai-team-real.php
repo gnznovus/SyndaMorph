@@ -46,14 +46,8 @@ function syndamorph_team_real_run( string $brief, bool $stream = true, ?callable
     if ( $input_rate <= 0 || $output_rate <= 0 || $budget <= 0 ) {
         return new WP_Error( 'sm_team_budget', 'Configure verified positive token rates and a job budget first.', array( 'status' => 400 ) );
     }
-    // Approximate preflight; provider pricing, caching and input usage can differ.
-    // Per-role output caps: give the Designer/Developer enough room for a
-    // complete handoff without globally increasing every paid call.
-    $output_caps = array( 'boss' => 16384, 'designer' => 16384, 'developer' => 16384, 'validator' => 16384 );
-    $estimated_upper = ( 4 * 64000 * $input_rate + array_sum( $output_caps ) * $output_rate ) / 1000000;
-    if ( $estimated_upper > $budget ) {
-        return new WP_Error( 'sm_team_budget', 'Estimated maximum job usage exceeds configured budget; choose a cheaper model or raise the limit.', array( 'status' => 400 ) );
-    }
+    // Provider ceiling and configured budget govern each role, not fixed per-role caps.
+    $provider_limit = syndamorph_models_output_limit( $provider, $model );
     if ( function_exists( 'set_time_limit' ) ) { @set_time_limit( 1200 ); }
 
     $roles = array(
@@ -77,12 +71,14 @@ function syndamorph_team_real_run( string $brief, bool $stream = true, ?callable
     foreach ( $roles as $role => $instruction ) {
         $control=syndamorph_job_control_gate();
         if(is_wp_error($control))return $control;
-        $max_output = $output_caps[ $role ];
+        $max_output = 0;
         $agent = 'validator' === $role ? 'boss' : $role;
         $role_started = microtime( true );
         $estimated_spent = ( $usage['inputTokens'] * $input_rate + $usage['outputTokens'] * $output_rate ) / 1000000;
-        $call_allowance = ( 64000 * $input_rate + $max_output * $output_rate ) / 1000000;
-        if ( $estimated_spent + $call_allowance > $budget ) {
+        $max_output = syndamorph_collab_budget_output_cap(64000,0,
+            $budget-$estimated_spent,$input_rate,$output_rate,$provider_limit);
+        $call_allowance = syndamorph_collab_allowance(64000,0,$max_output,$input_rate,$output_rate);
+        if ( $max_output < 1 || $estimated_spent + $call_allowance > $budget ) {
             return new WP_Error( 'sm_team_budget', 'Estimated job budget reached before the next agent.', array( 'status' => 429, 'stage' => 'budget', 'role' => $role, 'completedCalls' => count( $events ) ) );
         }
         // Limit chain length and cost: four bounded calls, no automatic retries.

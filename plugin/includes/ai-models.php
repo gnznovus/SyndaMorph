@@ -90,6 +90,7 @@ function syndamorph_models_catalog( string $provider, bool $force = false ) {
         $models[] = array(
             'id' => $model['id'], 'name' => sanitize_text_field( $model['display_name'] ),
             'pricing' => syndamorph_anthropic_pricing( $model['id'] ),
+            'maxOutputTokens' => (int) ( $model['max_tokens'] ?? 0 ),
         );
     }
     if ( ! $models ) {
@@ -101,6 +102,20 @@ function syndamorph_models_catalog( string $provider, bool $force = false ) {
     set_transient( $cache_key, $catalog, 15 * MINUTE_IN_SECONDS );
     update_option( 'syndamorph_ai_catalog_last_' . $provider, $catalog, false );
     return $catalog;
+}
+
+/** Provider output ceiling, not an agent/task quota. */
+function syndamorph_models_output_limit( string $provider, string $model ): int {
+    if ( 'anthropic' !== $provider ) { return 0; }
+    $catalog = get_transient( 'syndamorph_ai_models_' . $provider );
+    if ( ! is_array( $catalog ) ) { $catalog = get_option( 'syndamorph_ai_catalog_last_' . $provider, array() ); }
+    foreach ( (array) ( $catalog['models'] ?? array() ) as $entry ) {
+        if ( ( $entry['id'] ?? '' ) === $model && (int) ( $entry['maxOutputTokens'] ?? 0 ) > 0 ) {
+            return (int) $entry['maxOutputTokens'];
+        }
+    }
+    // Anthropic published limits: legacy Claude 4.5 = 64K; later families = 128K.
+    return preg_match( '/(?:haiku|sonnet|opus)-4-5(?:-|$)/', $model ) ? 64000 : 128000;
 }
 
 function syndamorph_models_settings(): array {

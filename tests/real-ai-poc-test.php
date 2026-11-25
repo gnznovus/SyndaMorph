@@ -309,7 +309,7 @@ $GLOBALS['options']['syndamorph_ai_model_settings']=array(
 );
 $result=syndamorph_team_real_run('Create a premium hotel hero with clear CTA.', false);
 expect(is_array($result),'Real team pipeline failed');
-expect(syndamorph_collab_output_cap()===16384,'Native AI team output cap must be 16384 for every role and task');
+expect(syndamorph_collab_output_cap()===128000,'Native AI team uses provider output ceiling, not fixed per-role/task limits');
 expect(array_keys($result['outputs'])===array('boss','designer','developer','validator'),'Role execution order wrong');
 expect(count($GLOBALS['generations'])===4,'Expected four paid calls');
 expect($result['usage']['inputTokens']===4800 && $result['usage']['outputTokens']===600,'Token usage not aggregated');
@@ -318,7 +318,7 @@ expect($result['published']===false && $result['renderedInBrowser']===false,'POC
 expect(is_float($result['estimatedCostUsd']),'Estimated spend missing');
 expect(count($result['agentMetrics'])===4 && $result['agentMetrics'][1]['role']==='designer' &&
     $result['agentMetrics'][1]['outputTokens']===150 &&
-    $result['agentMetrics'][1]['outputCap']===16384,
+    $result['agentMetrics'][1]['outputCap']>16384,
     'Streaming baseline per-agent metrics or generous output caps missing');
 $GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=0.0001;
 expect(is_wp_error(syndamorph_team_real_run('Create a premium hotel hero with clear CTA.', false)),'Budget gate failed');
@@ -940,8 +940,8 @@ expect(str_contains($revised['artifact']['content'],'A premium hotel experience.
 expect($revised['quality']['revisions'][0]['imageScope']==='component','Scoped review did not use crops');
 expect($GLOBALS['crop_calls']===2,'Developer and QA crop endpoints not exercised');
 expect(count($GLOBALS['generations'][5]['messages'][0]['content'])===3,'Developer repair lacks selected reference/native image pair');
-expect($GLOBALS['generations'][5]['max_tokens']===4096 && $GLOBALS['generations'][6]['max_tokens']===4096,
-    'Developer and Boss repair calls ignored task output limits');
+expect($GLOBALS['generations'][5]['max_tokens']>4096 && $GLOBALS['generations'][6]['max_tokens']>4096,
+    'Developer and Boss repair calls must use budget-aware output allowances');
 expect($revised['quality']['revisions'][0]['usage']['stages']===array('repair','revision_validation') &&
     $revised['quality']['revisions'][0]['usage']['inputTokens']===2400 &&
     $revised['quality']['revisions'][0]['retainedImprovement']===1.0,'Repair usage or retained improvement was not attributed');
@@ -1109,7 +1109,7 @@ expect($firstRepair['repairScope']['bossInstructions']===$qaHandoffs['qa_review'
     $handoffJob['quality']['revisions'][0]['accepted'] && count($GLOBALS['generations'])===7,
     'Boss instructions were rewritten or hybrid surgery was withheld before a failed style attempt');
 expect($handoffJob['agentMetrics'][5]['metering']==='provider_reported' &&
-    $handoffJob['agentMetrics'][5]['responseBytes']>0 && $handoffJob['agentMetrics'][5]['outputCap']===4096,
+    $handoffJob['agentMetrics'][5]['responseBytes']>0 && $handoffJob['agentMetrics'][5]['outputCap']>4096,
     'Repair metering must distinguish provider totals from serialized response bytes');
 $GLOBALS['adaptive_specific_strategy']='unsupported';
 $GLOBALS['generations']=array();$blockedHandoffEvents=array();
