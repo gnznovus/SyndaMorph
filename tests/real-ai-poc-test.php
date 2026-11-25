@@ -328,6 +328,11 @@ $richPlan['blocks'][0]['children'][0]['style']=array('color'=>'#ffffff','fontSiz
 $richPlan['blocks'][0]['children'][2]['children'][0]['style']=array('background'=>'#ffffff','color'=>'#18283a','borderRadius'=>'8px','padding'=>'1rem');
 $styled=syndamorph_compile_block_plan(wp_json_encode($richPlan));
 expect(!is_wp_error($styled),'Expanded Gutenberg native style schema failed to compile');
+// F11 regression: CSS-valid four-decimal length must not trigger paid schema surgery.
+$precisionPlan=$richPlan;
+$precisionPlan['blocks'][0]['children'][0]['style']['fontSize']='clamp(1.0625rem,1rem + 0.5vw,1.25rem)';
+expect(!is_wp_error(syndamorph_compile_block_plan(wp_json_encode($precisionPlan))),
+    'Four-decimal CSS lengths incorrectly rejected (GEN-000004 regression)');
 $nestedPlan=$richPlan;
 $nestedPlan['blocks'][0]['children'][0]['style']=array('typography'=>array('fontSize'=>'2rem'));
 $nestedPlan=syndamorph_collab_ids($nestedPlan);
