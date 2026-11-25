@@ -106,7 +106,7 @@ function syndamorph_production_tool_request(string $role,array $request,array $a
     if($name==='compiler.validate'&&($target!=='plan'||!is_array($plan)))
         return new WP_Error('sm_tool_input','Server-owned native plan is required.');
     $fingerprint=hash('sha256',$name==="playwright.inspect"?$html:wp_json_encode($plan));
-    $key=hash('sha256',$name."\\0".$fingerprint."\\0".
+    $key=hash('sha256',$name."\0".$fingerprint."\0".
         wp_json_encode($name==='playwright.inspect'?$viewports:array()));
     if(!isset($GLOBALS['syndamorph_production_tool_cache']))
         $GLOBALS['syndamorph_production_tool_cache']=array();
