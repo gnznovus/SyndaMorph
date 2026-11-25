@@ -573,7 +573,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         if($decision==='approved'){$approvedReference=true;break;}
         $beforeReference=$reference;
         $patchReply=$call('designer','Apply only Boss-requested design surgery. Return JSON {"edits":[{"find":"exact unique fragment of existing HTML/CSS","replace":"replacement fragment"}]}; maximum 5 edits. Do not return the whole reference. Preserve all untouched markup and styling.',
-            array('reference'=>$reference,'feedback'=>$handoff['issues'],'requirements'=>$brief),4096,array(),'design_correction');
+            array('reference'=>$reference,'feedback'=>$handoff['issues'],'requirements'=>$brief),syndamorph_collab_output_cap(),array(),'design_correction');
         if(is_wp_error($patchReply))return $patchReply;
         $parsedPatch=json_decode(syndamorph_native_json_text($patchReply),true);
         $surgical=is_array($parsedPatch)?syndamorph_design_surgery($reference,$parsedPatch):
