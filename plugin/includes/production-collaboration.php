@@ -556,9 +556,6 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $approval=is_array($parsed)?$parsed:array('decision'=>'changes_requested','issues'=>array(
             array('target'=>'reference','problem'=>'Invalid review contract','requiredChange'=>'Submit structured decision')));
         $designReviews++;
-        $priorDesignReview=array('decision'=>$approval['decision']??'changes_requested',
-            'summary'=>mb_substr((string)($approval['summary']??''),0,400),
-            'issues'=>array_slice((array)($approval['issues']??array()),0,3));
         $decision=($approval['decision']??'')==='approved'?'approved':'changes_requested';
         $deviations=array();
         foreach((array)($approval['acceptedCapabilityDeviations']??array()) as $deviation) {
@@ -580,6 +577,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                     'requiredChange'=>mb_substr((string)($item['requiredChange']??''),0,160));
             },array_filter((array)($approval['issues']??array()),'is_array')),0,3));
         $handoffs[]=$handoff;
+        $priorDesignReview=array('decision'=>$decision,
+            'summary'=>mb_substr((string)($approval['summary']??''),0,400),
+            'issues'=>$handoff['issues']);
         if($on_event)$on_event('handoff',$handoff);
         if($decision==='approved'){$approvedReference=true;break;}
         $beforeReference=$reference;
