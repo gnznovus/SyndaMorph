@@ -86,7 +86,16 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    if(!empty($GLOBALS['boss_approved_deviation_test'])){
+    if(!empty($GLOBALS['authority_qa_conflict_test'])){
+        $text=match($i){
+            1=>'{"title":"QA authority conflict","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Heading visible"]}',
+            2=>'<section><h2>Welcome &amp; enjoy</h2></section>',
+            3=>'{"decision":"approved","issues":[],"summary":"Visual reference approved"}',
+            4=>$GLOBALS['native_fixture'],
+            5=>'{"decision":"approved","issues":[{"id":"qa-conflict","component":"blocks[0]","severity":"high","detail":"Unresolved defect"}],"summary":"Contradictory QA approval"}',
+            default=>throw new RuntimeException('QA contradiction accidentally authorized an additional model call '.$i),
+        };
+    }elseif(!empty($GLOBALS['boss_approved_deviation_test'])){
         $text=match($i){
             1=>'{"title":"GEN-000018 approval regression","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Heading and CTA visible"]}',
             2=>'<section class="ph-hero"><style>.ph-hero__inner{max-width:44rem}.ph-hero__eyebrow{text-transform:uppercase}</style><div class="ph-hero__inner"><p class="ph-hero__eyebrow">Hotel</p><h2>Welcome &amp; enjoy</h2></div></section>',
@@ -490,6 +499,28 @@ expect(is_wp_error(syndamorph_authority_decision('designer','design_approval',
     null,array('approved'),$emitAuthority)),
     'Invalid responses cannot be impersonated as another agent decision');
 expect(count($authorityEvents)===2,'Invalid decisions must not emit fabricated agent decision events');
+
+// Conflicting QA may block execution, never reinterpret Boss's answer
+// as an authorized changes_requested assignment to Developer.
+$GLOBALS['authority_qa_conflict_test']=true;
+$GLOBALS['generations']=array();
+$qaAuthorityEvents=array();
+$qaConflict=syndamorph_team_real_run('Catch an inconsistent Boss implementation QA decision.',
+    false,static function(string $type,array $data)use(&$qaAuthorityEvents):void{
+        if(in_array($type,array('agent_decision','execution_gate','handoff'),true))
+            $qaAuthorityEvents[]=array('type'=>$type,'data'=>$data);
+    },'gutenberg');
+$qaOriginal=array_values(array_filter($qaAuthorityEvents,static fn($event)=>
+    $event['type']==='agent_decision'&&($event['data']['stage']??'')==='implementation_qa'));
+$qaGate=array_values(array_filter($qaAuthorityEvents,static fn($event)=>
+    $event['type']==='execution_gate'&&($event['data']['stage']??'')==='implementation_qa'));
+expect(is_wp_error($qaConflict)&&$qaConflict->get_error_code()==='sm_boss_qa_contract'&&
+    count($GLOBALS['generations'])===5&&count($qaOriginal)===1&&count($qaGate)===1&&
+    $qaOriginal[0]['data']['decision']==='approved'&&
+    $qaGate[0]['data']['agentDecision']==='approved'&&
+    $qaGate[0]['data']['executionStatus']==='blocked',
+    'QA contradiction must block without forging an agent change request or starting Developer surgery');
+unset($GLOBALS['authority_qa_conflict_test']);
 
 // GEN-000018: an explicit issue-free Boss approval is final for the design
 // stage even when accepted capability deviations are narrative strings.
