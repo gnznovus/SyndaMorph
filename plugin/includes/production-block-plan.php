@@ -108,13 +108,15 @@ function syndamorph_block_plan_expected(string $reason,string $field,string $blo
  * Inspect the same block rendering and per-instance styles WordPress uses on the front end.
  * Diagnostic node attributes are added to the parsed copy only.
  */
-function syndamorph_native_core_preview(array $blocks,array $ids): string {
+function syndamorph_native_core_preview(array $blocks,?array $ids=null): string {
     $index=0;$types=array();
     $annotate=static function(array $block)use(&$annotate,&$index,&$types,$ids):array {
-        $tag=new WP_HTML_Tag_Processor($block['innerContent'][0]??'');
-        if(!$tag->next_tag()||!isset($ids[$index]))throw new RuntimeException('Native block preview identity missing.');
-        $tag->set_attribute('data-sm-node',$ids[$index++]);
-        $block['innerContent'][0]=$tag->get_updated_html();
+        if($ids!==null){
+            $tag=new WP_HTML_Tag_Processor($block['innerContent'][0]??'');
+            if(!$tag->next_tag()||!isset($ids[$index]))throw new RuntimeException('Native block preview identity missing.');
+            $tag->set_attribute('data-sm-node',$ids[$index++]);
+            $block['innerContent'][0]=$tag->get_updated_html();
+        }
         $types[substr($block['blockName'],5)]=true;
         $block['innerBlocks']=array_map($annotate,$block['innerBlocks']);
         return $block;
@@ -143,6 +145,13 @@ function syndamorph_native_core_preview(array $blocks,array $ids): string {
     return '<style>'.$css.'</style>'.$html;
 }
 
+
+function syndamorph_native_visibility_css(): string {
+    return '@media(max-width:1023px){.sm-view-desktop{display:none!important}}'.
+        '@media(min-width:1024px){.sm-view-compact,.sm-view-tablet,.sm-view-mobile{display:none!important}}'.
+        '@media(max-width:599px){.sm-view-tablet{display:none!important}}'.
+        '@media(min-width:600px){.sm-view-mobile{display:none!important}}';
+}
 function syndamorph_compile_block_plan( string $raw ) {
     try {
         if ( strlen( $raw ) > 120000 ) { throw new InvalidArgumentException( 'Plan too large.' ); }
@@ -209,6 +218,9 @@ function syndamorph_compile_block_plan( string $raw ) {
                         throw new InvalidArgumentException('Invalid constrained content alignment.');
                 } elseif ( $key==='minHeight' && $type==='group' ) {
                     $attrs['style']['dimensions']['minHeight']=$css['min-height']=$length($value);
+                } elseif ( $key==='visibility' && $type==='group' && $parent!=='root' ) {
+                    if(!in_array($value,array('desktop','compact','tablet','mobile'),true))throw new InvalidArgumentException('Invalid captured viewport variant.');
+                    $attrs['className']='sm-view-'.$value;
                 } elseif ( $key==='fontSize' && in_array($type,array('heading','paragraph','button'),true) ) {
                     $attrs['style']['typography']['fontSize']=$css['font-size']=$length($value);
                 } elseif (in_array($key,array('padding','margin'),true) && (($key==='padding' && in_array($type,array('group','column','columns','buttons','heading','paragraph','button'),true)) || ($key==='margin' && in_array($type,array('group','columns','buttons','heading','paragraph'),true)))) {
@@ -257,6 +269,7 @@ function syndamorph_compile_block_plan( string $raw ) {
             $classes = array_values(array_unique($classes));
             $base = array_values(array_filter($classes,static fn($c)=>strpos($c,'wp-block-')===0 || strpos($c,'has-text-align-')===0 || in_array($c,array('is-layout-flex','is-layout-constrained'),true)));
             foreach(array('has-text-color','has-background') as $c) { if(in_array($c,$classes,true))$base[]=$c; }
+            if(isset($attrs['className']))$base[]=$attrs['className'];
             $classes=$base;
             $style_parts=array(); foreach($css as $k=>$v)$style_parts[]=$k.':'.$v;
             $appearance=static fn(array $c,array $s): string => ($c?' class="'.$escape(implode(' ',$c)).'"':'').($s?' style="'.$escape(implode(';',$s)).'"':'');
@@ -367,6 +380,7 @@ function syndamorph_compile_block_plan( string $raw ) {
         $corePreview=$parsedBlocks!==null && function_exists('render_block') && class_exists('WP_Style_Engine') &&
             class_exists('WP_HTML_Tag_Processor');
         $preview=$corePreview?syndamorph_native_core_preview($parsedBlocks,$previewIds):'<style>'.$layoutCss.'</style>'.$preview;
+        if(str_contains($content,'"className":"sm-view-'))$preview='<style>'.syndamorph_native_visibility_css().'</style>'.$preview;
         return array('schemaVersion'=>1,'content'=>$content,'preview'=>$preview,'blockCount'=>$count,
             'previewRendering'=>$corePreview?'wordpress-core':'standalone','layoutFacts'=>$layoutFacts,
             'layoutNotes'=>array_values(array_unique($layoutNotes)),'schemaFacts'=>array_keys($schemaFacts),

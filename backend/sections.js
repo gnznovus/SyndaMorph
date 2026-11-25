@@ -4,7 +4,7 @@
  * Browser-side extraction. Standalone on purpose: Playwright can serialize this
  * function to page.evaluate(), while tests exercise the same implementation.
  */
-function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024, inventoryOnly = false } = {}) {
+function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024, inventoryOnly = false, includeRequiredRoots = false } = {}) {
     const ignored = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'TITLE', 'HEAD', 'HELMET', 'NOSCRIPT', 'TEMPLATE', 'SVG', 'IFRAME', 'OBJECT', 'EMBED']);
     const structural = new Set(['SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'ASIDE']);
     const visible = (el) => {
@@ -80,7 +80,14 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024, inventor
         if (distinct.length >= 2) roots = distinct;
     }
     if (!roots.length && substantial(contentRoot)) roots = [contentRoot];
-    const ordered = [...new Set(roots)].filter(substantial).sort((a, b) => {
+    const required = 'nav,header,footer,form,dialog,[role="navigation"],[role="dialog"],[role="alertdialog"]';
+    if (includeRequiredRoots) {
+        const landmarks = [...document.body.querySelectorAll(required)]
+            .filter(element => visible(element) && !roots.some(root => root.contains(element) || element.contains(root)));
+        roots.push(...noOverlap(landmarks));
+    }
+    const ordered = [...new Set(roots)].filter(element => substantial(element) || includeRequiredRoots &&
+        visible(element) && element.matches(required)).sort((a, b) => {
         const ar = rectFor(a);
         const br = rectFor(b);
         return ar.y - br.y || ar.x - br.x;
@@ -119,6 +126,7 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024, inventor
             }
         }
         if (el.matches('header,[role="banner"]') && !el.closest('article,section')) return 'header';
+        if (includeRequiredRoots && el.matches('nav,[role="navigation"]') && rectFor(el).y < 200) return 'header';
         if (el.matches('footer,[role="contentinfo"]') && !el.closest('article,section')) return 'footer';
         if (index === ordered.length - 1 && el.querySelectorAll('a[href]').length >= 3 &&
             /\bprivacy policy\b/i.test(text) && /\b(?:all rights reserved|terms of use|cookie preferences)\b/i.test(text)) return 'footer';

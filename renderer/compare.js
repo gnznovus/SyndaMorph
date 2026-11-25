@@ -10,18 +10,26 @@ function decode(sample) {
     if (!img || img.width>1920 || img.height>HEIGHT || img.width*img.height<100) throw new Error('Screenshot dimensions are invalid.');
     return img;
 }
-function compareScreenshots(reference,native) {
+function compareScreenshots(reference,native,fitExtent=false) {
     if (!Array.isArray(reference) || !validViewports(reference.map(sample => sample?.width)) ||
         !Array.isArray(native) || native.length !== reference.length) throw new Error('Matched responsive viewports required.');
     return reference.map((ref,i)=>{
         const result=native[i],width=ref?.width;
         if(result?.width!==width)throw new Error('Viewport evidence mismatch.');
         const a=decode(ref),b=decode(result);
-        if(a.width!==width||a.width!==b.width||a.height!==b.height)throw new Error('Screenshot dimensions mismatch.');
+        const fits = (image, extent) => Number.isInteger(extent) && extent > 0 && extent <= 36000 &&
+            Math.abs(image.width - width * Math.min(1, HEIGHT / extent)) <= 2 && Math.abs(image.height - Math.min(extent, HEIGHT)) <= 2;
+        if(fitExtent ? !fits(a,ref.extent)||!fits(b,result.extent) : a.width!==width||a.width!==b.width||a.height!==b.height)
+            throw new Error('Screenshot dimensions mismatch.');
         let changed=0,total=0,distance=0;
-        for(let at=0;at<a.data.length;at+=16){
+        const cols=fitExtent?Math.min(a.width,b.width,320):a.width;
+        const rows=fitExtent?Math.min(a.height,b.height,HEIGHT):a.height;
+        for(let index=0;index<cols*rows;index+=4){
+            const x=index%cols,y=Math.floor(index/cols);
+            const at=fitExtent?(Math.floor(y*a.height/rows)*a.width+Math.floor(x*a.width/cols))*4:index*4;
+            const bt=fitExtent?(Math.floor(y*b.height/rows)*b.width+Math.floor(x*b.width/cols))*4:at;
             let diff=0;
-            for(let k=0;k<3;k++)diff+=Math.abs(a.data[at+k]-b.data[at+k]);
+            for(let k=0;k<3;k++)diff+=Math.abs(a.data[at+k]-b.data[bt+k]);
             diff/=3;distance+=diff;
             if(diff>24)changed++;
             total++;

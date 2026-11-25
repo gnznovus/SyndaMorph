@@ -16,6 +16,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/updater.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/ai-integration.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/ai-models.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/ai-team-real.php';
+require_once plugin_dir_path( __FILE__ ) . 'includes/production-scope.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/purr-poc.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/production-team.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/gateway-admin.php';
@@ -54,6 +55,55 @@ function syndamorph_render_operations_page(): void {
  * Create an unsynced, independently editable WordPress pattern.
  * Both the import preview and the block editor use this one endpoint.
  */
+function syndamorph_insert_pattern( string $title, string $content, int $post_id = 0, string $scope_key = '' ) {
+    $title = sanitize_text_field( $title );
+    if ( '' === $title || '' === trim( $content ) || strlen( $content ) > 2 * 1024 * 1024 ) {
+        return new WP_Error( 'syndamorph_invalid_pattern', 'Provide a pattern name and block content under 2 MB.', array( 'status' => 400 ) );
+    }
+    if ( $post_id && ( ! get_post( $post_id ) || ! current_user_can( 'edit_post', $post_id ) ) ) {
+        return new WP_Error( 'syndamorph_forbidden_source', 'You cannot use this source post.', array( 'status' => 403 ) );
+    }
+    if ( ! has_blocks( $content ) ) {
+        return new WP_Error( 'syndamorph_not_blocks', 'Pattern must contain Gutenberg block markup.', array( 'status' => 400 ) );
+    }
+    $id = wp_insert_post( wp_slash( array(
+        'post_type'    => 'wp_block',
+        'post_status'  => 'publish',
+        'post_title'   => $title,
+        'post_content' => $content,
+        'meta_input'   => $scope_key === '' ? array() : array( '_syndamorph_scope_key' => $scope_key ),
+    ) ), true );
+    if ( is_wp_error( $id ) ) { return $id; }
+    if ( ! $id ) {
+        return new WP_Error( 'syndamorph_pattern_failed', 'Could not save the pattern.', array( 'status' => 500 ) );
+    }
+    update_post_meta( $id, 'wp_pattern_sync_status', 'unsynced' );
+
+    // User-created patterns use the wp_pattern_category taxonomy, not only
+    // register_block_pattern_category(), which categorizes code-defined patterns.
+    $category = term_exists( 'syndamorph', 'wp_pattern_category' );
+    if ( ! $category ) {
+        $category = wp_insert_term( 'SyndaMorph', 'wp_pattern_category', array( 'slug' => 'syndamorph' ) );
+    }
+    if ( is_wp_error( $category ) ) {
+        wp_delete_post( $id, true );
+        return new WP_Error( 'syndamorph_pattern_category_failed', 'Could not create the SyndaMorph category.', array( 'status' => 500 ) );
+    }
+    $term_id = is_array( $category ) ? (int) $category['term_id'] : (int) $category;
+    $assigned = wp_set_object_terms( $id, array( $term_id ), 'wp_pattern_category', false );
+    if ( is_wp_error( $assigned ) ) {
+        wp_delete_post( $id, true );
+        return new WP_Error( 'syndamorph_pattern_category_failed', 'Could not assign the SyndaMorph category.', array( 'status' => 500 ) );
+    }
+
+    return array(
+        'id'     => $id,
+        'title'  => $title,
+        'synced' => false,
+        'category' => 'SyndaMorph',
+    );
+}
+
 add_action( 'rest_api_init', static function (): void {
     register_rest_route( 'syndamorph/v1', '/patterns', array(
         'methods'             => 'POST',
@@ -66,53 +116,8 @@ add_action( 'rest_api_init', static function (): void {
             'post_id' => array( 'type' => 'integer', 'required' => false ),
         ),
         'callback'            => static function ( WP_REST_Request $request ) {
-            $title = sanitize_text_field( $request->get_param( 'title' ) );
-            $content = (string) $request->get_param( 'content' );
-            $post_id = absint( $request->get_param( 'post_id' ) );
-            if ( '' === $title || '' === trim( $content ) || strlen( $content ) > 2 * 1024 * 1024 ) {
-                return new WP_Error( 'syndamorph_invalid_pattern', 'Provide a pattern name and block content under 2 MB.', array( 'status' => 400 ) );
-            }
-            if ( $post_id && ( ! get_post( $post_id ) || ! current_user_can( 'edit_post', $post_id ) ) ) {
-                return new WP_Error( 'syndamorph_forbidden_source', 'You cannot use this source post.', array( 'status' => 403 ) );
-            }
-            if ( ! has_blocks( $content ) ) {
-                return new WP_Error( 'syndamorph_not_blocks', 'Pattern must contain Gutenberg block markup.', array( 'status' => 400 ) );
-            }
-            $id = wp_insert_post( wp_slash( array(
-                'post_type'    => 'wp_block',
-                'post_status'  => 'publish',
-                'post_title'   => $title,
-                'post_content' => $content,
-            ) ), true );
-            if ( is_wp_error( $id ) ) { return $id; }
-            if ( ! $id ) {
-                return new WP_Error( 'syndamorph_pattern_failed', 'Could not save the pattern.', array( 'status' => 500 ) );
-            }
-            update_post_meta( $id, 'wp_pattern_sync_status', 'unsynced' );
-
-            // User-created patterns use the wp_pattern_category taxonomy, not only
-            // register_block_pattern_category(), which categorizes code-defined patterns.
-            $category = term_exists( 'syndamorph', 'wp_pattern_category' );
-            if ( ! $category ) {
-                $category = wp_insert_term( 'SyndaMorph', 'wp_pattern_category', array( 'slug' => 'syndamorph' ) );
-            }
-            if ( is_wp_error( $category ) ) {
-                wp_delete_post( $id, true );
-                return new WP_Error( 'syndamorph_pattern_category_failed', 'Could not create the SyndaMorph category.', array( 'status' => 500 ) );
-            }
-            $term_id = is_array( $category ) ? (int) $category['term_id'] : (int) $category;
-            $assigned = wp_set_object_terms( $id, array( $term_id ), 'wp_pattern_category', false );
-            if ( is_wp_error( $assigned ) ) {
-                wp_delete_post( $id, true );
-                return new WP_Error( 'syndamorph_pattern_category_failed', 'Could not assign the SyndaMorph category.', array( 'status' => 500 ) );
-            }
-
-            return new WP_REST_Response( array(
-                'id'     => $id,
-                'title'  => $title,
-                'synced' => false,
-                'category' => 'SyndaMorph',
-            ), 201 );
+            $saved = syndamorph_insert_pattern( (string)$request['title'], (string)$request['content'], absint($request['post_id']) );
+            return is_wp_error($saved) ? $saved : new WP_REST_Response($saved,201);
         },
     ) );
 } );

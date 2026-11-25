@@ -4,12 +4,23 @@ const { chromium } = require('playwright');
 const axe = require('axe-core');
 const { HEIGHT, MAX_JPEG, MAX_METADATA, DEFAULT_VIEWPORTS, RendererError } = require('./inspection-contract');
 
-async function boundedScreenshot(page) {
+async function boundedScreenshot(page, width, extent) {
+    const session = extent ? await page.context().newCDPSession(page) : null;
+    try {
     for (const quality of [65, 50, 35, 20, 10]) {
+        if (session) {
+            const { data } = await session.send('Page.captureScreenshot', { format: 'jpeg', quality, captureBeyondViewport: true,
+                clip: { x: 0, y: 0, width, height: extent, scale: Math.min(1, HEIGHT / extent) } });
+            if (data.length <= 4 * Math.ceil(MAX_JPEG / 3)) return data;
+            continue;
+        }
         const bytes = await page.screenshot({ type: 'jpeg', quality, timeout: 5000 });
         if (bytes.length <= MAX_JPEG) return bytes.toString('base64');
     }
     throw new RendererError('screenshot_limit', 507);
+    } finally {
+        if (session) await session.detach();
+    }
 }
 
 const input = [];
@@ -19,7 +30,7 @@ process.stdin.on('end', async () => {
     let crashed = false;
     const evidence = [];
     try {
-        const { html, inspect, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
+        const { html, inspect, extent, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
             headless: true, timeout: 10000,
             args: [ '--no-sandbox', '--disable-dev-shm-usage' ],
@@ -69,7 +80,7 @@ process.stdin.on('end', async () => {
             await a11yPage.evaluate(axe.source);
             for (const width of viewports) {
                 await page.setViewportSize({ width, height: HEIGHT });
-                const snapshot = await page.evaluate(() => {
+                const snapshot = await page.evaluate(includeLiteral => {
                     const elements = [...document.body.querySelectorAll('*')].filter(el => !['STYLE','SCRIPT'].includes(el.tagName));
                     const positions = new Map(elements.map((el, index) => [el, index]));
                     const rect = r => [r.x, r.y, r.width, r.height].map(value => Math.round(value * 10) / 10);
@@ -93,10 +104,31 @@ process.stdin.on('end', async () => {
                         if (boundary) copyParts.push(' ');
                     }
                     gatherCopy(document.body);
+                    const literal = includeLiteral ? (() => {
+                        const normalize = value => value.replace(/\s+/gu, ' ').trim();
+                        const visible = new Set([document.body, ...elements].filter(el => {
+                            const rect = el.getBoundingClientRect(), style = getComputedStyle(el);
+                            return rect.width > 0 && rect.height > 0 && !el.closest('[hidden]') &&
+                                !['hidden', 'collapse'].includes(style.visibility) && style.display !== 'none';
+                        }));
+                        const text = [];
+                        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+                        while (walker.nextNode()) {
+                            const value = normalize(walker.currentNode.nodeValue);
+                            if (value && visible.has(walker.currentNode.parentElement)) text.push(value);
+                        }
+                        const links = Array.from(visible).filter(el => el.matches('a[href]')).map(el =>
+                            ({ href: el.getAttribute('href'), text: normalize(el.innerText || el.getAttribute('aria-label') || '') }));
+                        const assets = Array.from(visible).filter(el => el.matches('img,svg,video,audio,iframe,object,embed,canvas') ||
+                            getComputedStyle(el).backgroundImage.includes('url(')).length;
+                        const controls = Array.from(visible).filter(el => el.matches('form,input,select,textarea,button,details,dialog,[role=tab],[role=button]')).length;
+                        return { text, links, assets, controls };
+                    })() : null;
                     return {
                         copy: copyParts.join('').replace(/\s+/gu, ' ').trim(),
                         overflow: document.documentElement.scrollWidth > innerWidth,
                         height: document.documentElement.scrollHeight,
+                        ...(literal ? { literal } : {}),
                         elements: elements.slice(0, 200).map(el => {
                             const r = el.getBoundingClientRect(), s = getComputedStyle(el);
                             const text = el.children.length ? '' : el.textContent.replace(/\s+/gu, ' ').trim().slice(0, 250);
@@ -134,7 +166,7 @@ process.stdin.on('end', async () => {
                             };
                         })
                     };
-                });
+                }, extent === 'section');
                 await a11yPage.setViewportSize({width,height:HEIGHT});
                 const a11y = await a11yPage.evaluate(async () => {
                     const report=await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa']}});
@@ -146,8 +178,12 @@ process.stdin.on('end', async () => {
                 });
                 if (Buffer.byteLength(JSON.stringify({ width, snapshot, a11y })) > MAX_METADATA)
                     throw new RendererError('evidence_limit', 507);
-                const screenshot = await boundedScreenshot(page);
-                evidence.push({width,snapshot,screenshot,a11y});
+                const height = extent === 'section'
+                    ? Math.max(1, Math.ceil((snapshot.elements[0]?.rect[1] || 0) + (snapshot.elements[0]?.rect[3] || 0)))
+                    : extent === 'page' ? snapshot.height : null;
+                if (height > 36000) throw new RendererError('screenshot_limit', 507);
+                const screenshot = await boundedScreenshot(page, width, height);
+                evidence.push({width,snapshot,screenshot,a11y,...(height === null ? {} : { extent: height })});
             }
             process.stdout.write(JSON.stringify({ evidence }));
             return;

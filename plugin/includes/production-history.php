@@ -77,7 +77,7 @@ function syndamorph_history_create( string $category, string $title, array $cont
     return new WP_Error( 'sm_history_write', 'Could not reserve a job ID; no job was started.', array( 'status' => 503 ) );
 }
 
-function syndamorph_history_append( int $id, string $event, array $data ): void {
+function syndamorph_history_append( int $id, string $event, array $data ): int {
     global $wpdb;
     list( $jobs, $events ) = syndamorph_history_tables();
     $encoded = wp_json_encode( $data, JSON_INVALID_UTF8_SUBSTITUTE );
@@ -85,15 +85,27 @@ function syndamorph_history_append( int $id, string $event, array $data ): void 
          ! $wpdb->insert( $events, array( 'job_id' => $id, 'event_type' => $event, 'payload' => $encoded, 'created_at' => gmdate( 'Y-m-d H:i:s' ) ) ) ) {
         throw new RuntimeException( 'History event could not be recorded.' );
     }
+    $event_id=(int)$wpdb->insert_id;
     $update = array( 'updated_at' => gmdate( 'Y-m-d H:i:s' ) );
     if ( 'job_complete' === $event ) { $update['status'] = 'generated' === ($data['status'] ?? '') ? 'completed' : (in_array(($data['status'] ?? ''),array('uncompleted','needs_review','failed','completed','stopped','aborted','paused'),true) ? $data['status'] : 'needs_review'); }
     if ( 'job_error' === $event ) { $update['status'] = 'failed'; }
     if ( 'job_resumed' === $event ) { $update['status'] = 'running'; }
     if ( 'editor_validation' === $event && !empty($data['passed']) && !empty($data['completionEligible']) ) { $update['status'] = 'completed'; }
     if ( 'job_title' === $event ) { $update['title'] = mb_substr( sanitize_text_field( (string) ( $data['title'] ?? '' ) ), 0, 200 ); }
+    if ( 'scope_manifest' === $event && in_array($data['status']??'',array('needs_review','uncompleted','completed'),true) )
+        $update['status']=$data['status'];
     if ( false === $wpdb->update( $jobs, $update, array( 'id' => $id ) ) ) {
         throw new RuntimeException( 'History job metadata could not be updated.' );
     }
+    return $event_id;
+}
+
+function syndamorph_history_latest(int $id,string $type): ?array {
+    global $wpdb;
+    list(,$events)=syndamorph_history_tables();
+    $raw=$wpdb->get_var($wpdb->prepare("SELECT payload FROM $events WHERE job_id=%d AND event_type=%s ORDER BY id DESC LIMIT 1",$id,$type));
+    $data=is_string($raw)?json_decode($raw,true):null;
+    return is_array($data)?$data:null;
 }
 
 /**
@@ -387,7 +399,7 @@ add_action( 'rest_api_init', static function (): void {
             $type = (string) $request->get_param( 'type' );
             $data = $request->get_param( 'data' );
             if ( ! in_array( $type, array( 'reference_page', 'job_complete', 'job_error', 'reference_saved' ), true ) || ! is_array( $data ) ||
-                'REF' !== $wpdb->get_var( $wpdb->prepare( "SELECT category FROM $jobs WHERE id=%d", $id ) ) ) {
+                'REF' !== $wpdb->get_var( $wpdb->prepare( "SELECT category FROM $jobs WHERE id=%d AND context NOT LIKE %s", $id, '%"workflow":"source-scope-v1"%' ) ) ) {
                 return new WP_Error( 'sm_history_reference', 'Invalid reference event.', array( 'status' => 400 ) );
             }
             try { syndamorph_history_append( $id, $type, $data ); }
@@ -516,6 +528,8 @@ add_action( 'rest_api_init', static function (): void {
                 ($sourceQa['artifactSha256']??null)===$checksum &&
                 ($sourceQa['identity']??null)===syndamorph_production_source_identity($source));
             $eligible=$sourceEligible && empty($final['quality']['issues']) && !empty($final['quality']['visionInspected']) && !empty($final['quality']['browserInspected']);
+            if(isset($final['sourceAcceptance']))$eligible=$eligible&& !empty($final['sourceAcceptance']['passed']) &&
+                !empty($final['quality']['bossApproved'])&&hash_equals((string)($final['sourceAcceptance']['artifactSha256']??''),$checksum);
             $status=$eligible?'completed':$job['status'];
             $recoveryRaw=$wpdb->get_var($wpdb->prepare("SELECT payload FROM $events WHERE job_id=%d AND event_type='native_recompiled' ORDER BY id DESC LIMIT 1",$id));
             $recovery=is_string($recoveryRaw)?json_decode($recoveryRaw,true):null;
@@ -560,7 +574,7 @@ add_action( 'rest_api_init', static function (): void {
             $id = (int) $request['id'];
             $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $jobs WHERE id=%d", $id ), ARRAY_A );
             if ( ! $row ) { return new WP_Error( 'sm_history_missing', 'Job not found.', array( 'status' => 404 ) ); }
-            $records = $wpdb->get_results( $wpdb->prepare( "SELECT event_type,payload,created_at FROM $events WHERE job_id=%d AND event_type<>'candidate_baseline' ORDER BY id ASC", $id ), ARRAY_A );
+            $records = $wpdb->get_results( $wpdb->prepare( "SELECT event_type,payload,created_at FROM $events WHERE job_id=%d AND event_type<>'candidate_baseline' AND event_type NOT IN ('scope_source','scope_page_source') ORDER BY id ASC", $id ), ARRAY_A );
             if ( ! is_array( $records ) ) { return new WP_Error( 'sm_history_read', 'Could not read job events.', array( 'status' => 503 ) ); }
             return rest_ensure_response( array_merge( syndamorph_history_summary( $row ), array(
                 'context' => json_decode( $row['context'], true ),

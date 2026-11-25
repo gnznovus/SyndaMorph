@@ -94,7 +94,7 @@ function syndamorph_inspection_check_protocol(array $details): ?WP_Error {
         syndamorph_inspection_failure('protocol_mismatch',$details):null;
 }
 
-function syndamorph_inspection_validate($response,array $viewports,bool $recover=false) {
+function syndamorph_inspection_validate($response,array $viewports,bool $recover=false,?string $extent=null) {
     $result=syndamorph_inspection_envelope($response,SYNDAMORPH_INSPECTION_RESPONSE_BYTES,$viewports);
     if(is_wp_error($result))return $result;
     $details=$result['details'];
@@ -136,7 +136,10 @@ function syndamorph_inspection_validate($response,array $viewports,bool $recover
         $image=is_string($screenshot)&&strlen($screenshot)<=SYNDAMORPH_INSPECTION_SCREENSHOT_BYTES ?
             base64_decode($screenshot,true):false;
         $size=$image!==false && str_ends_with($image,"\xFF\xD9")?@getimagesizefromstring($image):false;
-        if(!$size||$size[0]!==$sample['width']||$size[1]!==900||($size['mime']??'')!=='image/jpeg')
+        $height=$extent===null||$extent==='page-fold'?900:($sample['extent']??null);
+        if(!$size||!is_int($height)||$height<1||$height>36000||($size['mime']??'')!=='image/jpeg'||
+            ($extent===null?($size[0]!==$sample['width']||$size[1]!==900):
+                (abs($size[0]-$sample['width']*min(1,900/$height))>2||abs($size[1]-min(900,$height))>2)))
             return syndamorph_inspection_failure('screenshot_incomplete',$details);
     }
     return $recover?array('evidence'=>$evidence,'details'=>$details):$evidence;
@@ -184,17 +187,18 @@ function syndamorph_inspection_ready(array $viewports) {
     });
 }
 
-function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,375),?string &$rendererBuild=null) {
+function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,375),?string &$rendererBuild=null,?string $extent=null) {
     $endpoint=syndamorph_inspection_endpoint();
     if(is_wp_error($endpoint))return $endpoint;
-    if(trim($html)===''||strlen($html)>120000||!array_is_list($viewports)||count($viewports)<1||count($viewports)>8||
+    $htmlLimit=in_array($extent,array('page','page-fold'),true)?2*1024*1024:120000;
+    if(trim($html)===''||strlen($html)>$htmlLimit||!array_is_list($viewports)||count($viewports)<1||count($viewports)>8||
         count(array_filter($viewports,static fn($width)=>is_int($width)&&$width>=320&&$width<=1920))!==count($viewports)||
         count(array_unique($viewports))!==count($viewports))
         return syndamorph_inspection_failure('request_invalid');
     if(count($viewports)>5) {
         $evidence=array();$build=null;
         foreach(array_chunk($viewports,5) as $batch) {
-            $samples=syndamorph_collab_inspect($html,$batch,$batchBuild);
+            $samples=syndamorph_collab_inspect($html,$batch,$batchBuild,$extent);
             if(is_wp_error($samples))return $samples;
             if($build!==null && $build!==$batchBuild)
                 return syndamorph_inspection_failure('protocol_mismatch',array('expectedWidths'=>$viewports,
@@ -208,12 +212,13 @@ function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,
     $collected=array();$requests=array();$returned=array();$batches=array();$missing=$viewports;$build=null;
     for($attempt=1;$attempt<=SYNDAMORPH_INSPECTION_ATTEMPTS;$attempt++) {
         $requests[]=$missing;
-        $payload=wp_json_encode(array('html'=>$html,'viewports'=>$missing,'inspectionProtocol'=>SYNDAMORPH_INSPECTION_PROTOCOL));
+        $payload=wp_json_encode(array('html'=>$html,'viewports'=>$missing,'inspectionProtocol'=>SYNDAMORPH_INSPECTION_PROTOCOL)
+            +($extent===null?array():array('extent'=>$extent)));
         if(!is_string($payload))return syndamorph_inspection_failure('request_invalid');
         $response=wp_remote_post($endpoint,array('timeout'=>75,'redirection'=>0,
             'headers'=>array('Content-Type'=>'application/json','Accept-Encoding'=>'identity'),
             'body'=>$payload,'limit_response_size'=>SYNDAMORPH_INSPECTION_RESPONSE_BYTES+1));
-        $result=syndamorph_inspection_validate($response,$missing,true);
+        $result=syndamorph_inspection_validate($response,$missing,true,$extent);
         if(is_wp_error($result)) {
             $error=$result;
             $details=(array)$result->get_error_data();

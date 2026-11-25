@@ -81,6 +81,12 @@
         }
         detail.append(actions);
         const context=record.context||{};
+        if(context.workflow==='source-scope-v1') {
+            actions.prepend(button('Open scope checkpoint',()=>window.SyndaMorphScope.open(record.id)));
+            const manifest=[...(record.events||[])].reverse().find(event=>event.type==='scope_manifest');
+            if(manifest) section('Section manifest',JSON.stringify(manifest.data,null,2),'html');
+            return;
+        }
         if (context.brief) section('Original brief',context.brief).open=true;
         if (context.standards) section('Production standards snapshot',JSON.stringify(context.standards,null,2),'html');
         if (context.settings) section('Model configuration',JSON.stringify(context.settings,null,2),'html');

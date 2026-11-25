@@ -338,6 +338,7 @@ add_action( 'rest_api_init', static function (): void {
                         'Renderer build changed since the checkpoint; replay is blocked to avoid divergent visual evidence.',
                         array('status'=>409));
             }
+            if(!empty($context['scope']))return new WP_Error('sm_scope_resume','Manage this section through its parent production scope.',array('status'=>409));
             $source=$context['sourceEvidence']??null;
             if($source!==null && (!is_array($source)||!syndamorph_production_source_valid($source)))
                 return new WP_Error('sm_resume_context','Saved source evidence is invalid.',array('status'=>422));

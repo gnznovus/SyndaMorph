@@ -87,7 +87,7 @@ function runBrowserWorker(html, viewports, signal, options = {}) {
             return resolve(result.html);
         });
         child.stdin.on('error', () => {});
-        child.stdin.end(JSON.stringify({ html, inspect, viewports }));
+        child.stdin.end(JSON.stringify({ html, inspect, viewports, extent: options.extent }));
     });
 }
 
@@ -142,7 +142,7 @@ function createRendererServer(render = runBrowserWorker) {
             const body = await readBody(req, limit);
             if (!body || typeof body !== 'object' || Array.isArray(body)) throw new RendererError('invalid_request_json', 400);
             if (req.url === '/crop') return reply(200, { images: cropScreenshots(body.items) });
-            if (req.url === '/compare') return reply(200, { comparison: compareScreenshots(body.reference, body.native) });
+            if (req.url === '/compare') return reply(200, { comparison: compareScreenshots(body.reference, body.native, body.fitExtent === true) });
             if (typeof body.html !== 'string' || !body.html.trim()) throw new RendererError('invalid_html', 400);
             if (Buffer.byteLength(body.html) > MAX_HTML) throw new RendererError('request_limit', 413);
             if (req.url !== '/inspect') return reply(200, { html: await render(body.html, null, controller.signal) });
@@ -150,7 +150,8 @@ function createRendererServer(render = runBrowserWorker) {
                 throw new RendererError('protocol_mismatch', 409);
             const viewports = Object.hasOwn(body, 'viewports') ? body.viewports : DEFAULT_VIEWPORTS;
             if (!validViewports(viewports)) throw new RendererError('invalid_viewports', 400);
-            reply(200, { evidence: await render(body.html, viewports, controller.signal) });
+            if (body.extent !== undefined && !['section', 'page', 'page-fold'].includes(body.extent)) throw new RendererError('invalid_html', 400);
+            reply(200, { evidence: await render(body.html, viewports, controller.signal, { extent: body.extent }) });
         } catch (error) {
             const known = error instanceof RendererError;
             // Only server-owned categories cross the response boundary.

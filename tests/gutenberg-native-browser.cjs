@@ -1,7 +1,8 @@
 const assert=require('node:assert/strict');
 const {chromium}=require('../backend/node_modules/playwright');
 (async()=>{
- const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
+ const channel=process.env.SM_BROWSER_CHANNEL;
+ const browser=await chromium.launch({headless:true,args:['--no-sandbox'],...(channel?{channel}:{})});
  try {
   const page=await browser.newPage();
   page.on('console',m=>{if(m.type()==='error'||m.type()==='warning')console.log(m.text());});

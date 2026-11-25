@@ -5,6 +5,7 @@ const net = require('node:net');
 const { chromium } = require('playwright');
 const { extractSections } = require('./sections');
 const { inspectDocument } = require('./diagnostics');
+const { VIEWPORTS, captureResponsiveViewport, reconcileResponsive } = require('./responsive-capture');
 
 const MAX_SECTIONS = 60;
 const MAX_HTML = 2 * 1024 * 1024;
@@ -118,8 +119,10 @@ async function capture(urlValue, mode = 'auto', options = {}) {
             await Promise.race([document.fonts.ready, new Promise((resolve) => setTimeout(resolve, 2500))]);
         });
         const diagnostics = await page.evaluate(inspectDocument);
-        const result = await page.evaluate(extractSections, { maxSections: MAX_SECTIONS, maxHtml: MAX_HTML,
-            inventoryOnly: Boolean(options.inspect) });
+        const result = await page.evaluate(extractSections, { maxSections: MAX_SECTIONS + (options.includeRequiredRoots ? 1 : 0),
+            maxHtml: MAX_HTML, inventoryOnly: Boolean(options.inspect) && !options.includeHtml,
+            includeRequiredRoots: Boolean(options.includeRequiredRoots) });
+        if (result.length > MAX_SECTIONS) throw new Error('Responsive discovery exceeds the section limit.');
         diagnostics.network = { ...responses, samples: requestFailures };
         diagnostics.browserErrors = browserErrors;
         diagnostics.sectionCount = result.length;
@@ -141,4 +144,21 @@ async function capture(urlValue, mode = 'auto', options = {}) {
     } finally { await browser?.close().catch(() => {}); }
 }
 
-module.exports = { capture, validateURL, validateResourceURL, publicIPv4 };
+async function captureResponsive(url) {
+    const views = [];
+    let canonical;
+    for (const width of VIEWPORTS) {
+        const { describeSource } = require('./production-source');
+        const captured = await capture(url, 'browser', { width, includeRequiredRoots: true, includeHtml: true,
+            inspect: async (page, sections, diagnostics) => ({ url: page.url(),
+                evidence: await captureResponsiveViewport(page, sections, width, diagnostics, describeSource) }) });
+        if (canonical && captured.url !== canonical) throw new Error('The capture resolved to different URLs across widths.');
+        canonical = captured.url;
+        views.push(captured.evidence);
+    }
+    return { url: canonical, mode: 'browser', sections: reconcileResponsive(canonical, views),
+        views: views.map(({ sections, ...view }) => ({ ...view, discovered: sections.length,
+            order: sections.map(section => section.sourceRef) })) };
+}
+
+module.exports = { capture, captureResponsive, validateURL, validateResourceURL, publicIPv4 };

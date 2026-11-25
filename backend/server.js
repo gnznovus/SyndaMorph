@@ -1,6 +1,6 @@
 'use strict';
 const http = require('node:http');
-const { capture } = require('./capture');
+const { capture, captureResponsive } = require('./capture');
 const { productionSource } = require('./production-source');
 const { createAnalyzeHandler } = require('./mvp/endpoint');
 const { runCommunicationPoc } = require('./purr-poc');
@@ -8,6 +8,7 @@ const { runCommunicationPoc } = require('./purr-poc');
 const TOKEN = process.env.SYNDAMORPH_BACKEND_TOKEN;
 if (!TOKEN || !process.env.SYNDAMORPH_CAPTURE_HOSTS) throw new Error('Backend token and approved host list are required.');
 const analyze = createAnalyzeHandler({ capture });
+let responsiveInProgress = false;
 
 const respond = (res, status, value) => {
     res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
@@ -40,6 +41,20 @@ http.createServer(async (req, res) => {
         if (req.url === '/mvp/analyze') {
             const result = await analyze(input);
             return respond(res, 200, result);
+        }
+        if (input.responsive === true) {
+            if (responsiveInProgress) return respond(res, 429, { error: 'Responsive capture is already running.' });
+            responsiveInProgress = true;
+            try {
+                const result = await captureResponsive(input.url);
+                const body = JSON.stringify(result);
+                if (Buffer.byteLength(body) > 24000000) return respond(res, 413, { error: 'Responsive capture exceeds the archive limit.' });
+                res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+                return res.end(body);
+            } catch (error) {
+                return respond(res, 422, { error: error.message === 'URL host is not approved for this POC.'
+                    ? error.message : 'Responsive page capture failed. Verify all three viewport renders.' });
+            } finally { responsiveInProgress = false; }
         }
         const result = await capture(input.url, input.mode || 'auto');
         return respond(res, 200, result);

@@ -18,6 +18,10 @@ on:
       - 'plugin/includes/production-collaboration.php'
       - 'plugin/includes/production-source.php'
       - 'plugin/includes/production-inspection.php'
+      - 'plugin/includes/production-scope*.php'
+      - 'plugin/includes/production-source.php'
+      - 'plugin/assets/production-scope.js'
+      - 'tests/production-scope-*'
       - 'plugin/includes/production-visual-qa.php'
       - 'plugin/includes/production-surgery.php'
       - 'plugin/includes/production-repair.php'
@@ -47,6 +51,11 @@ on:
       - 'plugin/includes/production-collaboration.php'
       - 'plugin/includes/production-source.php'
       - 'plugin/includes/production-inspection.php'
+      - 'plugin/includes/production-scope*.php'
+      - 'plugin/includes/production-source.php'
+      - 'plugin/assets/production-scope.js'
+      - 'tests/production-scope-*'
+      - 'renderer/**'
       - 'plugin/includes/production-visual-qa.php'
       - 'backend/**'
       - 'compose.yaml'
@@ -103,6 +112,12 @@ jobs:
           php -l plugin/includes/production-source.php
           node --check backend/production-source.js
           php -l plugin/includes/production-inspection.php
+          php -l plugin/includes/production-scope.php
+          php -l plugin/includes/production-scope-template.php
+          php -l plugin/includes/production-scope-source.php
+          php -l plugin/includes/production-source.php
+          php -l tests/production-scope-wordpress.php
+          node --check plugin/assets/production-scope.js
           php -l tests/inspection-wordpress.php
           php -l plugin/includes/production-visual-qa.php
           php -l plugin/includes/production-surgery.php
@@ -153,6 +168,7 @@ jobs:
           docker compose cp tests/gutenberg-native-fixture.php wordpress:/var/www/html/sm-native-fixture.php
           cd backend && npx playwright install --with-deps chromium && cd ..
           node tests/gutenberg-native-browser.cjs
+          node tests/production-scope-browser.cjs
       - name: Backend runtime packaging
         run: |
           docker build -t syndamorph-mvp ./backend

@@ -1,0 +1,135 @@
+<?php
+/** CLI only. Exercises private scope checkpoints and mocks every provider response. */
+require '/var/www/html/wp-load.php';
+require_once ABSPATH.'wp-admin/includes/plugin.php';
+require_once WP_PLUGIN_DIR.'/syndamorph/syndamorph.php';
+if(PHP_SAPI!=='cli')exit(1);
+
+function scope_expect($value,string $message): void {
+    if(!$value)throw new RuntimeException($message);
+}
+function scope_ok($value) {
+    if(is_wp_error($value))throw new RuntimeException($value->get_error_code().': '.$value->get_error_message());
+    return $value;
+}
+
+$username=getenv('SM_SCOPE_USER')?:'ciadmin';
+$user=get_user_by('login',$username);
+if(!$user&&getenv('SM_SCOPE_PASSWORD')) {
+    $id=scope_ok(wp_create_user($username,getenv('SM_SCOPE_PASSWORD'),$username.'@example.invalid'));
+    $user=get_user_by('id',$id);
+    $user->set_role('administrator');
+}
+scope_expect($user,'No fixture administrator found.');
+wp_set_current_user($user->ID);
+if(!is_plugin_active('syndamorph/syndamorph.php'))scope_ok(activate_plugin('syndamorph/syndamorph.php'));
+
+$stubKey='offline-scope-fixture-key';
+$model='claude-scope-fixture';
+$stubSettings=array('provider'=>'anthropic','model'=>$model,'inputPrice'=>0.1,'outputPrice'=>0.5,'maxJobUsd'=>0.15);
+add_filter('pre_option_syndamorph_ai_key_anthropic',static fn()=>syndamorph_ai_encrypt($stubKey));
+add_filter('pre_option_syndamorph_ai_model_settings',static fn()=>$stubSettings);
+add_filter('pre_transient_syndamorph_ai_models_anthropic',static fn()=>array('models'=>array(array('id'=>$model,'display_name'=>$model))));
+$fixtures=array();
+foreach(array('North','Centre','South') as $i=>$label) {
+    $id=substr(hash('sha256',$label),0,24);
+    $heading=static fn($text)=>array('type'=>'heading','text'=>$text,'style'=>array('fontSize'=>'1.75rem','lineHeight'=>1.2));
+    $children=$i===1?array(
+        array('type'=>'group','style'=>array('visibility'=>'desktop'),'children'=>array($heading($label.' desktop'))),
+        array('type'=>'group','style'=>array('visibility'=>'compact'),'children'=>array($heading($label.' compact'))),
+    ):array($heading($label));
+    $children[]=array('type'=>'paragraph','text'=>'Literal source content for '.$label.'.');
+    $plan=array('version'=>1,'blocks'=>array(array('type'=>'group','children'=>$children,'style'=>array('justifyContent'=>'stretch',
+        'minHeight'=>'22rem','padding'=>'1.5rem','background'=>array('#ddf0ed','#e9e4f5','#f4ead7')[$i],'color'=>'#172025'))));
+    $artifact=scope_ok(syndamorph_compile_block_plan(wp_json_encode($plan)));
+    $designer=preg_replace('/<!--[^>]*-->/','',$artifact['preview']);
+    $designer=preg_replace('/<div(?= [^>]*data-sm-node="blocks\[0\]")/','<section',$designer,1);
+    $designer=preg_replace('/<\/div>\s*$/','</section>',$designer,1);
+    scope_expect(str_contains($designer,'<section '),'Designer reference root substitution failed.');
+    $fixtures[$id]=array('label'=>$label,'plan'=>$plan,'artifact'=>$artifact,'designer'=>$designer);
+}
+$active=null;$calls=array();
+add_filter('pre_http_request',static function($pre,$args,$url)use($model,$stubKey,&$calls,&$active){
+    if(!str_starts_with($url,'https://api.anthropic.com/'))return $pre;
+    scope_expect(($args['headers']['x-api-key']??'')===$stubKey,'Offline provider harness received an unexpected credential.');
+    if(str_contains($url,'/models?'))$response=array('data'=>array(array('id'=>$model,'display_name'=>$model)),'has_more'=>false);
+    else {
+        scope_expect($active!==null,'Unplanned model request.');
+        $request=json_decode($args['body'],true);
+        $system=$request['system'][1]['text']??'';
+        preg_match('/Task: ([a-z_]+)\./',$system,$match);
+        $task=$match[1]??'';
+        $calls[]=$active['label'].':'.$task;
+        $input=json_decode($request['messages'][0]['content'][0]['text'],true);
+        if($task==='designer'||$task==='developer') {
+            scope_expect(count($input['capturedSource']['views']??array())===3,'AI engine lost responsive source variants.');
+            if($task==='designer')scope_expect(count($request['messages'][0]['content'])===4,'Designer did not receive pinned source screenshots.');
+        }
+        $text=match($task) {
+            'boss'=>wp_json_encode(array('title'=>$active['label'],'sections'=>array($active['label']),'constraints'=>array(),'acceptance'=>array('Preserve capture.'))),
+            'designer'=>$active['designer'],
+            'developer'=>wp_json_encode($active['plan']),
+            'final_approval','validation'=>'{"decision":"approved","issues":[]}',
+            default=>throw new RuntimeException('Unexpected offline provider task: '.$task),
+        };
+        $response=array('model'=>$model,'stop_reason'=>'end_turn','content'=>array(array('type'=>'text','text'=>$text)),
+            'usage'=>array('input_tokens'=>100,'output_tokens'=>250));
+    }
+    return array('headers'=>array(),'response'=>array('code'=>200),'body'=>wp_json_encode($response));
+},10,3);
+
+$engine=static function($brief,$stream,$emit,$learning,$source,$remaining,$remainingWork)use(&$active,$fixtures){
+    $active=$fixtures[$source['section']['id']];
+    return syndamorph_collab_run($brief,false,$emit,false,$source,$remaining,$remainingWork);
+};
+$keys=array_keys($fixtures);
+$phase=getenv('SM_SCOPE_TEST_PHASE')?:'setup';
+if($phase==='setup') {
+    $capture=array('url'=>'https://fixture.invalid/offline-scope','sections'=>array(),'views'=>array());
+    foreach($fixtures as $key=>$fixture) {
+        $evidence=scope_ok(syndamorph_scope_inspect($fixture['designer'],'section'));
+        $variants=array();
+        foreach($evidence as $i=>$sample) {
+            $width=$sample['width'];
+            $literal=$sample['snapshot']['literal'];
+            $variants[$width]=array('sourceRef'=>'[data-fixture='.$key.'-'.$width.']','bounds'=>array('height'=>$sample['extent']),
+                'inventory'=>array('text'=>$literal['text'],'links'=>$literal['links'],'assets'=>array(),'controls'=>array()),
+                'html'=>$fixture['designer'],'screenshot'=>$sample['screenshot']);
+        }
+        $capture['sections'][]=array('id'=>$key,'label'=>$fixture['label'],'kind'=>'content','variants'=>$variants,'sourceRef'=>$variants[1440]['sourceRef']);
+    }
+    $pageDocument=syndamorph_scope_document(implode("\n\n",array_map(static fn($f)=>$f['artifact']['content'],$fixtures)),'Offline reference');
+    $whole=scope_ok(syndamorph_scope_inspect($pageDocument,'page'));
+    $fold=scope_ok(syndamorph_collab_inspect($pageDocument,SYNDAMORPH_SOURCE_WIDTHS));
+    foreach($whole as $i=>$sample)$capture['views'][]=array('width'=>$sample['width'],'height'=>$sample['extent'],
+        'whole'=>$sample['screenshot'],'fold'=>$fold[$i]['screenshot'],'ready'=>true,
+        'order'=>array_map(static fn($r)=>$r['variants'][$sample['width']]['sourceRef'],$capture['sections']));
+    $brief='Convert the offline fixture and preserve the literal section content.';
+    $section=scope_ok(syndamorph_scope_configure(scope_ok(syndamorph_scope_open('section',$capture)),$brief,$keys[0]));
+    scope_expect(is_wp_error(syndamorph_scope_run($section,$keys[1],false,$engine)),'Single section accepted unrelated identity.');
+    $section=scope_ok(syndamorph_scope_run($section,$keys[0],false,$engine));
+    scope_expect($section['regions'][$keys[0]]['status']==='needs_review',wp_json_encode($section['regions'][$keys[0]]));
+    scope_expect(is_wp_error(syndamorph_scope_save_pattern($section,$keys[0])),'Pattern was saved before editor validation.');
+    $page=scope_ok(syndamorph_scope_configure(scope_ok(syndamorph_scope_open('page',$capture)),$brief,null,0.24));
+    scope_expect($page['budgetUsd']===0.24&&$page['sectionBudgetUsd']===0.15,'Full Page did not retain a separate aggregate budget.');
+    $page=scope_ok(syndamorph_scope_run($page,$keys[0],false,$engine));
+    $page=scope_ok(syndamorph_scope_run($page,$keys[1],false,static fn()=>new WP_Error('sm_fixture_failure','Injected isolated section failure.')));
+    $page=scope_ok(syndamorph_scope_run($page,$keys[2],false,$engine));
+    scope_expect(array_column($page['regions'],'status')===array('needs_review','failed','needs_review'),wp_json_encode(array_column($page['regions'],'status')));
+    scope_expect(count($calls)===15,'Expected five shared agent tasks in each of three successful offline section jobs.');
+    $tiny=scope_ok(syndamorph_scope_configure(scope_ok(syndamorph_scope_open('section',$capture)),$brief,$keys[0],0.000001));
+    $tiny=scope_ok(syndamorph_scope_run($tiny,$keys[0],false,$engine));
+    scope_expect($tiny['regions'][$keys[0]]['status']==='failed'&&count($calls)===15&&$tiny['spentUsd']===0.0,'Budget was not enforced before provider invocation.');
+    echo wp_json_encode(array('section'=>$section['id'],'page'=>$page['id'],'keys'=>$keys,'mockCalls'=>count($calls))).PHP_EOL;
+} elseif($phase==='retry') {
+    $page=syndamorph_scope_status(syndamorph_history_latest((int)getenv('SM_SCOPE_JOB'),'scope_manifest'));
+    scope_expect($page['page']['editorVerified']&&!$page['page']['allRegions'],'Expected an independently verified partial WordPress draft.');
+    scope_expect(is_wp_error(syndamorph_scope_run($page,$keys[0],true,$engine)),'Retry attempted to regenerate an accepted region.');
+    $prior=$page['spentUsd'];
+    $page=scope_ok(syndamorph_scope_increase_budget($page,0.30));
+    scope_expect($page['budgetUsd']===0.30&&$page['spentUsd']===$prior,'Raising the cap changed recorded spend.');
+    $page=scope_ok(syndamorph_scope_run($page,$keys[1],true,$engine));
+    scope_expect($page['regions'][$keys[1]]['status']==='needs_review'&&count($page['regions'][$keys[1]]['attempts'])===2&&count($calls)===5,
+        wp_json_encode($page['regions'][$keys[1]]));
+    echo wp_json_encode(array('page'=>$page['id'],'mockCalls'=>count($calls))).PHP_EOL;
+} else { throw new RuntimeException('Unknown fixture phase.'); }

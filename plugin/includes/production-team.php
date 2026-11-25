@@ -69,6 +69,8 @@ function syndamorph_team_render_tab(): void {
                                 <div class="sm-field sm-team-source-input" data-source="url">
                                     <label class="sm-field-label" for="syndamorph-team-source">Page URL</label>
                                     <input class="sm-control" type="url" id="syndamorph-team-source" placeholder="https://example.com/landing-page" maxlength="2048" autocomplete="off">
+                                    <label class="sm-field-label" for="syndamorph-team-scope">Conversion scope</label>
+                                    <select class="sm-control" id="syndamorph-team-scope"><option value="section">Section</option><option value="page">Full Page</option></select>
                                     <div class="sm-field sm-team-capture-options"><label class="sm-field-label" for="syndamorph-team-render-mode">Rendering mode</label>
                                         <select class="sm-control" id="syndamorph-team-render-mode"><option value="auto">Automatic browser capture</option><option value="static">Static HTML only</option><option value="browser">Force Playwright</option></select></div>
                                     <p class="sm-hint">The actual capture runs through the existing SyndaMorph service.</p>
@@ -115,7 +117,7 @@ function syndamorph_team_render_tab(): void {
                                     <details id="syndamorph-team-source-diagnostics" hidden><summary>Capture diagnostics</summary><pre id="syndamorph-team-source-diagnostics-json"></pre></details>
                                 </div>
                                 <div class="sm-team-source-footer">
-                                    <p class="sm-team-note">Convert &amp; Preview uses the manual converter. Choose Native Gutenberg in the production brief to run the AI Team on a URL section.</p>
+                                    <p class="sm-team-note">Convert &amp; Preview uses the manual converter without AI calls.</p>
                                     <button type="button" class="sm-primary" id="syndamorph-team-convert">Convert &amp; Preview <span aria-hidden="true">→</span></button>
                                     <p class="sm-team-action-feedback" id="syndamorph-team-convert-error" role="alert" hidden></p>
                                 </div>
@@ -124,18 +126,17 @@ function syndamorph_team_render_tab(): void {
                         <section class="sm-card" aria-labelledby="sm-team-brief-title">
                             <div class="sm-card-header">
                                 <h2 class="sm-card-title" id="sm-team-brief-title">Production brief</h2>
-                                <p class="sm-card-caption">Three agents collaborate: Boss, Designer and Developer. Native Gutenberg adds browser and vision QA and targeted revisions within the cost budget.</p>
+                                <p class="sm-card-caption">Boss, Designer and Developer share the same budget and quality gates for Section and Full Page conversion.</p>
                             </div>
                             <div class="sm-card-body">
                                 <div class="sm-field">
                                     <label class="sm-field-label" for="syndamorph-team-output-type">Output type</label><select class="sm-control" id="syndamorph-team-output-type"><option value="html">HTML / CSS</option><option value="gutenberg">Native Gutenberg</option></select></div><div class="sm-field"><label class="sm-field-label" for="syndamorph-team-brief">Task instructions</label>
                                     <textarea class="sm-control sm-team-brief" id="syndamorph-team-brief" rows="7" maxlength="2000">Create a responsive, premium hotel hero section with a welcoming headline, short introduction, and clear call-to-action. Use a self-contained layout without external assets.</textarea>
                                 </div>
-                                <fieldset id="sm-ai-source" class="sm-field" hidden>
-                                    <legend>Source URL <span class="sm-hint">(optional)</span></legend>
+                                <details id="sm-ai-source" class="sm-field" hidden>
+                                    <summary>Choose viewport variants manually</summary>
                                     <div class="sm-team-actions">
-                                        <input type="url" class="sm-control" id="sm-ai-source-url" aria-label="Homepage URL" placeholder="https://">
-                                        <button type="button" class="sm-team-secondary" id="sm-ai-source-discover">Discover sections</button>
+                                        <button type="button" class="sm-team-secondary" id="sm-ai-source-discover">Discover variants for the page URL</button>
                                     </div>
                                     <div id="sm-ai-source-variants" hidden>
                                         <label class="sm-field-label" for="sm-ai-source-1440">Desktop ? 1440 px</label>
@@ -146,12 +147,13 @@ function syndamorph_team_render_tab(): void {
                                         <select class="sm-control" id="sm-ai-source-375"></select>
                                     </div>
                                     <p id="sm-ai-source-status" class="sm-hint" role="status" aria-live="polite"></p>
-                                </fieldset>
+                                </details>
                                 <div class="sm-team-actions">
                                     <button type="button" class="sm-primary" id="syndamorph-real-run">Start Production <span aria-hidden="true">→</span></button>
                                     <button type="button" class="sm-team-secondary" id="syndamorph-team-reset">Reset</button>
                                 </div>
-                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">Gutenberg mode supports a captured URL section or an original design from the brief.</p>
+                                <p class="sm-hint" id="syndamorph-team-validation" role="status" aria-live="polite">To convert a URL with AI, select Native Gutenberg and inspect its source.</p>
+                                <div id="syndamorph-team-scope-progress" hidden></div>
                             </div>
                         </section>
                     </div>
@@ -315,6 +317,8 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
         'nonce' => wp_create_nonce( 'wp_rest' ),
         'captureUrl' => rest_url( 'syndamorph/v1/capture-url' ),
         'productionSourceUrl' => rest_url( 'syndamorph/v1/production-source' ),
+        'scopeUrl' => rest_url( 'syndamorph/v1/production-scope' ),
+        'scopeBudgetUsd' => (float)(syndamorph_models_settings()['maxJobUsd']??0),
         'historyUrl' => rest_url( 'syndamorph/v1/history' ),
         'packageScanUrl' => rest_url( 'syndamorph/v1/package-scan' ),
         'packagePageUrl' => rest_url( 'syndamorph/v1/package-page' ),
@@ -324,7 +328,8 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
     wp_enqueue_script( 'wp-blocks' );
     wp_enqueue_script( 'wp-block-library' );
     wp_enqueue_script( 'syndamorph-ai-export', plugin_dir_url( __DIR__ ) . 'assets/production-ai-export.js', array( 'syndamorph-import', 'wp-blocks', 'wp-block-library' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-ai-export.js' ), true );
-    wp_enqueue_script( 'syndamorph-real-team', plugin_dir_url( __DIR__ ) . 'assets/ai-team-real.js', array( 'syndamorph-team', 'syndamorph-rich-content', 'syndamorph-ai-export' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/ai-team-real.js' ), true );
+    wp_enqueue_script( 'syndamorph-production-scope', plugin_dir_url( __DIR__ ) . 'assets/production-scope.js', array( 'syndamorph-team', 'syndamorph-ai-export' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-scope.js' ), true );
+    wp_enqueue_script( 'syndamorph-real-team', plugin_dir_url( __DIR__ ) . 'assets/ai-team-real.js', array( 'syndamorph-team', 'syndamorph-rich-content', 'syndamorph-ai-export', 'syndamorph-production-scope' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/ai-team-real.js' ), true );
     wp_add_inline_script( 'syndamorph-real-team', 'window.SyndaMorphRealTeam=' . wp_json_encode( array(
         'nonce' => wp_create_nonce( 'wp_rest' ),
         'url' => rest_url( 'syndamorph/v1/ai/team-stream' ),
@@ -332,6 +337,6 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
     wp_enqueue_script( 'syndamorph-learning', plugin_dir_url( __DIR__ ) . 'assets/production-learning.js', array( 'syndamorph-team' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-learning.js' ), true );
     wp_enqueue_script( 'syndamorph-history', plugin_dir_url( __DIR__ ) . 'assets/production-history.js', array( 'syndamorph-real-team' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-history.js' ), true );
     wp_enqueue_script( 'syndamorph-team-migration', plugin_dir_url( __DIR__ ) . 'assets/production-workflow.js',
-        array( 'syndamorph-team', 'syndamorph-import' ),
+        array( 'syndamorph-team', 'syndamorph-import', 'syndamorph-production-scope' ),
         (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-workflow.js' ), true );
 } );

@@ -77,7 +77,7 @@
         if (button) button.click();
     };
     const sourcePanel = $('sm-ai-source');
-    const sourceURL = $('sm-ai-source-url');
+    const sourceURL = $('syndamorph-team-source');
     const sourceButton = $('sm-ai-source-discover');
     const sourceSelector = $('sm-ai-source-variants');
     const sourceStatus = $('sm-ai-source-status');
@@ -85,7 +85,8 @@
     let sourceListingURL = '';
     let sourcing = false;
     function refreshSource() {
-        if (sourcePanel) sourcePanel.hidden = format?.value !== 'gutenberg';
+        if (sourcePanel) sourcePanel.hidden = format?.value !== 'gutenberg' ||
+            $('syndamorph-team-source-type')?.value !== 'url' || $('syndamorph-team-scope')?.value === 'page';
     }
     function clearSource() {
         sourceListingURL = '';
@@ -104,6 +105,8 @@
     }
     format?.addEventListener('change',refreshSource);
     sourceURL?.addEventListener('input',clearSource);
+    $('syndamorph-team-source-type')?.addEventListener('change',refreshSource);
+    $('syndamorph-team-scope')?.addEventListener('change',refreshSource);
     reset?.addEventListener('click',() => { if (sourceURL) sourceURL.value = ''; clearSource(); refreshSource(); });
     refreshSource();
     sourceButton?.addEventListener('click', async () => {
@@ -617,6 +620,10 @@
     abortControl?.addEventListener('click',()=>requestControl('abort'));
     syncRoster();
     run.addEventListener('click', async () => {
+        if (window.SyndaMorphScope?.usesSource()) {
+            if (!running && !replaying) await window.SyndaMorphScope.start(brief.value.trim());
+            return;
+        }
         if (running || replaying || exportControl?.busy()) return;
         const prompt = brief.value.trim();
         activeFormat = format?.value || 'html';
@@ -626,7 +633,7 @@
             return;
         }
         let sourceCapture;
-        const url = activeFormat === 'gutenberg' ? sourceURL?.value.trim() : '';
+        const url = activeFormat === 'gutenberg' && sourcePanel?.open && !sourcePanel.hidden ? sourceURL?.value.trim() : '';
         if (url) {
             if (sourcing || sourceListingURL !== url) {
                 text(notice, 'Discover the source sections before starting production.');

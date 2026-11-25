@@ -10,6 +10,8 @@
     const inspectStatus = $( 'syndamorph-team-inspect-status' );
     const inspection = $( 'syndamorph-team-source-inspection' );
     const sectionSelect = $( 'syndamorph-team-section' );
+    const scopeInput = $( 'syndamorph-team-scope' );
+    const scopeAdapter = window.SyndaMorphScope;
     const sourceSummary = $( 'syndamorph-team-source-summary' );
     const diagnostics = $( 'syndamorph-team-source-diagnostics' );
     const diagnosticsJson = $( 'syndamorph-team-source-diagnostics-json' );
@@ -121,6 +123,7 @@
     };
     const resetInspection = () => {
         sourceGeneration++;
+        scopeAdapter?.clear();
         inspected = null;
         prepared = [];
         activeJob = null;
@@ -140,6 +143,7 @@
         sourceSummary.textContent = '';
     };
     kindInput.addEventListener( 'change', () => { resetInspection(); sourceMode(); } );
+    scopeInput?.addEventListener( 'change', resetInspection );
     Object.values( jsOptions ).forEach( input => input.addEventListener( 'change', resetInspection ) );
     sourceMode();
     root.querySelectorAll( '#syndamorph-team-source, #syndamorph-team-render-mode, #syndamorph-team-html' )
@@ -167,6 +171,16 @@
                 try { sourceUrl = new URL( raw ); }
                 catch ( error ) { throw new Error( 'Enter a valid HTTP(S) page URL.' ); }
                 if ( ![ 'http:', 'https:' ].includes( sourceUrl.protocol ) ) throw new Error( 'Only HTTP(S) URLs are supported.' );
+                if ( scopeAdapter?.usesSource() ) {
+                    result = await scopeAdapter.discover( raw );
+                    if ( token !== sourceGeneration ) return;
+                    result.requestedUrl = raw;
+                    const sections = Object.values( result.regions );
+                    inspected = { kind, sections, snapshot: {scopeId: result.id}, url: raw, scopeId: result.id };
+                    sourceSummary.textContent = sections.length + ' required region(s) recorded across 1440, 768 and 375 px.';
+                    diagnostics.hidden = false;
+                    diagnosticsJson.textContent = JSON.stringify( result.captures, null, 2 );
+                } else {
                 result = await request( SyndaMorphTeam.captureUrl, {
                     url: raw, mode: $( 'syndamorph-team-render-mode' ).value,
                 } );
@@ -181,6 +195,7 @@
                 if ( result.diagnostics ) {
                     diagnostics.hidden = false;
                     diagnosticsJson.textContent = JSON.stringify( result.diagnostics, null, 2 );
+                }
                 }
             } else if ( kind === 'package' ) {
                 const file = pick.file( 'package' );
@@ -220,14 +235,17 @@
                 sectionSelect.removeAttribute( 'size' );
             }
             sectionSelect.blur();
+            sectionSelect.hidden = inspected.kind === 'url' && result?.mode === 'page';
+            sectionSelect.labels[0].hidden = sectionSelect.hidden;
             inspection.hidden = false;
+            if ( inspected.scopeId ) scopeAdapter.set( result );
             setStatus( 'Source inspected', sourceSummary.textContent );
         } catch ( error ) {
             if ( token === sourceGeneration ) setStatus( 'Inspection failed', error.message || String( error ), true );
         } finally {
             busy = false;
             inspectButton.disabled = false;
-            convertButton.disabled = false;
+            convertButton.disabled = Boolean(inspected?.scopeId && scopeInput?.value === 'page');
         }
     } );
 
@@ -466,7 +484,9 @@
             if ( kind === 'url' ) {
                 const section = chosen.sections.find( item => item.id === sectionSelect.value );
                 if ( !section ) throw new Error( 'Select a captured section.' );
-                pages = [ { path: section.id, title: section.label || section.id, html: section.html } ];
+                const sourceSection = chosen.scopeId ? await scopeAdapter.preview( section.id ) : section;
+                if ( !sourceSection.html ) throw new Error( 'This section has no usable captured HTML.' );
+                pages = [ { path: section.id, title: section.label || section.id, html: sourceSection.html } ];
             } else if ( kind === 'html' ) {
                 const selected = pick.file( 'html' );
                 const markup = selected ? await selected.text() : pick.html();
