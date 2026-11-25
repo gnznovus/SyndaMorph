@@ -299,6 +299,34 @@ function syndamorph_team_sse_resume(int $id,string $brief,string $format,array $
     exit;
 }
 add_action( 'rest_api_init', static function (): void {
+    register_rest_route('syndamorph/v1','/history/(?P<id>[0-9]+)/resume',array(
+        'methods'=>'POST',
+        'permission_callback'=>static function():bool{return current_user_can('manage_options');},
+        'callback'=>static function(WP_REST_Request $request){
+            global $wpdb;
+            $id=(int)$request['id'];
+            list($jobs)=syndamorph_history_tables();
+            $row=$wpdb->get_row($wpdb->prepare(
+                "SELECT id,category,status,context FROM $jobs WHERE id=%d",$id),ARRAY_A);
+            if(!$row||$row['category']!=='GEN'||$row['status']!=='paused')
+                return new WP_Error('sm_resume_state','Only paused GEN jobs may resume.',array('status'=>409));
+            if(get_transient('syndamorph_ai_real_job_lock'))
+                return new WP_Error('sm_team_busy','Another production job is running.',array('status'=>429));
+            $context=json_decode($row['context'],true);
+            if(!is_array($context)||!is_string($context['brief']??null)||
+                !in_array($context['outputType']??null,array('html','gutenberg'),true))
+                return new WP_Error('sm_resume_context','Saved production context is invalid.',array('status'=>422));
+            if(!hash_equals((string)get_option('syndamorph_job_resume_signature_'.$id,''),syndamorph_job_resume_signature()))
+                return new WP_Error('sm_resume_version','Production code has changed since pause. Continuation requires manual review.',array('status'=>409));
+            if(wp_json_encode($context['settings']??array())!==wp_json_encode(syndamorph_models_settings()))
+                return new WP_Error('sm_resume_settings','Model or budget settings changed since pause.',array('status'=>409));
+            $calls=syndamorph_job_resume_calls($id);
+            if(is_wp_error($calls))return $calls;
+            set_transient('syndamorph_ai_real_job_lock',1,20*MINUTE_IN_SECONDS);
+            update_option('syndamorph_job_control_'.$id,'running',false);
+            syndamorph_team_sse_resume($id,$context['brief'],$context['outputType'],$calls);
+        },
+    ));
     register_rest_route( 'syndamorph/v1', '/ai/team-stream', array(
         'methods' => 'POST',
         'permission_callback' => static function (): bool { return current_user_can( 'manage_options' ); },
