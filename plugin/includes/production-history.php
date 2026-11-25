@@ -193,7 +193,9 @@ function syndamorph_job_control_payload(int $id,string $format,string $status,st
     }
     return array('status'=>$status,'controlAction'=>$status,'message'=>$message,
         'outputType'=>$format,'model'=>(string)($settings['model']??''),
-        'artifact'=>$artifact,'outputs'=>$outputs,'usage'=>$usage,'agentMetrics'=>$metrics,
+        'artifact'=>$artifact,'outputs'=>$outputs,'checks'=>$artifact['checks']??array(),
+        'stageStatus'=>array('browserQa'=>'pending','wordpressEditor'=>'pending'),
+        'usage'=>$usage,'agentMetrics'=>$metrics,
         'estimatedCostUsd'=>round($cost,6),'elapsedMs'=>0,'published'=>false,
         'resumeAvailable'=>$status==='paused');
 }
