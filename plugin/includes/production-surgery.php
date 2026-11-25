@@ -212,12 +212,47 @@ function syndamorph_surgery_normalize(array $plan,array $diagnostic): ?array {
         if(array_diff(array_keys($nested),array_keys($mapping)))return null;
         foreach($nested as $k=>$v)if(array_key_exists($mapping[$k],$target['style']))return null;
         unset($target['style']['color']);foreach($nested as $k=>$v)$target['style'][$mapping[$k]]=$v;
+    }elseif($key==='style.margin' && ($target['type']??'')==='buttons' &&
+        ($diagnostic['message']??'')==='Unsupported style for block.' &&
+        array_key_exists('margin',$target['style']??array())){
+        // Buttons margins are not part of Gutenberg plan v1. Removing them is
+        // schema-safe, but may affect spacing: the existing browser QA remains
+        // mandatory before final delivery. Never migrate a margin speculatively.
+        unset($target['style']['margin']);
+    }elseif($key==='style.gradient' &&
+        ($diagnostic['message']??'')==='Invalid two-color gradient.' &&
+        in_array($target['type']??'',array('group','column','button'),true) &&
+        is_string($target['style']['gradient']??null)){
+        // Equivalent two-stop endpoint percentages are redundant CSS syntax.
+        $gradient=trim($target['style']['gradient']);
+        if(!preg_match('/^linear-gradient\\(\\s*(\\d{1,3})deg\\s*,\\s*(#[0-9a-f]{6})\\s+0%\\s*,\\s*(#[0-9a-f]{6})\\s+100%\\s*\\)$/iD',
+            $gradient,$stop)|| (int)$stop[1]>360)return null;
+        $target['style']['gradient']='linear-gradient('.$stop[1].'deg,'.$stop[2].','.$stop[3].')';
     }elseif(preg_match('/^style\\.(color|background)$/D',$key,$m) &&
         is_string($target['style'][$m[1]]??null)&&preg_match('/^#([a-f0-9]{3})$/iD',$target['style'][$m[1]],$hex)){
         $target['style'][$m[1]]='#'.implode('',array_map(static fn($v)=>$v.$v,str_split($hex[1])));
     }else return null;
     if($target===$before)return null;
     return array('plan'=>$plan,'id'=>$focus['id'],'property'=>$key);
+}
+/** Deterministic compiler-first transaction: never modify input or commit failed patches. */
+function syndamorph_compiler_auto_repair(array $plan,array $diagnostic) {
+    $candidate=syndamorph_surgery_normalize($plan,$diagnostic);
+    if($candidate===null)return null;
+    $verified=syndamorph_surgery_verify($plan,$candidate['plan']);
+    $code=$diagnostic['code']??'';
+    $field=$diagnostic['field']??'';
+    $message=$diagnostic['message']??'';
+    if(is_wp_error($verified) &&
+        $verified->get_error_code()===$code &&
+        ($verified->get_error_data()['field']??'')===$field &&
+        $verified->get_error_message()===$message)return null;
+    if($candidate['plan']===$plan)return null;
+    // The caller persists the candidate only if this known compiler defect
+    // advances. Other remaining schema defects are repaired in later rounds.
+    return array('plan'=>$candidate['plan'],
+        'compiled'=>!is_wp_error($verified),'next'=>$verified,
+        'field'=>$field,'repair'=>$candidate['property']??'');
 }
 /** Both compiler and QA submit to an identical transactional validation boundary. */
 function syndamorph_surgery_verify(array $before,array $candidate,?callable $visualGate=null) {
