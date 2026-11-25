@@ -86,7 +86,18 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    if(!empty($GLOBALS['authority_qa_conflict_test'])){
+    if(!empty($GLOBALS['capability_blocker_test'])){
+        $text=match($i){
+            1=>'{"title":"Native capability blocker","sections":["Hero"],"constraints":["Native blocks"],"acceptance":["Valid output"]}',
+            2=>'<section><h2>Welcome &amp; enjoy</h2></section>',
+            3=>'{"decision":"approved","issues":[],"summary":"Design accepted"}',
+            4=>$GLOBALS['native_fixture'],
+            5=>'{"decision":"changes_requested","issues":[{"id":"mobile-cta-stretch","component":"blocks[0].children[2]","category":"alignment","scope":"component","severity":"high","detail":"Reference mobile CTA stretches, native buttons lack width support"}]}',
+            6=>'{"id":"blocks[0].children[2]","blocked":"capability","diagnosis":"Native buttons expose no responsive width or stretch property."}',
+            7=>'{"decision":"design_review_required","summary":"Native CTA stretch cannot be reproduced with permitted styles.","nextAction":"Design owner must accept or revise the reference."}',
+            default=>throw new RuntimeException('Developer retried a known native capability blocker, paid call '.$i),
+        };
+    }elseif(!empty($GLOBALS['authority_qa_conflict_test'])){
         $text=match($i){
             1=>'{"title":"QA authority conflict","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Heading visible"]}',
             2=>'<section><h2>Welcome &amp; enjoy</h2></section>',
@@ -317,6 +328,26 @@ $refused=syndamorph_models_generate('anthropic','claude-dynamic-test-1','test','
 expect(is_wp_error($refused) && $refused->code==='sm_generation_incomplete' &&
     $refused->args['stopReason']==='refusal', 'Refusal misreported as token exhaustion');
 unset($GLOBALS['stop_reason_test']);
+
+// GEN-000020: once Developer reports an unsupported native capability,
+ // stop paid style/structure retries and escalate exactly once to Boss.
+$GLOBALS['capability_blocker_test']=true;
+$GLOBALS['generations']=array();
+$blockedEvents=array();
+$blockedJob=syndamorph_team_real_run('Verify unsupported mobile CTA capability escalation.',
+    false,static function(string $type,array $data)use(&$blockedEvents):void{
+        if(in_array($type,array('repair_capability_blocked','repair_escalation'),true))
+            $blockedEvents[]=array('type'=>$type,'data'=>$data);
+    },'gutenberg');
+expect(is_array($blockedJob)&&$blockedJob['status']==='uncompleted'&&
+    count($GLOBALS['generations'])===7&&
+    count($blockedJob['quality']['revisions'])===1&&
+    ($blockedJob['quality']['revisions'][0]['validation']??'')==='capability'&&
+    count(array_filter($blockedEvents,static fn($e)=>$e['type']==='repair_capability_blocked'))===1&&
+    ($blockedJob['quality']['escalation']['decision']??'')==='design_review_required',
+    'GEN-000020 must escalate a native capability blocker without repeat paid Developer surgery');
+unset($GLOBALS['capability_blocker_test']);
+$GLOBALS['generations']=array();
 
 // Guard against reintroducing a second POC brief or source-required paid job.
 $ui = file_get_contents(dirname(__DIR__) . '/plugin/includes/production-team.php');
