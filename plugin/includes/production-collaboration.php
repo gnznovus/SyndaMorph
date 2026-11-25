@@ -510,7 +510,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $approval=array('decision'=>'rejected','issues'=>array());
     $approvedReference=false;$designReviews=0;$handoffs=array($assignment);
     $priorDesignMeasurements=null;$priorDesignReview=null;$priorDesignDiff=null;
-    $priorDesignImageHashes=null;
+    $priorDesignImageHashes=null;$designSeenStates=array();
     for($designRound=1;;$designRound++){
         $control=syndamorph_job_control_gate();
         if(is_wp_error($control))return $control;
@@ -593,6 +593,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'issues'=>$handoff['issues']);
         if($on_event)$on_event('handoff',$handoff);
         if($decision==='approved'){$approvedReference=true;break;}
+        $stateKey=hash('sha256',hash('sha256',$reference).wp_json_encode($handoff['issues']));
+        if(isset($designSeenStates[$stateKey]))
+            return new WP_Error('sm_design_stagnation',
+                'Designer review repeated the same unresolved issues against an unchanged reference.',
+                array('stage'=>'design_approval','reviewRounds'=>$designReviews,'issues'=>$handoff['issues']));
+        $designSeenStates[$stateKey]=true;
         $beforeReference=$reference;
         $patchReply=$call('designer','Apply only Boss-requested design surgery. Return JSON {"edits":[{"find":"exact unique fragment of existing HTML/CSS","replace":"replacement fragment"}]}; maximum 5 edits. Do not return the whole reference. Preserve all untouched markup and styling.',
             array('reference'=>$reference,'feedback'=>$handoff['issues'],'requirements'=>$brief),syndamorph_collab_output_cap(),array(),'design_correction');
