@@ -517,7 +517,7 @@ expect(str_contains($revised['artifact']['content'],'A premium hotel experience.
 expect($revised['quality']['revisions'][0]['imageScope']==='component','Scoped review did not use crops');
 expect($GLOBALS['crop_calls']===2,'Developer and QA crop endpoints not exercised');
 expect(count($GLOBALS['generations'][5]['messages'][0]['content'])===3,'Developer repair lacks selected reference/native image pair');
-expect($GLOBALS['generations'][5]['max_tokens']===2048 && $GLOBALS['generations'][6]['max_tokens']===4096,
+expect($GLOBALS['generations'][5]['max_tokens']===16384 && $GLOBALS['generations'][6]['max_tokens']===4096,
     'Developer and Boss repair calls ignored task output limits');
 expect($revised['quality']['revisions'][0]['usage']['stages']===array('repair','revision_validation') &&
     $revised['quality']['revisions'][0]['usage']['inputTokens']===2400 &&
