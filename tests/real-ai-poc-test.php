@@ -521,6 +521,11 @@ $verified=syndamorph_team_real_run('Inspect the hotel hero with the globally sha
     static function(string $type,array $data)use(&$toolReceipts):void{
         if($type==='tool_invocation')$toolReceipts[]=$data;
     },'gutenberg');
+if(!is_array($verified)||($verified['designApproval']['reviewRounds']??null)!==2||count($GLOBALS['generations'])!==6)
+    fwrite(STDERR,'AUTH_DEBUG '.wp_json_encode(array('error'=>is_wp_error($verified)?$verified->get_error_code():null,
+        'message'=>is_wp_error($verified)?$verified->get_error_message():null,
+        'calls'=>count($GLOBALS['generations']),'events'=>$toolReceipts,
+        'inspections'=>$GLOBALS['inspection_calls']))."\n");
 expect(is_array($verified)&&$verified['designApproval']['reviewRounds']===2 &&
     count($GLOBALS['generations'])===6&&count($toolReceipts)===1 &&
     $toolReceipts[0]['cache']==='hit'&&$toolReceipts[0]['role']==='boss' &&
