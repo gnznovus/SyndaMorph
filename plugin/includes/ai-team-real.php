@@ -230,11 +230,14 @@ function syndamorph_team_sse_run( string $brief, string $format = 'html' ): void
         $emit( 'ready', array_merge( $record, array( 'outputType' => $format, 'roles' => array( 'boss', 'designer', 'developer' ) ) ) );
         $result = syndamorph_team_real_run( $brief, true, $emit, $format );
         if ( is_wp_error( $result ) ) {
-            if(in_array($result->get_error_code(),array('sm_team_stop','sm_team_abort'),true)){
-                $action=$result->get_error_code()==='sm_team_stop'?'stopped':'aborted';
-                $emit('job_complete',array('status'=>$action,'controlAction'=>$action,
+            if(in_array($result->get_error_code(),array('sm_team_pause','sm_team_stop','sm_team_abort'),true)){
+                $action=str_replace('sm_team_','',$result->get_error_code());
+                $status=$action==='pause'?'paused':($action==='stop'?'stopped':'aborted');
+                if($status==='paused')
+                    update_option('syndamorph_job_resume_signature_'.$id,syndamorph_job_resume_signature(),false);
+                $emit('job_complete',array('status'=>$status,'controlAction'=>$status,
                     'message'=>$result->get_error_message(),'outputType'=>$format,
-                    'published'=>false,'resumeAvailable'=>false));
+                    'published'=>false,'resumeAvailable'=>$status==='paused'));
             }else $emit( 'job_error', syndamorph_team_failure_payload( $result ) );
         } else {
             $emit( 'job_complete', $result );
