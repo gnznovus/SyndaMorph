@@ -86,7 +86,18 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    if(!empty($GLOBALS['tool_generic_test'])){
+    if(!empty($GLOBALS['tool_designer_test'])){
+        $text=match($i){
+            1=>'{"title":"Designer Tool Fixture","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Correct heading weight"]}',
+            2=>'<section><h2>Welcome &amp; enjoy</h2></section>',
+            3=>'{"decision":"changes_requested","issues":[{"target":"heading","problem":"Screenshot appears thinner than computed weight","requiredChange":"Verify browser font weight"}]}',
+            4=>'{"action":"verification_required","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"Verify computed browser headline font weight before modifying CSS"}}',
+            5=>'{"decision":"approved","issues":[],"summary":"Computed typography evidence resolves uncertainty"}',
+            6=>$GLOBALS['native_fixture'],
+            7=>'{"decision":"approved","issues":[],"summary":"Native QA passed"}',
+            default=>throw new RuntimeException('Unexpected Designer tool request model call '.$i),
+        };
+    }elseif(!empty($GLOBALS['tool_generic_test'])){
         $text=match($i){
             1=>'{"title":"Global Developer Tools","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid heading"]}',
             2=>'<section><h2>Welcome &amp; enjoy</h2></section>',
@@ -465,6 +476,21 @@ $devToolContext=json_decode($GLOBALS['generations'][4]['messages'][0]['content']
 expect(($devToolContext['toolEvidence']['evidence']['source']??null)==='playwright.computed',
     'Developer did not receive requested deterministic tool evidence');
 unset($GLOBALS['tool_generic_test']);
+$GLOBALS['tool_designer_test']=true;
+$GLOBALS['generations']=array();
+$GLOBALS['inspection_calls']=array();
+$designerReceipts=array();
+$designerVerified=syndamorph_team_real_run('Designer may request global browser evidence rather than guessing.',false,
+    static function(string $type,array $data)use(&$designerReceipts):void{
+        if($type==='tool_invocation')$designerReceipts[]=$data;
+    },'gutenberg');
+expect(is_array($designerVerified)&&$designerVerified['designApproval']['reviewRounds']===2 &&
+    count($GLOBALS['generations'])===7&&count($designerReceipts)===1 &&
+    $designerReceipts[0]['role']==='designer'&&$designerReceipts[0]['cache']==='hit'&&
+    $GLOBALS['inspection_calls']===array('reference','native'),
+    'Designer browser verification did not resolve the Boss dispute without regeneration');
+unset($GLOBALS['tool_designer_test']);
+
 expect(is_wp_error(syndamorph_production_tool_request('designer',
     array('name'=>'compiler.patch','target'=>'plan','reason'=>'Edit Gutenberg plan outside Designer scope'),
     array('plan'=>array()))),
