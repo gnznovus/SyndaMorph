@@ -370,6 +370,8 @@ function syndamorph_design_surgery(string $reference,array $response) {
 }
 
 function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bool $useLearning=true) {
+    $GLOBALS['syndamorph_production_tool_cache']=array();
+    $GLOBALS['syndamorph_production_tool_count']=0;
     $viewports=syndamorph_collab_viewports($brief);
     if(is_wp_error($viewports))return $viewports;
     $renderer=syndamorph_inspection_ready($viewports);
