@@ -86,15 +86,27 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    if (!empty($GLOBALS['schema_stall_test'])) {
-        $text=match($i) {
-            1 => '{"title":"Same-error schema guard","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid editable blocks"]}',
+    if (!empty($GLOBALS['schema_stall_test']) || !empty($GLOBALS['schema_ack_test'])) {
+        $repairContext=json_decode($req['messages'][0]['content'][0]['text']??'{}',true);
+        $id=$repairContext['instructionId']??'';
+        $field=$repairContext['diagnostic']['field']??'';
+        if($i>=5) {
+            $ack=array('instructionId'=>$id,'field'=>$field);
+            if(($GLOBALS['schema_ack_test']??'')==='missing')$ack=null;
+            if(($GLOBALS['schema_ack_test']??'')==='mismatch')$ack['instructionId']='invalid-diagnostic-id';
+            $text=wp_json_encode(array('acknowledged'=>$ack,'patch'=>array(
+                'id'=>'blocks[0].children[0]',
+                'changes'=>array(array('path'=>'style.fontSize',
+                    'value'=>!empty($GLOBALS['schema_stall_test'])?'1.1234567rem':'2rem')))));
+        } else $text=match($i) {
+            1 => '{"title":"Compiler-guided repair fixture","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid editable blocks"]}',
             2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
             3 => '{"decision":"approved","issues":[]}',
             4 => $GLOBALS['native_fixture'],
-            5,6 => '{"id":"blocks[0].children[0]","changes":[{"path":"style.fontSize","value":"1.1234567rem"}]}',
-            default => throw new RuntimeException('Same-error schema guard consumed an extra paid AI call '.$i),
+            default => throw new RuntimeException('Unexpected compiler-guided model call '.$i),
         };
+        if($i>6 && !empty($GLOBALS['schema_stall_test']))
+            throw new RuntimeException('Same-error schema guard consumed an extra paid AI call '.$i);
     } elseif (!empty($GLOBALS['surgery_test'])) {
         $text=match($i) {
             1 => '{"title":"Surgical recovery fixture","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid editable blocks"]}',
@@ -337,6 +349,19 @@ $richPlan['blocks'][0]['children'][0]['style']=array('color'=>'#ffffff','fontSiz
 $richPlan['blocks'][0]['children'][2]['children'][0]['style']=array('background'=>'#ffffff','color'=>'#18283a','borderRadius'=>'8px','padding'=>'1rem');
 $styled=syndamorph_compile_block_plan(wp_json_encode($richPlan));
 expect(!is_wp_error($styled),'Expanded Gutenberg native style schema failed to compile');
+$guidancePlan=$richPlan;
+$guidancePlan['blocks'][0]['children'][0]['style']['fontSize']='1.1234567rem';
+$guided=syndamorph_compile_block_plan(wp_json_encode($guidancePlan));
+expect(is_wp_error($guided)&&($guided->get_error_data()['expected']['format']??'')!==''
+    &&str_contains($guided->get_error_data()['expected']['constraint']??'','6 decimal digits')
+    &&($guided->get_error_data()['field']??'')==='blocks[0].children[0].style.fontSize',
+    'Compiler missing precise field-specific remediation instructions');
+$badHref=$richPlan;
+$badHref['blocks'][0]['children'][2]['children'][0]['href']='https://example.com';
+$hrefDiagnostic=syndamorph_compile_block_plan(wp_json_encode($badHref));
+expect(is_wp_error($hrefDiagnostic)&&str_contains($hrefDiagnostic->get_error_data()['expected']['format']??'','Local #fragment'),
+    'Compiler failed to explain allowed local CTA URLs');
+
 // F11 regression: CSS-valid four-decimal length must not trigger paid schema surgery.
 $precisionPlan=$richPlan;
 $precisionPlan['blocks'][0]['children'][0]['style']['fontSize']='clamp(1.0625rem,1rem + 0.5vw,1.25rem)';
@@ -357,6 +382,22 @@ expect(count($GLOBALS['generations'])===6,
 expect(!empty($stallResult->get_error_data()['workingPlanId']),
     'Same-error schema escalation lost the persistent working plan checkpoint');
 unset($GLOBALS['schema_stall_test']);
+foreach(array('missing','mismatch') as $ackMode){
+    $GLOBALS['schema_ack_test']=$ackMode;
+    $GLOBALS['generations']=array();
+    $rejected=syndamorph_team_real_run('Verify compiler acknowledgement enforcement.',false,null,'gutenberg');
+    expect(is_wp_error($rejected)&&$rejected->get_error_code()==='sm_schema_stagnation'
+        &&count($GLOBALS['generations'])===7,
+        'Unacknowledged compiler instructions were applied or retry bound was bypassed: '.$ackMode);
+}
+unset($GLOBALS['schema_ack_test']);
+$GLOBALS['schema_ack_test']='valid';
+$GLOBALS['generations']=array();
+$accepted=syndamorph_team_real_run('Verify guided schema repair.',false,null,'gutenberg');
+expect(is_array($accepted)&&($accepted['artifact']['blockCount']??0)===5
+    &&count($GLOBALS['generations'])===6,
+    'Properly acknowledged compiler guidance did not yield a valid repair');
+unset($GLOBALS['schema_ack_test']);
 $GLOBALS['native_fixture']=$priorFixture;
 $GLOBALS['generations']=array();
 $nestedPlan=$richPlan;
