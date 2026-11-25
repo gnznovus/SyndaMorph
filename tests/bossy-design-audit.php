@@ -115,6 +115,34 @@ $manual=boss_audit_manual($withoutLink,$source);
 $baselines=array(false=>boss_audit_ok(syndamorph_collab_inspect($withoutLink,BOSS_AUDIT_WIDTHS)),
     true=>boss_audit_ok(syndamorph_collab_inspect($withLink,BOSS_AUDIT_WIDTHS)));
 
+/** Use the same pinned, candidate-independent work order for all matching fixtures. */
+function boss_audit_work_order(array $baseline,bool $link): array {
+    $style=static function(string $selector,string $property)use($baseline):array {
+        foreach($baseline[0]['snapshot']['elements'] as $element){
+            if(!in_array(substr($selector,1),$element['classes']??array(),true))continue;
+            $value=$element['styles'][$property]??null;
+            boss_audit_assert(is_string($value)&&$value!=='','No computed baseline for '.$selector.' '.$property);
+            return array('kind'=>'style','selector'=>$selector,'field'=>$property,'value'=>$value);
+        }
+        throw new RuntimeException('No baseline target for '.$selector);
+    };
+    $checks=array(
+        'headline'=>array('content','Preserve the exact approved headline.',array('kind'=>'text','value'=>'Rest well in a space designed for you')),
+        'headline-type'=>array('visual','Keep the system-ui font stack.',$style('.sm-hero__title','fontFamily')),
+        'centered-layout'=>array('responsive','Keep centered text alignment at all checkpoints.',$style('.sm-hero__inner','textAlign')),
+        'navy-gradient'=>array('visual','Preserve the approved navy gradient.',$style('.sm-hero','backgroundImage')),
+        'gold-marker'=>array('visual','Keep the small visible gold marker.',array('kind'=>'element','selector'=>'.audit-mark')),
+    );
+    if($link)$checks['rooms-link']=array('functional','Keep the keyboard-operable rooms anchor and local target.',
+        array('kind'=>'link','selector'=>'.sm-hero__cta','value'=>'#rooms'));
+    $requirements=array();
+    foreach($checks as $id=>[$dimension,$statement,$check])
+        $requirements[]=array('id'=>$id,'target'=>'hotel-hero','dimension'=>$dimension,'basis'=>'brief',
+            'requirement'=>$statement,'acceptance'=>$statement,'check'=>$check);
+    return array('version'=>1,'title'=>'Recorded audit fixture','sections'=>array(array('id'=>'hotel-hero','label'=>'Hotel hero')),
+        'requirements'=>$requirements);
+}
+
 /** Run the production engine up to Developer handoff, supplying recorded audit inputs. */
 function boss_audit_run(array $case,array $settings,bool $live=false,?array $decision=null,string $fault=''): array {
     $requestBody=null;$responseBody=null;$approvalCalls=0;$developerStarted=false;$gate=null;$events=array();
@@ -171,7 +199,7 @@ function boss_audit_run(array $case,array $settings,bool $live=false,?array $dec
                 }
             }
             $text=match($task){
-                'boss'=>wp_json_encode(array('title'=>'Recorded audit fixture','sections'=>array('Hotel hero'),
+                'boss'=>wp_json_encode($case['workOrder']??array('title'=>'Recorded audit fixture','sections'=>array('Hotel hero'),
                     'constraints'=>array(),'acceptance'=>array('Preserve the supplied design and content.'))),
                 'designer'=>$case['html'],
                 'final_approval'=>wp_json_encode($decision??array('decision'=>'approved','issues'=>array())),
@@ -238,6 +266,8 @@ add_filter('pre_transient_syndamorph_ai_models_anthropic',static fn()=>array('mo
 $GLOBALS['boss_audit_actual_calls']=0;$GLOBALS['boss_audit_total']=0.0;
 
 $cases=array();
+$workOrders=$originalEngine?array():array(false=>boss_audit_work_order($baselines[false],false),
+    true=>boss_audit_work_order($baselines[true],true));
 foreach($fixture['cases'] as $item){
     $link=!empty($item['requiresLink']);
     $candidate=$link?$withLink:$withoutLink;
@@ -245,6 +275,7 @@ foreach($fixture['cases'] as $item){
     if(isset($item['css']))$candidate=boss_audit_replace($candidate,'</style>',$item['css'].' </style>');
     $cases[$item['id']]=$item+array('html'=>$candidate,'brief'=>boss_audit_brief($link),'mode'=>$item['liveMode'],
         'source'=>match($item['liveMode']){'manual'=>$link?boss_audit_manual($withLink,boss_audit_source($withLink)):$manual,'scoped'=>$source,default=>null});
+    if(isset($workOrders[$link]))$cases[$item['id']]['workOrder']=$workOrders[$link];
 }
 if($includeArchive)$cases['bkkgo-mobile-wrap']=boss_audit_archived_bkkgo();
 
@@ -298,7 +329,9 @@ foreach($cases as $case){
             'artifactSha256'=>hash('sha256',$case['html']),'verifiedMutation'=>$case['evidence'],'measurement'=>$measured)+$result);
         if($case['expected']==='pass'&&!$result['handoff'])$failures[]=$case['id'].' unexpectedly blocked in '.$mode;
         if(getenv('SM_BOSS_AUDIT_REQUIRE_FIXES')==='1'&&$result['handoff']&&$case['expected']==='block'&&
-            ($case['id']==='mobile-wrap'||($mode!=='brief'&&$case['id']!=='missing-decoration')))
+            (isset($input['workOrder'])&&in_array($case['id'],array('font-family','tablet-alignment','missing-decoration','background',
+                'altered-copy','wrong-link','static-control'),true) || $case['id']==='mobile-wrap' ||
+                ($mode!=='brief'&&$case['id']!=='missing-decoration')))
             $failures[]=$case['id'].' escaped mandatory validation in '.$mode;
     }
 }

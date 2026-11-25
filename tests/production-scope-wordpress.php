@@ -94,6 +94,7 @@ if($phase==='setup') {
             $literal=$sample['snapshot']['literal'];
             $variants[$width]=array('sourceRef'=>'[data-fixture='.$key.'-'.$width.']','bounds'=>array('height'=>$sample['extent']),
                 'inventory'=>array('text'=>$literal['text'],'links'=>$literal['links'],'assets'=>array(),'controls'=>array()),
+                'facts'=>array('layoutIdentity'=>$literal['layoutIdentity']),
                 'html'=>$fixture['designer'],'screenshot'=>$sample['screenshot']);
         }
         $capture['sections'][]=array('id'=>$key,'label'=>$fixture['label'],'kind'=>'content','variants'=>$variants,'sourceRef'=>$variants[1440]['sourceRef']);
@@ -130,7 +131,41 @@ if($phase==='setup') {
     $gate=syndamorph_history_latest($attempt['id'],'execution_gate');
     scope_expect($failure['code']==='sm_source_fidelity'&&$failure['completedCalls']===3&&count($calls)===18&&
         $decision['decision']==='approved'&&$gate['executionStatus']==='blocked','Source fidelity failure must block advancement without rewriting Boss approval or losing cost accounting.');
-    echo wp_json_encode(array('section'=>$section['id'],'page'=>$page['id'],'keys'=>$keys,'mockCalls'=>count($calls))).PHP_EOL;
+    $layoutSource=$capture['sections'][0];
+    $authorization=array('authorized'=>true,'widths'=>array(375),'reason'=>'Reduce whitespace in the compact layout.');
+    $unconfigured=scope_ok(syndamorph_scope_open('section',$capture));
+    $wrongWidth=array_merge($authorization,array('widths'=>array(1440,375)));
+    scope_expect(is_wp_error(syndamorph_scope_configure($unconfigured,$brief,$keys[0],null,$wrongWidth)),
+        'Desktop source layout authorization was accepted.');
+    $layoutScope=scope_ok(syndamorph_scope_configure($unconfigured,$brief,$keys[0],null,$authorization));
+    $pinned=syndamorph_scope_layout_authorization($layoutScope,$keys[0]);
+    scope_expect($pinned['widths']===array(375)&&$pinned['approvedBy']===$user->ID&&
+        syndamorph_scope_layout_authorization($layoutScope,$keys[1])===null,'Layout authorization was not pinned to the selected region and account.');
+    $tabletOnly=array_merge($pinned,array('widths'=>array(768)));
+    $north=$fixtures[$keys[0]]['designer'];
+    $geometry='<style>@media(max-width:400px){[data-sm-node="blocks[0]"]{min-height:14rem !important}}</style>'.$north;
+    $strict=syndamorph_source_review($layoutSource,$geometry);
+    $allowed=syndamorph_source_review($layoutSource,$geometry,$pinned);
+    scope_expect(!$strict['passed']&&$allowed['passed']&&$allowed['visual']['views'][2]['layoutDeviationAuthorized']&&
+        !$allowed['visual']['views'][2]['sourcePixelAndHeightPassed'],'The approved layout test did not retain and authorize the original mobile mismatch.');
+    scope_expect(!syndamorph_source_review($layoutSource,$geometry,$tabletOnly)['passed'],'Tablet approval silently authorized a mobile change.');
+    $wrongPaint='<style>@media(max-width:400px){[data-sm-node="blocks[0]"]{background:red !important}}</style>'.$geometry;
+    scope_expect(!syndamorph_source_review($layoutSource,$wrongPaint,$pinned)['passed'],'Layout approval waived protected paint.');
+    scope_expect(!syndamorph_source_review($layoutSource,str_replace('Literal source content','Changed source content',$geometry),$pinned)['passed'],
+        'Layout approval waived required copy.');
+    $shortCapture=$capture;
+    $shortSample=scope_ok(syndamorph_scope_inspect($geometry,'section'))[2];
+    $shortCapture['sections'][0]['variants'][375]['screenshot']=$shortSample['screenshot'];
+    $shortCapture['sections'][0]['variants'][375]['bounds']['height']=$shortSample['extent'];
+    $authorizedJob=scope_ok(syndamorph_scope_configure(scope_ok(syndamorph_scope_open('section',$shortCapture)),
+        $brief,$keys[0],null,array_merge($authorization,array('reason'=>'Increase compact layout room for the text.'))));
+    $authorizedJob=scope_ok(syndamorph_scope_run($authorizedJob,$keys[0],false,$engine));
+    $candidate=syndamorph_scope_candidate($authorizedJob,$keys[0]);
+    scope_expect(!empty($candidate['eligible'])&&$candidate['sourceAcceptance']['layoutAuthorization']===
+        syndamorph_scope_layout_authorization($authorizedJob,$keys[0]),
+        'The authenticated source layout authorization did not survive production and native QA.');
+    echo wp_json_encode(array('section'=>$section['id'],'page'=>$page['id'],'keys'=>$keys,'mockCalls'=>count($calls),
+        'authorizedMobileLayout'=>true)).PHP_EOL;
 } elseif($phase==='retry') {
     $page=syndamorph_scope_status(syndamorph_history_latest((int)getenv('SM_SCOPE_JOB'),'scope_manifest'));
     scope_expect($page['page']['editorVerified']&&!$page['page']['allRegions'],'Expected an independently verified partial WordPress draft.');

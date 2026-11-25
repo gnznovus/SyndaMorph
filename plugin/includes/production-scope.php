@@ -111,7 +111,9 @@ function syndamorph_scope_status(array $manifest): array {
                 $failure=syndamorph_history_latest($last['id'],'job_error');
                 $final=syndamorph_history_latest($last['id'],'job_complete');
                 $region['checkpointAvailable']=!empty($failure['referenceCheckpoint'])||!empty($final['referenceCheckpoint']);
-                $region['issue']=$failure['message']??$final['quality']['issues'][0]['detail']??null;
+                $functional=$final['quality']['functionalChecks']['status']??null;
+                $region['issue']=$failure['message']??$final['quality']['issues'][0]['detail']??
+                    (in_array($functional,array('pending','failed'),true)?'Functional QA '.$functional.'. See the artifact receipt in History.':null);
             }
         }
     }
@@ -138,6 +140,11 @@ function syndamorph_scope_run(array $manifest,string $key,bool $retry,?callable 
     $settings=syndamorph_models_settings();
     $available=min($available,(float)($manifest['sectionBudgetUsd']??$settings['maxJobUsd']??0));
     $engineSource=syndamorph_scope_engine_source($source,$manifest['sourceUrl']);
+    if(isset($manifest['layoutAuthorization'])){
+        $authorization=syndamorph_scope_layout_authorization($manifest,$key);
+        if($authorization===null)return syndamorph_scope_error('layout_authorization','The layout authorization does not match the pinned region.');
+        $engineSource['layoutAuthorization']=$authorization;
+    }
     if(array_key_exists('referenceArchive',$manifest)) {
         if(!syndamorph_production_reference_valid($manifest['referenceArchive'],$manifest['sourceUrl']))
             return syndamorph_scope_error('reference','Pinned rendered reference is unavailable.');
@@ -226,7 +233,17 @@ function syndamorph_scope_targets(array $manifest): array {
         array_intersect_key($manifest['regions'],array_flip(array($manifest['selected']??'')));
 }
 
-function syndamorph_scope_configure(array $manifest,string $brief,?string $selection,?float $limit=null) {
+function syndamorph_scope_layout_authorization(array $manifest,string $region): ?array {
+    $receipt=$manifest['layoutAuthorization']??null;
+    $checkpoint=$manifest['regions'][$region]['checkpoint']??null;
+    if(!is_array($receipt)||$checkpoint===null||($receipt['scopeId']??null)!==$manifest['id']||
+        ($receipt['sourceUrl']??null)!==$manifest['sourceUrl']||($receipt['checkpoints'][$region]??null)!==$checkpoint)
+        return null;
+    unset($receipt['checkpoints']);
+    return $receipt+array('region'=>$region,'checkpoint'=>$checkpoint);
+}
+
+function syndamorph_scope_configure(array $manifest,string $brief,?string $selection,?float $limit=null,$layout=null) {
     if(isset($manifest['budgetUsd']))return syndamorph_scope_error('configured','This scope already has a pinned production brief and budget.');
     if(strlen(trim($brief))<12||strlen($brief)>2000||preg_match('/[\x00-\x08\x0b\x0c\x0e-\x1f]/',$brief))
         return syndamorph_scope_error('brief','Provide a production brief of 12 to 2000 characters.',400);
@@ -239,6 +256,19 @@ function syndamorph_scope_configure(array $manifest,string $brief,?string $selec
         return syndamorph_scope_error('budget','Enter an authorized total budget within the applicable section limit.',400);
     $manifest['brief']=trim($brief);
     $manifest['selected']=$manifest['mode']==='section'?$selection:null;
+    if($layout!==null){
+        $widths=$layout['widths']??null;
+        $reason=is_string($layout['reason']??null)?sanitize_text_field($layout['reason']):null;
+        if(!is_array($layout)||($layout['authorized']??false)!==true||
+            !in_array($widths,array(array(768),array(375),array(768,375)),true)||
+            !is_string($reason)||mb_strlen(trim($reason))<12||mb_strlen($reason)>240||!get_current_user_id())
+            return syndamorph_scope_error('layout_authorization','Select exact compact widths and give a layout reason of 12 to 240 characters.',400);
+        $manifest['layoutAuthorization']=array('scopeId'=>$manifest['id'],'mode'=>$manifest['mode'],
+            'sourceUrl'=>$manifest['sourceUrl'],'widths'=>$widths,'reason'=>$reason,
+            'approvedBy'=>get_current_user_id(),'approvedAt'=>gmdate('c'),
+            'checkpoints'=>array_map(static fn($region)=>$region['checkpoint'],syndamorph_scope_targets($manifest)));
+        syndamorph_history_append($manifest['id'],'source_layout_authorized',$manifest['layoutAuthorization']);
+    }
     $manifest['budgetUsd']=$budget;
     $manifest['sectionBudgetUsd']=$sectionBudget;
     if(!array_filter(syndamorph_scope_targets($manifest),static fn($region)=>$region['status']==='ready'))$manifest['status']='uncompleted';
@@ -260,6 +290,8 @@ function syndamorph_scope_increase_budget(array $manifest,float $amount) {
 function syndamorph_scope_repin_section(array $manifest,array $capture) {
     $key=$manifest['selected']??null;
     $previous=$manifest['regions'][$key]??null;
+    if(isset($manifest['layoutAuthorization']))
+        return syndamorph_scope_error('layout_authorization','Start a fresh source scope to authorize a layout change against a new capture.');
     if($manifest['mode']!=='section'||!$previous||$previous['status']!=='failed'||!empty($previous['patternId'])||
         ($capture['url']??null)!==$manifest['sourceUrl'])
         return syndamorph_scope_error('repin','Only a failed Section on the same source URL can replace its evidence.');
@@ -297,11 +329,22 @@ function syndamorph_scope_page_qa(array $manifest,WP_Post $page): array {
     $fold=syndamorph_scope_inspect($html,'page-fold');
     if(is_wp_error($whole)||is_wp_error($fold))return array('passed'=>false,'reason'=>'Reconstructed WordPress browser evidence is pending.',
         'inspection'=>syndamorph_inspection_diagnostic(is_wp_error($whole)?$whole:$fold));
-    $wholeQa=syndamorph_source_visual(array_map(static fn($view)=>array('width'=>$view['width'],'extent'=>$view['height'],'screenshot'=>$view['whole']),$source),$whole);
-    $foldQa=syndamorph_source_visual(array_map(static fn($view)=>array('width'=>$view['width'],'screenshot'=>$view['fold']),$source),$fold,false);
+    $layoutWidths=$manifest['layoutAuthorization']['widths']??array();
+    if($layoutWidths){
+        foreach($manifest['regions'] as $key=>$region){
+            $expected=syndamorph_scope_layout_authorization($manifest,$key);
+            $candidate=syndamorph_scope_candidate($manifest,$key);
+            if(!$expected||empty($candidate['eligible'])||($candidate['sourceAcceptance']['layoutAuthorization']??null)!==$expected||
+                ($region['artifactSha256']??null)!==$candidate['checksum'])
+                return array('passed'=>false,'reason'=>'A region lacks matching source layout authorization and verified QA.');
+        }
+    }
+    $wholeQa=syndamorph_source_visual(array_map(static fn($view)=>array('width'=>$view['width'],'extent'=>$view['height'],'screenshot'=>$view['whole']),$source),$whole,true,$layoutWidths);
+    $foldQa=syndamorph_source_visual(array_map(static fn($view)=>array('width'=>$view['width'],'screenshot'=>$view['fold']),$source),$fold,false,$layoutWidths);
     $issues=syndamorph_collab_evidence($whole,$whole);
     return array('passed'=>$wholeQa['passed']&&$foldQa['passed']&&!$issues,'fullExtent'=>$wholeQa,'firstFold'=>$foldQa,'browserIssues'=>$issues,
-        'renderSha256'=>hash('sha256',$html));
+        'renderSha256'=>hash('sha256',$html))+
+        ($layoutWidths?array('layoutAuthorization'=>$manifest['layoutAuthorization']):array());
 }
 
 function syndamorph_scope_assemble(array $manifest) {
@@ -448,13 +491,16 @@ add_action('rest_api_init',static function():void {
                             $limit=$request->get_param('limitUsd');
                             if($limit!==null && (!is_numeric($limit)||(float)$limit<=0))
                                 return syndamorph_scope_error('budget','Invalid budget cap.',400);
-                            return syndamorph_scope_configure($manifest,(string)$request->get_param('brief'),$region,$limit===null?null:(float)$limit);
+                            return syndamorph_scope_configure($manifest,(string)$request->get_param('brief'),$region,
+                                $limit===null?null:(float)$limit,$request->get_param('sourceLayoutChange'));
                         case 'increase_budget':
                             $limit=$request->get_param('limitUsd');
                             if(!is_numeric($limit))return syndamorph_scope_error('budget','Enter a valid total budget.',400);
                             return syndamorph_scope_increase_budget($manifest,(float)$limit);
                         case 'recapture':
                             $manifest=syndamorph_scope_status($manifest);
+                            if(isset($manifest['layoutAuthorization']))
+                                return syndamorph_scope_error('layout_authorization','Start a fresh source scope to authorize a layout change against a new capture.');
                             if($manifest['mode']!=='section'||($manifest['regions'][$manifest['selected']??'']['status']??'')!=='failed')
                                 return syndamorph_scope_error('repin','Only a failed Section can recapture its source.');
                             $capture=syndamorph_capture_page($manifest['sourceUrl'],'browser',true);

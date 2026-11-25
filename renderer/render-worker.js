@@ -199,7 +199,19 @@ process.stdin.on('end', async () => {
                         const assets = Array.from(visible).filter(el => el.matches('img,svg,video,audio,iframe,object,embed,canvas') ||
                             getComputedStyle(el).backgroundImage.includes('url(')).length;
                         const controls = Array.from(visible).filter(el => el.matches('form,input,select,textarea,button,details,dialog,[role=tab],[role=button]')).length;
-                        return { text, links, assets, controls };
+                        const visibleElements = elements.filter(el => visible.has(el));
+                        const paint = [...new Set(visibleElements.map(el => {
+                            const css = getComputedStyle(el);
+                            return css.backgroundColor === 'rgba(0, 0, 0, 0)' && css.backgroundImage === 'none'
+                                ? null : css.backgroundColor + '|' + css.backgroundImage;
+                        }).filter(Boolean))].sort();
+                        const textStyles = visibleElements.filter(el => el.matches('h1,h2,h3,h4,h5,h6,p')).map(el => {
+                            const css = getComputedStyle(el);
+                            return [el.localName, normalize(el.textContent).slice(0, 250), css.fontFamily, css.fontWeight, css.color];
+                        });
+                        const layoutIdentity = visibleElements.length <= 200 && textStyles.length <= 20 &&
+                            paint.length <= 32 && paint.every(value => value.length <= 240) ? {paint,textStyles} : null;
+                        return { text, links, assets, controls, layoutIdentity };
                     })() : null;
                     return {
                         copy: copyParts.join('').replace(/\s+/gu, ' ').trim(),

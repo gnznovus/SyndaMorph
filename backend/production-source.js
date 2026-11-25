@@ -83,8 +83,18 @@ function describeSource(refs) {
             .map(value => value.slice(0, 350)))].slice(0, 20);
         const fonts = [...new Set([getComputedStyle(root).fontFamily, ...typography.map(t => t.font)])];
         const style = getComputedStyle(root);
+        const rendered = roots.flatMap(container => [container, ...container.querySelectorAll('*')]).filter(visible);
+        const paint = [...new Set(rendered.map(el => {
+            const css = getComputedStyle(el);
+            return css.backgroundColor === 'rgba(0, 0, 0, 0)' && css.backgroundImage === 'none'
+                ? null : css.backgroundColor + '|' + css.backgroundImage;
+        }).filter(Boolean))].sort();
         const copy = normalize(literal.join(''));
         return { bounds, copy: copy.slice(0, 10000), copyTruncated: copy.length > 10000,
+            layoutIdentity: rendered.length <= 200 && rendered.filter(el => el.matches('h1,h2,h3,h4,h5,h6,p')).length <= 20 &&
+                paint.length <= 32 && paint.every(value => value.length <= 240) ? {
+                paint, textStyles: typography.map(t => [t.tag, t.text.slice(0, 250), t.font, t.weight, t.color]),
+            } : null,
             typography, controls, links: links.slice(0, 30), linkCount: links.length, images: images.slice(0, 30),
             imageCount: images.length, backgrounds, fonts,
             flow: { display: style.display, position: style.position, direction: style.flexDirection,

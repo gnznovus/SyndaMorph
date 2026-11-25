@@ -74,9 +74,18 @@ Implementation QA receives the compiled candidate and has separate agent authori
 
 The isolated WordPress regression compiled two instances, edited and saved a panel in Gutenberg, reloaded it, and verified frontend click and keyboard behavior at 1440, 768 and 375 px. Tests also cover duplicate IDs, omitted widgets, changed inactive panel copy, broken ARIA structure, unsupported external requirements and stale artifact hashes. The runtime has no remote dependencies. Captured site actions still enter the source adapters' existing preflight gate. A captured BKKGO menu or booking workflow requires its own native implementation and functional evidence.
 
-## Next checkpoints
+## v0.12.6 source layout authorization
 
-1. Record explicitly authorized source deviations independently of content, responsive quality, behavior and feasibility.
-2. Verify both production adapters and rerun the defect benchmark with approval for any paid calls. Report detection, escape, false rejections, uncertainty, latency and cost. BKKGO establishes a scenario, while broader acceptance is measured separately.
+Before production starts, the Section and Full Page controls can authorize a responsive layout change at 768 px, 375 px, or both. The administrator supplies a reason. The server binds the authorization to the current source scope, selected checkpoint identities, and account. A fresh capture requires a new authorization. Manually paired viewport variants keep their strict source policy.
+
+Chromium still captures and compares every required view. Exact copy, links, assets, controls, and responsive QA remain required. Pinned background paint and text family, weight, and color must match where layout changes are authorized. Missing protected evidence holds the gate. Desktop keeps its pixel and height conditions. An assembled page requires the same authorization and artifact hash for each accepted region, the source section order, and its own browser and editor evidence.
+
+The WordPress fixture retained the original mobile visual and height mismatch in the receipt and accepted the explicitly authorized reflow. The same candidate failed under strict or tablet-only settings. Changing its paint or copy still failed. The Section and Full Page regression exercised an isolated native conversion with three verified patterns and a 12-block assembled draft. These checks used zero live AI calls.
+
+Both adapters admitted the captured BKKGO source archive `5d804f9fb95df28cd4367931611790fc3821a0de1822c945531eb2d002327523`. Full-page offline replay had zero changed pixels and zero external requests at 1440, 768 and 375 px. Production preflight found three eligible regions out of 16 and held 13 for missing variants, unsupported controls, assets, links or placement. Both scopes pinned the same Through Our Lens evidence, rejected a text-only visual probe and withheld unverified Pattern promotion. No BKKGO page was accepted for publication.
+
+## Remaining acceptance
+
+The updated hotel benchmark held 25 of 27 scripted defect approvals and passed all six valid fixture/mode combinations. Live model detection, combined escape, false rejections, uncertainty, latency and cost require separate measurement. [Design validation audit](bossy-validation-audit.md#v0126-deterministic-replay)
 
 No release has been authorized for this development series. Each checkpoint records the version, actual verification and outstanding work in the plugin changelog.

@@ -101,7 +101,7 @@ function syndamorph_production_source_context(array $source): array {
         $facts[]=$view;
     }
     return array('identity'=>syndamorph_production_source_identity($source),'views'=>$facts)+
-        array_intersect_key($source,array('referenceArchive'=>true));
+        array_intersect_key($source,array('referenceArchive'=>true,'layoutAuthorization'=>true));
 }
 
 function syndamorph_production_source_copy(array $source,array $native): array {

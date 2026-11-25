@@ -39,6 +39,30 @@
     const budgetField = node('input');
     budgetField.type = 'number'; budgetField.min = '0.01'; budgetField.step = '0.01';
     budgetField.id = 'syndamorph-scope-budget'; budgetField.className = 'sm-control';
+    const layoutOptions = node('details');
+    const layoutWidths = [768,375].map(width => {
+        const checkbox = node('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = String(width);
+        const label = node('label');
+        label.append(checkbox, document.createTextNode(' ' + width + ' px'));
+        return {checkbox,label};
+    });
+    const layoutReason = node('textarea');
+    layoutReason.id = 'syndamorph-scope-layout-reason';
+    layoutReason.maxLength = 240;
+    layoutReason.rows = 2;
+    layoutReason.className = 'sm-control';
+    const layoutReasonLabel = node('label', 'Reason for changing the source layout');
+    layoutReasonLabel.htmlFor = layoutReason.id;
+    layoutOptions.append(node('summary','Allow a responsive source layout change'),
+        node('p','Select the widths where layout may change. Source copy, links, assets, behavior and desktop fidelity still require verification.'),
+        ...layoutWidths.map(({label}) => label), layoutReasonLabel, layoutReason);
+    function clearLayoutOptions() {
+        for (const {checkbox} of layoutWidths) checkbox.checked = false;
+        layoutReason.value = '';
+        layoutOptions.open = false;
+    }
     function button(label, callback) {
         const control = node('button', label);
         control.type = 'button';
@@ -61,6 +85,14 @@
         panel.append(node('h3', label + ' · ' + manifest.jobId),
             node('p', (manifest.status === 'completed' ? 'Completed' : 'Acceptance pending') + ' · ' + saved + '/' + targets().length + ' patterns · $' + Number(manifest.spentUsd).toFixed(6) + ' estimated'));
         if (manifest.budgetUsd) panel.append(node('p', 'Scope budget $' + budget().toFixed(2) + ' · ' + (manifest.outputTokens || 0).toLocaleString() + ' output tokens used'));
+        if (!manifest.budgetUsd) {
+            for (const {checkbox} of layoutWidths) checkbox.disabled = running;
+            layoutReason.disabled = running;
+            panel.append(layoutOptions);
+        } else if (manifest.layoutAuthorization) {
+            panel.append(node('p','Source layout change authorized at ' + manifest.layoutAuthorization.widths.join(', ') +
+                ' px. ' + manifest.layoutAuthorization.reason));
+        }
         if (manifest.mode === 'page' || manifest.budgetUsd) {
             const budgetLabel = node('label', manifest.budgetUsd ? 'New total budget (USD)' : 'Full Page total budget (USD)');
             budgetLabel.htmlFor = budgetField.id;
@@ -87,7 +119,7 @@
             }
             if (!row.patternId && ['needs_review','completed'].includes(row.status)) entry.append(button('Validate and save pattern', () => finishRegion(row.id)));
             if (row.checkpointAvailable) entry.append(button('Recheck browser', () => recheck(row)));
-            if (manifest.mode === 'section' && row.status === 'failed' && !row.checkpointAvailable) entry.append(button('Recapture section evidence', async () => {
+            if (manifest.mode === 'section' && row.status === 'failed' && !row.checkpointAvailable && !manifest.layoutAuthorization) entry.append(button('Recapture section evidence', async () => {
                 manifest = await request(url(), {action:'recapture'});
             }));
             if (canSpend() && ['failed','uncompleted'].includes(row.status) && !row.checkpointAvailable) {
@@ -181,7 +213,7 @@
             if (scope.value !== 'page' && renderMode.value === 'static') throw new Error('Native AI source inspection requires browser capture.');
             return request(cfg.scopeUrl, {url:raw,scope:scope.value});
         },
-        set(result) { manifest = result; budgetField.value = ''; render(); },
+        set(result) { manifest = result; budgetField.value = ''; clearLayoutOptions(); render(); },
         clear() { if (!running) { manifest = null; render(); } },
         preview: id => request(url(), null, {preview:'1',selected:id}),
         async open(id) {
@@ -203,6 +235,7 @@
                 $('syndamorph-team-source-summary').textContent = 'Pinned source from ' + saved.jobId;
                 manifest = saved;
                 budgetField.value = '';
+                clearLayoutOptions();
                 $('sm-team-tab-setup').click();
                 message.textContent = 'Loaded the saved scope checkpoint.';
             });
@@ -216,8 +249,12 @@
             const ready = targets().filter(row => row.status === 'ready').length;
             const limitUsd = manifest.mode === 'page' ? Number(budgetField.value) : budget();
             if (!Number.isFinite(limitUsd) || limitUsd <= 0) throw new Error('Enter a positive total budget.');
+            const widths = layoutWidths.filter(({checkbox}) => checkbox.checked).map(({checkbox}) => Number(checkbox.value));
+            const reason = layoutReason.value.trim();
+            if (widths.length && reason.length < 12) throw new Error('Describe the layout change in at least 12 characters.');
             if (ready && !window.confirm('Run ' + ready + ' section job(s) within a total $' + limitUsd.toFixed(2) + ' estimated AI budget?')) return;
-            manifest = await request(url(), {action:'configure',brief,region:selected,limitUsd});
+            const sourceLayoutChange = widths.length ? {authorized:true,widths,reason} : undefined;
+            manifest = await request(url(), {action:'configure',brief,region:selected,limitUsd,sourceLayoutChange});
             render();
             await runRemaining();
         }),

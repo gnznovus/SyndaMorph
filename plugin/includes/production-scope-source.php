@@ -71,11 +71,11 @@ function syndamorph_scope_inspect(string $html,string $extent) {
 }
 
 /** Compare both entire rendered extents and absolute heights at their original widths. */
-function syndamorph_source_visual(array $reference,array $native,bool $extent=true): array {
+function syndamorph_source_visual(array $reference,array $native,bool $extent=true,array $layoutWidths=array()): array {
     $comparison=syndamorph_collab_compare($reference,$native,$extent);
     if(is_wp_error($comparison))return array('passed'=>false,'inspection'=>array('code'=>$comparison->get_error_code(),
         'message'=>$comparison->get_error_message()));
-    $passed=true;
+    $passed=true;$strictRatios=array();
     foreach($comparison as $i=>&$row) {
         if($extent) {
             $sourceHeight=$reference[$i]['extent'];
@@ -84,11 +84,18 @@ function syndamorph_source_visual(array $reference,array $native,bool $extent=tr
             $row['nativeHeight']=$height;
             $row['heightPassed']=abs($sourceHeight-$height)<=max(16,$sourceHeight*0.10);
         }
-        $row['passed']=is_numeric($row['pixelDifferenceRatio']??null) && $row['pixelDifferenceRatio']<=0.015 &&
-            ($row['heightPassed']??true) && empty($native[$i]['snapshot']['overflow']);
+        $ratio=$row['pixelDifferenceRatio']??null;
+        $measured=is_numeric($ratio)&&is_finite((float)$ratio)&&$ratio>=0&&$ratio<=1&&
+            ($native[$i]['snapshot']['overflow']??null)===false;
+        $strict=$measured&&$ratio<=0.015&&($row['heightPassed']??true);
+        $authorized=in_array($row['width'],array(768,375),true)&&in_array($row['width'],$layoutWidths,true);
+        $row['sourcePixelAndHeightPassed']=$strict;
+        $row['layoutDeviationAuthorized']=$authorized;
+        $row['passed']=$authorized?$measured:$strict;
+        if(!$authorized&&$measured)$strictRatios[]=(float)$ratio;
         $passed=$passed&&$row['passed'];
     }
-    return array('passed'=>$passed&&syndamorph_visual_pixels_within_limits(array_column($comparison,'pixelDifferenceRatio')),'views'=>$comparison);
+    return array('passed'=>$passed&&syndamorph_visual_pixels_within_limits($strictRatios),'views'=>$comparison);
 }
 
 function syndamorph_source_verify_markup(array $source,array $evidence): array {
@@ -107,17 +114,29 @@ function syndamorph_source_verify_markup(array $source,array $evidence): array {
     return array('passed'=>!array_filter($verdict,static fn($row)=>in_array(false,$row,true)),'views'=>$verdict);
 }
 
-function syndamorph_source_review(array $source,string $html): array {
+function syndamorph_source_review(array $source,string $html,?array $authorization=null): array {
     $native=syndamorph_scope_inspect($html,'section');
     $markup=syndamorph_source_verify_markup($source,is_wp_error($native)?array():$native);
     $reference=array_map(static function($width)use($source){
         $view=$source['variants'][$width];
         return array('width'=>$width,'extent'=>(int)round($view['bounds']['height']),'screenshot'=>$view['screenshot']);
     },SYNDAMORPH_SOURCE_WIDTHS);
+    $layoutWidths=$authorization['widths']??array();
+    $layoutIdentity=array();
+    foreach(is_wp_error($native)?array():$native as $sample){
+        $width=$sample['width'];
+        if(!in_array($width,$layoutWidths,true))continue;
+        $expected=$source['variants'][$width]['facts']['layoutIdentity']??null;
+        $observed=$sample['snapshot']['literal']['layoutIdentity']??null;
+        $layoutIdentity[]=array('width'=>$width,'matched'=>is_array($expected)&&$expected===$observed);
+    }
+    $layoutIdentityPassed=array_column($layoutIdentity,'width')===$layoutWidths&&
+        !in_array(false,array_column($layoutIdentity,'matched'),true);
     $visual=is_wp_error($native)?array('passed'=>false,'inspection'=>syndamorph_inspection_diagnostic($native)):
-        syndamorph_source_visual($reference,$native);
-    return array('passed'=>$markup['passed']&&$visual['passed'],'markup'=>$markup,'visual'=>$visual,
-        'sourceId'=>$source['id'],'sourceSha256'=>hash('sha256',wp_json_encode($source)));
+        syndamorph_source_visual($reference,$native,true,$layoutIdentityPassed?$layoutWidths:array());
+    return array('passed'=>$markup['passed']&&$visual['passed']&&$layoutIdentityPassed,'markup'=>$markup,'visual'=>$visual,
+        'sourceId'=>$source['id'],'sourceSha256'=>hash('sha256',wp_json_encode($source)))+
+        ($authorization===null?array():array('layoutAuthorization'=>$authorization,'layoutIdentity'=>$layoutIdentity));
 }
 
 function syndamorph_source_issue(array $review,string $owner): array {

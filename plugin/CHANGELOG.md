@@ -6,6 +6,19 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.6] - 2026-11-26
+
+### Added
+- Section and Full Page can record an administrator-approved layout change at 768 or 375 px. The receipt pins the source checkpoint, exact widths, account and reason. Raw visual comparisons stay in History.
+- Compact layout approval still requires source copy, links, assets, controls, paint, and text identity, plus ordinary browser and editor gates. Desktop retains its source comparison.
+- The offline design-review benchmark now runs candidate-independent work orders with typed browser assertions for the existing hotel hero fixtures.
+
+### Verified
+- Disposable WordPress accepted a mobile reflow with explicit approval and blocked that same change without it. Tablet-only approval, a mobile paint change, altered source copy and a desktop authorization request were rejected.
+- Section and Full Page replay resumed a partial page to a verified Gutenberg draft with all three patterns and no paid calls.
+- An authenticated BKKGO capture replayed offline with zero pixel differences at all three widths. Three regions were eligible for conversion and 13 remained blocked by source preflight. Both adapters kept unverified artifacts from Pattern promotion.
+- The offline design benchmark held 25 of 27 scripted defect approvals and passed all six valid fixture/mode combinations. Updated live model detection and escape rates remain to be measured.
+
 ## [0.12.5] - 2026-11-26
 
 ### Added
