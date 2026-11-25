@@ -197,7 +197,7 @@
             (qaPending ? '. Required visual QA is pending.' :
                 data.outputType === 'gutenberg' ? '. Browser and vision QA collected; native editor validation is not certified.' : '. No Gutenberg conversion, browser QA, or publishing has occurred.');
         results.append(checks);
-        if (typeof data.outputs?.developer === 'string') {
+        if (!data.controlAction && typeof data.outputs?.developer === 'string') {
             exportControl = window.SyndaMorphAIExport.mount(results, {html:data.outputType === 'gutenberg' ? null : data.outputs.developer, artifact:data.artifact, identity:currentIdentity, receipts:exportReceipts});
         }
     }
@@ -359,6 +359,7 @@
                     'Resume from the saved job checkpoint. Completed agent calls will be replayed from History without new provider charges.':
                     'Already completed calls may have been billed. Existing events remain in History; no automatic restart.');
                 for(const agent of roles)if(root.querySelector('[data-agent="'+agent+'"] .sm-status-pill')?.dataset.state==='running')setAgent(agent,'idle');
+                if(data.artifact||data.outputs?.developer)appendReport(data);
                 return;
             }
             const qaPending=data.status==='uncompleted' && data.stageStatus?.browserQa==='pending' &&
