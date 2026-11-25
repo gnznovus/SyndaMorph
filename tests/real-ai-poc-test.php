@@ -412,6 +412,40 @@ expect(($GLOBALS['generations'][3]['system'][0]['cache_control']['type']??null)=
 expect($GLOBALS['generations'][0]['system'][0]===$GLOBALS['generations'][4]['system'][0],'Shared cache prefix not stable');
 $beforeReplayGenerations=$GLOBALS['generations'];
 $beforeReplayInspections=$GLOBALS['inspection_calls'];
+// Live pipeline regression for GEN-000019: automatic compiler surgery must
+// precede AI repair, and confirmed negative constraints must affect later jobs.
+$beforeAutoFixture=$GLOBALS['native_fixture'];
+$beforeAutoLearning=$GLOBALS['options'][SYNDAMORPH_LEARNING_OPTION]??array();
+$GLOBALS['options'][SYNDAMORPH_LEARNING_OPTION]=array();
+$autoFixture=json_decode($beforeAutoFixture,true);
+$autoFixture['blocks'][0]['children'][2]['style']=array('justifyContent'=>'left','margin'=>'0.5rem 0 0 0');
+$GLOBALS['native_fixture']=wp_json_encode($autoFixture);
+$GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
+$autoEvents=array();
+$autoJob=syndamorph_team_real_run('Auto-repair invalid buttons margin with no additional AI calls.',false,
+    static function(string $type,array $data)use(&$autoEvents):void{
+        if($type==='compiler_auto_repair')$autoEvents[]=$data;
+    },'gutenberg');
+expect(is_array($autoJob) && count($GLOBALS['generations'])===5 &&
+    $autoJob['surgery']['deterministic']===1 && $autoJob['surgery']['paidPatches']===0 &&
+    count($autoEvents)===1 && $autoEvents[0]['requiresVisualQa']===true &&
+    $GLOBALS['inspection_calls']===array('reference','native') &&
+    !array_key_exists('margin',$autoJob['surgery']['repairs'][0]??array()) &&
+    !array_key_exists('margin',$autoFixture['blocks'][0]['children'][2]['style'])===false,
+    'GEN-000019 should finish native compilation with one auto-repair and zero paid repair calls');
+$verifiedRules=syndamorph_learning_retrieve('developer');
+expect(count(array_filter($verifiedRules,static fn($rule)=>str_contains($rule,'buttons.style.margin')))>0,
+    'A compiler-confirmed buttons.margin rejection was not learned across runs');
+$GLOBALS['native_fixture']=$beforeAutoFixture;
+$GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
+$followupJob=syndamorph_team_real_run('Avoid repeating known invalid native schema properties.',false,null,'gutenberg');
+expect(is_array($followupJob)&&count($GLOBALS['generations'])===5&&
+    str_contains(wp_json_encode($GLOBALS['generations'][3]),'Never set buttons.style.margin'),
+    'Next Developer generation did not receive verified cross-job compiler learning');
+$GLOBALS['options'][SYNDAMORPH_LEARNING_OPTION]=$beforeAutoLearning;
+$GLOBALS['native_fixture']=$beforeAutoFixture;
+$GLOBALS['generations']=$beforeReplayGenerations;
+$GLOBALS['inspection_calls']=$beforeReplayInspections;
 $GLOBALS['generations']=array(array('cached'=>true),array('cached'=>true),array('cached'=>true));
 $GLOBALS['syndamorph_resume_calls']=array(
     array('role'=>'boss','task'=>'boss','text'=>'{"title":"Premium hotel hero","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid editable blocks"]}',
