@@ -22,6 +22,8 @@ on:
       - 'plugin/includes/production-source.php'
       - 'plugin/assets/production-scope.js'
       - 'tests/production-scope-*'
+      - 'tests/bossy-design-audit.php'
+      - 'tests/fixtures/bossy-*'
       - 'plugin/includes/production-visual-qa.php'
       - 'plugin/includes/production-surgery.php'
       - 'plugin/includes/production-repair.php'
@@ -55,6 +57,8 @@ on:
       - 'plugin/includes/production-source.php'
       - 'plugin/assets/production-scope.js'
       - 'tests/production-scope-*'
+      - 'tests/bossy-design-audit.php'
+      - 'tests/fixtures/bossy-*'
       - 'renderer/**'
       - 'plugin/includes/production-visual-qa.php'
       - 'backend/**'
@@ -119,6 +123,7 @@ jobs:
           php -l tests/production-scope-wordpress.php
           node --check plugin/assets/production-scope.js
           php -l tests/inspection-wordpress.php
+          php -l tests/bossy-design-audit.php
           php -l plugin/includes/production-visual-qa.php
           php -l plugin/includes/production-surgery.php
           php -l plugin/includes/production-tools.php
@@ -165,6 +170,10 @@ jobs:
           for i in $(seq 1 60); do if curl -fsS -o /dev/null http://127.0.0.1:8085/wp-admin/install.php; then break; fi; sleep 2; done
           curl -fsS -o /dev/null -X POST 'http://127.0.0.1:8085/wp-admin/install.php?step=2' --data 'weblog_title=CI&user_name=ciadmin&admin_password=ci-only-test-password&admin_password2=ci-only-test-password&admin_email=ci@example.invalid&blog_public=0&Submit=Install+WordPress'
           docker compose exec -T wordpress php < tests/inspection-wordpress.php
+          docker compose exec -T wordpress mkdir -p /tmp/sm-bossy-audit
+          docker compose cp tests/fixtures/bossy-approved-gen-000002.html wordpress:/tmp/sm-bossy-audit/bossy-approved-gen-000002.html
+          docker compose cp tests/fixtures/bossy-design-cases.json wordpress:/tmp/sm-bossy-audit/bossy-design-cases.json
+          docker compose exec -T -e SM_BOSS_AUDIT_LIVE=0 -e SM_BOSS_AUDIT_TRUST_ONLY=1 -e SM_BOSS_AUDIT_REQUIRE_FIXES=1 wordpress php < tests/bossy-design-audit.php
           docker compose cp tests/gutenberg-native-fixture.php wordpress:/var/www/html/sm-native-fixture.php
           cd backend && npx playwright install --with-deps chromium && cd ..
           node tests/gutenberg-native-browser.cjs

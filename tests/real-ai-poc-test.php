@@ -64,6 +64,7 @@ function wp_remote_post($url,$args) {
         $ratios=array(0.20,0.16,0.19,0.13);
         $ratio=isset($GLOBALS['progressive_test'])?($ratios[$index]??throw new RuntimeException('Duplicate was rendered')):0.15;
         if(isset($GLOBALS['source_fixture_ratio']))$ratio=$GLOBALS['source_fixture_ratio'];
+        if(!empty($GLOBALS['source_fixture_comparisons']))$ratio=array_shift($GLOBALS['source_fixture_comparisons']);
         if(isset($GLOBALS['progressive_test']))$GLOBALS['progressive_comparison']=$index+1;
         return array('status'=>200,'body'=>json_encode(array('comparison'=>array_map(
             static fn($width)=>array('width'=>$width,'pixelDifferenceRatio'=>$ratio,'meanChannelDifference'=>5.0,'sampledPixels'=>100),$widths))));
@@ -1707,7 +1708,11 @@ expect(!is_wp_error($designReceipt)&&$designReceipt['aiCalls']===0&&count($GLOBA
     'Rechecking the failed Designer artifact called a paid agent');
 $GLOBALS['generations']=array();
 $GLOBALS['inspection_escalation_test']='continue_independent';
-$GLOBALS['inspection_failures']=array($valid,inspection_reply(array('evidence'=>$duplicate)));
+$visibleEvidence=array_map(static function($sample){
+    $sample['snapshot']['elements']=array(array('tag'=>'SECTION','rect'=>array(0,0,$sample['width'],100),'styles'=>array()));
+    return $sample;
+},$fixtureEvidence);
+$GLOBALS['inspection_failures']=array(inspection_reply(array('evidence'=>$visibleEvidence)),inspection_reply(array('evidence'=>$duplicate)));
 $nativePending=syndamorph_collab_run('Keep the compiled native draft if inspection is pending.',false,null);
 expect($nativePending['stageStatus']['design']==='approved'&&$nativePending['stageStatus']['compilation']==='passed'&&
     $nativePending['stageStatus']['browserQa']==='pending'&&$nativePending['checks']['valid_plan']===true&&
@@ -1749,7 +1754,9 @@ array_pop($truncated['section']['evidence']);
 expect(!syndamorph_production_source_valid($truncated),'A missing viewport passed source admission');
 $GLOBALS['source_fixture_copy']='Welcome & enjoy';
 foreach(array(0.0,0.02) as $ratio){
-    $GLOBALS['source_fixture_ratio']=$ratio;
+    // Source/Designer and Designer/native agree. Only the final source/native
+    // comparison varies here so it still exercises independent native QA.
+    $GLOBALS['source_fixture_comparisons']=array(0.0,0.0,$ratio);
     $GLOBALS['generations']=array();
     $sourceJob=syndamorph_collab_run('Convert the selected welcome source without adding content.',false,null,false,$sourceFixture);
     expect(is_array($sourceJob) && $sourceJob['sourceQuality']['literalCopy']['status']==='equal' &&
@@ -1766,10 +1773,15 @@ foreach(array(0.0,0.02) as $ratio){
             count($content)>=4,'A production role did not receive the pinned source evidence');
     }
 }
+$GLOBALS['source_fixture_ratio']=0.02;
+$GLOBALS['generations']=array();
+$visualBlocked=syndamorph_collab_run('Reject designs that visibly differ from the selected source.',false,null,false,$sourceFixture);
+expect(is_wp_error($visualBlocked)&&$visualBlocked->get_error_code()==='sm_source_fidelity'&&count($GLOBALS['generations'])===3,
+    'A known manual source visual defect reached Developer generation');
 $GLOBALS['source_fixture_copy']='Changed source copy';
 $GLOBALS['generations']=array();
 $copyBlocked=syndamorph_collab_run('Reject even an approved design that changes captured copy.',false,null,false,$sourceFixture);
 expect(is_wp_error($copyBlocked) && $copyBlocked->get_error_code()==='sm_source_copy' &&
     count($GLOBALS['generations'])===3,'A source-copy mismatch reached Developer generation');
-unset($GLOBALS['source_fixture_copy'],$GLOBALS['source_fixture_ratio']);
+unset($GLOBALS['source_fixture_copy'],$GLOBALS['source_fixture_ratio'],$GLOBALS['source_fixture_comparisons']);
 echo "PASS: pinned three-viewport URL evidence, source-copy protection and independent visual gate\n";

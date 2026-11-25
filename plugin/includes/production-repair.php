@@ -249,6 +249,11 @@ function syndamorph_reference_unrealizable(array $samples): array {
     $features=array();$controlWidths=array();
     foreach($samples as $sample) {
         $width=$sample['width'];
+        if(($sample['snapshot']['overflow']??false)===true) {
+            $features['horizontal-overflow']['capability']='horizontal-overflow';
+            $features['horizontal-overflow']['target']='section';
+            $features['horizontal-overflow']['views'][$width]='Document scroll width exceeds the viewport.';
+        }
         foreach($sample['snapshot']['elements']??array() as $index=>$element) {
             $tag=$element['tag']??'';
             $target=mb_substr((string)($element['normalizedText']??$element['text']??''),0,110);

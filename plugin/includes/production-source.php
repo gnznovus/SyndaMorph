@@ -109,10 +109,18 @@ function syndamorph_production_source_copy(array $source,array $native): array {
         static fn($view)=>in_array($view['width'],array(1440,768,375),true))));
 }
 
+function syndamorph_production_source_visual(array $source,array $candidate) {
+    $evidence=$source['section']['evidence'];
+    $candidate=array_values(array_filter($candidate,static fn($view)=>in_array($view['width'],array(1440,768,375),true)));
+    $screens=syndamorph_collab_compare($evidence,$candidate);
+    if(is_wp_error($screens))return $screens;
+    $ratios=array_column($screens,'pixelDifferenceRatio');
+    return array('passed'=>count($ratios)===3&&syndamorph_visual_pixels_within_limits($ratios),'views'=>$screens);
+}
+
 function syndamorph_production_source_assess(array $source,array $native): array {
     $evidence=$source['section']['evidence'];
-    $native=array_values(array_filter($native,static fn($view)=>in_array($view['width'],array(1440,768,375),true)));
-    $screens=syndamorph_collab_compare($evidence,$native);
+    $visual=syndamorph_production_source_visual($source,$native);
     $copy=syndamorph_production_source_copy($source,$native);
     $unsupported=array();
     foreach($evidence as $view){
@@ -124,11 +132,10 @@ function syndamorph_production_source_assess(array $source,array $native): array
     $issues=array();
     if($copy['status']!=='equal')$issues[]=array('id'=>'source-literal-copy','detail'=>'Literal source copy could not be verified.','severity'=>'high');
     foreach($unsupported as $id=>$detail)$issues[]=array('id'=>'source-'.$id,'detail'=>$detail,'severity'=>'high');
-    $ratios=is_wp_error($screens)?array():array_column($screens,'pixelDifferenceRatio');
-    if(!syndamorph_visual_pixels_within_limits($ratios) || count($ratios)!==3)
+    if(is_wp_error($visual)||!$visual['passed'])
         $issues[]=array('id'=>'source-visual-fidelity','severity'=>'high','detail'=>'The native artifact exceeds source screenshot tolerances or lacks complete evidence.');
     return array('identity'=>syndamorph_production_source_identity($source),'literalCopy'=>$copy,
-        'pixels'=>is_wp_error($screens)?array():$screens,'issues'=>$issues);
+        'pixels'=>is_wp_error($visual)?array():$visual['views'],'issues'=>$issues);
 }
 
 add_action('rest_api_init',static function():void {

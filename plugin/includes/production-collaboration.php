@@ -651,6 +651,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $inspectReference=syndamorph_production_tool_cached_inspection($reference,$viewports);
         if($inspectReference===null)
             $inspectReference=syndamorph_production_tool('designer','playwright.inspect',array('html'=>$reference,'viewports'=>$viewports));
+        if(!is_wp_error($inspectReference))foreach($inspectReference as $sample) {
+            if(!empty($sample['snapshot']['elements']))continue;
+            $inspectReference=syndamorph_inspection_failure('snapshot_incomplete',array('viewport'=>$sample['width'],
+                'expectedWidths'=>$viewports));
+            break;
+        }
         if(is_wp_error($inspectReference)) {
             $outputs['designer']='A native compatibility check was completed. The saved design is pending visual QA.';
             return $deferInspection($inspectReference,$reference,'design_inspection','designer',$capabilityNotes);
@@ -704,6 +710,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             if(isset($sourceDesign['visual']['inspection']))return $deferInspection(new WP_Error('sm_inspect_missing_evidence',
                 'Pinned source comparison is pending.',$sourceDesign['visual']['inspection']),$reference,'design_inspection','designer',$capabilityNotes);
             $reviewContext['sourceVerification']=$sourceDesign;
+        }elseif($source!==null){
+            $sourceVisual=syndamorph_production_source_visual($source,$inspectReference);
+            if(is_wp_error($sourceVisual))return $deferInspection(new WP_Error('sm_inspect_missing_evidence',
+                'Pinned source visual comparison is pending.',array('comparisonCode'=>$sourceVisual->get_error_code())),
+                $reference,'design_inspection','designer',$capabilityNotes);
+            $reviewContext['sourceVisualCheck']=$sourceVisual;
         }
         $review=$call('boss','Review the Designer reference against the brief, native compiler contract and browser evidence. In diff mode, focus on changed evidence and unresolved defects. Use nativeConstraints to resolve observed effects that cannot be converted. If they are present, give the Designer a supported alternative within the brief, or request human design review if the brief requires the effect. Browser-computed styles are authoritative for CSS values; do not reject a declared weight solely because a screenshot appears light. If evidence is insufficient, return JSON {"decision":"verification_required","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"specific browser diagnostic question"},"summary":"brief"} instead of requesting HTML changes. Otherwise return JSON {"decision":"approved|changes_requested|design_review_required","issues":[{"target":"section","problem":"measurable defect","requiredChange":"specific correction"}],"acceptedCapabilityDeviations":[],"summary":"brief"}. Request no more than three concrete issues. Do not demand browser verification from Designer.'.$sourceNote,
             $reviewContext,syndamorph_collab_output_cap($provider,$model),array_merge($referenceImages,$comparisonSourceImages),'final_approval');
@@ -783,6 +795,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             syndamorph_authority_gate($record,'blocked','Designer reference did not preserve the captured literal copy.',$on_event);
             return new WP_Error('sm_source_copy','The proposed reference differs from captured source copy.',
                 array('stage'=>'design_approval','source'=>syndamorph_production_source_identity($source)));
+        }
+        if($scopeRegion===null && $source!==null && $decision==='approved' && !$reviewContext['sourceVisualCheck']['passed']){
+            syndamorph_authority_gate($record,'blocked','Designer reference exceeds captured source pixel limits.',$on_event);
+            return new WP_Error('sm_source_fidelity','The Designer reference still differs from the pinned source.',
+                array('stage'=>'design_approval','role'=>'boss','completedCalls'=>$calls));
         }
         syndamorph_authority_gate($record,
             $decision==='approved'?'ready':'blocked',
