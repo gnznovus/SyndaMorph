@@ -1,6 +1,7 @@
 'use strict';
 const http = require('node:http');
 const { capture } = require('./capture');
+const { productionSource } = require('./production-source');
 const { createAnalyzeHandler } = require('./mvp/endpoint');
 const { runCommunicationPoc } = require('./purr-poc');
 
@@ -13,7 +14,7 @@ const respond = (res, status, value) => {
     res.end(JSON.stringify(value));
 };
 http.createServer(async (req, res) => {
-    if (!['/capture', '/mvp/analyze', '/purr/communication-poc'].includes(req.url) || req.method !== 'POST') {
+    if (!['/capture', '/production-source', '/mvp/analyze', '/purr/communication-poc'].includes(req.url) || req.method !== 'POST') {
         return respond(res, 404, { error: 'Not found.' });
     }
     if (req.headers['x-syndamorph-token'] !== TOKEN) return respond(res, 403, { error: 'Forbidden.' });
@@ -32,6 +33,10 @@ http.createServer(async (req, res) => {
             return respond(res, 200, result);
         }
         if (typeof input.url !== 'string' || input.url.length > 2048) return respond(res, 400, { error: 'Invalid URL.' });
+        if (req.url === '/production-source') {
+            const result = await productionSource(input.url, input.sectionId, input.variants);
+            return respond(res, 200, result);
+        }
         if (req.url === '/mvp/analyze') {
             const result = await analyze(input);
             return respond(res, 200, result);

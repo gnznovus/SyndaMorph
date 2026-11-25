@@ -4,7 +4,7 @@
  * Browser-side extraction. Standalone on purpose: Playwright can serialize this
  * function to page.evaluate(), while tests exercise the same implementation.
  */
-function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
+function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024, inventoryOnly = false } = {}) {
     const ignored = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'TITLE', 'HEAD', 'HELMET', 'NOSCRIPT', 'TEMPLATE', 'SVG', 'IFRAME', 'OBJECT', 'EMBED']);
     const structural = new Set(['SECTION', 'ARTICLE', 'HEADER', 'FOOTER', 'ASIDE']);
     const visible = (el) => {
@@ -444,15 +444,42 @@ function extractSections({ maxSections = 60, maxHtml = 2 * 1024 * 1024 } = {}) {
         const kind = kinds[index];
         const overhangs = overhangsFor(el, rect);
         const coverage = inspectCapture(el, kind, overhangs);
-        const html = copyContent(el, coverage);
+        const html = inventoryOnly ? null : copyContent(el, coverage);
         sections.push({
             id: 'section-' + (sections.length + 1), label: rootLabel(el, kind),
             sourceRef: sourceRef(el), kind, overhangs, notices: coverage.notices,
             tag: el.tagName.toLowerCase(), geometryAvailable: true,
             bounds: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
             html,
-            error: html === null ? 'Section HTML exceeds capture limit; select a smaller section.' : null,
+            error: !inventoryOnly && html === null ? 'Section HTML exceeds capture limit; select a smaller section.' : null,
         });
+    }
+    if (inventoryOnly) {
+        // A text introduction can proceed independently when the rest of its
+        // containing region needs interactions or source asset support.
+        const seen = new Set(sections.map(region => region.sourceRef));
+        const leadSelectors = 'h1,h2,h3,h4,[role="heading"]';
+        const interaction = 'button,input,select,textarea,a[href],img,picture,video,canvas,iframe,[role="button"],[role="tab"]';
+        for (const heading of [...document.querySelectorAll(leadSelectors)].filter(visible).slice(0, 40)) {
+            const region = ordered.find(root => root.contains(heading));
+            if (!region) continue;
+            let lead = heading;
+            for (let parent = heading.parentElement; parent && parent !== region; parent = parent.parentElement) {
+                if (parent.querySelector(interaction) || parent.querySelectorAll(leadSelectors).length !== 1 ||
+                    textOf(parent).length > 700 || rectFor(parent).height > 430) break;
+                if (substantial(parent)) lead = parent;
+            }
+            const following = heading.nextElementSibling;
+            const siblingLead = lead === heading && following?.matches('p') && visible(following) &&
+                !following.querySelector(interaction) && textOf(following).length <= 700;
+            if (!siblingLead && (lead === heading || textOf(lead) === textOf(heading))) continue;
+            const ref = siblingLead ? [heading, following].map(sourceRef).join('\n') : sourceRef(lead);
+            if (seen.has(ref) || sections.length >= maxSections) continue;
+            const parent = sourceRef(region);
+            sections.push({ sourceRef: ref, label: textOf(heading).slice(0, 90) + ' introduction',
+                kind: 'content', parentRef: parent, overhangs: [], geometryAvailable: true });
+            seen.add(ref);
+        }
     }
     return sections;
 }

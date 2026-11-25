@@ -319,6 +319,18 @@ function syndamorph_surgery_normalize(array $plan,array $diagnostic): ?array {
         if(array_diff(array_keys($nested),array_keys($mapping)))return null;
         foreach($nested as $k=>$v)if(array_key_exists($mapping[$k],$target['style']))return null;
         unset($target['style']['color']);foreach($nested as $k=>$v)$target['style'][$mapping[$k]]=$v;
+    }elseif(str_ends_with($focus['message'],'Invalid length.') && preg_match('/^style\.([a-zA-Z]+)$/D',$key,$property) &&
+        isset($target['style'][$property[1]])) {
+        $commute=static function($value){
+            if(!is_string($value))return $value;
+            $length='[0-9]{1,3}(?:\.[0-9]{1,6})?(?:px|rem|em|vw|vh|svh|dvh)';
+            $pattern='~^clamp\(\s*('.$length.')\s*,\s*-('.$length.')\s+\+\s+('.$length.')\s*,\s*('.$length.')\s*\)$~D';
+            return preg_replace($pattern,'clamp($1,$3 - $2,$4)',$value);
+        };
+        $name=$property[1];
+        $value=$target['style'][$name];
+        $target['style'][$name]=is_array($value)?array_map($commute,$value):$commute($value);
+        $normalization=array('operation'=>'commute_clamp_addition','component'=>$focus['id'],'field'=>$key);
     }elseif($key==='style.margin' && in_array($target['type']??'',array('group','columns','buttons'),true) &&
         str_ends_with((string)($diagnostic['message']??''),'This block supports only top and bottom margins.') &&
         is_string($target['style']['margin']??null)){

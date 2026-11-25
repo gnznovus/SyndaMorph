@@ -76,6 +76,65 @@
         const button = root.querySelector('.sm-team-tabs [data-panel="' + name + '"]');
         if (button) button.click();
     };
+    const sourcePanel = $('sm-ai-source');
+    const sourceURL = $('sm-ai-source-url');
+    const sourceButton = $('sm-ai-source-discover');
+    const sourceSelector = $('sm-ai-source-variants');
+    const sourceStatus = $('sm-ai-source-status');
+    const sourceWidths = [1440, 768, 375];
+    let sourceListingURL = '';
+    let sourcing = false;
+    function refreshSource() {
+        if (sourcePanel) sourcePanel.hidden = format?.value !== 'gutenberg';
+    }
+    function clearSource() {
+        sourceListingURL = '';
+        if (sourceSelector) sourceSelector.hidden = true;
+        text(sourceStatus, '');
+    }
+    async function captureSource(body) {
+        const response = await fetch(window.SyndaMorphTeam.productionSourceUrl, {
+            method:'POST', credentials:'same-origin',
+            headers:{'Content-Type':'application/json','X-WP-Nonce':cfg.nonce},
+            body:JSON.stringify(body),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'Source capture failed.');
+        return result;
+    }
+    format?.addEventListener('change',refreshSource);
+    sourceURL?.addEventListener('input',clearSource);
+    reset?.addEventListener('click',() => { if (sourceURL) sourceURL.value = ''; clearSource(); refreshSource(); });
+    refreshSource();
+    sourceButton?.addEventListener('click', async () => {
+        if (running || sourcing || !sourceURL.value.trim() || !sourceURL.reportValidity()) return;
+        const url = sourceURL.value.trim();
+        clearSource();
+        sourcing = true;
+        sourceButton.disabled = true;
+        text(sourceStatus, 'Capturing the rendered homepage at three widths?');
+        try {
+            const { manifest } = await captureSource({url});
+            if (sourceURL.value.trim() !== url) return;
+            for (const width of sourceWidths) {
+                const select = $('sm-ai-source-' + width);
+                const items = manifest.pages.find(page => page.width === width)?.regions || [];
+                select.replaceChildren(new Option('Choose a rendered section', ''));
+                for (const item of items) if (item.bounds) select.add(new Option(item.label || item.sourceRef, item.id));
+            }
+            sourceListingURL = url;
+            sourceSelector.hidden = false;
+            text(sourceStatus, 'Select the same content at each width. Some sites use separate desktop and mobile regions.');
+        } catch (error) { text(sourceStatus, error.message); }
+        finally { sourceButton.disabled = false; sourcing = false; }
+    });
+    $('sm-ai-source-1440')?.addEventListener('change', event => {
+        const id = event.target.value;
+        for (const width of sourceWidths.slice(1)) {
+            const select = $('sm-ai-source-' + width);
+            if (id && [...select.options].some(option => option.value === id)) select.value = id;
+        }
+    });
     function setFeed(message, state) {
         text(feed, message);
         if (feed) feed.dataset.state = state;
@@ -151,7 +210,7 @@
         if (data.quality) {
             const qa=document.createElement('details');qa.className='sm-team-ai-agent-output';qa.open=true;
             const h=document.createElement('summary');h.textContent='Browser QA, issues and targeted revisions';
-            const pre=document.createElement('pre');pre.textContent=JSON.stringify({terminationReason:data.quality.terminationReason,score:data.quality.score,issueRegistry:data.quality.issueRegistry,issues:data.quality.issues,revisions:data.quality.revisions,pixelComparison:data.quality.pixelComparison,browserInspected:data.quality.browserInspected,visionInspected:data.quality.visionInspected,nativeEditorVerified:data.quality.nativeEditorVerified},null,2);
+            const pre=document.createElement('pre');pre.textContent=JSON.stringify({terminationReason:data.quality.terminationReason,score:data.quality.score,issueRegistry:data.quality.issueRegistry,issues:data.quality.issues,revisions:data.quality.revisions,pixelComparison:data.quality.pixelComparison,browserInspected:data.quality.browserInspected,visionInspected:data.quality.visionInspected,nativeEditorVerified:data.quality.nativeEditorVerified,sourceQuality:data.sourceQuality},null,2);
             qa.append(h,pre);results.append(qa);
         }
         if (data.quality?.evidence) {
@@ -566,6 +625,36 @@
             text(notice, 'Enter a production brief between 12 and 2000 characters.');
             return;
         }
+        let sourceCapture;
+        const url = activeFormat === 'gutenberg' ? sourceURL?.value.trim() : '';
+        if (url) {
+            if (sourcing || sourceListingURL !== url) {
+                text(notice, 'Discover the source sections before starting production.');
+                return;
+            }
+            const variants = Object.fromEntries(sourceWidths.map(width => [width, $('sm-ai-source-' + width).value]));
+            if (Object.values(variants).some(id => !id)) {
+                text(notice, 'Select a source section at each viewport.');
+                return;
+            }
+            sourcing = true;
+            run.disabled = true;
+            if (reset) reset.disabled = true;
+            text(notice, 'Pinning browser evidence for the selected section?');
+            try {
+                const pinned = await captureSource({url, variants});
+                if (sourceURL.value.trim() !== url || format.value !== 'gutenberg') return;
+                sourceCapture = pinned.sourceCapture;
+                if (!sourceCapture) throw new Error('Selected section could not be pinned.');
+            } catch (error) {
+                text(notice, error.message);
+                return;
+            } finally {
+                sourcing = false;
+                run.disabled = false;
+                if (reset) reset.disabled = false;
+            }
+        }
         if (!window.confirm(activeFormat === 'gutenberg' ? 'Start three agents with five initial paid tasks and optional budget-limited revisions? Nothing will be published.' : 'Start three agents with four paid tasks? Nothing will be published.')) return;
         running = true;
         paused = false;
@@ -595,7 +684,7 @@
             const response = await fetch(cfg.url, {
                 method:'POST', credentials:'same-origin',
                 headers:{'Content-Type':'application/json', 'X-WP-Nonce':cfg.nonce, 'Accept':'text/event-stream'},
-                body:JSON.stringify({brief:prompt,outputType:activeFormat}),
+                body:JSON.stringify({brief:prompt,outputType:activeFormat,sourceCapture}),
             });
             await readEvents(response);
         } catch(error) {

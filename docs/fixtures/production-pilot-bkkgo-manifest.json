@@ -1,0 +1,2310 @@
+{
+  "version": 1,
+  "sourceURL": "https://www.syndacast.com/2026/BKKGOPrototype1/index.html",
+  "viewportWidths": [
+    1440,
+    768,
+    375
+  ],
+  "pages": [
+    {
+      "width": 1440,
+      "height": 900,
+      "scrollHeight": 10789,
+      "ready": true,
+      "stylesheets": [
+        {
+          "external": false,
+          "host": null,
+          "rulesAccessible": 11
+        },
+        {
+          "external": false,
+          "host": null,
+          "rulesAccessible": 1
+        },
+        {
+          "external": false,
+          "host": null,
+          "rulesAccessible": 1
+        },
+        {
+          "external": false,
+          "host": null,
+          "rulesAccessible": 2
+        },
+        {
+          "external": true,
+          "host": "www.syndacast.com",
+          "rulesAccessible": 82
+        },
+        {
+          "external": false,
+          "host": null,
+          "rulesAccessible": 11
+        }
+      ],
+      "fontFaces": [
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "family": "Beausite Grand",
+          "status": "loaded",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "family": "Beausite Classic",
+          "status": "loaded",
+          "weight": "100 449",
+          "style": "normal"
+        },
+        {
+          "family": "Beausite Classic",
+          "status": "loaded",
+          "weight": "450 900",
+          "style": "normal"
+        },
+        {
+          "family": "Beausite Classic",
+          "status": "unloaded",
+          "weight": "100 900",
+          "style": "italic"
+        },
+        {
+          "family": "Beausite Fit",
+          "status": "loaded",
+          "weight": "100 449",
+          "style": "normal"
+        },
+        {
+          "family": "Beausite Fit",
+          "status": "unloaded",
+          "weight": "100 900",
+          "style": "italic"
+        },
+        {
+          "family": "Beausite Fit",
+          "status": "loaded",
+          "weight": "450 900",
+          "style": "normal"
+        }
+      ],
+      "browserErrors": [],
+      "network": {
+        "success": 16,
+        "error": 0,
+        "denied": 1,
+        "byType": {
+          "document": 1,
+          "script": 4,
+          "image": 3,
+          "stylesheet": 2,
+          "fetch": 1,
+          "font": 5
+        },
+        "samples": [
+          {
+            "kind": "blocked_resource",
+            "detail": "script host=static.cloudflareinsights.com: URL host is not approved for this POC."
+          }
+        ]
+      },
+      "regions": [
+        {
+          "id": "08e8011baff4ee14d63f413b",
+          "sourceRef": "header[data-dc-tpl=\"6\"]",
+          "label": "Site header",
+          "kind": "header",
+          "detected": true,
+          "bounds": [
+            0,
+            0,
+            1440,
+            141
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 1,
+          "backgrounds": 0,
+          "links": 12,
+          "controls": [
+            {
+              "tag": "span",
+              "role": "button",
+              "label": "EN",
+              "bounds": [
+                1335.9,
+                9.1,
+                44.1,
+                24.8
+              ]
+            }
+          ],
+          "overhangs": [],
+          "copySha256": "f50d7d8557f6bfc71a731af58dc9fd01a8bb0e3ed6d52be190fb407cafa51ca7"
+        },
+        {
+          "id": "acb4236520b7c781b3873c8b",
+          "sourceRef": "div[data-dc-tpl=\"93\"]",
+          "label": "Hotel Indigo Bangkok Thonglor",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            141,
+            1440,
+            760
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif",
+            "\"Beausite Grand\", serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 1,
+          "controls": [
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "2 NightsFri, 12 DecSun, 14 Dec",
+              "bounds": [
+                160,
+                857,
+                385.7,
+                88
+              ]
+            },
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Rooms & guests1 room · 2 guests",
+              "bounds": [
+                545.7,
+                857,
+                256.1,
+                88
+              ]
+            },
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Rate preferenceBest Available",
+              "bounds": [
+                802.8,
+                857,
+                257.2,
+                88
+              ]
+            }
+          ],
+          "overhangs": [
+            {
+              "sourceRef": "div[data-dc-tpl=\"99\"]",
+              "label": "2 NIGHTS Fri, 12 Dec Sun, 14 Dec ROOMS & GUESTS 1 room · 2 guests RATE PREFERENCE Best Available Che",
+              "position": "absolute",
+              "bounds": {
+                "x": 160,
+                "y": 857,
+                "width": 1120,
+                "height": 88
+              },
+              "edges": {
+                "top": 0,
+                "right": 0,
+                "bottom": 44,
+                "left": 0
+              }
+            }
+          ],
+          "copySha256": "8fb54331598797971e727ea05db523121b4f522322349d1c3c72f5fed1537cb9"
+        },
+        {
+          "id": "1481e6c7e5def7706195b129",
+          "sourceRef": "div[data-dc-tpl=\"414\"]",
+          "label": "Overlay · SPECIAL OFFER",
+          "kind": "overlay",
+          "detected": true,
+          "bounds": [
+            380,
+            200,
+            680,
+            410.5
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [
+            {
+              "tag": "span",
+              "role": "button",
+              "label": "Continue to website →",
+              "bounds": [
+                732,
+                547.2,
+                296,
+                23.3
+              ]
+            }
+          ],
+          "overhangs": [],
+          "copySha256": "0850d12441e3d7c99187d8c48977d716f8fc7dc826f0a4c899d175d843281df8"
+        },
+        {
+          "id": "2f7770c7d436f00860e233d8",
+          "sourceRef": "div[data-dc-tpl=\"155\"]",
+          "label": "Live Thonglor's rhythm from sunrise to skyline.",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            901,
+            1440,
+            591.7
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "b647f51deb73bfbb58119537ecf285003a375f695ac5c3ef5b34460333280aa0"
+        },
+        {
+          "id": "b744021d0171b33cab865369",
+          "sourceRef": "div[data-dc-tpl=\"163\"]",
+          "label": "OUR STORY",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            1492.7,
+            1440,
+            1451.9
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 1,
+          "backgrounds": 0,
+          "links": 1,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "7b6cc9bc3a4e3707266cc828988c1c1bce4e72ef6b3f864bec9acef6294924d7"
+        },
+        {
+          "id": "cda47cc4f14f78c19d6a912a",
+          "sourceRef": "div[data-dc-tpl=\"175\"]",
+          "label": "EXCLUSIVE OFFERS",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            2944.6,
+            1440,
+            1050.9
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "3ae0d449b8aee745ac6d334e7e4334fdf0627b950bbaac05dc17e61a930c5047"
+        },
+        {
+          "id": "5d9ee76660b705ee2edcae25",
+          "sourceRef": "[id=\"rooms\"]",
+          "label": "Rooms",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            3995.5,
+            1440,
+            1094.3
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [
+            {
+              "tag": "span",
+              "role": "button",
+              "label": "Go to photo",
+              "bounds": [
+                592,
+                4882.8,
+                28,
+                3
+              ]
+            },
+            {
+              "tag": "span",
+              "role": "button",
+              "label": "Go to photo",
+              "bounds": [
+                626,
+                4882.8,
+                28,
+                3
+              ]
+            },
+            {
+              "tag": "span",
+              "role": "button",
+              "label": "Go to photo",
+              "bounds": [
+                660,
+                4882.8,
+                28,
+                3
+              ]
+            },
+            {
+              "tag": "span",
+              "role": "button",
+              "label": "Previous photo",
+              "bounds": [
+                700,
+                4862.3,
+                44,
+                44
+              ]
+            },
+            {
+              "tag": "span",
+              "role": "button",
+              "label": "Next photo",
+              "bounds": [
+                756,
+                4862.3,
+                44,
+                44
+              ]
+            }
+          ],
+          "overhangs": [],
+          "copySha256": "44117ec7701e77b310e13a48206c0691ed6dc5e212dd22eaafb01bc8d4997964"
+        },
+        {
+          "id": "009abebf90d3e7239b2ed168",
+          "sourceRef": "div[data-dc-tpl=\"256\"]",
+          "label": "SIP & DINE",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            5089.7,
+            1440,
+            1339.7
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "9069a409483b934318a11c07ff655533aa8a14ac4bdcc01e8c7887ff4b2d7f38"
+        },
+        {
+          "id": "73693b5dfcadbb2ff825d3db",
+          "sourceRef": "div[data-dc-tpl=\"292\"]",
+          "label": "THE NEIGHBORHOOD",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            6429.4,
+            1440,
+            1252.5
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "8e030bf2662a749b49f71cbf1218094fb1e4036a1466e6d61d1b9ed097edc25b"
+        },
+        {
+          "id": "de6d8ba4682d4e3b231df096",
+          "sourceRef": "div[data-dc-tpl=\"312\"]",
+          "label": "THROUGH OUR LENS",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            7681.9,
+            1440,
+            1031.3
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "1e3fc7583204ecd34cb91b0ed8a772487d8fced9f1d8f43f9110fef2873f19ea"
+        },
+        {
+          "id": "26a0045a94b4c8f3eb26a67d",
+          "sourceRef": "div[data-dc-tpl=\"332\"]",
+          "label": "Newsletter signup",
+          "kind": "interactive",
+          "detected": true,
+          "bounds": [
+            0,
+            8713.2,
+            1440,
+            451.3
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "TH +66",
+              "bounds": [
+                620,
+                8929.2,
+                140,
+                52
+              ]
+            }
+          ],
+          "overhangs": [],
+          "copySha256": "273ff368b6ab454a5da8bc125d30be220fb88153db0abb9695df17b6e287effa"
+        },
+        {
+          "id": "6e653fe925b4df84f6ca3ec6",
+          "sourceRef": "div[data-dc-tpl=\"353\"]",
+          "label": "FAQs",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            9164.4,
+            1440,
+            751.7
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif",
+            "\"Beausite Grand\", serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Lorem ipsum dolor sit amet consectetur?",
+              "bounds": [
+                620,
+                9285.4,
+                760,
+                79
+              ]
+            },
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Lorem ipsum dolor sit amet consectetur?",
+              "bounds": [
+                620,
+                9476.1,
+                760,
+                79
+              ]
+            },
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Lorem ipsum dolor sit amet consectetur?",
+              "bounds": [
+                620,
+                9556.1,
+                760,
+                79
+              ]
+            },
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Lorem ipsum dolor sit amet consectetur?",
+              "bounds": [
+                620,
+                9636.1,
+                760,
+                79
+              ]
+            },
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Lorem ipsum dolor sit amet consectetur?",
+              "bounds": [
+                620,
+                9716.1,
+                760,
+                79
+              ]
+            }
+          ],
+          "overhangs": [],
+          "copySha256": "b81779bec9bf38092db0b75c81f7a3fc6cc5eafbb98c86f141540a7116071b9f"
+        },
+        {
+          "id": "78eb80f2308288082d3c03e4",
+          "sourceRef": "div[data-dc-tpl=\"366\"]",
+          "label": "IHG Hotels & Resorts brands and IHG One Rewards",
+          "kind": "footer",
+          "detected": true,
+          "bounds": [
+            0,
+            9916.1,
+            1440,
+            413.9
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 1,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "id": "f4c8f94fa896a6cc20f8e933",
+          "sourceRef": "div[data-dc-tpl=\"368\"]",
+          "label": "Site footer",
+          "kind": "footer",
+          "detected": true,
+          "bounds": [
+            0,
+            10330,
+            1440,
+            458.7
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 1,
+          "backgrounds": 0,
+          "links": 14,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "c186f3e5b8466571112f97cceb0ed53912bbad8f9fd0bbe37e3199843b9d34ad"
+        },
+        {
+          "id": "ed8d5a1d1c82ee59ac0dc653",
+          "sourceRef": "div[data-dc-tpl=\"355\"]",
+          "label": "FAQs introduction",
+          "kind": "content",
+          "parentRef": "div[data-dc-tpl=\"353\"]",
+          "detected": true,
+          "bounds": [
+            60,
+            9284.4,
+            424,
+            197.5
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif",
+            "\"Beausite Grand\", serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "0dbc9c2f8e7cf3a59759fcf625585ce2aef5b6d9c9086a9764c0fcfb86a2440c"
+        }
+      ]
+    },
+    {
+      "width": 768,
+      "height": 900,
+      "scrollHeight": 10222,
+      "ready": true,
+      "stylesheets": [
+        {
+          "external": false,
+          "host": null,
+          "rulesAccessible": 11
+        },
+        {
+          "external": false,
+          "host": null,
+          "rulesAccessible": 1
+        },
+        {
+          "external": false,
+          "host": null,
+          "rulesAccessible": 1
+        },
+        {
+          "external": false,
+          "host": null,
+          "rulesAccessible": 2
+        },
+        {
+          "external": true,
+          "host": "www.syndacast.com",
+          "rulesAccessible": 82
+        },
+        {
+          "external": false,
+          "host": null,
+          "rulesAccessible": 11
+        }
+      ],
+      "fontFaces": [
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "family": "Beausite Grand",
+          "status": "loaded",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "family": "Beausite Classic",
+          "status": "loaded",
+          "weight": "100 449",
+          "style": "normal"
+        },
+        {
+          "family": "Beausite Classic",
+          "status": "loaded",
+          "weight": "450 900",
+          "style": "normal"
+        },
+        {
+          "family": "Beausite Classic",
+          "status": "unloaded",
+          "weight": "100 900",
+          "style": "italic"
+        },
+        {
+          "family": "Beausite Fit",
+          "status": "loaded",
+          "weight": "100 449",
+          "style": "normal"
+        },
+        {
+          "family": "Beausite Fit",
+          "status": "unloaded",
+          "weight": "100 900",
+          "style": "italic"
+        },
+        {
+          "family": "Beausite Fit",
+          "status": "loaded",
+          "weight": "450 900",
+          "style": "normal"
+        }
+      ],
+      "browserErrors": [],
+      "network": {
+        "success": 16,
+        "error": 0,
+        "denied": 1,
+        "byType": {
+          "document": 1,
+          "script": 4,
+          "image": 3,
+          "stylesheet": 2,
+          "font": 5,
+          "fetch": 1
+        },
+        "samples": [
+          {
+            "kind": "blocked_resource",
+            "detail": "script host=static.cloudflareinsights.com: URL host is not approved for this POC."
+          }
+        ]
+      },
+      "regions": [
+        {
+          "id": "08e8011baff4ee14d63f413b",
+          "sourceRef": "header[data-dc-tpl=\"6\"]",
+          "label": "Site header",
+          "kind": "header",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "acb4236520b7c781b3873c8b",
+          "sourceRef": "div[data-dc-tpl=\"93\"]",
+          "label": "Hotel Indigo Bangkok Thonglor",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [
+            {
+              "sourceRef": "div[data-dc-tpl=\"99\"]",
+              "label": "2 NIGHTS Fri, 12 Dec Sun, 14 Dec ROOMS & GUESTS 1 room · 2 guests RATE PREFERENCE Best Available Che",
+              "position": "absolute",
+              "bounds": {
+                "x": 160,
+                "y": 857,
+                "width": 1120,
+                "height": 88
+              },
+              "edges": {
+                "top": 0,
+                "right": 0,
+                "bottom": 44,
+                "left": 0
+              }
+            }
+          ],
+          "copySha256": null
+        },
+        {
+          "id": "1481e6c7e5def7706195b129",
+          "sourceRef": "div[data-dc-tpl=\"414\"]",
+          "label": "Overlay · SPECIAL OFFER",
+          "kind": "overlay",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "2f7770c7d436f00860e233d8",
+          "sourceRef": "div[data-dc-tpl=\"155\"]",
+          "label": "Live Thonglor's rhythm from sunrise to skyline.",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "b744021d0171b33cab865369",
+          "sourceRef": "div[data-dc-tpl=\"163\"]",
+          "label": "OUR STORY",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "cda47cc4f14f78c19d6a912a",
+          "sourceRef": "div[data-dc-tpl=\"175\"]",
+          "label": "EXCLUSIVE OFFERS",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "5d9ee76660b705ee2edcae25",
+          "sourceRef": "[id=\"rooms\"]",
+          "label": "Rooms",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "009abebf90d3e7239b2ed168",
+          "sourceRef": "div[data-dc-tpl=\"256\"]",
+          "label": "SIP & DINE",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "73693b5dfcadbb2ff825d3db",
+          "sourceRef": "div[data-dc-tpl=\"292\"]",
+          "label": "THE NEIGHBORHOOD",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "de6d8ba4682d4e3b231df096",
+          "sourceRef": "div[data-dc-tpl=\"312\"]",
+          "label": "THROUGH OUR LENS",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "26a0045a94b4c8f3eb26a67d",
+          "sourceRef": "div[data-dc-tpl=\"332\"]",
+          "label": "Newsletter signup",
+          "kind": "interactive",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "6e653fe925b4df84f6ca3ec6",
+          "sourceRef": "div[data-dc-tpl=\"353\"]",
+          "label": "FAQs",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "78eb80f2308288082d3c03e4",
+          "sourceRef": "div[data-dc-tpl=\"366\"]",
+          "label": "IHG Hotels & Resorts brands and IHG One Rewards",
+          "kind": "footer",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "f4c8f94fa896a6cc20f8e933",
+          "sourceRef": "div[data-dc-tpl=\"368\"]",
+          "label": "Site footer",
+          "kind": "footer",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "ed8d5a1d1c82ee59ac0dc653",
+          "sourceRef": "div[data-dc-tpl=\"355\"]",
+          "label": "FAQs introduction",
+          "kind": "content",
+          "parentRef": "div[data-dc-tpl=\"353\"]",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "5eaf4743e08defc167034df1",
+          "sourceRef": "div[data-dc-tpl=\"425\"]",
+          "label": "Book",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            0,
+            768,
+            72
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 1,
+          "backgrounds": 0,
+          "links": 1,
+          "controls": [
+            {
+              "tag": "span",
+              "role": "button",
+              "label": "Open menu",
+              "bounds": [
+                704,
+                13.5,
+                44,
+                44
+              ]
+            }
+          ],
+          "overhangs": [],
+          "copySha256": "909cb81127c5e1944b16dc5944ade59facb822c7a3f250d1f0256293bfd3c055"
+        },
+        {
+          "id": "9e471dd0110c0f403409b956",
+          "sourceRef": "div[data-dc-tpl=\"434\"]",
+          "label": "BANGKOK · THONGLOR",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            72,
+            768,
+            560
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "1c22165f84743ad3e4acf52e8867c3f64520b7e1cb81acc40212d4501a34bbc6"
+        },
+        {
+          "id": "2e0e870141cbb5186e80fa85",
+          "sourceRef": "div[data-dc-tpl=\"449\"]",
+          "label": "Best Rate Guarantee",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            632,
+            768,
+            242.8
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "2053b3f0ee5ffc54cbaf7b219efb4f384c821bf8032d7f75467629fbbc94698d"
+        },
+        {
+          "id": "8176af5359fd006a9d86e29f",
+          "sourceRef": "div[data-dc-tpl=\"525\"]",
+          "label": "12–14 DEC · 2 GUESTS",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            832,
+            768,
+            68
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "3f4431cdccef26b704765cfb8e1242e97b3a2da86ed273df91a5f5fcc581aeb5"
+        },
+        {
+          "id": "11f29b7994bdae4749727d12",
+          "sourceRef": "div[data-dc-tpl=\"477\"]",
+          "label": "OUR STORY",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            874.8,
+            768,
+            1456.5
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 1,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "5d1463cff4881784cc1c285746685c50e85d237f834fec7c037c4d0153be6f93"
+        },
+        {
+          "id": "ec3f61a8b5f2c3341da223fa",
+          "sourceRef": "div[data-dc-tpl=\"485\"]",
+          "label": "EXCLUSIVE OFFERS",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            2331.3,
+            768,
+            799.7
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "90c692c0926c14787a901b9de27be3547f784c32fe0a351d60fe02cfc21f6070"
+        },
+        {
+          "id": "838f0683f9eaef17696b4023",
+          "sourceRef": "div[data-dc-tpl=\"503\"]",
+          "label": "STAY",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            3131,
+            768,
+            1144.8
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "d8af19910cd4a20df1832e04da238289869a766b3981b44b2dabe151c92f09df"
+        },
+        {
+          "id": "ce061bdae3d7d2e45d5ac76d",
+          "sourceRef": "div[data-dc-tpl=\"530\"]",
+          "label": "SIP & DINE",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            4275.9,
+            768,
+            1226.7
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "1dd444633ca93cfb388928b8fa702a30cb25cd3b7b11937ed648f20f55e0fcaf"
+        },
+        {
+          "id": "0a8ed0ce667abf1a5378ec66",
+          "sourceRef": "div[data-dc-tpl=\"552\"]",
+          "label": "THE NEIGHBORHOOD",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            5502.6,
+            768,
+            1140.5
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "d090a91958cea1af415dbc775c5d669a6aac3d8f713d6e0f602eb2c6ef0d1dfd"
+        },
+        {
+          "id": "4cb45118c3a59332329a8434",
+          "sourceRef": "div[data-dc-tpl=\"566\"]",
+          "label": "Thonglor Through Our Lens",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            6643.1,
+            768,
+            1713.5
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "230b7693148d6d48d7d4c392ec946cd97d71df1caa7e35a812caa13ff0f893c3"
+        },
+        {
+          "id": "4d12fb455df8f71d0f5dd339",
+          "sourceRef": "div[data-dc-tpl=\"579\"]",
+          "label": "Newsletter signup",
+          "kind": "interactive",
+          "detected": true,
+          "bounds": [
+            0,
+            8356.5,
+            768,
+            411.1
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "3dd1856337d792526572d7e47c445cd050f41d503c2ffc81bfb454c06882036f"
+        },
+        {
+          "id": "9f809a67d2c510ec51c53453",
+          "sourceRef": "div[data-dc-tpl=\"590\"]",
+          "label": "FAQs",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            8767.6,
+            768,
+            590.3
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif",
+            "\"Beausite Grand\", serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Lorem ipsum dolor sit amet consectetur?",
+              "bounds": [
+                20,
+                8933.4,
+                728,
+                60.8
+              ]
+            },
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Lorem ipsum dolor sit amet consectetur?",
+              "bounds": [
+                20,
+                9062.7,
+                728,
+                60.8
+              ]
+            },
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Lorem ipsum dolor sit amet consectetur?",
+              "bounds": [
+                20,
+                9124.5,
+                728,
+                60.8
+              ]
+            },
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Lorem ipsum dolor sit amet consectetur?",
+              "bounds": [
+                20,
+                9186.3,
+                728,
+                60.8
+              ]
+            },
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Lorem ipsum dolor sit amet consectetur?",
+              "bounds": [
+                20,
+                9248.1,
+                728,
+                60.8
+              ]
+            }
+          ],
+          "overhangs": [],
+          "copySha256": "b81779bec9bf38092db0b75c81f7a3fc6cc5eafbb98c86f141540a7116071b9f"
+        },
+        {
+          "id": "1874f3b3e49a4830ff06bbad",
+          "sourceRef": "div[data-dc-tpl=\"601\"]",
+          "label": "IHG Hotels & Resorts brands and IHG One Rewards",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            9357.9,
+            768,
+            268
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 1,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "id": "d9b3065ce1d5f54659941184",
+          "sourceRef": "div[data-dc-tpl=\"603\"]",
+          "label": "Hotel Indigo Bangkok Thonglor Address Tap to call · email",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            9625.9,
+            768,
+            596.3
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 1,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "e8615a683aa23dac9b4bb5f045753091d3149625ff7c117f5503a147b1801920"
+        },
+        {
+          "id": "3ff6bfcce275f918eff72f7f",
+          "sourceRef": "h2[data-dc-tpl=\"591\"]\np[data-dc-tpl=\"592\"]",
+          "label": "FAQs introduction",
+          "kind": "content",
+          "parentRef": "div[data-dc-tpl=\"590\"]",
+          "detected": true,
+          "bounds": [
+            20,
+            8815.6,
+            728,
+            100.8
+          ],
+          "fonts": [
+            "\"Beausite Grand\", serif",
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "0dbc9c2f8e7cf3a59759fcf625585ce2aef5b6d9c9086a9764c0fcfb86a2440c"
+        }
+      ]
+    },
+    {
+      "width": 375,
+      "height": 900,
+      "scrollHeight": 8782,
+      "ready": true,
+      "stylesheets": [
+        {
+          "external": false,
+          "host": null,
+          "rulesAccessible": 11
+        },
+        {
+          "external": false,
+          "host": null,
+          "rulesAccessible": 1
+        },
+        {
+          "external": false,
+          "host": null,
+          "rulesAccessible": 1
+        },
+        {
+          "external": false,
+          "host": null,
+          "rulesAccessible": 2
+        },
+        {
+          "external": true,
+          "host": "www.syndacast.com",
+          "rulesAccessible": 82
+        },
+        {
+          "external": false,
+          "host": null,
+          "rulesAccessible": 11
+        }
+      ],
+      "fontFaces": [
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "400",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "600",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "family": "Archivo",
+          "status": "unloaded",
+          "weight": "800",
+          "style": "normal"
+        },
+        {
+          "family": "Beausite Grand",
+          "status": "loaded",
+          "weight": "100 900",
+          "style": "normal"
+        },
+        {
+          "family": "Beausite Classic",
+          "status": "loaded",
+          "weight": "100 449",
+          "style": "normal"
+        },
+        {
+          "family": "Beausite Classic",
+          "status": "loaded",
+          "weight": "450 900",
+          "style": "normal"
+        },
+        {
+          "family": "Beausite Classic",
+          "status": "unloaded",
+          "weight": "100 900",
+          "style": "italic"
+        },
+        {
+          "family": "Beausite Fit",
+          "status": "loaded",
+          "weight": "100 449",
+          "style": "normal"
+        },
+        {
+          "family": "Beausite Fit",
+          "status": "unloaded",
+          "weight": "100 900",
+          "style": "italic"
+        },
+        {
+          "family": "Beausite Fit",
+          "status": "loaded",
+          "weight": "450 900",
+          "style": "normal"
+        }
+      ],
+      "browserErrors": [],
+      "network": {
+        "success": 16,
+        "error": 0,
+        "denied": 1,
+        "byType": {
+          "document": 1,
+          "image": 3,
+          "script": 4,
+          "stylesheet": 2,
+          "font": 5,
+          "fetch": 1
+        },
+        "samples": [
+          {
+            "kind": "blocked_resource",
+            "detail": "script host=static.cloudflareinsights.com: URL host is not approved for this POC."
+          }
+        ]
+      },
+      "regions": [
+        {
+          "id": "08e8011baff4ee14d63f413b",
+          "sourceRef": "header[data-dc-tpl=\"6\"]",
+          "label": "Site header",
+          "kind": "header",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "acb4236520b7c781b3873c8b",
+          "sourceRef": "div[data-dc-tpl=\"93\"]",
+          "label": "Hotel Indigo Bangkok Thonglor",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [
+            {
+              "sourceRef": "div[data-dc-tpl=\"99\"]",
+              "label": "2 NIGHTS Fri, 12 Dec Sun, 14 Dec ROOMS & GUESTS 1 room · 2 guests RATE PREFERENCE Best Available Che",
+              "position": "absolute",
+              "bounds": {
+                "x": 160,
+                "y": 857,
+                "width": 1120,
+                "height": 88
+              },
+              "edges": {
+                "top": 0,
+                "right": 0,
+                "bottom": 44,
+                "left": 0
+              }
+            }
+          ],
+          "copySha256": null
+        },
+        {
+          "id": "1481e6c7e5def7706195b129",
+          "sourceRef": "div[data-dc-tpl=\"414\"]",
+          "label": "Overlay · SPECIAL OFFER",
+          "kind": "overlay",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "2f7770c7d436f00860e233d8",
+          "sourceRef": "div[data-dc-tpl=\"155\"]",
+          "label": "Live Thonglor's rhythm from sunrise to skyline.",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "b744021d0171b33cab865369",
+          "sourceRef": "div[data-dc-tpl=\"163\"]",
+          "label": "OUR STORY",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "cda47cc4f14f78c19d6a912a",
+          "sourceRef": "div[data-dc-tpl=\"175\"]",
+          "label": "EXCLUSIVE OFFERS",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "5d9ee76660b705ee2edcae25",
+          "sourceRef": "[id=\"rooms\"]",
+          "label": "Rooms",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "009abebf90d3e7239b2ed168",
+          "sourceRef": "div[data-dc-tpl=\"256\"]",
+          "label": "SIP & DINE",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "73693b5dfcadbb2ff825d3db",
+          "sourceRef": "div[data-dc-tpl=\"292\"]",
+          "label": "THE NEIGHBORHOOD",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "de6d8ba4682d4e3b231df096",
+          "sourceRef": "div[data-dc-tpl=\"312\"]",
+          "label": "THROUGH OUR LENS",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "26a0045a94b4c8f3eb26a67d",
+          "sourceRef": "div[data-dc-tpl=\"332\"]",
+          "label": "Newsletter signup",
+          "kind": "interactive",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "6e653fe925b4df84f6ca3ec6",
+          "sourceRef": "div[data-dc-tpl=\"353\"]",
+          "label": "FAQs",
+          "kind": "content",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "78eb80f2308288082d3c03e4",
+          "sourceRef": "div[data-dc-tpl=\"366\"]",
+          "label": "IHG Hotels & Resorts brands and IHG One Rewards",
+          "kind": "footer",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "f4c8f94fa896a6cc20f8e933",
+          "sourceRef": "div[data-dc-tpl=\"368\"]",
+          "label": "Site footer",
+          "kind": "footer",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "ed8d5a1d1c82ee59ac0dc653",
+          "sourceRef": "div[data-dc-tpl=\"355\"]",
+          "label": "FAQs introduction",
+          "kind": "content",
+          "parentRef": "div[data-dc-tpl=\"353\"]",
+          "detected": false,
+          "bounds": null,
+          "fonts": [],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": null
+        },
+        {
+          "id": "5eaf4743e08defc167034df1",
+          "sourceRef": "div[data-dc-tpl=\"425\"]",
+          "label": "Book",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            0,
+            375,
+            72
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 1,
+          "backgrounds": 0,
+          "links": 1,
+          "controls": [
+            {
+              "tag": "span",
+              "role": "button",
+              "label": "Open menu",
+              "bounds": [
+                311,
+                13.5,
+                44,
+                44
+              ]
+            }
+          ],
+          "overhangs": [],
+          "copySha256": "909cb81127c5e1944b16dc5944ade59facb822c7a3f250d1f0256293bfd3c055"
+        },
+        {
+          "id": "9e471dd0110c0f403409b956",
+          "sourceRef": "div[data-dc-tpl=\"434\"]",
+          "label": "BANGKOK · THONGLOR",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            72,
+            375,
+            560
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "1c22165f84743ad3e4acf52e8867c3f64520b7e1cb81acc40212d4501a34bbc6"
+        },
+        {
+          "id": "2e0e870141cbb5186e80fa85",
+          "sourceRef": "div[data-dc-tpl=\"449\"]",
+          "label": "Best Rate Guarantee",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            632,
+            375,
+            242.8
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "2053b3f0ee5ffc54cbaf7b219efb4f384c821bf8032d7f75467629fbbc94698d"
+        },
+        {
+          "id": "8176af5359fd006a9d86e29f",
+          "sourceRef": "div[data-dc-tpl=\"525\"]",
+          "label": "12–14 DEC · 2 GUESTS",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            832,
+            375,
+            68
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "3f4431cdccef26b704765cfb8e1242e97b3a2da86ed273df91a5f5fcc581aeb5"
+        },
+        {
+          "id": "11f29b7994bdae4749727d12",
+          "sourceRef": "div[data-dc-tpl=\"477\"]",
+          "label": "OUR STORY",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            874.8,
+            375,
+            1225.2
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 1,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "5d1463cff4881784cc1c285746685c50e85d237f834fec7c037c4d0153be6f93"
+        },
+        {
+          "id": "ec3f61a8b5f2c3341da223fa",
+          "sourceRef": "div[data-dc-tpl=\"485\"]",
+          "label": "EXCLUSIVE OFFERS",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            2100,
+            375,
+            813.4
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "90c692c0926c14787a901b9de27be3547f784c32fe0a351d60fe02cfc21f6070"
+        },
+        {
+          "id": "838f0683f9eaef17696b4023",
+          "sourceRef": "div[data-dc-tpl=\"503\"]",
+          "label": "STAY",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            2913.4,
+            375,
+            980.9
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "d8af19910cd4a20df1832e04da238289869a766b3981b44b2dabe151c92f09df"
+        },
+        {
+          "id": "ce061bdae3d7d2e45d5ac76d",
+          "sourceRef": "div[data-dc-tpl=\"530\"]",
+          "label": "SIP & DINE",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            3894.3,
+            375,
+            917.9
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "1dd444633ca93cfb388928b8fa702a30cb25cd3b7b11937ed648f20f55e0fcaf"
+        },
+        {
+          "id": "0a8ed0ce667abf1a5378ec66",
+          "sourceRef": "div[data-dc-tpl=\"552\"]",
+          "label": "THE NEIGHBORHOOD",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            4812.2,
+            375,
+            824.5
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "d090a91958cea1af415dbc775c5d669a6aac3d8f713d6e0f602eb2c6ef0d1dfd"
+        },
+        {
+          "id": "4cb45118c3a59332329a8434",
+          "sourceRef": "div[data-dc-tpl=\"566\"]",
+          "label": "Thonglor Through Our Lens",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            5636.7,
+            375,
+            1010.2
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "230b7693148d6d48d7d4c392ec946cd97d71df1caa7e35a812caa13ff0f893c3"
+        },
+        {
+          "id": "4d12fb455df8f71d0f5dd339",
+          "sourceRef": "div[data-dc-tpl=\"579\"]",
+          "label": "Newsletter signup",
+          "kind": "interactive",
+          "detected": true,
+          "bounds": [
+            0,
+            6646.8,
+            375,
+            411.1
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "3dd1856337d792526572d7e47c445cd050f41d503c2ffc81bfb454c06882036f"
+        },
+        {
+          "id": "9f809a67d2c510ec51c53453",
+          "sourceRef": "div[data-dc-tpl=\"590\"]",
+          "label": "FAQs",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            7057.9,
+            375,
+            839.7
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif",
+            "\"Beausite Grand\", serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Lorem ipsum dolor sit amet consectetur?",
+              "bounds": [
+                20,
+                7274.9,
+                335,
+                85.6
+              ]
+            },
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Lorem ipsum dolor sit amet consectetur?",
+              "bounds": [
+                20,
+                7503.2,
+                335,
+                85.6
+              ]
+            },
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Lorem ipsum dolor sit amet consectetur?",
+              "bounds": [
+                20,
+                7589.8,
+                335,
+                85.6
+              ]
+            },
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Lorem ipsum dolor sit amet consectetur?",
+              "bounds": [
+                20,
+                7676.4,
+                335,
+                85.6
+              ]
+            },
+            {
+              "tag": "div",
+              "role": "button",
+              "label": "Lorem ipsum dolor sit amet consectetur?",
+              "bounds": [
+                20,
+                7763,
+                335,
+                85.6
+              ]
+            }
+          ],
+          "overhangs": [],
+          "copySha256": "b81779bec9bf38092db0b75c81f7a3fc6cc5eafbb98c86f141540a7116071b9f"
+        },
+        {
+          "id": "1874f3b3e49a4830ff06bbad",
+          "sourceRef": "div[data-dc-tpl=\"601\"]",
+          "label": "IHG Hotels & Resorts brands and IHG One Rewards",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            7897.6,
+            375,
+            268
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 1,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "id": "d9b3065ce1d5f54659941184",
+          "sourceRef": "div[data-dc-tpl=\"603\"]",
+          "label": "Hotel Indigo Bangkok Thonglor Address Tap to call · email",
+          "kind": "content",
+          "detected": true,
+          "bounds": [
+            0,
+            8165.6,
+            375,
+            616.5
+          ],
+          "fonts": [
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 1,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "e8615a683aa23dac9b4bb5f045753091d3149625ff7c117f5503a147b1801920"
+        },
+        {
+          "id": "3ff6bfcce275f918eff72f7f",
+          "sourceRef": "h2[data-dc-tpl=\"591\"]\np[data-dc-tpl=\"592\"]",
+          "label": "FAQs introduction",
+          "kind": "content",
+          "parentRef": "div[data-dc-tpl=\"590\"]",
+          "detected": true,
+          "bounds": [
+            20,
+            7105.9,
+            335,
+            152
+          ],
+          "fonts": [
+            "\"Beausite Grand\", serif",
+            "\"Beausite Classic\", system-ui, sans-serif"
+          ],
+          "images": 0,
+          "backgrounds": 0,
+          "links": 0,
+          "controls": [],
+          "overhangs": [],
+          "copySha256": "0dbc9c2f8e7cf3a59759fcf625585ce2aef5b6d9c9086a9764c0fcfb86a2440c"
+        }
+      ]
+    }
+  ],
+  "sha256": "fe508fc3aea85f8069616df8d9625a6e3c0487b8b06738af8821313d23ce206e"
+}

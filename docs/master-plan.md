@@ -145,6 +145,8 @@ Version validated native patterns/custom blocks with their asset manifests, comp
 
 JS-rendered Hotel Indigo Bangkok Thonglor prototype: two-level navigation, hero with overlapping booking selector, story, offers, rooms, dining, neighborhood, social, signup, FAQ and footer. The booking selector is an example of an interaction whose actual source/behavior must be inspected before custom-block classification.
 
+**BKKGO production pilot** The responsive URL source now reaches the real Production Team. GEN-000029 retained a three-block FAQ introduction and passed the Gutenberg editor gate. Source fidelity remains blocked, and the output is staged as a local draft pattern. The remaining homepage regions are inventoried for independent work. [Evidence and measured blockers](production-pilot-bkkgo.md)
+
 **Final acceptance:** verified source + visual discovery; editable native sections; functionally correct custom blocks where justified; text, links and assets preserved; desktop/tablet/mobile fidelity; responsive QA; integrated WordPress editor/frontend checks; reusable patterns and secure portable deployment. **No full-site BKKGO acceptance has been recorded yet.**
 
 ## 12. Prioritized roadmap

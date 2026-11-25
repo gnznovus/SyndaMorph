@@ -144,6 +144,7 @@
             }
         }
         if(final?.referenceHtml) section('HTML design reference',final.referenceHtml,'html');
+        if(final?.sourceQuality) section('Source fidelity',JSON.stringify(final.sourceQuality,null,2),'json');
         if(final?.quality) section('QA findings and revision history',JSON.stringify(final.quality,null,2),'json').open=true;
         if (final?.quality?.evidence) {
             const gallery=node('details',undefined,'sm-team-ai-agent-output');

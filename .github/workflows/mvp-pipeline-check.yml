@@ -16,6 +16,7 @@ on:
       - 'plugin/assets/production-ai-export.js'
       - 'plugin/includes/ai-team-real.php'
       - 'plugin/includes/production-collaboration.php'
+      - 'plugin/includes/production-source.php'
       - 'plugin/includes/production-inspection.php'
       - 'plugin/includes/production-visual-qa.php'
       - 'plugin/includes/production-surgery.php'
@@ -44,6 +45,7 @@ on:
       - 'plugin/includes/production-surgery.php'
       - 'plugin/includes/production-repair.php'
       - 'plugin/includes/production-collaboration.php'
+      - 'plugin/includes/production-source.php'
       - 'plugin/includes/production-inspection.php'
       - 'plugin/includes/production-visual-qa.php'
       - 'backend/**'
@@ -98,6 +100,8 @@ jobs:
           php -l plugin/includes/ai-team-real.php
           php -l plugin/includes/production-block-plan.php
           php -l plugin/includes/production-collaboration.php
+          php -l plugin/includes/production-source.php
+          node --check backend/production-source.js
           php -l plugin/includes/production-inspection.php
           php -l tests/inspection-wordpress.php
           php -l plugin/includes/production-visual-qa.php

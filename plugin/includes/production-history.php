@@ -115,7 +115,7 @@ function syndamorph_job_control_requested(int $id): string {
 function syndamorph_job_resume_signature(): string {
     $files=array('production-collaboration.php','ai-team-real.php',
         'production-block-plan.php','production-surgery.php','production-repair.php',
-        'production-tools.php','production-visual-qa.php','production-job-memory.php','production-learning.php','production-standards.php');
+        'production-tools.php','production-visual-qa.php','production-job-memory.php','production-learning.php','production-source.php','production-standards.php');
     $digest='';
     foreach($files as $file)$digest.=hash_file('sha256',__DIR__.'/'.$file);
     return hash('sha256',$digest);
@@ -509,7 +509,13 @@ add_action( 'rest_api_init', static function (): void {
             };
             if(!is_array($parsed) || !$verify($parsed) || $actual!==$count)
                 return new WP_Error('sm_native_validation','Native block structure differs from the registered editor result.',array('status'=>422));
-            $eligible=empty($final['quality']['issues']) && !empty($final['quality']['visionInspected']) && !empty($final['quality']['browserInspected']);
+            $context=json_decode((string)$wpdb->get_var($wpdb->prepare("SELECT context FROM $jobs WHERE id=%d",$id)),true);
+            $source=$context['sourceEvidence']??null;
+            $sourceQa=$final['sourceQuality']??null;
+            $sourceEligible=$source===null || (is_array($sourceQa)&&isset($sourceQa['issues'])&&!$sourceQa['issues'] &&
+                ($sourceQa['artifactSha256']??null)===$checksum &&
+                ($sourceQa['identity']??null)===syndamorph_production_source_identity($source));
+            $eligible=$sourceEligible && empty($final['quality']['issues']) && !empty($final['quality']['visionInspected']) && !empty($final['quality']['browserInspected']);
             $status=$eligible?'completed':$job['status'];
             $recoveryRaw=$wpdb->get_var($wpdb->prepare("SELECT payload FROM $events WHERE job_id=%d AND event_type='native_recompiled' ORDER BY id DESC LIMIT 1",$id));
             $recovery=is_string($recoveryRaw)?json_decode($recoveryRaw,true):null;

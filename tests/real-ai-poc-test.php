@@ -16,6 +16,7 @@ function is_wp_error($v): bool { return $v instanceof WP_Error; }
 function add_action(...$args): void {}
 function get_option($key,$default=false) { return $GLOBALS['options'][$key] ?? $default; }
 function update_option($key,$value,$autoload=null) { $GLOBALS['options'][$key]=$value; }
+function get_current_user_id() { return $GLOBALS['source_fixture_user']??11; }
 function get_transient($key) { return $GLOBALS['transients'][$key] ?? false; }
 function set_transient($key,$value,$ttl) { $GLOBALS['transients'][$key]=$value; return true; }
 function delete_transient($key) { unset($GLOBALS['transients'][$key]); }
@@ -62,6 +63,7 @@ function wp_remote_post($url,$args) {
         $index=$GLOBALS['progressive_comparison']??0;
         $ratios=array(0.20,0.16,0.19,0.13);
         $ratio=isset($GLOBALS['progressive_test'])?($ratios[$index]??throw new RuntimeException('Duplicate was rendered')):0.15;
+        if(isset($GLOBALS['source_fixture_ratio']))$ratio=$GLOBALS['source_fixture_ratio'];
         if(isset($GLOBALS['progressive_test']))$GLOBALS['progressive_comparison']=$index+1;
         return array('status'=>200,'body'=>json_encode(array('comparison'=>array_map(
             static fn($width)=>array('width'=>$width,'pixelDifferenceRatio'=>$ratio,'meanChannelDifference'=>5.0,'sampledPixels'=>100),$widths))));
@@ -74,7 +76,7 @@ function wp_remote_post($url,$args) {
         $GLOBALS['inspection_sent_widths'][]=$input['viewports'];
         if(!empty($GLOBALS['inspection_failures']))return array_shift($GLOBALS['inspection_failures']);
         return inspection_reply(array('evidence'=>array_map(
-            static fn($width)=>array('width'=>$width,'screenshot'=>inspection_fixture_jpeg($width),'a11y'=>array(),'snapshot'=>array(
+            static fn($width)=>array('width'=>$width,'screenshot'=>inspection_fixture_jpeg($width),'a11y'=>array(),'snapshot'=>(isset($GLOBALS['source_fixture_copy'])?array('copy'=>$GLOBALS['source_fixture_copy']):array())+array(
                 'overflow'=>false,'elements'=>array(array('tag'=>'H2','id'=>'','text'=>'Welcome & enjoy',
                 'rect'=>array(0,0,300,70),'wrapChangesGeometry'=>str_contains($input['html'],'text-wrap:balance'),
                 'styles'=>array('textWrapStyle'=>'balance','fontSize'=>'32px','fontWeight'=>'700','color'=>'rgb(0, 0, 0)','letterSpacing'=>'normal'))))),
@@ -401,12 +403,12 @@ expect(!str_contains($ui, 'id="syndamorph-real-brief"') &&
     'Legacy POC or simulator controls still exposed');
 expect(str_contains($client, "byId(") === false || str_contains($client, "const brief = $('syndamorph-team-brief')"),
     'The real client must use the Production Brief');
-expect(str_contains($client, 'JSON.stringify({brief:prompt,outputType:activeFormat})') &&
+expect(str_contains($client, 'JSON.stringify({brief:prompt,outputType:activeFormat,sourceCapture})') &&
     !str_contains($client, 'validateSource(') &&
     str_contains($client, 'response.body.getReader()') &&
     str_contains($client, 'agent_delta') &&
     str_contains($ui, 'syndamorph/v1/ai/team-stream'),
-    'Real AI must use brief-only incremental SSE events');
+    'Real AI must use one incremental SSE route with an optional server-side capture handle');
 expect(str_contains($ui, 'id="syndamorph-real-results"') &&
     str_contains($client, "frame.setAttribute('sandbox', '')"),
     'Safe HTML results panel is missing');
@@ -1715,3 +1717,59 @@ expect($nativePending['stageStatus']['design']==='approved'&&$nativePending['sta
 unset($GLOBALS['inspection_escalation_test']);
 unset($GLOBALS['revision_test']);
 echo "PASS: inspection diagnostics, stale runtime gate, bounded retry and saved reference recovery\n";
+
+
+$negativeClamp=syndamorph_collab_ids(array('version'=>1,'blocks'=>array(array('type'=>'group',
+    'style'=>array('padding'=>array('left'=>'clamp(20px,-25.71px + 5.952vw,60px)','right'=>'clamp(20px,-25.71px + 5.952vw,60px)')),
+    'children'=>array(array('type'=>'heading','text'=>'Preserved heading'))))));
+$badClamp=syndamorph_surgery_verify($negativeClamp,$negativeClamp);
+$clampCorrection=syndamorph_compiler_auto_repair($negativeClamp,array('code'=>$badClamp->get_error_code(),
+    'field'=>$badClamp->get_error_data()['field'],'message'=>$badClamp->get_error_message()));
+expect(!empty($clampCorrection['compiled']) &&
+    $clampCorrection['plan']['blocks'][0]['style']['padding']['left']==='clamp(20px,5.952vw - 25.71px,60px)' &&
+    $clampCorrection['plan']['blocks'][0]['children']===$negativeClamp['blocks'][0]['children'],
+    'A CSS-equivalent signed addition required a paid schema repair or changed protected content');
+
+$sourceFixture=array('url'=>'https://example.org/welcome','manifestSha256'=>str_repeat('b',64),'section'=>array(
+    'id'=>str_repeat('c',24),'label'=>'Welcome','sourceRef'=>'#welcome','kind'=>'content','evidenceSha256'=>str_repeat('d',64),
+    'evidence'=>array_map(static fn($width)=>array('width'=>$width,'screenshot'=>inspection_fixture_jpeg($width),
+        'copy'=>'Welcome & enjoy','bounds'=>array(0,100,$width,150),'links'=>array(),'images'=>array(),
+        'controls'=>array(),'backgrounds'=>array()),array(1440,768,375))));
+expect(syndamorph_production_source_valid($sourceFixture),'Responsive source fixture was not validated');
+$sourceHandle=str_repeat('e',32);
+set_transient('sm_source_'.$sourceHandle,array('user'=>11,'source'=>$sourceFixture),60);
+expect(syndamorph_production_source_load($sourceHandle,'gutenberg')===$sourceFixture &&
+    is_wp_error(syndamorph_production_source_load($sourceHandle,'html')),'Capture is not scoped to native production');
+$GLOBALS['source_fixture_user']=12;
+expect(is_wp_error(syndamorph_production_source_load($sourceHandle,'gutenberg')),'Capture handle crossed administrator identity');
+unset($GLOBALS['source_fixture_user']);
+
+$truncated=$sourceFixture;
+array_pop($truncated['section']['evidence']);
+expect(!syndamorph_production_source_valid($truncated),'A missing viewport passed source admission');
+$GLOBALS['source_fixture_copy']='Welcome & enjoy';
+foreach(array(0.0,0.02) as $ratio){
+    $GLOBALS['source_fixture_ratio']=$ratio;
+    $GLOBALS['generations']=array();
+    $sourceJob=syndamorph_collab_run('Convert the selected welcome source without adding content.',false,null,false,$sourceFixture);
+    expect(is_array($sourceJob) && $sourceJob['sourceQuality']['literalCopy']['status']==='equal' &&
+        $sourceJob['sourceQuality']['artifactSha256']===$sourceJob['artifact']['contentSha256'] &&
+        ($sourceJob['sourceQuality']['issues']===array())===($ratio===0.0) &&
+        ($sourceJob['status']==='uncompleted')===($ratio!==0.0),
+        'Independent source gate failed: '.wp_json_encode(is_wp_error($sourceJob)?
+            array($sourceJob->get_error_code(),$sourceJob->get_error_message(),$sourceJob->get_error_data()):
+            array($sourceJob['status'],$sourceJob['sourceQuality']??null,$sourceJob['quality']['terminationReason']??null)));
+    foreach(array(0,1,2,3) as $callIndex){
+        $content=$GLOBALS['generations'][$callIndex]['messages'][0]['content'];
+        $context=json_decode($content[0]['text'],true);
+        expect(($context['capturedSource']['identity']['id']??null)===str_repeat('c',24) &&
+            count($content)>=4,'A production role did not receive the pinned source evidence');
+    }
+}
+$GLOBALS['source_fixture_copy']='Changed source copy';
+$GLOBALS['generations']=array();
+$copyBlocked=syndamorph_collab_run('Reject even an approved design that changes captured copy.',false,null,false,$sourceFixture);
+expect(is_wp_error($copyBlocked) && $copyBlocked->get_error_code()==='sm_source_copy' &&
+    count($GLOBALS['generations'])===3,'A source-copy mismatch reached Developer generation');
+unset($GLOBALS['source_fixture_copy'],$GLOBALS['source_fixture_ratio']);
+echo "PASS: pinned three-viewport URL evidence, source-copy protection and independent visual gate\n";

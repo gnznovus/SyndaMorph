@@ -103,6 +103,10 @@ function syndamorph_visual_geometry_issues(array $metrics): array {
     return $issues;
 }
 
+function syndamorph_visual_pixels_within_limits(array $deltas): bool {
+    return !$deltas || (max($deltas)<=0.015 && array_sum($deltas)/count($deltas)<=0.005);
+}
+
 function syndamorph_visual_decision(array $before,array $after,array $oldMetrics,array $newMetrics,
     array $oldPixels,array $newPixels,array $focus,bool $approved,array $oldStyles=array(),array $newStyles=array()): array {
     $previous=array_column(array_map(static fn($issue)=>array('key'=>syndamorph_issue_key($issue),'issue'=>$issue),$before),'issue','key');
@@ -154,7 +158,7 @@ function syndamorph_visual_decision(array $before,array $after,array $oldMetrics
         $pixelDeltas[$width]=round($ratio-$oldRatios[$width],5);
     }
     $meanDelta=$pixelDeltas?array_sum($pixelDeltas)/count($pixelDeltas):0;
-    $pixelSafe=!$pixelDeltas || (max($pixelDeltas)<=0.015 && $meanDelta<=0.005);
+    $pixelSafe=syndamorph_visual_pixels_within_limits($pixelDeltas);
     $beforeScore=syndamorph_issue_score($before);
     $afterScore=syndamorph_issue_score($after);
     // A newly reported unresolved defect is still recorded. Exclude its

@@ -6,6 +6,7 @@ require_once __DIR__ . '/production-standards.php';
 require_once __DIR__ . '/production-history.php';
 require_once __DIR__ . '/production-block-plan.php';
 require_once __DIR__ . '/production-collaboration.php';
+require_once __DIR__ . '/production-source.php';
 
 /** Safe, shared failure payload for live delivery and archive replay. */
 function syndamorph_team_failure_payload( WP_Error $error ): array {
@@ -24,9 +25,9 @@ function syndamorph_team_failure_payload( WP_Error $error ): array {
     return $payload;
 }
 
-function syndamorph_team_real_run( string $brief, bool $stream = true, ?callable $on_event = null, string $format = 'html' ) {
+function syndamorph_team_real_run( string $brief, bool $stream = true, ?callable $on_event = null, string $format = 'html', ?array $source = null ) {
     if ( ! in_array( $format, array('html','gutenberg'), true ) ) { return new WP_Error('sm_format','Unsupported output type.',array('status'=>400)); }
-    if ('gutenberg' === $format) { return syndamorph_collab_run($brief,$stream,$on_event); }
+    if ('gutenberg' === $format) { return syndamorph_collab_run($brief,$stream,$on_event,true,$source); }
     $artifact = null;
     $settings = syndamorph_models_settings();
     $provider = $settings['provider'] ?? '';
@@ -194,7 +195,7 @@ function syndamorph_team_sse_emit( string $event, array $data ): void {
     flush();
 }
 
-function syndamorph_team_sse_run( string $brief, string $format = 'html' ): void {
+function syndamorph_team_sse_run( string $brief, string $format = 'html', ?array $source = null ): void {
     if ( ! headers_sent() ) {
         header( 'Content-Type: text/event-stream; charset=utf-8' );
         header( 'Cache-Control: no-cache, no-store, no-transform' );
@@ -209,7 +210,7 @@ function syndamorph_team_sse_run( string $brief, string $format = 'html' ): void
     $record = syndamorph_history_create( 'GEN', 'Untitled production', array(
         'brief' => $brief, 'outputType' => $format, 'workflow' => 'three-agent-v2', 'settings' => $settings,
         'standards' => syndamorph_production_standards(),
-    ) );
+    ) + ($source===null?array():array('sourceEvidence'=>$source)) );
     if ( is_wp_error( $record ) ) {
         syndamorph_team_sse_emit( 'job_error', syndamorph_team_failure_payload( $record ) );
         delete_transient( 'syndamorph_ai_real_job_lock' );
@@ -225,7 +226,7 @@ function syndamorph_team_sse_run( string $brief, string $format = 'html' ): void
     };
     try {
         $emit( 'ready', array_merge( $record, array( 'outputType' => $format, 'roles' => array( 'boss', 'designer', 'developer' ) ) ) );
-        $result = syndamorph_team_real_run( $brief, true, $emit, $format );
+        $result = syndamorph_team_real_run( $brief, true, $emit, $format, $source );
         $pendingControl=syndamorph_job_control_gate();
         if(is_wp_error($pendingControl))$result=$pendingControl;
         if ( is_wp_error( $result ) ) {
@@ -251,7 +252,7 @@ function syndamorph_team_sse_run( string $brief, string $format = 'html' ): void
 }
 
 /* Resume in a fresh PHP request by replaying only previously completed calls. */
-function syndamorph_team_sse_resume(int $id,string $brief,string $format,array $calls): void {
+function syndamorph_team_sse_resume(int $id,string $brief,string $format,array $calls,?array $source=null): void {
     if(!headers_sent()){
         header('Content-Type: text/event-stream; charset=utf-8');
         header('Cache-Control: no-cache, no-store, no-transform');
@@ -273,7 +274,7 @@ function syndamorph_team_sse_resume(int $id,string $brief,string $format,array $
         $GLOBALS['syndamorph_resume_suppress']=true;
         $checkpoint=$format==='gutenberg'?syndamorph_history_best_candidate($id):null;
         if(is_array($checkpoint))$GLOBALS['syndamorph_resume_baseline']=$checkpoint['candidate']['identity'];
-        $result=is_wp_error($checkpoint)?$checkpoint:syndamorph_team_real_run($brief,true,$emit,$format);
+        $result=is_wp_error($checkpoint)?$checkpoint:syndamorph_team_real_run($brief,true,$emit,$format,$source);
         $pendingControl=syndamorph_job_control_gate();
         if(is_wp_error($pendingControl))$result=$pendingControl;
         unset($GLOBALS['syndamorph_resume_suppress']);
@@ -337,6 +338,9 @@ add_action( 'rest_api_init', static function (): void {
                         'Renderer build changed since the checkpoint; replay is blocked to avoid divergent visual evidence.',
                         array('status'=>409));
             }
+            $source=$context['sourceEvidence']??null;
+            if($source!==null && (!is_array($source)||!syndamorph_production_source_valid($source)))
+                return new WP_Error('sm_resume_context','Saved source evidence is invalid.',array('status'=>422));
             $calls=syndamorph_job_resume_calls($id);
             if(is_wp_error($calls))return $calls;
             // DB compare-and-swap claims this paused job exactly once, even if
@@ -347,7 +351,7 @@ add_action( 'rest_api_init', static function (): void {
                 'The paused job was already claimed for continuation.',array('status'=>409));
             set_transient('syndamorph_ai_real_job_lock',1,20*MINUTE_IN_SECONDS);
             update_option('syndamorph_job_control_'.$id,'running',false);
-            syndamorph_team_sse_resume($id,$context['brief'],$context['outputType'],$calls);
+            syndamorph_team_sse_resume($id,$context['brief'],$context['outputType'],$calls,$source);
         },
     ));
     register_rest_route( 'syndamorph/v1', '/ai/team-stream', array(
@@ -364,8 +368,10 @@ add_action( 'rest_api_init', static function (): void {
             if ( get_transient( 'syndamorph_ai_real_job_lock' ) ) {
                 return new WP_Error( 'sm_team_busy', 'Another AI production job is running.', array( 'status' => 429 ) );
             }
+            $source=syndamorph_production_source_load($request->get_param('sourceCapture'),$format);
+            if(is_wp_error($source))return $source;
             set_transient( 'syndamorph_ai_real_job_lock', 1, 20 * MINUTE_IN_SECONDS );
-            syndamorph_team_sse_run( trim( $brief ), $format );
+            syndamorph_team_sse_run( trim( $brief ), $format, $source );
         },
     ) );
     register_rest_route( 'syndamorph/v1', '/ai/team-poc', array(

@@ -50,7 +50,7 @@ async function assertPublicHost(url) {
 }
 
 // Extraction only: never follow linked pages, click links, or submit forms.
-async function capture(urlValue, mode = 'auto') {
+async function capture(urlValue, mode = 'auto', options = {}) {
     const url = validateURL(urlValue);
     if (!['auto', 'static', 'browser'].includes(mode)) throw new Error('Unsupported render mode.');
     await assertPublicHost(url);
@@ -58,7 +58,7 @@ async function capture(urlValue, mode = 'auto') {
     try {
         browser = await chromium.launch({ headless: true });
         const context = await browser.newContext({
-            viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1,
+            viewport: { width: options.width || 1440, height: 900 }, deviceScaleFactor: 1,
             serviceWorkers: 'block', acceptDownloads: false,
             permissions: [], javaScriptEnabled: mode !== 'static',
         });
@@ -114,8 +114,12 @@ async function capture(urlValue, mode = 'auto') {
             }, undefined, { timeout: 8000 }).catch(() => {});
             await page.waitForTimeout(350);
         }
+        if (options.inspect) await page.evaluate(async () => {
+            await Promise.race([document.fonts.ready, new Promise((resolve) => setTimeout(resolve, 2500))]);
+        });
         const diagnostics = await page.evaluate(inspectDocument);
-        const result = await page.evaluate(extractSections, { maxSections: MAX_SECTIONS, maxHtml: MAX_HTML });
+        const result = await page.evaluate(extractSections, { maxSections: MAX_SECTIONS, maxHtml: MAX_HTML,
+            inventoryOnly: Boolean(options.inspect) });
         diagnostics.network = { ...responses, samples: requestFailures };
         diagnostics.browserErrors = browserErrors;
         diagnostics.sectionCount = result.length;
@@ -128,6 +132,7 @@ async function capture(urlValue, mode = 'auto') {
             diagnostics.sectionCount = 0;
             diagnostics.structureOnlySections = 0;
         }
+        if (options.inspect) return await options.inspect(page, result, diagnostics);
         return { url: page.url(), mode: mode === 'static' ? 'static' : 'browser', diagnostics, sections: result, warnings: [
             'Captured DOM and computed styles are an approximation; scripts and interactive behavior are not converted.',
             'Images remain remote for this POC; asset portability is not implemented.',
