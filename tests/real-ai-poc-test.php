@@ -424,7 +424,9 @@ expect($GLOBALS['generations'][0]['system'][0]===$GLOBALS['generations'][4]['sys
 // GEN-000020: once Developer reports an unsupported native capability,
  // stop paid style/structure retries and escalate exactly once to Boss.
 $GLOBALS['capability_blocker_test']=true;
-$GLOBALS['generations']=array();
+$priorBlockerGenerations=$GLOBALS['generations'];
+$priorBlockerInspections=$GLOBALS['inspection_calls'];
+$GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
 $blockedEvents=array();
 $blockedJob=syndamorph_team_real_run('Verify unsupported mobile CTA capability escalation.',
     false,static function(string $type,array $data)use(&$blockedEvents):void{
@@ -439,7 +441,8 @@ expect(is_array($blockedJob)&&$blockedJob['status']==='uncompleted'&&
     ($blockedJob['quality']['escalation']['decision']??'')==='design_review_required',
     'GEN-000020 must escalate a native capability blocker without repeat paid Developer surgery');
 unset($GLOBALS['capability_blocker_test']);
-$GLOBALS['generations']=array();
+$GLOBALS['generations']=$priorBlockerGenerations;
+$GLOBALS['inspection_calls']=$priorBlockerInspections;
 
 $beforeReplayGenerations=$GLOBALS['generations'];
 $beforeReplayInspections=$GLOBALS['inspection_calls'];
