@@ -153,6 +153,11 @@ if($phase==='setup') {
     scope_expect(!syndamorph_source_review($layoutSource,$wrongPaint,$pinned)['passed'],'Layout approval waived protected paint.');
     scope_expect(!syndamorph_source_review($layoutSource,str_replace('Literal source content','Changed source content',$geometry),$pinned)['passed'],
         'Layout approval waived required copy.');
+    $inventedLink=str_replace('</section>','<a href="#">Preview link</a></section>',$north);
+    $linkReview=syndamorph_source_review($layoutSource,$inventedLink);
+    scope_expect(!$linkReview['passed']&&$linkReview['markup']['views'][0]['linkDifference']['expectedCount']===0&&
+        $linkReview['markup']['views'][0]['linkDifference']['observed'][0]['href']==='#',
+        'The scoped source gate did not provide exact evidence for an invented link.');
     $shortCapture=$capture;
     $shortSample=scope_ok(syndamorph_scope_inspect($geometry,'section'))[2];
     $shortCapture['sections'][0]['variants'][375]['screenshot']=$shortSample['screenshot'];

@@ -106,10 +106,21 @@ function syndamorph_source_verify_markup(array $source,array $evidence): array {
         $precise=$source['variants'][$width]['facts']['copy']??null;
         $expectedText=$precise??syndamorph_source_text(implode(' ',$inventory['text']));
         $actualText=$precise!==null?($evidence[$index]['snapshot']['copy']??null):syndamorph_source_text(implode(' ',$literal['text']??array()));
-        $verdict[]=array('width'=>$width,'literalContent'=>$actualText===$expectedText,
-            'links'=>($literal['links']??null)===$inventory['links'],
+        $expectedLinks=$inventory['links'];
+        $observedLinks=$literal['links']??null;
+        $view=array('width'=>$width,'literalContent'=>$actualText===$expectedText,
+            'links'=>$observedLinks===$expectedLinks,
             'assets'=>empty($inventory['assets'])&&($literal['assets']??null)===0,
             'functions'=>empty($inventory['controls'])&&($literal['controls']??null)===0);
+        if(!$view['links']){
+            $bounded=static fn(array $links): array => array_map(static fn($link)=>array(
+                'href'=>mb_substr((string)($link['href']??''),0,180),'text'=>mb_substr((string)($link['text']??''),0,100)
+            ),array_slice($links,0,5));
+            $view['linkDifference']=array('expectedCount'=>count($expectedLinks),
+                'observedCount'=>is_array($observedLinks)?count($observedLinks):null,'expected'=>$bounded($expectedLinks),
+                'observed'=>is_array($observedLinks)?$bounded($observedLinks):null);
+        }
+        $verdict[]=$view;
     }
     return array('passed'=>!array_filter($verdict,static fn($row)=>in_array(false,$row,true)),'views'=>$verdict);
 }

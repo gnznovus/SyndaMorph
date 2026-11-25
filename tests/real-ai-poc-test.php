@@ -1964,6 +1964,9 @@ foreach(array('pass','false-approval') as $case){
         expect(is_array($result)&&$result['designApproval']['requirementResults']['checks'][0]['owner']==='browser'&&
             $result['designApproval']['requirementResults']['checks'][0]['status']==='verified',
             'A matching measured work-order check did not reach the implementation handoff');
+        $reviewInputs=json_decode($GLOBALS['generations'][2]['messages'][0]['content'][0]['text'],true);
+        expect(($reviewInputs['applicationChecks'][0]['status']??null)==='verified',
+            'The reviewer did not receive the browser-owned requirement verdict.');
     }else{
         expect(is_wp_error($result)&&$result->get_error_code()==='sm_design_requirements'&&
             $result->get_error_data()['requirements']['blocking']===array('exact-pinned-headline')&&
@@ -1994,3 +1997,16 @@ foreach(array('overflow'=>'failed','missing'=>'pending') as $injection=>$expecte
 }
 unset($GLOBALS['native_responsive_test']);
 echo "PASS: independent native responsive acceptance and deterministic recovery\n";
+
+$sample=static fn(array $rect,string $padding):array=>array('width'=>1440,'snapshot'=>array(
+    'elements'=>array(array('visible'=>true,'classes'=>array('column'),'rect'=>$rect,'styles'=>array('padding'=>$padding)))));
+$placement=array('kind'=>'center','selector'=>'.column');
+$padding=array('kind'=>'style','selector'=>'.column','field'=>'paddingBottom','value'=>'40px');
+$golden=$sample(array(384,50,672,95),'12px 18px 40px 20px');
+$shifted=$sample(array(48,50,672,95),'16px');
+expect(syndamorph_design_run_check($placement,array($golden))['status']==='verified'&&
+    syndamorph_design_run_check($placement,array($shifted))['status']==='failed'&&
+    syndamorph_design_run_check($padding,array($golden))['status']==='verified'&&
+    syndamorph_design_run_check($padding,array($shifted))['status']==='failed',
+    'Direct geometry checks did not distinguish centered placement or vertical padding.');
+echo "PASS: direct centered-placement and vertical-padding requirement checks\n";

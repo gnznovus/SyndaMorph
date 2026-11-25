@@ -4,6 +4,18 @@ The v0.12 work-order checkpoint gives the reviewer stable requirement IDs and a 
 
 v0.12.4 added browser-owned typed checks, compact semantic evidence and duplicate diagnostic rejection. These changes are verified with controlled defects. The live rates below still describe the original baseline until the updated review is benchmarked. [Validation checkpoint](production-team-upgrade.md#v0124-bossy-validation-checkpoint)
 
+### v0.12.7 live benchmark
+
+The live design-review audit ran 18 Haiku 5.5 requests with the historical 4,096-token audit ceiling. Bossy explicitly identified and requested corrections for 8 of the 11 distinct defective artifacts with a complete verdict (72.7%). It also identified the mobile CTA width conflict and escalated the design decision. Two cases remained uncertain and requested targeted evidence. The archived BKKGO case exhausted the audit output ceiling and returned no verdict.
+
+The combined gate held all 14 defective trials, including repeats and the truncated BKKGO trial. All four valid trials reached handoff. Median model latency was 11.054 s and nearest-rank p90 was 15.655 s. Provider-reported usage was 286,652 uncached input tokens, 30,957 cache-read tokens and 41,806 output tokens, for an estimated $0.0503614. This sample observed no defect escapes and remains below the development target for actionable model detection.
+
+The separate strict BKKGO Through Our Lens Section conversion ran as `GEN-000051` in `REF-000028`. The final completed browser comparison preserved literal copy at all three widths. Chromium measured 1.875%, 2.668%, and 5.265% pixel differences at 1440, 768 and 375 px and found placeholder `href="#"` links where the captured inventory had none. The final design-review call ended with a transport error. Eleven completed calls cost an estimated $0.041300 from reported usage. The final transport failure has incomplete metering. The round-five Designer artifact is archived as `be6b8502dc24fefd43251d860a6d56afcbdc04cb7c8fa74eb8c8dd8406889c7b`. The job stopped before Developer.
+
+### v0.12.8 verification
+
+Bossy now sees browser-owned checks before it decides, including checked widths and outcomes. The fixture work order adds explicit viewport centering and pinned per-width vertical padding. With scripted approvals, the combined gate held all 28 defective fixture/mode combinations. All six valid combinations advanced. Scoped link disagreement now includes measured counts and examples for both inventories.
+
 ### v0.12.6 deterministic replay
 
 The hotel fixtures replayed with one candidate-independent, browser-checked work order per approved variant. A scripted approval reached handoff in all six valid fixture/mode combinations. The application held 25 of 27 defective combinations (92.6%) and let two through (7.4%), both brief-only geometry changes involving vertical padding or desktop column placement. The replay covered 8/10 brief-only, 9/9 manual URL and 8/8 scoped defects. The historical denominator below also includes archived BKKGO. No model calls occurred in this replay.

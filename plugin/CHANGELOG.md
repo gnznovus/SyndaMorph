@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.8] - 2026-11-26
+
+### Added
+- Bossy receives browser-owned requirement verdicts before its first review. Work orders can explicitly test viewport centering and computed vertical padding.
+- Scoped source diagnostics show expected and observed link inventories when they differ, including unexpected placeholder destinations.
+
+### Verified
+- With forced model approval, all 28 defective fixture/mode combinations held and all six valid combinations advanced. Real Chromium confirmed diagnostic evidence for a placeholder link when the captured source contained none.
+- The prior live benchmark held all 14 defective trials and passed all four controls. The separate Through Our Lens production job held at source and design QA. Its saved Designer artifact and exact reported metering were retained.
+
 ## [0.12.7] - 2026-11-26
 
 ### Added

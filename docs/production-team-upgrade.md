@@ -94,6 +94,8 @@ When required browser evidence is missing, the existing History reinspection act
 
 ## Remaining acceptance
 
-The updated deterministic benchmark held 26 of 28 scripted defect approvals, including the archived BKKGO compact-heading case. All six valid fixture/mode combinations passed. Live model detection, combined escape, false rejections, uncertainty, latency and cost require separate measurement. [Design validation audit](bossy-validation-audit.md#v0126-deterministic-replay)
+In v0.12.8, Bossy receives the measured verdicts alongside the evidence. Explicit work orders can also measure viewport centering and vertical padding. Scoped source review includes the expected and observed link inventory when they differ. Deterministic replay held all 28 scripted defect approvals and passed all six valid combinations.
+
+The first updated live audit held all 14 defective trials with 8/11 actionable model detections among distinct faults with a complete verdict. The strict Through Our Lens conversion is still pending source fidelity and a completed design review. [Design validation audit](bossy-validation-audit.md#v0127-live-benchmark)
 
 No release has been authorized for this development series. Each checkpoint records the version, actual verification and outstanding work in the plugin changelog.

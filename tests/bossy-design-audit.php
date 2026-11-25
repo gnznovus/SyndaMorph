@@ -117,10 +117,10 @@ $baselines=array(false=>boss_audit_ok(syndamorph_collab_inspect($withoutLink,BOS
 
 /** Use the same pinned, candidate-independent work order for all matching fixtures. */
 function boss_audit_work_order(array $baseline,bool $link): array {
-    $style=static function(string $selector,string $property)use($baseline):array {
-        foreach($baseline[0]['snapshot']['elements'] as $element){
+    $style=static function(string $selector,string $property,int $sample=0)use($baseline):array {
+        foreach($baseline[$sample]['snapshot']['elements'] as $element){
             if(!in_array(substr($selector,1),$element['classes']??array(),true))continue;
-            $value=$element['styles'][$property]??null;
+            $value=syndamorph_design_style_value($element['styles']??array(),$property);
             boss_audit_assert(is_string($value)&&$value!=='','No computed baseline for '.$selector.' '.$property);
             return array('kind'=>'style','selector'=>$selector,'field'=>$property,'value'=>$value);
         }
@@ -130,9 +130,16 @@ function boss_audit_work_order(array $baseline,bool $link): array {
         'headline'=>array('content','Preserve the exact approved headline.',array('kind'=>'text','value'=>'Rest well in a space designed for you')),
         'headline-type'=>array('visual','Keep the system-ui font stack.',$style('.sm-hero__title','fontFamily')),
         'centered-layout'=>array('responsive','Keep centered text alignment at all checkpoints.',$style('.sm-hero__inner','textAlign')),
+        'centered-column'=>array('responsive','The content column is horizontally centered in the viewport.',
+            array('kind'=>'center','selector'=>'.sm-hero__content')),
         'navy-gradient'=>array('visual','Preserve the approved navy gradient.',$style('.sm-hero','backgroundImage')),
         'gold-marker'=>array('visual','Keep the small visible gold marker.',array('kind'=>'element','selector'=>'.audit-mark')),
     );
+    foreach($baseline as $i=>$sample){
+        foreach(array('paddingTop'=>'upper','paddingBottom'=>'lower') as $field=>$side)
+            $checks[$side.'-padding-'.$sample['width']]=array('responsive','Keep the approved '.$side.' padding at '.$sample['width'].'px.',
+                $style('.sm-hero',$field,$i)+array('widths'=>array($sample['width'])));
+    }
     if($link)$checks['rooms-link']=array('functional','Keep the keyboard-operable rooms anchor and local target.',
         array('kind'=>'link','selector'=>'.sm-hero__cta','value'=>'#rooms'));
     $requirements=array();
@@ -152,10 +159,13 @@ function boss_audit_run(array $case,array $settings,bool $live=false,?array $dec
         preg_match('/Task: ([a-z_]+)\./',$request['system'][1]['text']??'',$match);
         return $match[1]??'';
     };
-    $cap=static function(array $args,string $url)use($live,$reviewTask): array {
+    $configuredCap=isset($case['archive'])?getenv('SM_BOSS_AUDIT_ARCHIVE_OUTPUT_CAP'):false;
+    $auditOutputCap=(int)($configuredCap?:getenv('SM_BOSS_AUDIT_OUTPUT_CAP')?:BOSS_AUDIT_MAX_OUTPUT);
+    boss_audit_assert($auditOutputCap>=256&&$auditOutputCap<=16384,'Audit output cap is outside supported Section limits.');
+    $cap=static function(array $args,string $url)use($live,$reviewTask,$auditOutputCap): array {
         if($live&&$url==='https://api.anthropic.com/v1/messages'&&$reviewTask($args)==='final_approval'){
             $body=json_decode($args['body'],true);
-            $body['max_tokens']=min($body['max_tokens'],BOSS_AUDIT_MAX_OUTPUT);
+            $body['max_tokens']=min($body['max_tokens'],$auditOutputCap);
             $args['body']=wp_json_encode($body);
         }
         return $args;
@@ -243,6 +253,7 @@ function boss_audit_run(array $case,array $settings,bool $live=false,?array $dec
         'renderRequests'=>$renderRequests,'renderWidths'=>$renderWidths,'events'=>$events,'reservedUsd'=>$reserved,
         'metering'=>$metric,'review'=>$rawDecision,'responseDigest'=>$rawText===''?null:hash('sha256',$rawText),
         'requestSha256'=>$requestBody===null?null:hash('sha256',wp_json_encode($requestBody)),
+        'wireOutputCap'=>$requestBody['max_tokens']??null,
         'reviewEvidence'=>array('keys'=>array_keys($context??array()),'imageOrder'=>$context['imageOrder']??array(),
             'sourceImageOrder'=>$context['sourceImageOrder']??array(),
             'measurementWidths'=>array_column($context['measurements']??array(),'width'),
@@ -283,6 +294,12 @@ function boss_audit_print(array $row): void { echo wp_json_encode($row,JSON_INVA
 
 if($live){
     $order=array_merge(array_keys($cases),$fixture['repeat']);
+    $focused=getenv('SM_BOSS_AUDIT_CASES');
+    if(is_string($focused)&&$focused!==''){
+        $order=explode(',',$focused);
+        boss_audit_assert(count($order)===count(array_unique($order))&&!array_diff($order,array_keys($cases)),
+            'Focused audit identified unknown or duplicate fixtures.');
+    }
     boss_audit_assert(count($order)<=BOSS_AUDIT_CALLS,'Live case sequence exceeds authorized calls.');
     $start=0;
     if(getenv('SM_BOSS_AUDIT_CONTINUE')==='1'){
@@ -330,7 +347,7 @@ foreach($cases as $case){
         if($case['expected']==='pass'&&!$result['handoff'])$failures[]=$case['id'].' unexpectedly blocked in '.$mode;
         if(getenv('SM_BOSS_AUDIT_REQUIRE_FIXES')==='1'&&$result['handoff']&&$case['expected']==='block'&&
             (isset($input['workOrder'])&&in_array($case['id'],array('font-family','tablet-alignment','missing-decoration','background',
-                'altered-copy','wrong-link','static-control'),true) || $case['id']==='mobile-wrap' ||
+                'altered-copy','wrong-link','static-control','desktop-alignment','spacing'),true) || $case['id']==='mobile-wrap' ||
                 ($mode!=='brief'&&$case['id']!=='missing-decoration')))
             $failures[]=$case['id'].' escaped mandatory validation in '.$mode;
     }

@@ -3,16 +3,17 @@
 if (!defined('ABSPATH')) exit;
 
 function syndamorph_design_check_contract($check) {
-    $fields=array('fontFamily','fontSize','fontWeight','lineHeight','backgroundColor','backgroundImage','color','textAlign');
+    $fields=array('fontFamily','fontSize','fontWeight','lineHeight','backgroundColor','backgroundImage','color','textAlign',
+        'paddingTop','paddingBottom');
     $kind=$check['kind']??null;
-    if(!is_array($check)||!in_array($kind,array('text','element','link','style'),true))return null;
+    if(!is_array($check)||!in_array($kind,array('text','element','link','style','center'),true))return null;
     $result=array('kind'=>$kind);
     if($kind!=='text'){
         $selector=$check['selector']??null;
         if(!is_string($selector)||preg_match('/^(?:[.#][a-zA-Z][a-zA-Z0-9_-]{0,62}|[a-z][a-z0-9-]{0,31})$/D',$selector)!==1)return null;
         $result['selector']=$selector;
     }
-    if($kind!=='element'){
+    if(!in_array($kind,array('element','center'),true)){
         $value=$check['value']??null;
         if(!is_string($value)||trim($value)===''||mb_strlen($value)>240)return null;
         $result['value']=trim($value);
@@ -30,6 +31,15 @@ function syndamorph_design_check_contract($check) {
         $result['widths']=array_values(array_unique($widths));
     }
     return $result;
+}
+
+function syndamorph_design_style_value(array $styles,string $field): ?string {
+    if(isset($styles[$field]))return $styles[$field];
+    if(!in_array($field,array('paddingTop','paddingBottom'),true)||!is_string($styles['padding']??null))return null;
+    $sides=preg_split('/\s+/',trim($styles['padding']));
+    if(!is_array($sides)||count($sides)>4||array_filter($sides,static fn($side)=>!preg_match('/^\d+(?:\.\d+)?px$/D',$side)))
+        return null;
+    return $field==='paddingBottom'?($sides[2]??$sides[0]):$sides[0];
 }
 
 function syndamorph_design_matches(array $element,string $selector): bool {
@@ -71,7 +81,7 @@ function syndamorph_design_browser_facts(array $samples,array $specification): a
             $record['domId']=$element['id']??null;
             $record['text']=mb_substr((string)($element['normalizedText']??''),0,100);
             $record['styles']=array_intersect_key($style,array_flip(
-                array('fontFamily','fontSize','fontWeight','color','backgroundColor','backgroundImage','textAlign')));
+                array('fontFamily','fontSize','fontWeight','color','backgroundColor','backgroundImage','textAlign','padding')));
             $projected[]=array('priority'=>$selected?0:($control?1:($index===0||$paint?2:3)),'row'=>$record);
         }
         usort($projected,static fn($a,$b)=>$a['priority']<=>$b['priority']);
@@ -108,10 +118,18 @@ function syndamorph_design_run_check(array $check,array $samples): array {
                         ($element['href']??null)===$check['value']&&!empty($element['keyboardReachable'])&&
                         (!str_starts_with($check['value'],'#')||($element['fragmentTarget']??null)===true));
                     $outcome=$verified?'verified':'failed';
+                }elseif($check['kind']==='center'){
+                    $outcome=$matching?'verified':'failed';
+                    foreach($matching as $element){
+                        $rect=$element['rect']??null;
+                        if(!is_array($rect)||count($rect)!==4){
+                            if($outcome!=='failed')$outcome='uncertain';
+                        }elseif(abs($rect[0]+$rect[2]/2-$width/2)>2)$outcome='failed';
+                    }
                 }else{
                     $expected=syndamorph_design_computed_value($check['field'],$check['value']);
                     $outcome=$matching&&count(array_filter($matching,
-                        static fn($element)=>($element['styles'][$check['field']]??null)===$expected))===count($matching)
+                        static fn($element)=>syndamorph_design_style_value($element['styles']??array(),$check['field'])===$expected))===count($matching)
                         ?'verified':'failed';
                 }
                 if(!$complete&&$outcome==='failed'&&!$matching)$outcome='uncertain';
