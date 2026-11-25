@@ -57,6 +57,19 @@ test('literal copy retains long inline-formatted text independently of rendered 
     }
 });
 
+test('inspection shares a fragment origin and measures effective unsupported styles',async()=>{
+    const html='<style>section>div{max-width:44rem;margin:auto}h2{font:700 60px system-ui;text-wrap:balance}a{display:inline-block}@media(max-width:480px){a{width:100%}}</style><section><div><h2>A calm, considered place to stay</h2><a href="#rooms">See rooms</a></div></section>';
+    const {evidence}=await request('/inspect',html,[375,768,1440]);
+    const byWidth=Object.fromEntries(evidence.map(sample=>[sample.width,sample.snapshot.elements]));
+    for(const elements of Object.values(byWidth)) {
+        assert.equal(elements.find(el=>el.tag==='SECTION').rect[0],0);
+        assert.equal(elements.find(el=>el.tag==='SECTION').rect[1],0);
+    }
+    assert.equal(byWidth[1440].find(el=>el.tag==='H2').wrapChangesGeometry,true);
+    assert.equal(byWidth[375].find(el=>el.tag==='A').widthValue,'100%');
+    assert.equal(byWidth[768].find(el=>el.tag==='A').widthValue,'auto');
+});
+
 test('existing DOM render endpoint remains available',async()=>{
     const result=await request('/render','<main><p>Original mode</p></main>');
     assert.match(result.html,/<p>Original mode<\/p>/);

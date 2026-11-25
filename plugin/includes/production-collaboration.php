@@ -442,7 +442,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if (function_exists('set_time_limit')) @set_time_limit(1200);
     $prefix=syndamorph_production_cached_contract();
     $call=static function(string $role,string $instruction,array $context,int $cap,array $images=array(),string $stage='',
-        float $nextAllowance=0.0) use (&$call,&$usage,&$metrics,&$events,&$calls,&$unmeteredReserve,$provider,$model,$in,$out,$max,$cutoff,$stream,$on_event,$prefix,$viewports) {
+        float $nextAllowance=0.0,array $toolArtifacts=array()) use (&$call,&$usage,&$metrics,&$events,&$calls,&$unmeteredReserve,$provider,$model,$in,$out,$max,$cutoff,$stream,$on_event,$prefix,$viewports) {
         $stage=$stage ?: $role;
         $control=syndamorph_job_control_gate();
         if(is_wp_error($control))return $control;
@@ -457,13 +457,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $events[]=array('role'=>$role,'task'=>$stage,'status'=>'completed',
                 'model'=>$model,'replayed'=>true);
             $followup=syndamorph_production_tool_followup($cached['text'],$role,$stage,
-                $instruction,$context,$cap,$images,$nextAllowance,$viewports,$on_event,$call);
+                $instruction,$context,$cap,$images,$nextAllowance,$viewports,$on_event,$call,$toolArtifacts);
             return $followup===null?$cached['text']:$followup;
         }
         if(!syndamorph_agent_scope($role,$stage))return new WP_Error('sm_agent_scope','Task outside agent scope.');
         // Retain the legacy cap parameter for tool-followup call compatibility.
         $providerLimit=syndamorph_collab_output_cap($provider,$model);
-        $context['availableTools']=syndamorph_production_tool_catalog($role);
+        $context['availableTools']=syndamorph_production_tool_catalog($role,$toolArtifacts);
         $encoded=wp_json_encode($context);
         $contextLimit=in_array($stage,array('repair','revision_validation'),true)?24000:160000;
         if (!is_string($encoded) || strlen($encoded)>$contextLimit) return new WP_Error('sm_team_context','Agent context exceeds safe limit.',array('stage'=>'context','role'=>$role,'task'=>$stage,'completedCalls'=>$calls));
@@ -511,7 +511,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $events[]=array('role'=>$role,'task'=>$stage,'status'=>'completed','model'=>$result['model']);
         if ($on_event) $on_event('agent_complete',array('role'=>$role,'task'=>$stage,'metric'=>$metric));
         $followup=syndamorph_production_tool_followup($result['text'],$role,$stage,
-            $instruction,$context,$cap,$images,$nextAllowance,$viewports,$on_event,$call);
+            $instruction,$context,$cap,$images,$nextAllowance,$viewports,$on_event,$call,$toolArtifacts);
         return $followup===null?$result['text']:$followup;
     };
     $deferInspection=static function(WP_Error $error,string $html,string $stage,string $role,array $capabilityNotes,
@@ -619,10 +619,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         }
         $priorDesignImageHashes=$currentImageHashes;
         $measurements=syndamorph_memory_measurements($inspectReference);
+        $nativeConstraints=syndamorph_reference_unrealizable($inspectReference);
         $reviewContext=array('requirements'=>$brief,'referenceSha256'=>hash('sha256',$reference),
             'availableTools'=>syndamorph_production_tool_catalog('boss'),
             'verificationEvidence'=>$pendingToolEvidence,
             'capabilityNotes'=>$capabilityNotes,
+            'nativeConstraints'=>$nativeConstraints,
             'imageOrder'=>$imageOrder,'unchangedScreenshotCount'=>count($visionViewports)-count($imageOrder));
         if($priorDesignMeasurements===null){
             $reviewContext['measurements']=$measurements;
@@ -641,13 +643,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $reviewContext['measurementSummary']=array('baseline'=>count($priorDesignMeasurements),
                 'current'=>count($measurements),'changed'=>count($changedMeasurements));
         }
-        $review=$call('boss','Review the Designer reference against the brief, native compiler contract and browser evidence. In diff mode, focus on changed evidence and unresolved defects. Browser-computed styles are authoritative for CSS values; do not reject a declared weight solely because a screenshot appears light. If evidence is insufficient, return JSON {"decision":"verification_required","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"specific browser diagnostic question"},"summary":"brief"} instead of requesting HTML changes. Otherwise return JSON {"decision":"approved|changes_requested","issues":[{"target":"section","problem":"measurable defect","requiredChange":"specific correction"}],"acceptedCapabilityDeviations":[],"summary":"brief"}. Request no more than three concrete issues. Do not demand browser verification from Designer.',
+        $review=$call('boss','Review the Designer reference against the brief, native compiler contract and browser evidence. In diff mode, focus on changed evidence and unresolved defects. Use nativeConstraints to resolve observed effects that cannot be converted. If they are present, give the Designer a supported alternative within the brief, or request human design review if the brief requires the effect. Browser-computed styles are authoritative for CSS values; do not reject a declared weight solely because a screenshot appears light. If evidence is insufficient, return JSON {"decision":"verification_required","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"specific browser diagnostic question"},"summary":"brief"} instead of requesting HTML changes. Otherwise return JSON {"decision":"approved|changes_requested|design_review_required","issues":[{"target":"section","problem":"measurable defect","requiredChange":"specific correction"}],"acceptedCapabilityDeviations":[],"summary":"brief"}. Request no more than three concrete issues. Do not demand browser verification from Designer.',
             $reviewContext,syndamorph_collab_output_cap($provider,$model),$referenceImages,'final_approval');
         $priorDesignMeasurements=$measurements;
         if(is_wp_error($review))return $review;
         $parsed=json_decode(syndamorph_native_json_text($review),true);
         $record=syndamorph_authority_decision('boss','design_approval',$parsed,
-            array('approved','changes_requested','verification_required'),$on_event);
+            array('approved','changes_requested','verification_required','design_review_required'),$on_event);
         if(is_wp_error($record))return $record;
         $approval=$parsed;
         $designReviews++;
@@ -670,6 +672,25 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             return new WP_Error('sm_boss_review_contract','Boss must return a structured issues list.',
                 array('stage'=>'design_approval'));
         $decision=$record['decision'];
+        if($decision==='design_review_required') {
+            syndamorph_authority_gate($record,'blocked','Boss requires a design decision before native conversion.',$on_event);
+            return new WP_Error('sm_design_review_required','The approved brief needs a design decision before native conversion.',
+                array('stage'=>'design_approval','constraints'=>$nativeConstraints,'decision'=>$record['decision']));
+        }
+        if($decision==='approved' && $nativeConstraints && !$approval['issues']) {
+            syndamorph_authority_gate($record,'blocked',
+                'Browser evidence shows an active effect outside the native implementation contract.',$on_event);
+            $constraintKey=hash('sha256',wp_json_encode($nativeConstraints));
+            if(isset($unrealizableApprovals[$constraintKey])) {
+                return new WP_Error('sm_design_native_conflict',
+                    'Boss approval and the measured native capability requirements still conflict.',
+                    array('stage'=>'design_approval','constraints'=>$nativeConstraints,'decision'=>$record['decision']));
+            }
+            $unrealizableApprovals[$constraintKey]=true;
+            $pendingToolEvidence=array('source'=>'orchestrator.native_contract','status'=>'blocked',
+                'constraints'=>$nativeConstraints,'recordedDecision'=>$record['decision']);
+            continue;
+        }
         $deviations=array();
         foreach((array)($approval['acceptedCapabilityDeviations']??array()) as $deviation) {
             if(!is_array($deviation)||!in_array($deviation['note']??null,$capabilityNotes,true)||
@@ -722,7 +743,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         },$handoff['issues']);
         sort($issueFamilies);
         $issueKey=wp_json_encode($issueFamilies);
-        $stateKey=hash('sha256',$issueKey);
+        $stateKey=hash('sha256',$issueKey.wp_json_encode($measurements));
         if(($designSeenStates[$stateKey]??0)>=2)
             return new WP_Error('sm_design_stagnation',
                 'Designer review repeated the same unresolved issues against an unchanged reference.',
@@ -902,7 +923,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         }else{
             $surgery['deterministic']++;
             $autoCorrections[]=array('field'=>$diag['field'],'reason'=>$diag['message'],
-                'changedProperty'=>$auto['repair'],'candidateSha256'=>SyndaMorph_Job_Memory::fingerprint($auto['plan']));
+                'changedProperty'=>$auto['repair'],'normalization'=>$auto['normalization'],
+                'candidateSha256'=>SyndaMorph_Job_Memory::fingerprint($auto['plan']));
         }
         $fingerprint=SyndaMorph_Job_Memory::fingerprint($candidate['plan']);
         if(isset($seenSchemaPlans[$fingerprint])) {
@@ -957,6 +979,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if(is_wp_error($inspectNative))
         return $deferInspection($inspectNative,$artifact['preview'],'implementation_inspection','developer',$capabilityNotes,
             $artifact,$surgery,$designMemo);
+    syndamorph_production_tool_seed($artifact['preview'],$viewports,$inspectNative);
     $comparison=syndamorph_production_tool('boss','playwright.compare',array('reference'=>$inspectReference,'native'=>$inspectNative));
     if(is_wp_error($comparison)) return $comparison;
     $evidence=array('reference'=>$inspectReference,'native'=>$inspectNative);
@@ -985,10 +1008,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $review=$call('boss','Assess the frozen design and browser evidence for the implementation. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"measurable defect and suggested correction","kind":"implementation","status":"open","repairStrategy":"optional: style|structure|hybrid"}],"summary":"..."}. Use category content for literal copy disputes and consult copyComparison. Reuse deterministic issue IDs where applicable. Compiler checks are authoritative. Put host responsibilities, unsupported capabilities and pending editor verification in notes. Approve only with no actionable defects.',
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$modelEvidence($inspectReference),'native'=>$modelEvidence($inspectNative),
             'deterministicIssues'=>$issues,'copyComparison'=>$copyCheck,'pixelComparison'=>$comparison,
-            'implementationHandoff'=>$implementationHandoff,
+            'implementationHandoff'=>$implementationHandoff,'compiledLayout'=>$artifact['layoutFacts'],
             'components'=>syndamorph_surgery_context($plan['blocks'][0],121),'compilerChecks'=>$artifact['checks'],
             'imageOrder'=>array_merge(...array_map(static fn($index)=>array($viewports[$index].'-reference',$viewports[$index].'-native'),$visionViewports))),
-        syndamorph_collab_output_cap($provider,$model),$screenshots,'validation');
+        syndamorph_collab_output_cap($provider,$model),$screenshots,'validation',0.0,
+        array('reference'=>$reference,'native'=>$artifact['preview'],'plan'=>$plan));
     if (is_wp_error($review)) return $review;$outputs['validator']=$review;
     $parsed=json_decode(syndamorph_native_json_text($review),true);
     $qaRecord=syndamorph_authority_decision('boss','implementation_qa',$parsed,
@@ -1086,6 +1110,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             (syndamorph_repair_container($node,$inspectReference,$inspectNative)??
                 syndamorph_repair_measured($node,$inspectReference,$inspectNative)) : null;
         $patch=$deterministic===null?null:syndamorph_surgery_from_replacement($node,$deterministic);
+        if($patch===null && $assignment['strategy']==='style' && !array_diff($repairHandoff['requested'],array('style')) &&
+            in_array('alignment',array_column($focus,'category'),true)) {
+            $patch=syndamorph_repair_constrained_parent($node,$inspectReference,$inspectNative);
+        }
         $candidate=null;
         if($patch!==null){
             $candidate=syndamorph_surgery_operation($plan,$patch,$assignment);
@@ -1107,16 +1135,17 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts($node),8),
                 'nativeMeasurements'=>syndamorph_memory_measurements($inspectNative,syndamorph_memory_texts($node),8),
                 'previousAttempts'=>$memory->feedback($id,$related,2),
+                'compiledLayout'=>array_intersect_key($artifact['layoutFacts'],array_flip($assignment['nodes'])),
                 'nativeLayoutNotes'=>array_slice($artifact['layoutNotes']??array(),0,6),
                 'learnedCorrections'=>array_map(static fn($lesson)=>array_intersect_key($lesson,
                     array_flip(array('id','rule','pattern'))),$injectedLessons),
                 'imageScope'=>$repairScope['mode'],
                 'imageOrder'=>$imageOrder);
-            $instruction='Use the Boss instructions, prior attempts and measured geometry to select the smallest supported operation. Include a concise strategyDeviation when an explicit Boss strategy differs from your operation. Use a materially different correction or state new evidence; if neither is available, report a blocker. Return only JSON {"id":"assigned owner","diagnosis":"cause with evidence","changes":[{"target":"authorized id","path":"style.margin.bottom","value":"1rem"}]}. Apply up to eight combined edits only to the explicit authorized nodes. Omit unused changes. Preserve text, links, block types, existing IDs and unrelated siblings. Never return a full node or plan. If a supported repair is impossible, use {"id":"assigned owner","blocked":"capability|design_constraint|missing_evidence","diagnosis":"why"}.';
+            $instruction='Use the Boss instructions, prior attempts and measured geometry to select the smallest supported operation. Include a concise strategyDeviation when an explicit Boss strategy differs from your operation. Use a materially different correction or state new evidence; if neither is available, report a blocker. Return only JSON {"diagnosis":"cause with evidence","changes":[{"target":"authorized id","path":"style.margin.bottom","value":"1rem"}]}. Apply up to eight combined edits only to the explicit authorized nodes. Omit unused changes. Preserve text, links, block types, existing IDs and unrelated siblings. Never return a full node or plan. If a supported repair is impossible, use {"blocked":"capability|design_constraint|missing_evidence","diagnosis":"why"}.';
             if($assignment['strategy']==='contract_correction')$instruction.=' Correct the specific contract failure in previousAttempts before trying new style values.';
             if($assignment['wrapParents'])$instruction.=' For structure, include wraps:[{"parent":"authorized parent","children":["consecutive direct child id"],"id":"new-group-id","style":{"contentWidth":"40rem"}}]. Preserve existing IDs and order. Include both wraps and changes for a hybrid operation. Core discards fluid blockGap; use supported child spacing if needed.';
             $repair=$call('developer',$instruction,$repairContext,syndamorph_collab_output_cap($provider,$model),
-                $repairScope['images'],'repair',$reviewReserve);
+                $repairScope['images'],'repair',$reviewReserve,array('reference'=>$reference,'native'=>$artifact['preview'],'plan'=>$plan));
             if(is_wp_error($repair)) {
                 $terminationReason=$repair->get_error_code()==='sm_team_budget'?'budget_80_percent':'developer_blocked';
                 $patch=null;
@@ -1142,7 +1171,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             use(&$memory,&$revisions,$on_event,$attempt,$meter):void {
             $entry=array_merge($attempt,$evidence,array('status'=>$status,'accepted'=>false,'detail'=>$detail,'reason'=>$detail,
                 'validation'=>$validation,'scoreAfter'=>$evidence['scoreAfter']??$attempt['scoreBefore'],
-                'nextDirection'=>'Address the validation reason before proposing a materially different correction.',
+                'nextDirection'=>!empty($evidence['contractDiagnostic']['editsNotEvaluated'])?
+                    'Correct the response contract. The proposed edits can be resubmitted because they were not evaluated.':
+                    'Address the validation reason before proposing a materially different correction.',
                 'usage'=>$meter(),'retainedImprovement'=>0.0));
             $entry['learning']['validation']='failed';
             $id=$entry['id'];
@@ -1153,8 +1184,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             if($terminationReason!=='budget_80_percent')$reject($repair->get_error_message(),'blocked','developer_response');
             break;
         }
-        if(!is_array($patch)||($patch['id']??null)!==$id){
-            $reject('Invalid or out-of-scope surgical JSON patch');continue;
+        $responseError=syndamorph_surgery_check_response($patch,$assignment);
+        if($responseError){
+            $reject($responseError->get_error_message(),'rejected','patch_contract',
+                array('contractDiagnostic'=>$responseError->get_error_data()));
+            continue;
         }
         if(in_array($patch['blocked']??null,array('capability','design_constraint','missing_evidence'),true)) {
             // A scoped expert has explicitly identified a non-editable blocker.
@@ -1195,6 +1229,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $reject($error->get_error_message(),'blocked','browser');break;
         }
         // Root/ancestor changes affect all descendants. Reinspect all widths, but avoid additional full-model review.
+        syndamorph_production_tool_seed($candidate['artifact']['preview'],$viewports,$newEvidence);
         $newComparison=syndamorph_production_tool('boss','playwright.compare',array('reference'=>$inspectReference,'native'=>$newEvidence));
         if(is_wp_error($newComparison)) {
             $terminationReason='visual_compare_blocked';$reject('Pixel comparison unavailable','blocked','browser');break;
@@ -1235,13 +1270,15 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             array('id'=>$id,'candidateHandoff'=>$candidateHandoff,'changedNodes'=>syndamorph_surgery_context(
                     syndamorph_collab_find($candidate['plan']['blocks'],$id)),
                 'previousIssues'=>array_values(array_filter($issues,static fn($issue)=>isset($affected[$issue['component']??'']))),
-                'impact'=>$impact,'reviewScope'=>$reviewIds,'compilerChecks'=>$candidate['artifact']['checks'],'imageScope'=>$scope['mode'],
+                'impact'=>$impact,'reviewScope'=>$reviewIds,
+                'compiledLayout'=>array_intersect_key($candidate['artifact']['layoutFacts'],array_flip($reviewIds)),'compilerChecks'=>$candidate['artifact']['checks'],'imageScope'=>$scope['mode'],
                 'previousGeometry'=>array_intersect_key($visualMetrics,array_flip($assignment['group'])),
                 'candidateGeometry'=>array_intersect_key($newMetrics,array_flip($assignment['group'])),
                 'copyComparison'=>$newCopy,
                 'referenceMeasurements'=>syndamorph_memory_measurements($inspectReference,syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id)),8),
                 'measurements'=>syndamorph_memory_measurements($newEvidence,syndamorph_memory_texts(syndamorph_collab_find($candidate['plan']['blocks'],$id)),8),
-                'pixelComparison'=>$newComparison,'imageOrder'=>$imageOrder),$reviewCap,$scopedScreenshots,'revision_validation');
+                'pixelComparison'=>$newComparison,'imageOrder'=>$imageOrder),$reviewCap,$scopedScreenshots,'revision_validation',0.0,
+            array('reference'=>$reference,'native'=>$candidate['artifact']['preview'],'plan'=>$candidate['plan']));
         if (is_wp_error($targetReview)) {
             $terminationReason=$targetReview->get_error_code()==='sm_team_budget'?'budget_80_percent':'validator_blocked';
             $reject('Scoped visual validation unavailable','blocked','vision');break;

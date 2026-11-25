@@ -1,6 +1,6 @@
 'use strict';
 
-const PROTOCOL = 1;
+const PROTOCOL = 2;
 const DEFAULT_VIEWPORTS = [1440, 768, 375];
 const MAX_VIEWPORTS = 5;
 const HEIGHT = 900;

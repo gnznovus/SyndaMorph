@@ -3,6 +3,8 @@
 **Updated:** 2026-11-24 (Asia/Bangkok)  
 **Repository:** https://github.com/gnznovus/SyndaMorph  
 **Experimental branch:** `feat/secure-gateway-leasing-v1`  
+**GEN-000023 investigation:** [Ranked causes, replay, and remaining limits](adaptive-surgery-hardening.md#independent-investigation-of-gen-000019-through-gen-000023).
+
 **November 25 hardening checkpoint:** [GEN-000019 through GEN-000021 findings, tests, and GEN-000022 gate](adaptive-surgery-hardening.md).
 
 **Adaptive Surgery v2 checkpoint:** [`54a1833`](https://github.com/gnznovus/SyndaMorph/commit/54a1833354081a04421138b6e993b2c347ccdc1e)  
@@ -147,7 +149,7 @@ JS-rendered Hotel Indigo Bangkok Thonglor prototype: two-level navigation, hero 
 | 0 | HTML importer/patterns + released `v0.11.1` | **DONE**; stable branch/release protected. |
 | 1 | Real AI Team MVP + native compiler/Playwright foundations | **DONE (POC)**; not full production conversion. |
 | 2 | Adaptive Surgery v2 F01–F10 | **DONE (engineering)**; `54a1833`, CI, archived replay, deterministic benchmark. |
-| 3 | **GEN-000022 with Haiku 5.5** | **NEXT — VALIDATION NEEDED**; actual provider usage, outcomes, Gutenberg integrity, and safe regressions. |
+| 3 | **Authorized follow-up after GEN-000023** | **NEXT — VALIDATION NEEDED**; actual provider usage, outcomes, Gutenberg integrity, and safe regressions. |
 | 4 | AI Knowledge management | **PLANNED**; board UI, role-scoped/versioned instructions, verified learning registry. |
 | 5 | Boss source+visual discovery and implementation manifest | **PLANNED**; auditable structural/behavior classification. |
 | 6 | Developer custom interactive block factory | **PLANNED**; registered reusable block with working editor/frontend. |
@@ -173,4 +175,4 @@ This order describes dependencies, **not promised release dates**. Do not expand
 - **Current branch:** `feat/secure-gateway-leasing-v1`; keep `main`, `v0.11.1`, published tags/releases and production behavior untouched until approval.
 - **Canonical source:** Update **this file in place** when a milestone changes; other documents link here and preserve historical POC procedures.
 - Record date, exact version/commit, tests/CI, actual limitations and acceptance class whenever moving a milestone.
-- **Next action:** obtain explicit approval for the GEN-000022 validation described in the hardening handoff. AI Knowledge remains planned.
+- **Next action:** obtain explicit approval for a follow-up Haiku 5.5 run after rebuilding the feature branch renderer and reviewing the GEN-000023 findings. AI Knowledge remains planned.

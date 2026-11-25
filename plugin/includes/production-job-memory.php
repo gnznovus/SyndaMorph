@@ -55,7 +55,7 @@ final class SyndaMorph_Job_Memory {
         usort($attempts,static fn($a,$b)=>($a['round']??0)<=>($b['round']??0));
         return array_map(static function(array $entry):array {
             $delta=array_intersect_key($entry,array_flip(array('round','id','status','accepted','detail','reason','scoreBefore','scoreAfter',
-                'focusScoreBefore','focusScoreAfter','route','issueGroup','diagnosis','strategy','operationMode','strategyDeviation','wraps','validation','nextDirection','pixelDeltas','introducedIssues')));
+                'focusScoreBefore','focusScoreAfter','route','issueGroup','diagnosis','strategy','operationMode','strategyDeviation','wraps','validation','contractDiagnostic','nextDirection','pixelDeltas','introducedIssues')));
             if(isset($entry['geometryDeltas']))$delta['geometryDeltas']=array_slice($entry['geometryDeltas'],0,4,true);
             if(isset($entry['replacement'])) {
                 $delta['attemptedStyle']=$entry['replacement']['style']??array();

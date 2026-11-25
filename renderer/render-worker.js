@@ -38,6 +38,13 @@ process.stdin.on('end', async () => {
         await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 5000 });
         await page.waitForTimeout(600);
         if (inspect) {
+            // Both inputs are embeddable fragments. Remove the UA's body
+            // margin without overriding a more specific authored style.
+            await page.evaluate(() => {
+                const frameStyle = document.createElement('style');
+                frameStyle.textContent = ':where(body){margin:0}';
+                document.head.prepend(frameStyle);
+            });
             // Render untrusted input with JS disabled. Run axe separately on a
             // sanitized DOM copy, never on the original script-bearing document.
             const safeMarkup = await page.evaluate(() => {
@@ -95,6 +102,21 @@ process.stdin.on('end', async () => {
                             const text = el.children.length ? '' : el.textContent.replace(/\s+/gu, ' ').trim().slice(0, 250);
                             const range = document.createRange();
                             if (text) range.selectNodeContents(el);
+                            const lines = text ? [...range.getClientRects()].slice(0, 12).map(rect) : [];
+                            const wrapStyle = s.textWrapStyle;
+                            let wrapChangesGeometry = false;
+                            if (lines.length > 1 && ['balance','pretty'].includes(wrapStyle)) {
+                                const old = el.style.getPropertyValue('text-wrap-style');
+                                const priority = el.style.getPropertyPriority('text-wrap-style');
+                                try {
+                                    el.style.setProperty('text-wrap-style', 'auto', 'important');
+                                    const natural = [...range.getClientRects()].slice(0, 12).map(rect);
+                                    wrapChangesGeometry = JSON.stringify(lines) !== JSON.stringify(natural);
+                                } finally {
+                                    if (old) el.style.setProperty('text-wrap-style', old, priority);
+                                    else el.style.removeProperty('text-wrap-style');
+                                }
+                            }
                             const id = el.getAttribute('data-sm-node') || (el.tagName === 'A' ? el.parentElement?.getAttribute('data-sm-node') : null);
                             return { tag: el.tagName.slice(0, 32), id: el.id.slice(0, 128), text: el.children.length ? '' : el.textContent.slice(0, 250),
                                 node: id?.slice(0, 128) ?? null,
@@ -102,8 +124,10 @@ process.stdin.on('end', async () => {
                                 normalizedText: text,
                                 rect: rect(r),
                                 textRect: text ? rect(range.getBoundingClientRect()) : null,
-                                lineRects: text ? [...range.getClientRects()].slice(0, 12).map(rect) : [],
-                                styles: Object.fromEntries(['color','backgroundColor','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','maxWidth','overflowWrap','padding','margin','gap','display','textAlign','textTransform','alignItems','justifyContent','borderRadius'].map(k => [k,s[k].slice(0, 128)])),
+                                lineRects: lines,
+                                wrapChangesGeometry,
+                                styles: Object.fromEntries(['color','backgroundColor','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','maxWidth','overflowWrap','padding','margin','gap','display','textAlign','textTransform','textWrapStyle','alignItems','justifyContent','borderRadius'].map(k => [k,s[k].slice(0, 128)])),
+                                widthValue: el.computedStyleMap().get('width')?.toString().slice(0,128) ?? null,
                                 clipped: /^(?:hidden|clip)$/.test(s.overflowX) && el.scrollWidth > el.clientWidth + 2,
                                 missingAlt: el.tagName === 'IMG' && !el.hasAttribute('alt'),
                                 unnamedControl: ['A','BUTTON'].includes(el.tagName) && !(el.textContent.trim() || el.getAttribute('aria-label') || el.querySelector('img[alt]:not([alt=""])'))

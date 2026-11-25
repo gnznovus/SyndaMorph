@@ -61,6 +61,12 @@ if(syndamorph_native_full_button_width()){
     $add('fixed full width CTA',array($heading,$wrap(array_merge($button,array(
         'style'=>array('width'=>'100%','textTransform'=>'lowercase'))))),array('justifyContent'=>'stretch'));
 }
+$stackChild=array('type'=>'group','id'=>'stack-content','style'=>array('contentWidth'=>'44rem','gap'=>'1.5rem'),
+    'children'=>array(array_merge($heading,array('id'=>'stack-heading')),array_merge($paragraph,array('id'=>'stack-copy')),$wrap($button)));
+$add('constrained child in default stack',array($stackChild),array('padding'=>'4rem'));
+$stackChild['style']['padding']=0;
+$add('constrained child in stretched stack',array($stackChild),array('padding'=>'4rem','justifyContent'=>'stretch'));
+$add('left aligned constrained child',array($heading),array('contentWidth'=>'25rem','contentAlignment'=>'left','padding'=>0));
 $parity=$fixtures['constrained layout geometry'];
 $nativeHtml=do_blocks($parity['content']);
 $baseCss='*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,sans-serif}.wp-block-button__link{display:inline-block}.has-text-align-center{text-align:center}';
@@ -83,6 +89,19 @@ foreach(array('vertically centered constrained content'=>'hybrid','fixed full wi
     $frontend=do_blocks($case['content']);
     $parity[$key]=array('preview'=>$case['preview'],'frontend'=>'<style>'.wp_get_global_stylesheet().
         wp_style_engine_get_stylesheet_from_context('block-supports').$coreButtonCss.$baseCss.'</style>'.$frontend);
+}
+
+if(method_exists('WP_Theme_JSON','get_viewport_media_queries') &&
+    wp_is_block_theme() && syndamorph_native_full_button_width()) {
+    // Probe core's responsive dimensions directly. The rule targets the
+    // wrapper, so it cannot replace an intrinsic anchor with a full-width CTA.
+    $responsive='<!-- wp:buttons {"layout":{"type":"flex"}} --><div class="wp-block-buttons">'.
+        '<!-- wp:button {"style":{"@mobile":{"dimensions":{"width":"100%"}}}} --><div class="wp-block-button">'.
+        '<a class="wp-block-button__link wp-element-button" href="#rooms">See rooms</a></div><!-- /wp:button -->'.
+        '</div><!-- /wp:buttons -->';
+    $frontend=do_blocks($responsive);
+    $parity['responsiveCoreWrapper']='<style>'.wp_get_global_stylesheet().
+        wp_style_engine_get_stylesheet_from_context('block-supports').$coreButtonCss.$baseCss.'</style>'.$frontend;
 }
 
 if(is_wp_error($artifact)){http_response_code(500);exit($artifact->get_error_message());}

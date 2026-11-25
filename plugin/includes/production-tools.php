@@ -46,10 +46,10 @@ function syndamorph_production_tool(string $role,string $name,array $args) {
  * Global on-demand, read-only tool access. The orchestrator supplies artifacts;
  * agents cannot substitute URLs, markup, filesystem paths or write operations.
  */
-function syndamorph_production_tool_catalog(string $role): array {
+function syndamorph_production_tool_catalog(string $role,array $artifacts=array()): array {
     $catalog=array(
-        'playwright.inspect'=>array('purpose'=>'Inspect rendered reference at required viewports; return browser-computed styles, layout and accessibility evidence.',
-            'readOnly'=>true,'targets'=>array('reference')),
+        'playwright.inspect'=>array('purpose'=>'Inspect the indicated rendered artifact at the required viewports.',
+            'readOnly'=>true,'targets'=>isset($artifacts['native'])?array('reference','native'):array('reference')),
         'playwright.compare'=>array('purpose'=>'Compare reference and native screenshots and metrics.','readOnly'=>true,'targets'=>array('reference','native')),
         'playwright.crop'=>array('purpose'=>'Extract targeted screenshot evidence.','readOnly'=>true,'targets'=>array('reference','native')),
         'compiler.validate'=>array('purpose'=>'Validate native Gutenberg plan.','readOnly'=>true,'targets'=>array('plan')),
@@ -69,6 +69,8 @@ function syndamorph_production_tool_evidence(array $samples,string $reason=''): 
             $styles=(array)($element['styles']??array());
             $elements[]=array('tag'=>$element['tag']??'','id'=>$element['id']??'',
                 'text'=>mb_substr((string)($element['text']??''),0,110),
+                'node'=>$element['node']??null,'parent'=>$element['parent']??null,
+                'layout'=>array_intersect_key($styles,array_flip(array('display','gap','padding','alignItems','justifyContent','textWrapStyle'))),
                 'fontWeight'=>$styles['fontWeight']??null,
                 'fontFamily'=>$styles['fontFamily']??null,
                 'fontSize'=>$styles['fontSize']??null,
@@ -100,16 +102,16 @@ function syndamorph_production_tool_request(string $role,array $request,array $a
         return new WP_Error('sm_tool_request_contract',
             'Tool request requires a valid name, target, and diagnostic reason (8-4096 bytes).');
     $reason=mb_strcut(trim($reason),0,1024,'UTF-8');
-    $catalog=syndamorph_production_tool_catalog($role);
+    $catalog=syndamorph_production_tool_catalog($role,$artifacts);
     if(!isset($catalog[$name])||!($catalog[$name]['readOnly']??false)||
         !in_array($target,$catalog[$name]['targets'],true))
         return new WP_Error('sm_tool_denied','Requested tool or target is unavailable to this agent.');
     $plan=$name==='compiler.validate'?($artifacts['plan']??null):null;
-    $html=$name==='playwright.inspect'?($artifacts['reference']??null):null;
+    $html=$name==='playwright.inspect'?($artifacts[$target]??null):null;
     $viewports=$artifacts['viewports']??null;
-    if($name==='playwright.inspect'&&($target!=='reference'||!is_string($html)||
+    if($name==='playwright.inspect'&&(!is_string($html)||
         !is_array($viewports)||!$viewports))
-        return new WP_Error('sm_tool_input','Server-owned reference HTML and viewports are required.');
+        return new WP_Error('sm_tool_input','Server-owned inspection HTML and viewports are required.');
     if($name==='compiler.validate'&&($target!=='plan'||!is_array($plan)))
         return new WP_Error('sm_tool_input','Server-owned native plan is required.');
     $fingerprint=hash('sha256',$name==="playwright.inspect"?$html:wp_json_encode($plan));
@@ -164,7 +166,7 @@ function syndamorph_production_tool_cached_inspection(string $html,array $viewpo
  */
 function syndamorph_production_tool_followup(string $reply,string $role,string $stage,
     string $instruction,array $context,int $cap,array $images,float $reserve,
-    array $viewports,?callable $on_event,callable $call) {
+    array $viewports,?callable $on_event,callable $call,array $artifacts=array()) {
     $parsed=json_decode(syndamorph_native_json_text($reply),true);
     if(!is_array($parsed)||($parsed['action']??'')!=='tool_request')return null;
     $depth=(int)($context['_toolDepth']??0);
@@ -173,11 +175,19 @@ function syndamorph_production_tool_followup(string $reply,string $role,string $
     $request=(array)($parsed['toolRequest']??array());
     $reference=$context['reference']??($GLOBALS['syndamorph_current_reference']??null);
     $toolResult=syndamorph_production_tool_request($role,$request,
-        array('reference'=>$reference,'viewports'=>$viewports,
-            'plan'=>$context['plan']??null),$on_event);
+        $artifacts+array('reference'=>$reference,'viewports'=>$viewports,'plan'=>$context['plan']??null),$on_event);
     if(is_wp_error($toolResult))return $toolResult;
     $context['_toolDepth']=$depth+1;
+    if(($request['name']??'')==='playwright.inspect' && in_array($stage,array('repair','revision_validation'),true)) {
+        $native=($request['target']??'')==='native';
+        // Replace the matching excerpts with the receipt for the same artifact.
+        unset($context[$native?($stage==='repair'?'nativeMeasurements':'measurements'):'referenceMeasurements']);
+        foreach($toolResult['evidence']['viewports'] as &$viewport) {
+            $viewport['elements']=array_slice($viewport['elements'],0,12);
+        }
+        unset($viewport);
+    }
     $context['toolEvidence']=$toolResult;
     $context['toolFollowup']='Use the attached measured evidence to complete the original task. Do not request the same tool repeatedly.';
-    return $call($role,$instruction,$context,$cap,$images,$stage,$reserve);
+    return $call($role,$instruction,$context,$cap,$images,$stage,$reserve,$artifacts);
 }

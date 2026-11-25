@@ -6,6 +6,37 @@
 
 **Acceptance state** Engineering implemented and deterministically verified. Live Haiku 5.5 effectiveness and production acceptance require review.
 
+## Independent investigation of GEN-000019 through GEN-000023
+
+GEN-000023 used the budget-aware scheduler and reached implementation QA. It still stopped with three open findings and editor verification pending. The archive establishes the following causes in severity order.
+
+| Severity | Confirmed cause | Correction and regression evidence |
+| --- | --- | --- |
+| High | The native browser preview approximated core's layout and omitted theme-owned defaults. Both compiler repairs in GEN-000023 preserved the requested values. The layout mismatch was a vertical Stack allocating its constrained child at the start edge, with additional padding on the actual core rendering. | Production previews now render the parsed blocks through WordPress core and collect the applicable style-engine rules. The editable serialization stays separate and unchanged. The compiler reports the applied native layout attributes and exact field moves. A measured single-child Stack correction can stretch the parent and remove undeclared theme padding only when the centered reference provides evidence for both. |
+| High | Boss approved an HTML reference with observed native-incompatible wrapping and a mobile-only full-width CTA. The model's narrative deviation did not make those effects native. Reference and native captures also started with different default body margins. | Inspection protocol 2 puts both fragments in the same browser frame. It observes percentage/auto CTA widths and checks whether removing special wrapping actually changes line geometry. The Orchestrator preserves Boss's decision and blocks conversion until the effect is revised or Boss requests a human design decision. Quality acceptance still compares the approved artifact to browser evidence. |
+| High | The first Developer repair used the role name as the assignment ID. No edit reached the compiler. The generic rejection led Developer to treat the valid gap change as already tried. Later requests could inspect the reference but had no tool access to the retained native artifact. | Repair requests now bind to the server-owned assignment and use explicit edit targets. A legacy owner echo is still validated. Rejections record the expected ID and whether edits ran. The read-only tool exposes the verified native artifact only during implementation and scoped repair, with a hash and cache receipt. |
+| Medium | The schema excluded alignment of constrained children even though WordPress supports horizontal justification in a constrained Group. That made it difficult to reproduce a narrower, left-aligned intro inside a centered column. | The constrained Group now accepts contentAlignment with its native width. This is separate from vertical Stack alignment. A real Gutenberg fixture round-trips and renders the left-aligned constraint. |
+| Historical | GEN-000019 needed safe shorthand repairs, GEN-000020 had a false added-copy finding and a real CTA discrepancy, GEN-000021 retained a partial improvement, and GEN-000022 exhausted a fixed QA response allowance at 6,144 tokens. | Existing compiler, copy and partial-retention safeguards remain active. GEN-000022's allocation fix is in the starting checkpoint. The budget regression fixture now tests the spend boundary with the adaptive allocator. |
+
+WordPress 7.1.2 renders per-block responsive styles. A direct core probe generated a mobile 100% width on the Button wrapper while the visible anchor stayed intrinsic. Responsive element selectors also missed that anchor. The single-CTA plan retains fixed full-width support. Mobile-only full width remains a limitation of the validated single-Button mapping. Fluid direct blockGap is still limited by core sanitization. Site-specific theme defaults remain visible in evidence. [WordPress responsive styles](https://make.wordpress.org/core/2026/08/05/responsive-block-styles-and-configurable-viewports-in-wordpress-7-1/)
+
+### Read-only replay results
+
+All five archived jobs were inspected or recompiled without provider calls. GEN-000019 compiled after its two historical deterministic field corrections. GEN-000020's complete reference and native copy matched and its mobile-only CTA width was measured. GEN-000021 still contained different literal copy, and the reference used effective balanced wrapping and a mobile-only full-width CTA. GEN-000022's recovered Developer plan compiled after three alignment-location fixes. Its last Boss response was incomplete and was excluded from replay.
+
+GEN-000023's inner Group compiled to core constrained layout with a 44rem content size and 1.5rem block gap. Its first patch was rejected solely at the owner field. The browser measurements from the same compiled plan show the reproduced implementation defect and the effect of the scoped native corrections.
+
+| Evidence | Old archived preview | WordPress core baseline | After the measured parent and intro corrections | Normalized reference |
+| --- | ---: | ---: | ---: | ---: |
+| Heading left edge at 375 CSS px | 20 | 50 | 20 | 20 |
+| Heading left edge at 768 CSS px | 38.4 | 76.8 | 38.4 | 38.4 |
+| Heading left edge at 1440 CSS px | 64 | 114 | 368 | 368 |
+| Intro lines at 768 CSS px | 2 | 3 | 3 | 3 |
+
+Stretching the parent alone initially left the intro at two lines at 768 px. The additional left-aligned constrained Group restored the intended paragraph measure and three-line wrap. The final probe kept complete literal copy and native IDs. The original reference's special heading wrapping and mobile-only CTA remained visible limitations. No artifact was promoted.
+
+Build the plugin and renderer together before native production. Old snapshots remain readable in History and are never rewritten. A protocol 1 renderer fails the new preflight before any provider calls. Existing published versions remain isolated. Paid AI production was not used to validate this investigation.
+
 ## GEN-000022 output budget correction
 
 GEN-000022 exhausted an artificial 6,144-token Boss QA cap while most of the $1.00 job budget remained. Per-task quotas are removed: each call receives an output allowance determined by remaining authorized dollars, conservative input reservations and the selected provider/model output ceiling (Haiku 5.5: 128K). The 80% corrective-work gate and protected 20% Boss reserve are unchanged. Future scoped QA reserves dollars rather than a hard 4,096-token allowance. The HTML POC uses the same budget-aware calculation. Independent streaming size/safety bounds and complete-response validation still apply. **Live verification is pending.**

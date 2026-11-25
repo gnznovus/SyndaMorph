@@ -28,7 +28,7 @@ function wp_remote_retrieve_header($r,$name) { return $r['headers'][$name]??''; 
 function inspection_reply(array $data,int $status=200): array {
     $body=json_encode($data);
     return array('status'=>$status,'body'=>$body,'headers'=>array(
-        'content-length'=>strlen($body),'x-syndamorph-inspection-protocol'=>'1',
+        'content-length'=>strlen($body),'x-syndamorph-inspection-protocol'=>'2',
         'x-syndamorph-renderer-build'=>str_repeat('a',64),
     ));
 }
@@ -40,7 +40,7 @@ function syndamorph_ai_saved_key($provider) { return $provider === 'anthropic' ?
 function wp_remote_get($url,$args) {
     if($url==='http://renderer:3000/healthz') {
         if(isset($GLOBALS['inspection_health']))return $GLOBALS['inspection_health'];
-        return inspection_reply(array('service'=>'syndamorph-renderer','inspectionProtocol'=>1,'build'=>str_repeat('a',64),
+        return inspection_reply(array('service'=>'syndamorph-renderer','inspectionProtocol'=>2,'build'=>str_repeat('a',64),
             'maxResponseBytes'=>3602048,'maxScreenshotBytes'=>400000));
     }
     $GLOBALS['model_fetches']++;
@@ -72,7 +72,8 @@ function wp_remote_post($url,$args) {
         return inspection_reply(array('evidence'=>array_map(
             static fn($width)=>array('width'=>$width,'screenshot'=>inspection_fixture_jpeg($width),'a11y'=>array(),'snapshot'=>array(
                 'overflow'=>false,'elements'=>array(array('tag'=>'H2','id'=>'','text'=>'Welcome & enjoy',
-                'rect'=>array(0,0,300,70),'styles'=>array('fontSize'=>'32px','fontWeight'=>'700','color'=>'rgb(0, 0, 0)','letterSpacing'=>'normal'))))),
+                'rect'=>array(0,0,300,70),'wrapChangesGeometry'=>str_contains($input['html'],'text-wrap:balance'),
+                'styles'=>array('textWrapStyle'=>'balance','fontSize'=>'32px','fontWeight'=>'700','color'=>'rgb(0, 0, 0)','letterSpacing'=>'normal'))))),
             $input['viewports'])));
     }
     if ($url !== 'https://api.anthropic.com/v1/messages') throw new RuntimeException('Unexpected generation endpoint');
@@ -86,7 +87,29 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    if(!empty($GLOBALS['capability_blocker_test'])){
+    if(!empty($GLOBALS['design_feasibility_test'])){
+        $text=match($i){
+            1=>'{"title":"Design capability gate","sections":["Hero"],"constraints":["Native blocks"],"acceptance":["Editable native layout"]}',
+            2=>'<section><style>section h2{text-wrap:balance}</style><h2>Welcome &amp; enjoy</h2></section>',
+            3,6,8=>'{"decision":"approved","issues":[]}',
+            4=>'{"decision":"changes_requested","issues":[{"target":"Heading","problem":"Measured balancing changes wrapping","requiredChange":"Use natural wrapping"}]}',
+            5=>'{"edits":[{"find":"text-wrap:balance","replace":"text-wrap:wrap"}]}',
+            7=>$GLOBALS['native_fixture'],
+            default=>throw new RuntimeException('Unexpected native capability gate call '.$i),
+        };
+    }elseif(!empty($GLOBALS['scoped_receipt_test'])){
+        $text=match($i){
+            1=>'{"title":"Repair receipts","sections":["Hero"],"constraints":["Native blocks"],"acceptance":["Valid native output"]}',
+            2=>'<section><h2>Welcome &amp; enjoy</h2></section>',
+            3,9=>'{"decision":"approved","issues":[]}',
+            4=>$GLOBALS['native_fixture'],
+            5=>'{"decision":"changes_requested","issues":[{"id":"heading-type","component":"blocks[0].children[0]","severity":"medium","detail":"Use a larger heading font"}]}',
+            6=>'{"id":"developer","changes":[{"target":"blocks[0].children[0]","path":"style.fontSize","value":"2.5rem"}]}',
+            7=>'{"action":"tool_request","toolRequest":{"name":"playwright.inspect","target":"native","reason":"Verify which native heading was rendered"}}',
+            8=>'{"changes":[{"target":"blocks[0].children[0]","path":"style.fontSize","value":"2.5rem"}]}',
+            default=>throw new RuntimeException('Unexpected scoped receipt call '.$i),
+        };
+    }elseif(!empty($GLOBALS['capability_blocker_test'])){
         $text=match($i){
             1=>'{"title":"Native capability blocker","sections":["Hero"],"constraints":["Native blocks"],"acceptance":["Valid output"]}',
             2=>'<section><h2>Welcome &amp; enjoy</h2></section>',
@@ -433,6 +456,40 @@ expect(count($GLOBALS['generations'][2]['messages'][0]['content'])===3,'Boss did
 expect(str_contains(wp_json_encode($GLOBALS['generations'][3]['system']),'JSON'),'Native developer contract missing');
 expect(($GLOBALS['generations'][3]['system'][0]['cache_control']['type']??null)==='ephemeral','Cache prefix absent');
 expect($GLOBALS['generations'][0]['system'][0]===$GLOBALS['generations'][4]['system'][0],'Shared cache prefix not stable');
+$finishFixture=$GLOBALS['native_fixture'];
+$finishCropCalls=$GLOBALS['crop_calls']??0;
+$GLOBALS['design_feasibility_test']=true;
+$GLOBALS['generations']=array();$gateEvents=array();
+$reviewed=syndamorph_collab_run('Create a section with an editable heading.',false,
+    static function($type,$data)use(&$gateEvents):void {
+        if($type==='execution_gate'&&$data['stage']==='design_approval')$gateEvents[]=$data;
+    },false);
+unset($GLOBALS['design_feasibility_test']);
+expect(!is_wp_error($reviewed)&&$reviewed['status']==='needs_review'&&
+    array_column($gateEvents,'agentDecision')===array('approved','changes_requested','approved')&&
+    array_column($gateEvents,'executionStatus')===array('blocked','blocked','ready')&&
+    str_contains($reviewed['referenceHtml'],'text-wrap:wrap'),
+    'A measured non-native effect must return to design and clear before Developer starts');
+$GLOBALS['scoped_receipt_test']=true;
+$GLOBALS['generations']=array();$probeReceipts=array();
+$repaired=syndamorph_collab_run('Repair the scoped heading.',false,
+    static function($type,$data)use(&$probeReceipts):void {
+        if($type==='tool_invocation')$probeReceipts[]=$data;
+    },false);
+unset($GLOBALS['scoped_receipt_test']);
+expect(!is_wp_error($repaired)&&$repaired['status']==='needs_review'&&
+    count($repaired['quality']['revisions'])===2&&
+    $repaired['quality']['revisions'][0]['contractDiagnostic']['expected']==='blocks[0].children[0]'&&
+    $repaired['quality']['revisions'][0]['contractDiagnostic']['received']==='developer'&&
+    $repaired['quality']['revisions'][0]['contractDiagnostic']['editsNotEvaluated']&&
+    $repaired['quality']['revisions'][1]['accepted']&&
+    $probeReceipts[0]['target']==='native'&&$probeReceipts[0]['cache']==='hit'&&
+    !str_contains($GLOBALS['generations'][7]['messages'][0]['content'][0]['text'],'<!-- wp:'),
+    'Ownership errors must not discredit unapplied edits, and repair must receive only server-bound inspection evidence');
+$GLOBALS['native_fixture']=$finishFixture;
+$GLOBALS['crop_calls']=$finishCropCalls;
+$GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
+
 // GEN-000020: once Developer reports an unsupported native capability,
  // stop paid style/structure retries and escalate exactly once to Boss.
 $GLOBALS['capability_blocker_test']=true;
@@ -953,7 +1010,7 @@ expect(in_array('blocks[0].children[1]',$revised['quality']['revisions'][0]['imp
 
 $GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
 // Admit initial screenshot QA with the cached contract overhead, but not the full revision reserve.
-$GLOBALS['cutoff_fixture']=74000;
+$GLOBALS['cutoff_fixture']=94000;
 $cropsBeforeCutoff=$GLOBALS['crop_calls'];
 $GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=0.015;
 $cutoff=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');

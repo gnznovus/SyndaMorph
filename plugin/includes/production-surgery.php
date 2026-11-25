@@ -50,7 +50,7 @@ function syndamorph_surgery_apply(array $plan,array $proposal,?array $authorized
     $scope=syndamorph_collab_find($plan['blocks'],$owner);
     if($scope===null)return new WP_Error('sm_surgery_target','Assigned repair component not found.');
     $allowed=array('color','background','gradient','fontSize','fontWeight','lineHeight','letterSpacing',
-        'textTransform','padding','margin','gap','minHeight','contentWidth','justifyContent','verticalAlignment','align','borderRadius','width');
+        'textTransform','padding','margin','gap','minHeight','contentWidth','contentAlignment','justifyContent','verticalAlignment','align','borderRadius','width');
     $touches=array();
     foreach($changes as $change){
         if(!is_array($change)||!is_string($change['path']??null)||
@@ -95,13 +95,37 @@ function syndamorph_surgery_apply(array $plan,array $proposal,?array $authorized
         'impact'=>syndamorph_collab_impact($base,$plan),'touched'=>array_keys($touches));
 }
 
+/**
+ * The Orchestrator owns the assignment. New responses address edits directly
+ * to their targets. Archived responses may still echo the assigned owner.
+ */
+function syndamorph_surgery_check_response($proposal,array $authority): ?WP_Error {
+    if(!is_array($proposal))return new WP_Error('sm_surgery_contract','Repair did not return a JSON operation.',
+        array('field'=>'response','expected'=>'JSON object','editsNotEvaluated'=>true));
+    if(array_key_exists('id',$proposal) && $proposal['id']!==$authority['id']) {
+        return new WP_Error('sm_surgery_owner','Repair response echoed a different assignment owner. No edits were evaluated.',
+            array('field'=>'id','expected'=>$authority['id'],
+                'received'=>is_string($proposal['id'])?mb_substr($proposal['id'],0,100):null,'editsNotEvaluated'=>true));
+    }
+    if(!isset($proposal['id']) && is_array($proposal['changes']??null)) {
+        foreach($proposal['changes'] as $index=>$change) {
+            if(!is_string($change['target']??null))return new WP_Error('sm_surgery_target',
+                'Each change must explicitly identify its target.',
+                array('field'=>'changes['.$index.'].target','expected'=>'authorized component ID','editsNotEvaluated'=>true));
+        }
+    }
+    return null;
+}
+
 /** Apply one authorized style or layout operation to an isolated copy. */
 function syndamorph_surgery_operation(array $plan,array $proposal,array $authority) {
+    $error=syndamorph_surgery_check_response($proposal,$authority);
+    if($error)return $error;
     $id=$authority['id'];
     $authorized=$authority['nodes'];
     $changes=$proposal['changes']??array();
     $wraps=$proposal['wraps']??array();
-    if(($proposal['id']??null)!==$id || !is_array($changes)||!array_is_list($changes) ||
+    if(!is_array($changes)||!array_is_list($changes) ||
         !is_array($wraps)||!array_is_list($wraps) || count($wraps)>2 ||
         count($changes)+count($wraps)<1 || count($changes)+count($wraps)>8) {
         return new WP_Error('sm_surgery_contract','Expected one to eight scoped style changes or authorized wraps.');
@@ -133,7 +157,7 @@ function syndamorph_surgery_operation(array $plan,array $proposal,array $authori
             !is_string($groupId)||!preg_match('/^[a-zA-Z0-9_-]{1,80}$/D',$groupId) ||
             syndamorph_collab_find($candidate['blocks'],$groupId)!==null ||
             !is_array($children)||!array_is_list($children)||count($children)<1||count($children)>12 ||
-            !is_array($style)||array_diff(array_keys($style),array('contentWidth','justifyContent','verticalAlignment','gap','minHeight','padding'))) {
+            !is_array($style)||array_diff(array_keys($style),array('contentWidth','contentAlignment','justifyContent','verticalAlignment','gap','minHeight','padding'))) {
             return new WP_Error('sm_surgery_structure','Wrap exceeds the assigned native layout scope.');
         }
         foreach($children as $child)if(!is_string($child)||!in_array($child,$authorized,true)) {
@@ -209,11 +233,14 @@ function syndamorph_surgery_normalize(array $plan,array $diagnostic): ?array {
     $before=$target;
     if(isset($target['style'])&&!is_array($target['style']))return null;
     $key=$focus['property'];
+    $normalization=null;
     $nativeStyle=array('color','background','gradient','fontSize','fontWeight','lineHeight','letterSpacing','textTransform','width',
-        'padding','margin','gap','minHeight','contentWidth','justifyContent','verticalAlignment','align','borderRadius');
+        'padding','margin','gap','minHeight','contentWidth','contentAlignment','justifyContent','verticalAlignment','align','borderRadius');
     // Unsupported node-level style properties can be moved without changing their values.
     if(in_array($key,$nativeStyle,true)&&array_key_exists($key,$target)&&!array_key_exists($key,$target['style']??array())){
         $target['style'][$key]=$target[$key];unset($target[$key]);
+        $normalization=array('operation'=>'move_style_key','component'=>$focus['id'],
+            'from'=>$key,'to'=>'style.'.$key,'preservedValue'=>$target['style'][$key]);
     }elseif($key==='style.typography' && is_array($target['style']['typography']??null)){
         $nested=$target['style']['typography'];$supported=array('fontSize','fontWeight','lineHeight','letterSpacing','textTransform');
         if(array_diff(array_keys($nested),$supported) || array_intersect(array_keys($nested),array_keys($target['style'])))return null;
@@ -249,7 +276,7 @@ function syndamorph_surgery_normalize(array $plan,array $diagnostic): ?array {
         $target['style'][$m[1]]='#'.implode('',array_map(static fn($v)=>$v.$v,str_split($hex[1])));
     }else return null;
     if($target===$before)return null;
-    return array('plan'=>$plan,'id'=>$focus['id'],'property'=>$key);
+    return array('plan'=>$plan,'id'=>$focus['id'],'property'=>$key,'normalization'=>$normalization);
 }
 /** Deterministic compiler-first transaction: never modify input or commit failed patches. */
 function syndamorph_compiler_auto_repair(array $plan,array $diagnostic) {
@@ -268,7 +295,7 @@ function syndamorph_compiler_auto_repair(array $plan,array $diagnostic) {
     // advances. Other remaining schema defects are repaired in later rounds.
     return array('plan'=>$candidate['plan'],
         'compiled'=>!is_wp_error($verified),'next'=>$verified,
-        'field'=>$field,'repair'=>$candidate['property']??'');
+        'field'=>$field,'repair'=>$candidate['property']??'','normalization'=>$candidate['normalization']);
 }
 /** Both compiler and QA submit to an identical transactional validation boundary. */
 function syndamorph_surgery_verify(array $before,array $candidate,?callable $visualGate=null) {

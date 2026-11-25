@@ -238,11 +238,83 @@ function syndamorph_reference_capability_notes(string $html): array {
     if(preg_match('/<\\s*(?:img|video|svg|canvas|table|ul|ol)\\b/i',$html))$notes[]='Reference contains elements outside current native block schema.';
     return $notes;
 }
+/**
+ * Active effects that the native section contract cannot render. The renderer
+ * supplies observed style and geometry at the requested widths.
+ */
+function syndamorph_reference_unrealizable(array $samples): array {
+    $features=array();$controlWidths=array();
+    foreach($samples as $sample) {
+        $width=$sample['width'];
+        foreach($sample['snapshot']['elements']??array() as $index=>$element) {
+            $tag=$element['tag']??'';
+            $target=mb_substr((string)($element['normalizedText']??$element['text']??''),0,110);
+            $wrap=$element['styles']['textWrapStyle']??null;
+            if(in_array($wrap,array('balance','pretty'),true) && ($element['wrapChangesGeometry']??false)===true) {
+                $key='text-wrap|'.$index;
+                $features[$key]['capability']='text-wrap';
+                $features[$key]['target']=$target;
+                $features[$key]['views'][$width]=$wrap;
+            }
+            if(in_array($tag,array('A','BUTTON'),true) && !empty($element['rect'][2]) && isset($element['widthValue'])) {
+                $controlWidths[$index]['target']=$target;
+                $controlWidths[$index]['views'][$width]=array('value'=>$element['widthValue'],'borderBox'=>$element['rect'][2]);
+            }
+        }
+    }
+    foreach($controlWidths as $index=>$control) {
+        $percent=array_column($control['views'],'value');
+        if(in_array('100%',$percent,true) && in_array('auto',$percent,true)) {
+            $features['responsive-cta-width|'.$index]=array(
+                'capability'=>'responsive-cta-width','target'=>$control['target'],'views'=>$control['views']);
+        }
+    }
+    return array_values($features);
+}
+
 function syndamorph_repair_content_signature(array $node): array {
     $result=array();
     if(isset($node['text']))$result[]=array('text'=>$node['text'],'href'=>$node['href']??null,'type'=>$node['type']??null);
     foreach($node['children']??array() as $child)if(is_array($child))$result=array_merge($result,syndamorph_repair_content_signature($child));
     return $result;
+}
+
+/**
+ * In a vertical Stack, a sole constrained child can shrink and stay at the
+ * start edge even though its own children have a valid contentSize.
+ */
+function syndamorph_repair_constrained_parent(array $node,array $reference,array $native): ?array {
+    $inner=$node['children'][0]??array();
+    if(($node['type']??'')!=='group'||
+        array_key_exists('contentWidth',$node['style']??array()) ||
+        !in_array($node['style']['justifyContent']??'left',array('left','center'),true) ||
+        count($node['children']??array())!==1||($inner['type']??'')!=='group'||
+        !isset($inner['id'],$inner['style']['contentWidth'])||!$reference||count($reference)!==count($native))return null;
+    $needsStretch=false;$nativePadding=false;$referenceHasPadding=false;
+    foreach($reference as $i=>$sample) {
+        $ref=$sample['snapshot']['elements']??array();
+        $out=$native[$i]['snapshot']['elements']??array();
+        $bounded=array_values(array_filter($out,static fn($el)=>($el['node']??null)===$inner['id']));
+        $pairs=syndamorph_collab_pairs($ref,$out,array('blocks'=>array($node)));
+        $parents=array_values(array_unique(array_column(array_column($pairs,'reference'),'parent')));
+        if(count($pairs)<2||count($parents)!==1||!isset($ref[$parents[0]],$out[0],$bounded[0]))return null;
+        $frame=$ref[$parents[0]];
+        $root=$ref[0]['rect']??array();$r=$frame['rect']??array();$n=$bounded[0]['rect']??array();
+        $nativeRoot=$out[0]['rect']??array();
+        if(count($root)!==4||count($r)!==4||count($n)!==4||count($nativeRoot)!==4||
+            ($out[0]['node']??null)!==$node['id']||($out[0]['styles']['display']??null)!=='flex')return null;
+        $center=static fn(array $box):float=>$box[0]+$box[2]/2;
+        if(abs($center($root)-$center($r))>2)return null;
+        $needsStretch=$needsStretch||abs($center($nativeRoot)-$center($n))>12;
+        $referenceHasPadding=$referenceHasPadding||($frame['styles']['padding']??null)!=='0px';
+        $nativePadding=$nativePadding||(isset($bounded[0]['styles']['padding'])&&$bounded[0]['styles']['padding']!=='0px');
+    }
+    if(!$needsStretch)return null;
+    $changes=array(array('target'=>$node['id'],'path'=>'style.justifyContent','value'=>'stretch'));
+    if(!$referenceHasPadding && $nativePadding && !isset($inner['style']['padding']))
+        $changes[]=array('target'=>$inner['id'],'path'=>'style.padding','value'=>0);
+    return array('changes'=>$changes,
+        'diagnosis'=>'The centered reference column and the native constrained Group have different parent allocation. Stretch the sole inner Group so its constraint can center its children.');
 }
 
 /** Container correction from unambiguous, stable alignment evidence.

@@ -57,13 +57,27 @@ const {chromium}=require('../backend/node_modules/playwright');
      preview:await measure(value.preview,selector),frontend:await measure(value.frontend,selector),
     });
     return {
+     leftConstrained:await measure(window.nativeFixtures['left aligned constrained child'].preview,'h2'),
+     nativeStack:await measure(window.nativeFixtures['constrained child in default stack'].preview,'[data-sm-node="stack-heading"]'),
+     correctedStack:await measure(window.nativeFixtures['constrained child in stretched stack'].preview,'[data-sm-node="stack-heading"]'),
      constrained:await compare(window.nativeParity,'.wp-block-group > h2,.wp-block-group > p,.wp-block-group > .wp-block-buttons'),
      flex:await compare(window.nativeParity.flex,'.wp-block-group,.wp-block-group > h2,.wp-block-group > p'),
      columns:await compare(window.nativeParity.columns,'.wp-block-column'),
      hybrid:await compare(window.nativeParity.hybrid,'.wp-block-group, .wp-block-group > h2, .wp-block-group > p'),
      fullWidth:window.nativeParity.fullWidth && await compare(window.nativeParity.fullWidth,'.wp-block-buttons,.wp-block-button__link'),
+     responsiveCoreWrapper:window.nativeParity.responsiveCoreWrapper && await measure(window.nativeParity.responsiveCoreWrapper,'.wp-block-button,.wp-block-button__link'),
     };
    },width);
+   assert.ok(Math.abs(geometry.leftConstrained[0][0])<1);
+   assert.ok(Math.abs(geometry.leftConstrained[0][1]-Math.min(400,width))<1);
+   assert.equal(geometry.nativeStack.length,1);
+   assert.equal(geometry.correctedStack.length,1);
+   const [corrected]=geometry.correctedStack;
+   assert.ok(Math.abs(corrected[0]+corrected[1]/2-width/2)<1,'A stretched native Stack must center the constrained child');
+   if(width===1440) {
+    assert.ok(geometry.nativeStack[0][0]<corrected[0]-100,'Default Stack should reproduce the left allocation defect');
+    assert.ok(Math.abs(corrected[1]-704)<1,'The native constraint must remain effective after the parent correction');
+   }
    const constrained=geometry.constrained;
    assert.equal(constrained.preview.length,3);
    assert.equal(constrained.frontend.length,3);
@@ -90,6 +104,11 @@ const {chromium}=require('../backend/node_modules/playwright');
    if(geometry.fullWidth)for(const [buttons,link] of Object.values(geometry.fullWidth)){
     assert.equal(link[4],'lowercase');
     assert.ok(Math.abs(buttons[1]-link[1])<1 && Math.abs(buttons[0]-link[0])<1,'Fixed width CTA must fill its container in preview and core');
+   }
+   if(width===375 && geometry.responsiveCoreWrapper) {
+    const [wrapper,link]=geometry.responsiveCoreWrapper;
+    assert.ok(Math.abs(wrapper[1]-width)<1,'WordPress must apply responsive width to the Button wrapper');
+    assert.ok(link[1]<wrapper[1]-20,'A full-width wrapper must not be mistaken for a full-width CTA link');
    }
    for(const boxes of Object.values(geometry.columns)){
     assert.equal(boxes.length,2);

@@ -6,7 +6,7 @@ const { readdirSync, readFileSync } = require('node:fs');
 const { createRendererServer, runBrowserWorker } = require('./server');
 const { MAX_RESPONSE, MAX_COMPARE_REQUEST } = require('./inspection-contract');
 
-const inspect = (url, widths = [1440, 768, 375], protocol = 1) => fetch(url + '/inspect', {
+const inspect = (url, widths = [1440, 768, 375], protocol = 2) => fetch(url + '/inspect', {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ html: '<section>fixture</section>', viewports: widths, inspectionProtocol: protocol }),
 });
@@ -26,7 +26,7 @@ test('runtime handshake and viewport request validation happen before Chromium',
     });
     const health = await fetch(url + '/healthz');
     const info = await health.json();
-    assert.equal(health.headers.get('x-syndamorph-inspection-protocol'), '1');
+    assert.equal(health.headers.get('x-syndamorph-inspection-protocol'), '2');
     assert.match(info.build, /^[a-f0-9]{64}$/);
     assert.equal(info.maxResponseBytes, MAX_RESPONSE);
     const stale = await inspect(url, [375], 999);
