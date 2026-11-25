@@ -496,6 +496,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if(is_wp_error($reference))return $reference;
     $approval=array('decision'=>'rejected','issues'=>array());
     $approvedReference=false;$designReviews=0;$handoffs=array($assignment);
+    $priorDesignMeasurements=null;$priorDesignReview=null;$priorDesignDiff=null;
     for($designRound=1;;$designRound++){
         $reference=trim($reference);
         if(preg_match('/^`{3}(?:html)?\\s*([\\s\\S]*?)\\s*`{3}$/iD',$reference,$fenced))$reference=trim($fenced[1]);
@@ -511,16 +512,38 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         }
         $referenceImages=array_map(static fn($sample)=>array('media_type'=>'image/jpeg','data'=>$sample['screenshot']),
             array_values(array_intersect_key($inspectReference,array_flip($visionViewports))));
-        $review=$call('boss','Review the Designer reference against the brief, native compiler contract and browser evidence. Return JSON {"decision":"approved|changes_requested","issues":[{"target":"section","problem":"precise defect","requiredChange":"specific revision"}],"acceptedCapabilityDeviations":[{"note":"exact supplied note","reason":"why the reference remains valid with a native alternative"}],"summary":"brief decision"}. Resolve native capability limitations before freezing the reference. Request a Designer correction for any material unsupported requirement. Explicitly explain minor accepted deviations. At most three issues.',
-            array('requirements'=>$brief,'referenceSha256'=>hash('sha256',$reference),
-                'capabilityNotes'=>$capabilityNotes,
-                'measurements'=>syndamorph_memory_measurements($inspectReference),
-                'imageOrder'=>array_intersect_key($viewports,array_flip($visionViewports))),4096,$referenceImages,'final_approval');
+        $measurements=syndamorph_memory_measurements($inspectReference);
+        $reviewContext=array('requirements'=>$brief,'referenceSha256'=>hash('sha256',$reference),
+            'capabilityNotes'=>$capabilityNotes,
+            'imageOrder'=>array_intersect_key($viewports,array_flip($visionViewports)));
+        if($priorDesignMeasurements===null){
+            $reviewContext['measurements']=$measurements;
+            $reviewContext['reviewMode']='baseline';
+        }else{
+            $beforeMap=array();
+            foreach($priorDesignMeasurements as $item){
+                $beforeMap[hash('sha256',wp_json_encode($item))]=true;
+            }
+            $changedMeasurements=array_values(array_filter($measurements,
+                static fn($item)=>!isset($beforeMap[hash('sha256',wp_json_encode($item))])));
+            $reviewContext['reviewMode']='diff';
+            $reviewContext['previousDecision']=$priorDesignReview;
+            $reviewContext['appliedSurgery']=$priorDesignDiff;
+            $reviewContext['changedMeasurements']=array_slice($changedMeasurements,0,24);
+            $reviewContext['measurementSummary']=array('baseline'=>count($priorDesignMeasurements),
+                'current'=>count($measurements),'changed'=>count($changedMeasurements));
+        }
+        $review=$call('boss','Review the Designer reference against the brief, native compiler contract and browser evidence. In diff mode, rely on cached prior findings and examine changes, unresolved defects and any global regression visible in fresh evidence; never silently reapprove unresolved issues. Return JSON {"decision":"approved|changes_requested","issues":[{"target":"section","problem":"precise defect","requiredChange":"specific revision"}],"acceptedCapabilityDeviations":[{"note":"exact supplied note","reason":"why the reference remains valid with a native alternative"}],"summary":"brief decision"}. At most three issues.',
+            $reviewContext,4096,$referenceImages,'final_approval');
+        $priorDesignMeasurements=$measurements;
         if(is_wp_error($review))return $review;
         $parsed=json_decode(syndamorph_native_json_text($review),true);
         $approval=is_array($parsed)?$parsed:array('decision'=>'changes_requested','issues'=>array(
             array('target'=>'reference','problem'=>'Invalid review contract','requiredChange'=>'Submit structured decision')));
         $designReviews++;
+        $priorDesignReview=array('decision'=>$approval['decision']??'changes_requested',
+            'summary'=>mb_substr((string)($approval['summary']??''),0,400),
+            'issues'=>array_slice((array)($approval['issues']??array()),0,3));
         $decision=($approval['decision']??'')==='approved'?'approved':'changes_requested';
         $deviations=array();
         foreach((array)($approval['acceptedCapabilityDeviations']??array()) as $deviation) {
@@ -559,6 +582,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             if(is_wp_error($reference))return $reference;
         }else{
             $reference=$surgical['reference'];
+            $priorDesignDiff=array('beforeHash'=>hash('sha256',$beforeReference),
+                'afterHash'=>hash('sha256',$reference),'changes'=>$surgical['changes']);
             if($on_event)$on_event('design_surgery',array('status'=>'applied','round'=>$designRound,
                 'beforeHash'=>hash('sha256',$beforeReference),'afterHash'=>hash('sha256',$reference),
                 'changes'=>$surgical['changes']));
