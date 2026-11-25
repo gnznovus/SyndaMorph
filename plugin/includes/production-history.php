@@ -163,6 +163,40 @@ function syndamorph_job_resume_take(string $role,string $task){
     return $saved;
 }
 
+/** Persist the last valid native artifact with operator termination, not only its transient ID. */
+function syndamorph_job_control_payload(int $id,string $format,string $status,string $message): array {
+    $settings=syndamorph_models_settings();
+    $usage=array('inputTokens'=>0,'outputTokens'=>0,'cacheReadTokens'=>0,'cacheWriteTokens'=>0);
+    $metrics=array();$cost=0.0;$outputs=array();$artifact=null;
+    $calls=syndamorph_job_resume_calls($id);
+    if(is_array($calls))foreach($calls as $call){
+        $metric=(array)($call['metric']??array());
+        foreach($usage as $key=>$_)$usage[$key]+=(int)($metric[$key]??0);
+        $metrics[]=$metric;$cost+=(float)($metric['estimatedCostUsd']??0);
+        if($call['role']==='developer'&&$call['task']==='developer'&&$format==='html')
+            $outputs['developer']=$call['text'];
+    }
+    if($format==='gutenberg'){
+        global $wpdb;
+        list($_,$events)=syndamorph_history_tables();
+        $raw=$wpdb->get_var($wpdb->prepare(
+            "SELECT payload FROM $events WHERE job_id=%d AND event_type='working_plan' ORDER BY id DESC LIMIT 1",$id));
+        $recorded=is_string($raw)?json_decode($raw,true):null;
+        $workingId=$recorded['id']??'';
+        $saved=is_string($workingId)?syndamorph_surgery_load($workingId):null;
+        if(is_array($saved)&&is_array($saved['plan']??null)){
+            $compiled=syndamorph_compile_block_plan(wp_json_encode($saved['plan']));
+            if(!is_wp_error($compiled)){
+                $artifact=$compiled;$outputs['developer']=wp_json_encode($saved['plan']);
+            }
+        }
+    }
+    return array('status'=>$status,'controlAction'=>$status,'message'=>$message,
+        'outputType'=>$format,'model'=>(string)($settings['model']??''),
+        'artifact'=>$artifact,'outputs'=>$outputs,'usage'=>$usage,'agentMetrics'=>$metrics,
+        'estimatedCostUsd'=>round($cost,6),'elapsedMs'=>0,'published'=>false,
+        'resumeAvailable'=>$status==='paused');
+}
 function syndamorph_job_control_gate() {
     $id=(int)($GLOBALS['syndamorph_active_job_id']??0);
     $action=syndamorph_job_control_requested($id);
