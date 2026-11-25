@@ -500,7 +500,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $issues=$artifact?syndamorph_collab_block_issues($artifact):array();
         if($artifact)$artifact['contentSha256']=hash('sha256',$artifact['content']);
         $escalation=array('state'=>'pending','reason'=>'inspection_pending','blockerType'=>'missing_evidence',
-            'owner'=>'boss','decision'=>'await_renderer','nextAction'=>'Retry the missing visual QA on the saved artifact.');
+            'owner'=>'orchestrator','decision'=>'pending','nextAction'=>'Retry the missing visual QA on the saved artifact.');
         if($on_event)$on_event('inspection_error',$diagnostic);
         $reply=$call('boss','The required visual gate is Pending. Choose one bounded next action. Return only JSON {"decision":"await_renderer|manual_review_required|continue_independent","nextAction":"specific safe action"}. Continue only independent static work. Do not approve, invent evidence, replace requested widths, or regenerate the saved artifact.',
             array('inspection'=>$diagnostic,'completedIndependentChecks'=>$checks,'capabilityNotes'=>$capabilityNotes,
@@ -1183,7 +1183,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $escalation=array('state'=>'blocked','reason'=>$terminationReason,
             'issueIds'=>array_column($blocked,'id'),'attemptCount'=>count($revisions),
             'blockerType'=>syndamorph_repair_blocker_type($terminationReason,$prioritized,$revisions),
-            'owner'=>'boss','decision'=>'pending','nextAction'=>'scope_review');
+            'owner'=>'orchestrator','decision'=>'pending','nextAction'=>'scope_review');
         if($on_event)$on_event('repair_escalation',$escalation);
         $blockerOwners=array_values(array_unique(array_column($blocked,'component')));
         if(!$blockerOwners)$blockerOwners=array('boss');
