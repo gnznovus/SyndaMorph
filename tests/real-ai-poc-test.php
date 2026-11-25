@@ -499,6 +499,16 @@ expect(is_array($autoButtons)&&$autoButtons['compiled']===true &&
     $autoButtons['plan']['blocks'][0]['children'][0]===$badButtonsPlan['blocks'][0]['children'][0] &&
     array_key_exists('margin',$badButtonsPlan['blocks'][0]['children'][2]['style']),
     'Compiler auto-repair did not transactionally remove only invalid buttons.margin');
+$buttonId=$badButtonsPlan['blocks'][0]['children'][2]['id'];
+$explicitDelete=syndamorph_surgery_apply($badButtonsPlan,array('id'=>$buttonId,
+    'changes'=>array(array('path'=>'style.margin','op'=>'remove'))));
+$nullAssignment=syndamorph_surgery_apply($badButtonsPlan,array('id'=>$buttonId,
+    'changes'=>array(array('path'=>'style.margin','value'=>null))));
+expect(is_array($explicitDelete)&&!is_wp_error($explicitDelete['error']) &&
+    !array_key_exists('margin',$explicitDelete['plan']['blocks'][0]['children'][2]['style']) &&
+    is_array($nullAssignment)&&is_wp_error($nullAssignment['error']) &&
+    array_key_exists('margin',$nullAssignment['plan']['blocks'][0]['children'][2]['style']),
+    'Developer fallback must distinguish explicit remove operations from null assignment');
 $badGradientPlan=syndamorph_collab_ids($richPlan);
 $badGradientPlan['blocks'][0]['style']['gradient']='linear-gradient(135deg,#18283a 0%,#203040 100%)';
 $badGradientError=syndamorph_compile_block_plan(wp_json_encode($badGradientPlan));
