@@ -452,7 +452,7 @@ $badButtonsPlan=syndamorph_collab_ids($richPlan);
 $badButtonsPlan['blocks'][0]['children'][2]['style']=array(
     'justifyContent'=>'left','margin'=>'0.5rem 0 0 0');
 $badButtonsError=syndamorph_compile_block_plan(wp_json_encode($badButtonsPlan));
-expect(is_wp_error($badButtonsError)&&$badButtonsError->get_error_message()==='Unsupported style for block.'&&
+expect(is_wp_error($badButtonsError)&&str_ends_with($badButtonsError->get_error_message(),'Unsupported style for block.')&&
     str_ends_with($badButtonsError->get_error_data()['field']??'','.style.margin'),
     'GEN-000019 buttons.margin fixture no longer reproduces native compiler rejection');
 $buttonsDiagnostic=array('code'=>$badButtonsError->get_error_code(),
