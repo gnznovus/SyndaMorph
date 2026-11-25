@@ -99,6 +99,7 @@ function syndamorph_scope_status(array $manifest): array {
         if($region['attempts']) {
             $last=end($region['attempts']);
             $region['status']=$region['patternId']?'pattern_saved':$last['status'];
+            unset($region['checkpointAvailable'],$region['issue']);
             if(in_array($last['status'],array('failed','uncompleted','needs_review'),true)) {
                 $failure=syndamorph_history_latest($last['id'],'job_error');
                 $final=syndamorph_history_latest($last['id'],'job_complete');

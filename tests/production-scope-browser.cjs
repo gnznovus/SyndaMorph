@@ -133,6 +133,7 @@ async function verifyOverlayEvidence(browser) {
         assert.deepEqual(complete.page.placements.map(p=>p.id),archive.keys);
         assert.deepEqual(complete.page.placements.filter(p=>p.id!==middle).map(p=>p.patternId),partial.page.placements.map(p=>p.patternId));
         assert.equal(complete.regions[middle].attempts.length,2);
+        assert.equal(complete.regions[middle].issue,undefined);
         assert.equal(complete.regions[first].attempts.length,1);
         assert.equal(complete.regions[last].attempts.length,1);
 
