@@ -430,8 +430,8 @@ expect(is_array($autoJob) && count($GLOBALS['generations'])===5 &&
     $autoJob['surgery']['deterministic']===1 && $autoJob['surgery']['paidPatches']===0 &&
     count($autoEvents)===1 && $autoEvents[0]['requiresVisualQa']===true &&
     $GLOBALS['inspection_calls']===array('reference','native') &&
-    !array_key_exists('margin',$autoJob['surgery']['repairs'][0]??array()) &&
-    !array_key_exists('margin',$autoFixture['blocks'][0]['children'][2]['style'])===false,
+    !array_key_exists('margin',json_decode($autoJob['outputs']['developer']??'{}',true)['blocks'][0]['children'][2]['style']??array()) &&
+    array_key_exists('margin',$autoFixture['blocks'][0]['children'][2]['style']),
     'GEN-000019 should finish native compilation with one auto-repair and zero paid repair calls');
 $verifiedRules=syndamorph_learning_retrieve('developer');
 expect(count(array_filter($verifiedRules,static fn($rule)=>str_contains($rule,'buttons.style.margin')))>0,
