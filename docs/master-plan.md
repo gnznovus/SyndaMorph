@@ -3,6 +3,8 @@
 **Updated:** 2026-11-24 (Asia/Bangkok)  
 **Repository:** https://github.com/gnznovus/SyndaMorph  
 **Experimental branch:** `feat/secure-gateway-leasing-v1`  
+**GEN-000025 progression:** [Best candidate baseline and outcome-aware repairs](adaptive-surgery-hardening.md#gen-000025-and-the-verified-best-candidate).
+
 **GEN-000023 investigation:** [Ranked causes, replay, and remaining limits](adaptive-surgery-hardening.md#independent-investigation-of-gen-000019-through-gen-000023).
 
 **November 25 hardening checkpoint:** [GEN-000019 through GEN-000021 findings, tests, and GEN-000022 gate](adaptive-surgery-hardening.md).
@@ -48,6 +50,7 @@ Original team architecture includes a **temporary freelance worker** option for 
 | Isolated Playwright renderer and bounded native compiler | **DONE (existing)** | Known gaps for native fluid `blockGap`, `text-transform`, and advanced dynamic behavior. |
 | Adaptive Surgery v2 | **DONE (engineering)** | F01–F10 corrected; [commit `54a1833`](https://github.com/gnznovus/SyndaMorph/commit/54a1833354081a04421138b6e993b2c347ccdc1e); [MVP CI](https://github.com/gnznovus/SyndaMorph/actions/runs/45436215694) successful. |
 | GEN-000019 through GEN-000021 hardening | **DETERMINISTICALLY VERIFIED** | Scoped hybrid surgery, immutable handoffs, compiler rollback, native mappings, literal-copy QA and conservative metering. [Handoff and remaining limits](adaptive-surgery-hardening.md). |
+| Best Candidate Baseline and progressive repair eligibility | **DETERMINISTICALLY VERIFIED** | GEN-000025 replay, atomic promotion, rollback and duplicate detection. [Evidence](adaptive-surgery-hardening.md#gen-000025-and-the-verified-best-candidate). |
 | Surgery v2 with live AI across representative pages | **VALIDATION NEEDED — NEXT** | Deterministic benchmark success does not quantify live repair success or savings. |
 | Secure Gateway/client-key package leasing | **PARTIAL / EXPERIMENTAL** | Branch implementation and dedicated contract; not assumed production-accepted. |
 | AI Knowledge, full source+visual Boss discovery, custom block factory | **PLANNED** | Not part of Surgery v2 implementation. |
@@ -149,7 +152,7 @@ JS-rendered Hotel Indigo Bangkok Thonglor prototype: two-level navigation, hero 
 | 0 | HTML importer/patterns + released `v0.11.1` | **DONE**; stable branch/release protected. |
 | 1 | Real AI Team MVP + native compiler/Playwright foundations | **DONE (POC)**; not full production conversion. |
 | 2 | Adaptive Surgery v2 F01–F10 | **DONE (engineering)**; `54a1833`, CI, archived replay, deterministic benchmark. |
-| 3 | **Authorized follow-up after GEN-000023** | **NEXT — VALIDATION NEEDED**; actual provider usage, outcomes, Gutenberg integrity, and safe regressions. |
+| 3 | **Authorized follow-up after GEN-000025** | **NEXT — VALIDATION NEEDED**; actual provider usage, outcomes, Gutenberg integrity, and safe regressions. |
 | 4 | AI Knowledge management | **PLANNED**; board UI, role-scoped/versioned instructions, verified learning registry. |
 | 5 | Boss source+visual discovery and implementation manifest | **PLANNED**; auditable structural/behavior classification. |
 | 6 | Developer custom interactive block factory | **PLANNED**; registered reusable block with working editor/frontend. |
@@ -175,4 +178,4 @@ This order describes dependencies, **not promised release dates**. Do not expand
 - **Current branch:** `feat/secure-gateway-leasing-v1`; keep `main`, `v0.11.1`, published tags/releases and production behavior untouched until approval.
 - **Canonical source:** Update **this file in place** when a milestone changes; other documents link here and preserve historical POC procedures.
 - Record date, exact version/commit, tests/CI, actual limitations and acceptance class whenever moving a milestone.
-- **Next action:** obtain explicit approval for a follow-up Haiku 5.5 run after rebuilding the feature branch renderer and reviewing the GEN-000023 findings. AI Knowledge remains planned.
+- **Next action:** obtain explicit approval for a follow-up Haiku 5.5 run after rebuilding the feature branch renderer and reviewing the GEN-000025 findings. AI Knowledge remains planned.

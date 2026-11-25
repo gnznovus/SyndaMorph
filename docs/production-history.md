@@ -11,6 +11,8 @@ REF currently means deterministic Source Import, not reference-conditioned AI ge
 
 The November 25 hardening extends History with immutable repair handoffs, compiler correction outcomes, provider metering and literal-copy checksums. Original and corrected successful schema artifacts are preserved in private History. [Replay evidence and compatibility](adaptive-surgery-hardening.md#archive-replay)
 
+
+Verified GEN candidate versions have private full-artifact checkpoints. The latest checkpoint is authoritative during pause and stop, and its identity gates Resume before new provider calls. Revision records expose the before and after identities, operation signature, outcome and unresolved issues. [Progression and evidence contract](adaptive-surgery-hardening.md#gen-000025-and-the-verified-best-candidate)
 ## Acceptance
 
 1. Start one brief-only job and confirm GEN ID appears before generation, then the Boss title replaces the placeholder.

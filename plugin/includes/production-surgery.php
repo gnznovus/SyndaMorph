@@ -117,6 +117,41 @@ function syndamorph_surgery_check_response($proposal,array $authority): ?WP_Erro
     return null;
 }
 
+/** Identify the ordered edit intent independently of strategy labels and explanation. */
+function syndamorph_surgery_operation_identity(array $patch,array $assignment): array {
+    $changes=$patch['changes']??array();
+    if(is_array($changes))foreach($changes as &$change) {
+        if(!is_array($change))continue;
+        $change['target']=$change['target']??$assignment['id'];
+        $change['op']=$change['op']??'set';
+        if($change['op']==='remove')unset($change['value']);
+    }
+    unset($change);
+    $wraps=$patch['wraps']??array();
+    $targets=array($assignment['id']);
+    if(is_array($changes))array_push($targets,...array_column($changes,'target'));
+    if(is_array($wraps))foreach($wraps as $wrap) {
+        $targets[]=$wrap['parent']??null;
+        if(is_array($wrap['children']??null))array_push($targets,...array_values($wrap['children']));
+    }
+    $targets=array_values(array_unique(array_filter($targets,static fn($target)=>is_string($target)&&strlen($target)<=100)));
+    sort($targets);
+    return array('targets'=>$targets,'signature'=>SyndaMorph_Job_Memory::fingerprint(array(
+        'targets'=>$targets,'changes'=>$changes,'wraps'=>$wraps)));
+}
+
+function syndamorph_surgery_baseline_identity(array $candidate,string $referenceHash,int $version,int $round): array {
+    return array('version'=>$version,'round'=>$round,'referenceSha256'=>$referenceHash,
+        'planSha256'=>SyndaMorph_Job_Memory::fingerprint($candidate['plan']),
+        'contentSha256'=>hash('sha256',$candidate['artifact']['content']),
+        'previewSha256'=>hash('sha256',$candidate['artifact']['preview']),
+        'evidenceSha256'=>hash('sha256',wp_json_encode(array($candidate['evidence'],$candidate['metrics'],
+            $candidate['styles'],$candidate['comparison']))),
+        'issuesSha256'=>SyndaMorph_Job_Memory::fingerprint($candidate['issues']),
+        'reviewSha256'=>SyndaMorph_Job_Memory::fingerprint(array($candidate['bossFindings'],$candidate['bossApproved'])),
+        'score'=>$candidate['score']);
+}
+
 /** Apply one authorized style or layout operation to an isolated copy. */
 function syndamorph_surgery_operation(array $plan,array $proposal,array $authority) {
     $error=syndamorph_surgery_check_response($proposal,$authority);

@@ -115,7 +115,7 @@ function syndamorph_job_control_requested(int $id): string {
 function syndamorph_job_resume_signature(): string {
     $files=array('production-collaboration.php','ai-team-real.php',
         'production-block-plan.php','production-surgery.php','production-repair.php',
-        'production-tools.php','production-visual-qa.php','production-standards.php');
+        'production-tools.php','production-visual-qa.php','production-job-memory.php','production-standards.php');
     $digest='';
     foreach($files as $file)$digest.=hash_file('sha256',__DIR__.'/'.$file);
     return hash('sha256',$digest);
@@ -163,6 +163,30 @@ function syndamorph_job_resume_take(string $role,string $task){
     return $saved;
 }
 
+/** Read the most recent durable, private candidate. Older jobs may have only a working plan. */
+function syndamorph_history_best_candidate(int $id) {
+    global $wpdb;
+    list($_,$events)=syndamorph_history_tables();
+    $raw=$wpdb->get_var($wpdb->prepare(
+        "SELECT payload FROM $events WHERE job_id=%d AND event_type='candidate_baseline' ORDER BY id DESC LIMIT 1",$id));
+    if($raw===null)return null;
+    $record=json_decode((string)$raw,true);
+    $candidate=$record['candidate']??null;
+    $identity=$candidate['identity']??null;
+    if(!is_string($record['referenceHtml']??null)||!is_array($identity)||
+        !is_int($identity['version']??null)||!is_int($identity['round']??null)||
+        !is_array($candidate['plan']??null)||!is_string($candidate['artifact']['content']??null)||
+        !is_string($candidate['artifact']['preview']??null)||!is_array($candidate['styles']??null)||
+        !is_bool($candidate['bossApproved']??null)||!is_array($candidate['bossFindings']??null)||
+        !is_array($candidate['issues']??null)||!is_array($candidate['metrics']??null)||
+        !is_array($candidate['evidence']??null)||!is_array($candidate['comparison']??null)||
+        !is_int($candidate['score']??null)||
+        syndamorph_surgery_baseline_identity($candidate,hash('sha256',$record['referenceHtml']),
+            $identity['version'],$identity['round'])!==$identity)
+        return new WP_Error('sm_resume_baseline','The retained candidate could not be verified against its recorded identity.');
+    return $record;
+}
+
 /** Persist the last valid native artifact with operator termination, not only its transient ID. */
 function syndamorph_job_control_payload(int $id,string $format,string $status,string $message): array {
     $settings=syndamorph_models_settings();
@@ -176,24 +200,40 @@ function syndamorph_job_control_payload(int $id,string $format,string $status,st
         if($call['role']==='developer'&&$call['task']==='developer'&&$format==='html')
             $outputs['developer']=$call['text'];
     }
+    $referenceHtml=null;$quality=null;
     if($format==='gutenberg'){
-        global $wpdb;
-        list($_,$events)=syndamorph_history_tables();
-        $raw=$wpdb->get_var($wpdb->prepare(
-            "SELECT payload FROM $events WHERE job_id=%d AND event_type='working_plan' ORDER BY id DESC LIMIT 1",$id));
-        $recorded=is_string($raw)?json_decode($raw,true):null;
-        $workingId=$recorded['id']??'';
-        $saved=is_string($workingId)?syndamorph_surgery_load($workingId):null;
-        if(is_array($saved)&&is_array($saved['plan']??null)){
-            $compiled=syndamorph_compile_block_plan(wp_json_encode($saved['plan']));
-            if(!is_wp_error($compiled)){
-                $artifact=$compiled;$outputs['developer']=wp_json_encode($saved['plan']);
+        $savedBest=syndamorph_history_best_candidate($id);
+        if(is_array($savedBest)){
+            $candidate=$savedBest['candidate'];
+            $artifact=$candidate['artifact'];
+            $artifact['contentSha256']=$candidate['identity']['contentSha256'];
+            $outputs['developer']=wp_json_encode($candidate['plan']);
+            $referenceHtml=$savedBest['referenceHtml'];
+            $quality=array('bestCandidate'=>$candidate['identity'],'score'=>$candidate['score'],
+                'issues'=>$candidate['issues'],'pixelComparison'=>$candidate['comparison'],
+                'evidence'=>array('native'=>$candidate['evidence']));
+        }elseif(is_wp_error($savedBest)){
+            $quality=array('terminationReason'=>$savedBest->get_error_code());
+        }else{
+            global $wpdb;
+            list($_,$events)=syndamorph_history_tables();
+            $raw=$wpdb->get_var($wpdb->prepare(
+                "SELECT payload FROM $events WHERE job_id=%d AND event_type='working_plan' ORDER BY id DESC LIMIT 1",$id));
+            $recorded=is_string($raw)?json_decode($raw,true):null;
+            $workingId=$recorded['id']??'';
+            $saved=is_string($workingId)?syndamorph_surgery_load($workingId):null;
+            if(is_array($saved)&&is_array($saved['plan']??null)){
+                $compiled=syndamorph_compile_block_plan(wp_json_encode($saved['plan']));
+                if(!is_wp_error($compiled)){
+                    $artifact=$compiled;$outputs['developer']=wp_json_encode($saved['plan']);
+                }
             }
         }
     }
     return array('status'=>$status,'controlAction'=>$status,'message'=>$message,
         'outputType'=>$format,'model'=>(string)($settings['model']??''),
-        'artifact'=>$artifact,'outputs'=>$outputs,'checks'=>$artifact['checks']??array(),
+        'artifact'=>$artifact,'referenceHtml'=>$referenceHtml,'outputs'=>$outputs,'checks'=>$artifact['checks']??array(),
+        'quality'=>$quality,
         'stageStatus'=>array('browserQa'=>'pending','wordpressEditor'=>'pending'),
         'usage'=>$usage,'agentMetrics'=>$metrics,
         'estimatedCostUsd'=>round($cost,6),'elapsedMs'=>0,'published'=>false,
@@ -514,7 +554,7 @@ add_action( 'rest_api_init', static function (): void {
             $id = (int) $request['id'];
             $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $jobs WHERE id=%d", $id ), ARRAY_A );
             if ( ! $row ) { return new WP_Error( 'sm_history_missing', 'Job not found.', array( 'status' => 404 ) ); }
-            $records = $wpdb->get_results( $wpdb->prepare( "SELECT event_type,payload,created_at FROM $events WHERE job_id=%d ORDER BY id ASC", $id ), ARRAY_A );
+            $records = $wpdb->get_results( $wpdb->prepare( "SELECT event_type,payload,created_at FROM $events WHERE job_id=%d AND event_type<>'candidate_baseline' ORDER BY id ASC", $id ), ARRAY_A );
             if ( ! is_array( $records ) ) { return new WP_Error( 'sm_history_read', 'Could not read job events.', array( 'status' => 503 ) ); }
             return rest_ensure_response( array_merge( syndamorph_history_summary( $row ), array(
                 'context' => json_decode( $row['context'], true ),

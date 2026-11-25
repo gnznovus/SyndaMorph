@@ -4,6 +4,8 @@ if (!defined('ABSPATH')) exit;
 final class SyndaMorph_Job_Memory {
     private array $attempts=array();
     private array $seen=array();
+    private array $operations=array();
+    private array $deferred=array();
     private array $stalled=array();
     public function __construct(private string $brief) {}
     public static function canonical($value, string $key='') {
@@ -19,7 +21,7 @@ final class SyndaMorph_Job_Memory {
     public static function fingerprint(array $plan): string {
         return hash('sha256',wp_json_encode(self::canonical($plan)));
     }
-    private static function candidateFingerprint(array $plan): string {
+    public static function candidateFingerprint(array $plan): string {
         $stripIds=static function(array $block)use(&$stripIds):array {
             unset($block['id']);
             if(isset($block['children']))$block['children']=array_map($stripIds,$block['children']);
@@ -28,10 +30,29 @@ final class SyndaMorph_Job_Memory {
         $plan['blocks']=array_map($stripIds,$plan['blocks']);
         return self::fingerprint($plan);
     }
-    public function remember(array $plan): void { $this->seen[self::candidateFingerprint($plan)]=true; }
-    public function seen(array $plan): bool { return isset($this->seen[self::candidateFingerprint($plan)]); }
+    public function remember(array $plan,string $baseline=''): void {
+        $this->seen[$baseline][self::candidateFingerprint($plan)]=true;
+    }
+    public function seen(array $plan,string $baseline=''): bool {
+        $hash=self::candidateFingerprint($plan);
+        return isset($this->seen[''][$hash]) || isset($this->seen[$baseline][$hash]);
+    }
+    public function operationSeen(string $baseline,string $signature): bool {
+        return $this->operationOutcome($baseline,$signature)!==null;
+    }
+    public function operationOutcome(string $baseline,string $signature): ?string {
+        return $this->operations[$baseline][$signature]??null;
+    }
+    public function deferScope(array $assignment): void {
+        $this->deferred[$assignment['baselineFingerprint']][$assignment['strategyFingerprint']]=true;
+    }
+    public function scopeDeferred(string $baseline,string $scope): bool {
+        return isset($this->deferred[$baseline][$scope]);
+    }
     public function record(string $id,array $attempt): void {
         $this->attempts[$id][]=$attempt;
+        if(isset($attempt['baselineFingerprint'],$attempt['operationSignature']))
+            $this->operations[$attempt['baselineFingerprint']][$attempt['operationSignature']]??=$attempt['outcome']??'recorded';
         $this->stalled[$id]=!empty($attempt['accepted'])?0:($this->stalled[$id]??0)+1;
     }
     public function reopen(array $ids): void { foreach($ids as $id) unset($this->stalled[$id]); }
@@ -55,7 +76,8 @@ final class SyndaMorph_Job_Memory {
         usort($attempts,static fn($a,$b)=>($a['round']??0)<=>($b['round']??0));
         return array_map(static function(array $entry):array {
             $delta=array_intersect_key($entry,array_flip(array('round','id','status','accepted','detail','reason','scoreBefore','scoreAfter',
-                'focusScoreBefore','focusScoreAfter','route','issueGroup','diagnosis','strategy','operationMode','strategyDeviation','wraps','validation','contractDiagnostic','nextDirection','pixelDeltas','introducedIssues')));
+                'focusScoreBefore','focusScoreAfter','route','issueGroup','diagnosis','strategy','operationMode','strategyDeviation','wraps','validation','contractDiagnostic','operationSignature','candidateHash','outcome','priorOutcome','nextDirection','pixelDeltas','introducedIssues')));
+            if(isset($entry['baselineBefore']['version']))$delta['baselineVersion']=$entry['baselineBefore']['version'];
             if(isset($entry['geometryDeltas']))$delta['geometryDeltas']=array_slice($entry['geometryDeltas'],0,4,true);
             if(isset($entry['replacement'])) {
                 $delta['attemptedStyle']=$entry['replacement']['style']??array();
@@ -63,7 +85,8 @@ final class SyndaMorph_Job_Memory {
             }
             if(isset($entry['changes'])&&is_array($entry['changes'])){
                 $delta['attemptedChanges']=array_slice($entry['changes'],0,8);
-                $delta['candidateFingerprint']=hash('sha256',wp_json_encode(self::canonical($entry['changes'])));
+                if(!isset($delta['candidateHash']))
+                    $delta['candidateFingerprint']=hash('sha256',wp_json_encode(self::canonical($entry['changes'])));
                 $delta['touched']=array_slice((array)($entry['touched']??array()),0,8);
             }
             $delta['remainingIssueIds']=array_column($entry['remainingIssues']??array(),'id');
@@ -73,7 +96,7 @@ final class SyndaMorph_Job_Memory {
             return $delta;
         },array_slice($attempts,-max(1,min(5,$limit))));
     }
-    public function snapshot(): array { return array('version'=>1,'brief'=>$this->brief,'attempts'=>$this->attempts,'uniqueCandidates'=>count($this->seen),'stalled'=>$this->stalled); }
+    public function snapshot(): array { return array('version'=>1,'brief'=>$this->brief,'attempts'=>$this->attempts,'uniqueCandidates'=>count(array_replace(array(),...array_values($this->seen))),'stalled'=>$this->stalled); }
 }
 /** Compact data for a task. Full evidence remains in the private archive. */
 function syndamorph_evidence_text(string $text): string {

@@ -184,13 +184,27 @@ function syndamorph_inspection_ready(array $viewports) {
     });
 }
 
-function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,375)) {
+function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,375),?string &$rendererBuild=null) {
     $endpoint=syndamorph_inspection_endpoint();
     if(is_wp_error($endpoint))return $endpoint;
-    if(trim($html)===''||strlen($html)>120000||!array_is_list($viewports)||count($viewports)<1||count($viewports)>5||
+    if(trim($html)===''||strlen($html)>120000||!array_is_list($viewports)||count($viewports)<1||count($viewports)>8||
         count(array_filter($viewports,static fn($width)=>is_int($width)&&$width>=320&&$width<=1920))!==count($viewports)||
         count(array_unique($viewports))!==count($viewports))
         return syndamorph_inspection_failure('request_invalid');
+    if(count($viewports)>5) {
+        $evidence=array();$build=null;
+        foreach(array_chunk($viewports,5) as $batch) {
+            $samples=syndamorph_collab_inspect($html,$batch,$batchBuild);
+            if(is_wp_error($samples))return $samples;
+            if($build!==null && $build!==$batchBuild)
+                return syndamorph_inspection_failure('protocol_mismatch',array('expectedWidths'=>$viewports,
+                    'rendererBuild'=>$batchBuild,'previousRendererBuild'=>$build));
+            $build=$batchBuild;
+            array_push($evidence,...$samples);
+        }
+        $rendererBuild=$build;
+        return $evidence;
+    }
     $collected=array();$requests=array();$returned=array();$batches=array();$missing=$viewports;$build=null;
     for($attempt=1;$attempt<=SYNDAMORPH_INSPECTION_ATTEMPTS;$attempt++) {
         $requests[]=$missing;
@@ -224,7 +238,10 @@ function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,
         $build=$details['rendererBuild'];
         foreach($result['evidence'] as $sample)$collected[$sample['width']]=$sample;
         $missing=array_values(array_diff($viewports,array_keys($collected)));
-        if(!$missing)return array_map(static fn($width)=>$collected[$width],$viewports);
+        if(!$missing){
+            $rendererBuild=$build;
+            return array_map(static fn($width)=>$collected[$width],$viewports);
+        }
         $error=syndamorph_inspection_failure('missing_evidence',$details);
     }
     return new WP_Error($error->get_error_code(),$error->get_error_message(),array_merge((array)$error->get_error_data(),

@@ -6,6 +6,28 @@
 
 **Acceptance state** Engineering implemented and deterministically verified. Live Haiku 5.5 effectiveness and production acceptance require review.
 
+## GEN-000025 and the verified best candidate
+
+The scheduler previously stopped after the CTA's only available strategy label, style, appeared in a rejected attempt. That decision conflated the rejected padding patch with every possible style edit. The same job also exposed a provenance bug: the plan and rendered artifact stayed on the accepted revision while raw Boss findings could be replaced by a later rejected candidate's review.
+
+Native QA now carries one retained candidate state. The first compiled candidate with complete browser evidence and a valid Boss QA response initializes version 1. The original approved reference keeps its hash and remains the comparison target. Each accepted candidate advances the version and replaces the plan, artifact, screenshots, measured findings, and Boss handoff together. A candidate must lower the comparable defect score and pass the existing compiler, approval, evidence, and visual checks. New measured defects at a viewport veto promotion even when the aggregate score falls. A newly reported historical observation can remain open without being classified as a proven regression.
+
+| Replay step | Verified result |
+| --- | --- |
+| Original GEN-000025 improvement | Round 2 retained the corrected content inset and typography. Raw score fell from 26 to 8, with comparable score 4 because the review discovered a separate CTA height finding. |
+| Original CTA regression | Round 3's different padding made the mobile screenshot worse. The retained version stayed at score 8. The old scheduler then emitted no_new_repair_strategy. |
+| Same operation on the same plan | The replay identifies the repeated padding operation by its canonical signature and skips repeat validation. |
+| Next operation with the same strategy | The new scheduler assigns the CTA again from the retained plan. A line-height-only probe still fails the mobile pixel gate. Real WordPress converted the authored 1rem to a fluid font size. |
+| Verified partial improvement | An offline style probe used an explicit constant native clamp for 16px and a 1.3 line height. It removed the typography finding and kept literal copy. Comparable score fell from 8 to 4. Pixel difference deltas at 1440, 768 and 375 px were -0.00701, -0.00186 and +0.00276, inside the existing regression limits. The CTA height issue stayed open. These probe values are absent from the production scheduler. |
+
+Style, structure and hybrid are suggestions and authorization modes. Prior use does not exhaust a mode. Operation signatures include canonical ordered edits and affected targets. Equivalent candidate plans are also recognized, independent of generated wrapper IDs. A concrete duplicate defers that scope on that exact baseline while other scopes can continue. When all assignable scopes have repeated proposals, escalation reports repair_proposals_repeated and the recorded evidence. Unavailable scope, capability, evidence and budget retain their own reasons. Historical no_new_repair_strategy records remain readable.
+
+A private History checkpoint preserves each accepted version and exact evidence. Pause and stop restore the latest verified candidate from History. Resume checks the reconstructed baseline identity before requesting new provider output. If content, evidence or QA provenance diverges, the saved candidate remains authoritative. Normal History detail responses expose the revision receipts and final evidence rather than downloading every checkpoint.
+
+The standard inspection set is 375, 768 and 1440 CSS px. Additional requested widths are inspected and compared in bounded renderer batches. The 80% corrective-work ceiling, 20% escalation reserve and independent native editor gate remain active. The older score-tie acceptance described under GEN-000021 predates the current comparable-score promotion requirement.
+
+**Verification** Replay of the original GEN-000025 archive was read-only. The mocked lifecycle advances version 1 to version 2, retains version 2 after a regression, and advances to version 3 on a distinct style repair. A separate repeated-operation path exits without another render. Tests cover operator stop, corrupt checkpoints, resume after replay divergence, the extended viewport envelope, and new-defect vetoes. In two identical browser benchmark trials, the GEN-015 structural repair lowered its score from 26 to 18 and the Gallery callout style repair lowered its score from 20 to 0. WordPress/Gutenberg and Chromium regressions remain in the MVP workflow. Live model effectiveness remains unverified. [MVP workflow](../.github/workflows/mvp-pipeline-check.yml)
+
 ## Independent investigation of GEN-000019 through GEN-000023
 
 GEN-000023 used the budget-aware scheduler and reached implementation QA. It still stopped with three open findings and editor verification pending. The archive establishes the following causes in severity order.

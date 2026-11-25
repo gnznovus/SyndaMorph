@@ -104,7 +104,7 @@ function syndamorph_visual_geometry_issues(array $metrics): array {
 }
 
 function syndamorph_visual_decision(array $before,array $after,array $oldMetrics,array $newMetrics,
-    array $oldPixels,array $newPixels,array $focus,bool $approved): array {
+    array $oldPixels,array $newPixels,array $focus,bool $approved,array $oldStyles=array(),array $newStyles=array()): array {
     $previous=array_column(array_map(static fn($issue)=>array('key'=>syndamorph_issue_key($issue),'issue'=>$issue),$before),'issue','key');
     $current=array_column(array_map(static fn($issue)=>array('key'=>syndamorph_issue_key($issue),'issue'=>$issue),$after),'issue','key');
     $states=array();$regressions=array();$improvement=false;$discoveries=array();$geometryDeltas=array();
@@ -121,12 +121,18 @@ function syndamorph_visual_decision(array $before,array $after,array $oldMetrics
                 $improvement=true;
                 if(isset($previous[$key]))$state='improved';
             }
-            if($new>$tolerance && $new-$old>=$tolerance &&
-                ($old<=$tolerance || $new>=$old*1.25) && ($issue['severity']??'')==='high') {
+            if($new>$tolerance && ($old<=$tolerance ||
+                ($new-$old>=$tolerance && $new>=$old*1.25 && ($issue['severity']??'')==='high'))) {
                 $regressions[$key]=$issue['id'];
             }
         }
-        if(!isset($previous[$key]) && ($issue['critical']??false)===true)$regressions[$key]=$issue['id'];
+        foreach($newStyles[$key]??array() as $width=>$properties) {
+            if(isset($oldStyles[$key][$width]) && array_diff($properties,$oldStyles[$key][$width]))
+                $regressions[$key]=$issue['id'];
+        }
+        if(($issue['critical']??false)===true && (!isset($previous[$key]) ||
+            (($issue['category']??'')==='content' && array_diff($issue['views']??array(),$previous[$key]['views']??array()))))
+            $regressions[$key]=$issue['id'];
         if(!isset($previous[$key]) && !isset($regressions[$key]))$discoveries[]=$issue;
         $states[$key]=isset($regressions[$key])?'regression':$state;
     }
@@ -160,11 +166,13 @@ function syndamorph_visual_decision(array $before,array $after,array $oldMetrics
     $focusBefore=syndamorph_issue_score(array_values(array_intersect_key($previous,$focusKeys)));
     $focusAfter=syndamorph_issue_score(array_values(array_intersect_key($current,$focusKeys)));
     $benefit=($meanDelta<=-0.002 || $improvement || ($approved && $focusAfter<$focusBefore && $comparableAfter<$beforeScore));
-    $accepted=!$regressions && $pixelSafe && $benefit && $comparableAfter<=$beforeScore;
+    $accepted=!$regressions && $pixelSafe && $benefit && $comparableAfter<$beforeScore;
     $reason=$regressions?'Verified regression':(!$pixelSafe?'Material screenshot regression':
-        ($accepted?'Verified improvement with no blocking regression':'No verified improvement in the affected region'));
+        ($accepted?'Verified improvement with no blocking regression':
+            ($comparableAfter>=$beforeScore?'Comparable defect score did not improve':'No verified improvement in the affected region')));
     return array('accepted'=>$accepted,'reason'=>$reason,'beforeScore'=>$beforeScore,'afterScore'=>$afterScore,
         'focusBefore'=>$focusBefore,'focusAfter'=>$focusAfter,'comparableAfterScore'=>$comparableAfter,'pixelDeltas'=>$pixelDeltas,
+        'outcome'=>$accepted?'progress':(($regressions||!$pixelSafe)?'visual_regression':'unchanged'),
         'states'=>$states,'geometryDeltas'=>$geometryDeltas,'introducedIssues'=>array_values($regressions),
         'discoveredIssues'=>array_column($discoveries,'id'));
 }

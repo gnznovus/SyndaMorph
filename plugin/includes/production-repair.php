@@ -60,10 +60,11 @@ function syndamorph_repair_handoff(array $findings,array $assignment,array $plan
         'unsupported'=>!$assignment['wrapParents'] && (isset($requested['structure'])||isset($requested['hybrid'])));
 }
 
-function syndamorph_repair_assignment(array $plan,array $issues,SyndaMorph_Job_Memory $memory,bool $useLearning=true,array $metrics=array()): ?array {
+function syndamorph_repair_assignment(array $plan,array $issues,SyndaMorph_Job_Memory $memory,bool $useLearning=true,array $metrics=array(),?array &$deferredScopes=null): ?array {
     $editable=array_values(array_filter(syndamorph_repair_prioritize($issues),
         static fn($issue)=>($issue['category']??'')!=='content' &&
             syndamorph_collab_find($plan['blocks'],$issue['component'])!==null));
+    $deferredScopes=array();
     $fingerprint=SyndaMorph_Job_Memory::fingerprint($plan);
     $fingerprints=syndamorph_collab_fingerprints($plan);
     foreach($editable as $lead) {
@@ -106,9 +107,13 @@ function syndamorph_repair_assignment(array $plan,array $issues,SyndaMorph_Job_M
         }
         $group=array_map('syndamorph_issue_key',$focus);
         $scopeFingerprint=SyndaMorph_Job_Memory::fingerprint(array(
-            'nodes'=>array_intersect_key($fingerprints,array_flip($nodes)),
+            'lead'=>$group[0],'owner'=>$owner,'nodes'=>array_intersect_key($fingerprints,array_flip($nodes)),
             'measurements'=>$metrics[$group[0]]['views']??array(),
         ));
+        if($memory->scopeDeferred($fingerprint,$scopeFingerprint)) {
+            $deferredScopes[]=array('component'=>$owner,'issue'=>$lead['id'],'scopeSha256'=>$scopeFingerprint);
+            continue;
+        }
         $attempts=$memory->operationsOn($scopeFingerprint,$group);
         $used=array_column($attempts,'strategy');
         $usedModes=array_column($attempts,'operationMode');
@@ -127,8 +132,6 @@ function syndamorph_repair_assignment(array $plan,array $issues,SyndaMorph_Job_M
             }elseif($wrapParents && !in_array('structure',$used,true) &&
                 !array_intersect(array('structure','hybrid'),$usedModes)) {
                 $strategy='structure';
-            }else {
-                continue;
             }
         }
         return array('id'=>$owner,'node'=>$node,'focus'=>$focus,'group'=>$group,'strategy'=>$strategy,

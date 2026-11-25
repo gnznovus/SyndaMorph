@@ -96,6 +96,8 @@ This does **not** mean the web request can run indefinitely: the existing server
 
 ## Adaptive Surgery v2 — current contract (2026-11-24)
 
+**GEN-000025 progression:** The active QA loop promotes strictly lower comparable scores after independent regression checks. It uses the verified best candidate for repair, escalation and job control. A strategy can be reused with a different operation. [Current contract and regression evidence](adaptive-surgery-hardening.md#gen-000025-and-the-verified-best-candidate).
+
 **November 25 hardening:** the active handoff, compiler transaction, capability matrix, inspection copy contract and metering changes are documented in [Adaptive Surgery hardening](adaptive-surgery-hardening.md). The statuses and benchmark below describe the original v2 checkpoint.
 
 **Implementation status:** completed on `feat/secure-gateway-leasing-v1` at [`54a1833`](https://github.com/gnznovus/SyndaMorph/commit/54a1833354081a04421138b6e993b2c347ccdc1e). [MVP CI](https://github.com/gnznovus/SyndaMorph/actions/runs/45436215694) passed. This **supersedes** conflicting v1 contract statements above, without retroactively changing historical experiments.

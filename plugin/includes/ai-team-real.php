@@ -187,6 +187,7 @@ function syndamorph_team_real_run( string $brief, bool $stream = true, ?callable
  * written directly to the browser; only parsed application events are sent.
  */
 function syndamorph_team_sse_emit( string $event, array $data ): void {
+    if($event==='candidate_baseline')return; // Full verified artifacts are private History checkpoints.
     echo 'event: ' . $event . "\n";
     echo 'data: ' . wp_json_encode( $data, JSON_INVALID_UTF8_SUBSTITUTE | JSON_HEX_TAG | JSON_HEX_AMP ) . "\n\n";
     if ( function_exists( 'ob_flush' ) && ob_get_level() > 0 ) { @ob_flush(); }
@@ -270,7 +271,9 @@ function syndamorph_team_sse_resume(int $id,string $brief,string $format,array $
         syndamorph_history_append($id,'job_resumed',array('status'=>'running','replayedCalls'=>count($calls)));
         syndamorph_team_sse_emit('job_resumed',array('status'=>'running','replayedCalls'=>count($calls)));
         $GLOBALS['syndamorph_resume_suppress']=true;
-        $result=syndamorph_team_real_run($brief,true,$emit,$format);
+        $checkpoint=$format==='gutenberg'?syndamorph_history_best_candidate($id):null;
+        if(is_array($checkpoint))$GLOBALS['syndamorph_resume_baseline']=$checkpoint['candidate']['identity'];
+        $result=is_wp_error($checkpoint)?$checkpoint:syndamorph_team_real_run($brief,true,$emit,$format);
         $pendingControl=syndamorph_job_control_gate();
         if(is_wp_error($pendingControl))$result=$pendingControl;
         unset($GLOBALS['syndamorph_resume_suppress']);
@@ -293,7 +296,7 @@ function syndamorph_team_sse_resume(int $id,string $brief,string $format,array $
         syndamorph_team_sse_emit('job_error',$failure);
     }finally{
         unset($GLOBALS['syndamorph_active_job_id'],$GLOBALS['syndamorph_resume_calls'],
-            $GLOBALS['syndamorph_resume_index'],$GLOBALS['syndamorph_resume_suppress']);
+            $GLOBALS['syndamorph_resume_index'],$GLOBALS['syndamorph_resume_suppress'],$GLOBALS['syndamorph_resume_baseline']);
         delete_transient('syndamorph_ai_real_job_lock');
     }
     exit;

@@ -59,8 +59,12 @@ function wp_remote_post($url,$args) {
     }
     if ($url === 'http://renderer:3000/compare') {
         $widths=array_column(json_decode($args['body'],true)['reference'],'width');
+        $index=$GLOBALS['progressive_comparison']??0;
+        $ratios=array(0.20,0.16,0.19,0.13);
+        $ratio=isset($GLOBALS['progressive_test'])?($ratios[$index]??throw new RuntimeException('Duplicate was rendered')):0.15;
+        if(isset($GLOBALS['progressive_test']))$GLOBALS['progressive_comparison']=$index+1;
         return array('status'=>200,'body'=>json_encode(array('comparison'=>array_map(
-            static fn($width)=>array('width'=>$width,'pixelDifferenceRatio'=>0.15,'meanChannelDifference'=>5.0,'sampledPixels'=>100),$widths))));
+            static fn($width)=>array('width'=>$width,'pixelDifferenceRatio'=>$ratio,'meanChannelDifference'=>5.0,'sampledPixels'=>100),$widths))));
     }
     if ($url === 'http://renderer:3000/inspect') {
         $input=json_decode($args['body'],true);
@@ -87,7 +91,32 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    if(!empty($GLOBALS['design_feasibility_test'])){
+    if(isset($GLOBALS['progressive_test'])){
+        $heading='blocks[0].children[0]';$cta='blocks[0].children[2].children[0]';
+        $finding=array('id'=>'cta-typography','component'=>$cta,'severity'=>'medium','category'=>'typography',
+            'detail'=>'Retained CTA needs a different line height.','repairStrategy'=>'style');
+        $rejectedFinding=array_replace($finding,array('detail'=>'Instruction from a rejected candidate',
+            'repairStrategy'=>'structure'));
+        $review=static fn(array $issues):string=>wp_json_encode(array('decision'=>'changes_requested','issues'=>$issues));
+        $patch=static fn($id,$key,$value,$diagnosis=''):string=>wp_json_encode(array('diagnosis'=>$diagnosis,
+            'changes'=>array(array('target'=>$id,'path'=>'style.'.$key,'value'=>$value))));
+        $repeat=$GLOBALS['progressive_test']==='duplicate';
+        $text=match($i){
+            1=>'{"title":"GEN-025 progression fixture","sections":["Hero"],"constraints":["Native blocks"],"acceptance":["Valid native output"]}',
+            2=>'<section><h2>Welcome &amp; enjoy</h2></section>',
+            3=>'{"decision":"approved","issues":[]}',
+            4=>$GLOBALS['native_fixture'],
+            5=>$review(array(array('id'=>'heading-typography','component'=>$heading,'severity'=>'high','detail'=>'Heading refinement needed'),$finding)),
+            6=>$patch($heading,'fontSize','2.5rem'),
+            7=>$review(array($finding)),
+            8=>$patch($cta,'padding.top','0.75rem','First CTA operation'),
+            9=>$review(array($rejectedFinding)),
+            10=>$repeat?$patch($cta,'padding.top','0.75rem','Different wording, same operation'):$patch($cta,'lineHeight',1.3),
+            11=>$repeat?'{"decision":"engineering_blocked","summary":"Repeated proposal","nextAction":"Review a different concrete operation"}':
+                '{"decision":"approved","issues":[]}',
+            default=>throw new RuntimeException('Unexpected progression fixture call '.$i),
+        };
+    }elseif(!empty($GLOBALS['design_feasibility_test'])){
         $text=match($i){
             1=>'{"title":"Design capability gate","sections":["Hero"],"constraints":["Native blocks"],"acceptance":["Editable native layout"]}',
             2=>'<section><style>section h2{text-wrap:balance}</style><h2>Welcome &amp; enjoy</h2></section>',
@@ -1091,9 +1120,9 @@ $oldRatios=array_map(static fn($width)=>array('width'=>$width,'pixelDifferenceRa
 $newRatios=array_map(static fn($index,$delta)=>array('width'=>$oldRatios[$index]['width'],'pixelDifferenceRatio'=>0.2+$delta),
     array(0,1,2),array(-0.04583,-0.00789,0.00239));
 $historical=syndamorph_visual_decision($archivedDefects,$withDiscovery,array(),array(),$oldRatios,$newRatios,$archivedDefects,false);
-expect($historical['accepted'] && $historical['beforeScore']===26 && $historical['afterScore']===27 &&
+expect(!$historical['accepted'] && $historical['outcome']==='unchanged' && $historical['beforeScore']===26 && $historical['afterScore']===27 &&
     $historical['comparableAfterScore']===26 && $historical['states']['inner|historical-gap']==='unverified_discovery',
-    'Historical 26-to-27 partial improvement must separate the new report from proven regressions');
+    'A historical discovery remains separate from regression, but equal comparable score cannot promote a candidate');
 $intro=str_repeat('Full text needed beyond the geometry excerpt. ',8).'Plan your visit and let us prepare the rest.';
 $referenceCopy=array_map(static fn($width)=>array('width'=>$width,'snapshot'=>array('copy'=>$intro)),array(375,768,1440));
 $oldCopy=syndamorph_visual_copy($referenceCopy,$referenceCopy);
@@ -1110,6 +1139,20 @@ $copyVerdict=syndamorph_visual_decision(array(),$copyIssues,array(),array(),
     array(array('width'=>375,'pixelDifferenceRatio'=>0.2)),array(array('width'=>375,'pixelDifferenceRatio'=>0.1)),array(),true);
 expect(!$copyVerdict['accepted'] && $copyVerdict['introducedIssues']===array('copy-reference-mismatch'),
     'A genuine copy regression must override screenshot improvement');
+$goodMetrics=array('wrapping|leaf'=>array('views'=>array(375=>array('error'=>0,'tolerance'=>0.5))));
+$badMetrics=array('wrapping|leaf'=>array('views'=>array(375=>array('error'=>1,'tolerance'=>0.5))));
+$newWrap=array('id'=>'fresh-wrap','component'=>'leaf','group'=>'wrapping|leaf',
+    'severity'=>'medium','measurement'=>true,'source'=>'browser');
+$lowerButNew=syndamorph_visual_decision($archivedDefects,array($newWrap),$goodMetrics,$badMetrics,$oldRatios,$newRatios,$archivedDefects,true);
+expect(!$lowerButNew['accepted']&&$lowerButNew['comparableAfterScore']<$lowerButNew['beforeScore']&&
+    $lowerButNew['introducedIssues']===array('fresh-wrap'),'New measured defects must veto a lower aggregate score');
+$oldStyle=array('typography|leaf'=>array(375=>array('fontSize')));
+$newStyle=array('typography|leaf'=>array(375=>array('letterSpacing')));
+$newTypography=array_replace($newWrap,array('id'=>'fresh-tracking','group'=>'typography|leaf'));
+$mixed=syndamorph_visual_decision($archivedDefects,array($newTypography),array(),array(),$oldRatios,$newRatios,
+    $archivedDefects,true,$oldStyle,$newStyle);
+expect(!$mixed['accepted']&&$mixed['introducedIssues']===array('fresh-tracking'),
+    'Resolving one typography property must not mask a new measured typography defect');
 expect(syndamorph_anthropic_reported_usage(array('input_tokens'=>18,'output_tokens'=>31),
     array('inputTokens'=>12,'outputTokens'=>20,'cacheReadTokens'=>5))===
         array('inputTokens'=>18,'outputTokens'=>31,'cacheReadTokens'=>5),
@@ -1146,7 +1189,7 @@ expect($groupSummary['attempts']===2 && $groupSummary['usage']['calls']===4 &&
     $groupSummary['retainedImprovement']===1.0 && $adaptive['quality']['revisions'][0]['retainedImprovement']===0.0,
     'Coordinated operation did not include failed work in its cost');
 $adaptiveRequest=json_decode($GLOBALS['generations'][7]['messages'][0]['content'][0]['text'],true);
-expect(($adaptiveRequest['previousAttempts'][0]['reason']??'')==='No verified improvement in the affected region',
+expect(($adaptiveRequest['previousAttempts'][0]['reason']??'')==='Comparable defect score did not improve',
     'Structural diagnosis did not receive failed style validation');
 $GLOBALS['adaptive_specific_strategy']='hybrid';
 $GLOBALS['generations']=array();
@@ -1207,6 +1250,87 @@ $duplicateWrap['blocks'][0]['children'][0]['id']='same-layout-fresh-id';
 $wrapMemory=new SyndaMorph_Job_Memory('duplicate wrapper');
 $wrapMemory->remember($geometryCandidate['plan']);
 expect($wrapMemory->seen($duplicateWrap),'A fresh wrapper ID must not bypass candidate deduplication');
+$savedProgressionGlobals=array_intersect_key($GLOBALS,array_flip(array('generations','inspection_calls','crop_calls','adaptive_test')));
+unset($GLOBALS['adaptive_test']);
+foreach(array('progress','duplicate') as $scenario){
+    $GLOBALS['progressive_test']=$scenario;
+    $GLOBALS['generations']=array();$GLOBALS['progressive_comparison']=0;
+    $history=array();
+    $progress=syndamorph_collab_run('Replay progressive improvements at 375, 768 and 1440 CSS pixels.',false,
+        static function($type,$data)use(&$history):void {
+            if($type==='candidate_baseline')$history[]=$data;
+        },false);
+    expect(is_array($progress),'Progression fixture failed to produce QA evidence');
+    [$first,$regression,$last]=$progress['quality']['revisions'];
+    $rollForward=json_decode($progress['outputs']['developer'],true);
+    $cta=$rollForward['blocks'][0]['children'][2]['children'][0];
+    $repairContext=json_decode($GLOBALS['generations'][9]['messages'][0]['content'][0]['text'],true);
+    expect($first['outcome']==='progress' && $regression['outcome']==='visual_regression' &&
+        $first['baselineAfter']===$regression['baselineBefore'] && $regression['baselineBefore']===$regression['baselineAfter'] &&
+        $repairContext['repairScope']['baseline']===$first['baselineAfter'] &&
+        $repairContext['repairScope']['bossInstructions'][0]['detail']==='Retained CTA needs a different line height.' &&
+        $rollForward['blocks'][0]['children'][0]['style']['fontSize']==='2.5rem' &&
+        (($cta['style']['padding']['top']??null)!=='0.75rem') &&
+        array_column($history[1]['candidate']['evidence'],'width')===$progress['quality']['viewportWidths'] &&
+        $history[0]['referenceHtml']===$history[1]['referenceHtml'],
+        'Rejected QA mutated the retained plan, findings, or verified evidence');
+    if($scenario==='progress'){
+        expect($last['outcome']==='progress' && $last['operationMode']===$regression['operationMode'] &&
+            $last['operationSignature']!==$regression['operationSignature'] &&
+            $last['baselineBefore']===$first['baselineAfter'] && count($history)===3 &&
+            $last['baselineAfter']['version']===3 && $cta['style']['lineHeight']===1.3 &&
+            $progress['status']==='needs_review',
+            'A distinct style operation did not advance the retained candidate');
+    }else{
+        expect($last['outcome']==='duplicate' && $last['operationSignature']===$regression['operationSignature'] &&
+            $GLOBALS['progressive_comparison']===3 && count($history)===2 &&
+            $progress['quality']['terminationReason']==='repair_proposals_repeated' &&
+            $progress['quality']['escalation']['baseline']===$first['baselineAfter'] &&
+            !empty($progress['quality']['escalation']['deferredScopes']),
+            'Equivalent operations must finish without another render or invented strategy exhaustion');
+    }
+}
+unset($GLOBALS['progressive_test'],$GLOBALS['progressive_comparison']);
+// Pause/stop must restore the durable checkpoint even if the transient draft is absent.
+if(!defined('ARRAY_A'))define('ARRAY_A','ARRAY_A');
+$oldDb=$GLOBALS['wpdb']??null;
+$GLOBALS['wpdb']=new class(wp_json_encode($history[1])) {
+    public string $prefix='sm_test_';
+    public function __construct(public string $checkpoint) {}
+    public function prepare(string $query,...$args): string { return $query; }
+    public function get_results(string $query,$format): array { return array(); }
+    public function get_var(string $query): ?string {
+        if(str_contains($query,"event_type='candidate_baseline'"))return $this->checkpoint;
+        throw new RuntimeException('A durable best candidate must take precedence over working plan fallback');
+    }
+};
+$stopped=syndamorph_job_control_payload(25,'gutenberg','stopped','Operator stop');
+expect($stopped['quality']['bestCandidate']===$history[1]['candidate']['identity'] &&
+    json_decode($stopped['outputs']['developer'],true)===$history[1]['candidate']['plan'] &&
+    $stopped['referenceHtml']===$history[0]['referenceHtml'],
+    'Operator stop fell back to the generated plan');
+$corrupt=$history[1];
+$corrupt['candidate']['artifact']['preview'].='<p>Modified checkpoint</p>';
+$GLOBALS['wpdb']->checkpoint=wp_json_encode($corrupt);
+expect(syndamorph_history_best_candidate(25)->get_error_code()==='sm_resume_baseline',
+    'A modified best candidate must fail its History integrity check');
+if($oldDb===null)unset($GLOBALS['wpdb']);else $GLOBALS['wpdb']=$oldDb;
+$GLOBALS['syndamorph_resume_calls']=array();
+$GLOBALS['syndamorph_resume_baseline']=$history[1]['candidate']['identity'];
+$GLOBALS['generations']=array();
+$diverged=syndamorph_collab_run('Replay progressive improvements at 375, 768 and 1440 CSS pixels.',false,null,false);
+expect(is_wp_error($diverged) && $diverged->get_error_code()==='sm_resume_baseline' && !$GLOBALS['generations'],
+    'Resume must verify the retained candidate before requesting any new provider output');
+unset($GLOBALS['syndamorph_resume_calls'],$GLOBALS['syndamorph_resume_baseline']);
+
+$GLOBALS['generations']=array();$GLOBALS['inspection_sent_widths']=array();
+$customViews=syndamorph_collab_run('Test at 360/820/1600 CSS px.',false,null,false);
+expect(is_array($customViews)&&$customViews['quality']['viewportWidths']===array(1600,1440,820,768,375,360) &&
+    array_column($customViews['quality']['pixelComparison'],'width')===$customViews['quality']['viewportWidths'] &&
+    array_slice($GLOBALS['inspection_sent_widths'],0,2)===array(array(1600,1440,820,768,375),array(360)),
+    'Required production widths and additional requested widths must all be rendered and compared');
+
+foreach($savedProgressionGlobals as $name=>$value)$GLOBALS[$name]=$value;
 $memoryForStrategy=new SyndaMorph_Job_Memory('scope evidence progression');
 $reuseFinding=array('id'=>'leaf-style','component'=>'blocks[0].children[0]','severity'=>'high','detail'=>'Measure style','category'=>'typography');
 $existingEvidence=array('blocks[0].children[0]|leaf-style'=>array('views'=>array(375=>array('error'=>13,'tolerance'=>10))));
@@ -1217,9 +1341,9 @@ $memoryForStrategy->record($existingAssignment['id'],array('strategyFingerprint'
     'issueGroup'=>$existingAssignment['group'],'strategy'=>'style','operationMode'=>'style','validation'=>'no_improvement'));
 $unrelatedPlan=$handoffPlan;
 $unrelatedPlan['blocks'][0]['children'][1]['style']['fontSize']='3rem';
-expect(syndamorph_repair_assignment($unrelatedPlan,array($reuseFinding),$memoryForStrategy,false,$existingEvidence)===null &&
+expect(syndamorph_repair_assignment($handoffPlan,array($reuseFinding),$memoryForStrategy,false,$existingEvidence)['strategy']==='style' &&
     syndamorph_repair_assignment($unrelatedPlan,array($reuseFinding),$memoryForStrategy,false,$nextEvidence)['strategy']==='style',
-    'Unrelated edits restarted a failed strategy or new measured evidence failed to reopen it');
+    'An earlier style outcome cannot disqualify a new operation under that strategy');
 $learningRows=$GLOBALS['options'][SYNDAMORPH_LEARNING_OPTION]??array();
 $scriptedAssignment=array('focus'=>array(array('category'=>'spacing')),'group'=>array('spacing|fixture'),
     'node'=>array('type'=>'group'),'nodes'=>array('fixture','fixture-heading'),'mode'=>'structure');
@@ -1279,7 +1403,7 @@ $GLOBALS['native_fixture']=$fixtureBeforeParent;
 // The scheduler must not terminate QA merely because a component failed three times.
 // Repeated attempts are bounded by the configured cost admission, not a fixed count.
 expect(str_contains(file_get_contents(dirname(__DIR__).'/plugin/includes/production-collaboration.php'),
-    "for(\$round=1;count(\$issues)>0;\$round++)"),'Budget-driven QA loop missing');
+    "for(\$round=1;\$best['issues'];\$round++)"),'Budget-driven QA loop missing');
 // New helper-level assertions for protected sibling edits and review propagation.
 $planForSurgery=syndamorph_collab_ids(json_decode($GLOBALS['native_fixture'],true));
 $cross=syndamorph_surgery_apply($planForSurgery,
