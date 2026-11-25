@@ -285,6 +285,11 @@ function syndamorph_team_sse_resume(int $id,string $brief,string $format,array $
                 $emit('job_complete',array('status'=>$status,'controlAction'=>$status,
                     'message'=>$result->get_error_message(),'outputType'=>$format,
                     'published'=>false,'resumeAvailable'=>$status==='paused'));
+            }elseif(str_starts_with($code,'sm_resume_')){
+                $emit('resume_blocked',array('code'=>$code,'message'=>$result->get_error_message()));
+                $emit('job_complete',array('status'=>'paused','controlAction'=>'paused',
+                    'message'=>'Resume is blocked by checkpoint divergence; no earlier paid call was retried.',
+                    'outputType'=>$format,'published'=>false,'resumeAvailable'=>true));
             }else $emit('job_error',syndamorph_team_failure_payload($result));
         }else $emit('job_complete',$result);
     }catch(Throwable $error){
