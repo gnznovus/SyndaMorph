@@ -43,12 +43,14 @@
     });
     let running = false;
     let liveCost = 0;
+    let paused = false;
     const showCost = () => text(liveCostLabel, String.fromCharCode(36) + liveCost.toFixed(6));
     const setControls = enabled => {
         if (stopControl) stopControl.disabled = !enabled;
         if (abortControl) abortControl.disabled = !enabled;
-        if (pauseControl) { pauseControl.disabled = true; pauseControl.title = 'Pause requires durable resumable execution and is not available yet.'; }
-        if (resumeControl) { resumeControl.disabled = true; resumeControl.hidden = true; }
+        if (pauseControl) pauseControl.disabled = !enabled;
+        if (resumeControl) { resumeControl.disabled = !paused; resumeControl.hidden = !paused; }
+        if (pauseControl) pauseControl.hidden = paused;
     };
     let completed = 0;
     let currentIdentity = null;
@@ -276,6 +278,10 @@
             currentIdentity = {...currentIdentity, title:data.title};
             const label = currentIdentity.jobId + ' : ' + data.title;
             text(current, label); text(title, label);
+        } else if (type === 'job_resumed') {
+            paused=false;setControls(true);
+            text(job,'Running');text(operation,'Restoring saved checkpoint without repeated paid calls');
+            setFeed('Resumed · replaying completed operations','running');
         } else if (type === 'agent_start' && roles.includes(data.role)) {
             setAgent(data.role, 'running');
             text(activeAgent,(labels[data.role]||data.role)+' · '+(taskLabels[data.task]||data.task||'generation'));
@@ -342,12 +348,16 @@
             setControls(false);
             if(data.controlAction){
                 const action=data.controlAction;
-                const label=action==='stopped'?'Stopped':'Aborted';
-                text(job,label);text(output,'Production '+label.toLowerCase());
-                text(operation,'Terminated at a safe operation boundary');
-                setFeed(label+' by operator','error');
+                const label=action==='paused'?'Paused':action==='stopped'?'Stopped':'Aborted';
+                paused=action==='paused';
+                text(job,label);text(output,paused?'Checkpoint saved':'Production '+label.toLowerCase());
+                text(operation,paused?'Suspended at a safe boundary':'Terminated at a safe operation boundary');
+                setFeed(label+' by operator',paused?'idle':'error');
+                setControls(false);
                 text(notice,data.message||label+' by operator. Recorded work is preserved in History.');
-                setReview(label+' by operator','Already completed calls may have been billed. Existing events remain in History; no automatic restart.');
+                setReview(label+' by operator',paused?
+                    'Resume from the saved job checkpoint. Completed agent calls will be replayed from History without new provider charges.':
+                    'Already completed calls may have been billed. Existing events remain in History; no automatic restart.');
                 for(const agent of roles)if(root.querySelector('[data-agent="'+agent+'"] .sm-status-pill')?.dataset.state==='running')setAgent(agent,'idle');
                 return;
             }
@@ -476,12 +486,15 @@
     });
     const requestControl = async action => {
         if(!running||replaying||!currentIdentity?.id)return;
-        const verb=action==='stop'?'Stop':'Abort';
+        const verb=action==='pause'?'Pause':action==='stop'?'Stop':'Abort';
         const explanation=action==='abort'?
             'Abort at the next safe boundary? An active provider request may still finish and incur charges.':
+            action==='pause'?
+            'Pause at the next safe operation boundary? Completed responses will be retained for resume.':
             'Stop gracefully at the next operation boundary? Recorded work will remain in History.';
         if(!window.confirm(explanation))return;
         stopControl.disabled=true;abortControl.disabled=true;
+        if(pauseControl)pauseControl.disabled=true;
         try {
             const base=cfg.url.split('/ai/team-stream')[0];
             const response=await fetch(base+'/history/'+encodeURIComponent(currentIdentity.id)+'/control',{
@@ -498,6 +511,25 @@
             setControls(running&&!replaying);
         }
     };
+    pauseControl?.addEventListener('click',()=>requestControl('pause'));
+    resumeControl?.addEventListener('click',async()=>{
+        if(!paused||!currentIdentity?.id||running||replaying)return;
+        running=true;paused=false;setControls(false);
+        text(operation,'Connecting checkpoint continuation');
+        try{
+            const base=cfg.url.split('/ai/team-stream')[0];
+            const response=await fetch(base+'/history/'+encodeURIComponent(currentIdentity.id)+'/resume',{
+                method:'POST',credentials:'same-origin',
+                headers:{'Content-Type':'application/json','X-WP-Nonce':cfg.nonce,'Accept':'text/event-stream'},
+                body:'{}',
+            });
+            await readEvents(response);
+        }catch(error){
+            paused=true;
+            text(notice,error.message);
+            setFeed('Resume blocked · checkpoint remains paused','error');
+        }finally{running=false;setControls(false);}
+    });
     stopControl?.addEventListener('click',()=>requestControl('stop'));
     abortControl?.addEventListener('click',()=>requestControl('abort'));
     syncRoster();
@@ -512,6 +544,7 @@
         }
         if (!window.confirm(activeFormat === 'gutenberg' ? 'Start three agents with five initial paid tasks and optional budget-limited revisions? Nothing will be published.' : 'Start three agents with four paid tasks? Nothing will be published.')) return;
         running = true;
+        paused = false;
         liveCost = 0;showCost();
         setControls(false);
         run.disabled = true;
