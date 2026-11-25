@@ -45,7 +45,7 @@ function syndamorph_operation_usage(array $metrics,float $input,float $output): 
         'estimatedCostUsd'=>round(syndamorph_collab_cost($usage,$input,$output),6)));
 }
 function syndamorph_repair_summary(array $revisions,array $metrics,float $input,float $output): array {
-    $repair=array_values(array_filter($metrics,static fn($metric)=>in_array($metric['task'],
+    $repair=array_values(array_filter($metrics,static fn($metric)=>in_array(($metric['task']??''),
         array('repair','revision_validation','scope_resolution'),true)));
     $groups=array();
     foreach($revisions as $revision) {
@@ -624,7 +624,20 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'issues'=>$handoff['issues']);
         if($on_event)$on_event('handoff',$handoff);
         if($decision==='approved'){$approvedReference=true;break;}
-        $issueKey=wp_json_encode(array_map(static fn($issue)=>strtolower(trim((string)($issue['target']??''))).'|'.strtolower(trim((string)($issue['problem']??''))),$handoff['issues']));
+        // Track the underlying defect family rather than model wording or
+        // artifact hashes, which change across harmless full-reference rewrites.
+        $issueFamilies=array_map(static function($issue){
+            $target=strtolower(trim((string)($issue['target']??'')));
+            $target=trim((string)preg_replace('/\\s*\\([^)]*\\)/','',$target));
+            $problem=strtolower((string)($issue['problem']??'').' '.($issue['requiredChange']??''));
+            $family=preg_match('/font|weight|bold|typograph/',$problem)?'typography':
+                (preg_match('/width|wrap|line count|horizontal/',$problem)?'width':
+                (preg_match('/contrast|color/',$problem)?'contrast':
+                (preg_match('/spacing|padding|gap|margin/',$problem)?'spacing':'other')));
+            return $target.'|'.$family;
+        },$handoff['issues']);
+        sort($issueFamilies);
+        $issueKey=wp_json_encode($issueFamilies);
         $stateKey=hash('sha256',$issueKey);
         if(($designSeenStates[$stateKey]??0)>=2)
             return new WP_Error('sm_design_stagnation',
