@@ -88,7 +88,7 @@ function syndamorph_learning_compiler_rejection(array $focus,array $diagnostic,s
     $type=(string)($focus['node']['type']??'');
     $property=(string)($focus['property']??'');
     $message=(string)($diagnostic['message']??'');
-    if($message==='Unsupported style for block.' && $type==='buttons' && $property==='style.margin'){
+    if(str_ends_with($message,'Unsupported style for block.') && $type==='buttons' && $property==='style.margin'){
         syndamorph_learning_record('agent','schema_repair','buttons','margin',
             'Never set buttons.style.margin: the native compiler rejects it. Use the parent group gap for vertical spacing; validate visual fidelity.', $source,true);
     }
