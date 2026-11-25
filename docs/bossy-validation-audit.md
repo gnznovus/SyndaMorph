@@ -2,7 +2,7 @@
 
 The v0.12 work-order checkpoint gives the reviewer stable requirement IDs and a pinned specification receipt. [Production Team checkpoints](production-team-upgrade.md)
 
-v0.12.4 added browser-owned typed checks, compact semantic evidence and duplicate diagnostic rejection. These changes are verified with controlled defects. The live rates below still describe the original baseline until the updated review is benchmarked. [Validation checkpoint](production-team-upgrade.md#v0124-bossy-validation-checkpoint)
+v0.12.4 added browser-owned typed checks, compact semantic evidence and duplicate diagnostic rejection. The v0.12.7 and v0.12.8 benchmarks are recorded before the original comparison baseline. [Validation checkpoint](production-team-upgrade.md#v0124-bossy-validation-checkpoint)
 
 ### v0.12.7 live benchmark
 

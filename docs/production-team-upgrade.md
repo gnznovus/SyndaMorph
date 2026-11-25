@@ -102,6 +102,12 @@ A tab work order now links each requirement to an application-supported check. D
 
 A disposable WordPress test verified three linked requirements for one block, independent state across widgets, visible keyboard focus, selection styling and rejection of an injected missing focus indicator. Earlier live tab jobs exposed the ownership gap and an overly strict planning shape. Their archived attempts remain distinct from the controlled WordPress proof.
 
+## v0.12.10 archived Developer recovery
+
+GEN-000055 used live planning, design, design review, a targeted design correction and Developer generation. The approved sketch assigned six tests to implementation QA. Developer returned every block and literal value but omitted the outer array and object closers. The new decoder can restore only those two delimiters when the result is one complete root group. All schema and QA conditions remain enforced.
+
+Tabs design proof now also recognizes reciprocal in-widget ARIA references for a visible label. In the offline recovery of the archived response, the existing normalizer moved two layout properties under style and the two panel IDs were explicitly aligned to the frozen design. No copy was changed in recovery. Artifact `44d8561fb20de9480cf610e60ec635de20b9b535592109f4127060ac3ac2cf9a` passed all six linked tab checks, all eight responsive samples, and Gutenberg edit, save, reload, and frontend interaction at 1440, 768 and 375 px. The recovered artifact still measured 1.047%, 1.491%, and 2.456% visual differences at those widths. Its visual acceptance remains open and the original job retains its failure status.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)

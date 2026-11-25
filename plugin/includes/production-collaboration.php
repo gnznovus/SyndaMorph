@@ -657,7 +657,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'kind'=>'unclassified','classification'=>'unsupported');
     }
     $tabsDesignNote=in_array('tabs',array_column($interactions,'kind'),true)?
-        ' For each classified tabs interaction include a wrapper with data-sm-tabs-reference equal to the exact interaction ID. Inside the wrapper place each panel in an ordered direct child with a unique data-sm-tab-panel ID. Give each panel three direct children with data-sm-tab-label, data-sm-tab-heading, and data-sm-tab-body respectively. Show the initial active panel and use HTML hidden on other panel content. Do not add runtime behavior to the design reference.':'';
+        ' For each classified tabs interaction include a wrapper with data-sm-tabs-reference equal to the exact interaction ID. Inside the wrapper place each panel in an ordered direct child with a unique data-sm-tab-panel ID. Mark its heading and body with data-sm-tab-heading and data-sm-tab-body. Give its label via data-sm-tab-label or a directly owned tablist button with matching aria-labelledby and aria-controls. Show the first panel and hide inactive panel content. Do not add script or runtime behavior.':'';
     $touchScenarios=array();
     foreach($GLOBALS['syndamorph_touch_receipts'] as $touch){
         foreach($touch['result']['scenarios'] as $scenario){
@@ -1027,7 +1027,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews,'agentPayload'=>$approval,
         'specificationReceipt'=>$specificationReceipt);
     if($on_event)$on_event('handoff',end($handoffs));
-    $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON using the cached compiler contract. Preserve content and visual intent. For classified tabs use the exact interaction ID as the tabs node ID and preserve all approved panel labels, headings and copy. Return JSON only, with stable unique IDs and supported native styles.'.$sourceNote,
+    $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON using the cached compiler contract. Preserve content and visual intent. For classified tabs use the exact interaction ID as the tabs node ID and retain the exact panel IDs, order, labels, headings and copy from design.tabPanelSpecification. Return JSON only. Close the complete root blocks array and document.'.$sourceNote,
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,
             'imageOrder'=>array_intersect_key($viewports,array_flip($visionViewports)),
             'learnedRules'=>$useLearning?syndamorph_learning_retrieve('developer'):array(),
@@ -1040,14 +1040,16 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if (is_wp_error($developer)) return $developer;
 
     // Native schema recovery operates on one persistent full-generation plan.
-    $plan=json_decode(syndamorph_native_json_text($developer),true,32);
-    if(!is_array($plan)||!is_array($plan['blocks']??null))
+    $plan=syndamorph_decode_developer_plan($developer,$jsonRecovery);
+    if($plan===null)
         return new WP_Error('sm_block_plan_invalid','Developer did not return a native JSON plan.');
+    if($jsonRecovery!==null&&$on_event)$on_event('schema_json_recovery',$jsonRecovery);
     $plan=syndamorph_collab_ids($plan);
     $workingId=syndamorph_surgery_save($plan);
     if($workingId==='')return new WP_Error('sm_surgery_persist','Working plan exceeds safe size.');
     $originalPlan=$plan;
     $surgery=array('workingPlanId'=>$workingId,'originalPlanId'=>$workingId,'repairs'=>array(),'deterministic'=>0,'paidPatches'=>0,'fullRegenerations'=>0);
+    if($jsonRecovery!==null)$surgery['jsonRecovery']=$jsonRecovery;
     if($on_event)$on_event('working_plan',array('id'=>$workingId,'revision'=>1));
     $compiled=syndamorph_surgery_verify($plan,$plan);
     $lessons=array();

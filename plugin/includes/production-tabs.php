@@ -82,6 +82,16 @@ function syndamorph_tabs_design_copy(string $html,array $interactions): array {
                 $nodes=$xpath->query('./*[@data-sm-tab-'.$field.']',$panel);
                 $fields[$field]=$nodes->length===1?trim($nodes->item(0)->textContent):'';
             }
+            if($fields['label']===''){
+                // The visible tab can supply the panel label through reciprocal ARIA references.
+                $labelId=$panel->getAttribute('aria-labelledby');
+                $panelId=$panel->getAttribute('id');
+                if($panelId===$fields['id']&&preg_match('/^[a-z][a-z0-9-]{0,63}$/D',$labelId)===1){
+                    $label=$xpath->query('./*[@role="tablist"]/*[@role="tab" and @id="'.$labelId.'"]',$widget->item(0));
+                    if($label->length===1&&$label->item(0)->getAttribute('aria-controls')===$panelId)
+                        $fields['label']=trim($label->item(0)->textContent);
+                }
+            }
             $panels[]=$fields;
         }
         $verified=syndamorph_tabs_panels($panels);

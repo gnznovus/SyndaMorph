@@ -38,6 +38,23 @@ function syndamorph_native_json_text(string $raw): string {
     if(preg_match('/^```(?:json)?\\s*([\\s\\S]*?)\\s*```$/iD',$raw,$m))return trim($m[1]);
     return $raw;
 }
+
+/** Close only a fully emitted root block when the outer blocks array and object are missing. */
+function syndamorph_decode_developer_plan(string $raw,?array &$recovery=null): ?array {
+    $recovery=null;
+    if(strlen($raw)>120000)return null;
+    $text=syndamorph_native_json_text($raw);
+    $plan=json_decode($text,true,32);
+    if(is_array($plan)&&is_array($plan['blocks']??null))return $plan;
+    if(json_last_error()!==JSON_ERROR_SYNTAX||!str_starts_with($text,'{')||!str_ends_with($text,'}'))return null;
+    $closed=$text.']}';
+    $plan=json_decode($closed,true,32);
+    if(!is_array($plan)||count($plan)!==2||($plan['version']??null)!==1||!is_array($plan['blocks']??null)||
+        !array_is_list($plan['blocks'])||count($plan['blocks'])!==1||($plan['blocks'][0]['type']??null)!=='group')return null;
+    $recovery=array('operation'=>'close_outer_plan','beforeSha256'=>hash('sha256',$text),
+        'afterSha256'=>hash('sha256',$closed),'appended'=>']}');
+    return $plan;
+}
 /**
  * Actionable validation expectations. Keep these synchronized with the explicit
  * allowlists and patterns in syndamorph_compile_block_plan().

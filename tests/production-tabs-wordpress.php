@@ -46,6 +46,18 @@ $interactions[0]['proof']=array(
 );
 $design=syndamorph_tabs_design_copy($reference,$interactions);
 $expect($design===$artifact['tabWidgets'],'Approved tab panel identities and copy did not match.');
+$aria='<div data-sm-tabs-reference="details"><div role="tablist">';
+foreach($first['panels'] as $panel)$aria.='<button role="tab" id="label-'.$panel['id'].'" aria-controls="'.$panel['id'].'">'.esc_html($panel['label']).'</button>';
+$aria.='</div>';
+foreach($first['panels'] as $panel)$aria.='<section data-sm-tab-panel="'.$panel['id'].'" id="'.$panel['id'].
+    '" aria-labelledby="label-'.$panel['id'].'"><h3 data-sm-tab-heading>'.esc_html($panel['heading']).
+    '</h3><p data-sm-tab-body>'.esc_html($panel['body']).'</p></section>';
+$aria.='</div>';
+$expect(syndamorph_tabs_design_copy($aria,$interactions)===array('details'=>$first['panels']),
+    'Reciprocal accessible tab labels were not recovered from the approved reference.');
+$badAria=str_replace('aria-controls="overview"','aria-controls="rooms"',$aria);
+$expect(syndamorph_tabs_design_copy($badAria,$interactions)===array(),
+    'An unrelated tab control supplied an approved panel label.');
 $widths=array(1440,768,375);
 $receipt=syndamorph_tabs_verify($artifact,$widths,$interactions,$design);
 $expect($receipt['status']==='passed'&&array_column($receipt['viewports'],'width')===$widths,

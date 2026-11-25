@@ -2038,3 +2038,15 @@ expect(!is_wp_error($normalized)&&$normalized['interactions'][0]['requirementId'
 $tabOrder['interactions'][0]['proof'][2]['check']='tab-keyboard';
 expect(is_wp_error(syndamorph_production_specification($tabOrder)), 'A tab proof could satisfy an unrelated quality dimension.');
 echo "PASS: separate design and native proof ownership for multiple tab requirements\n";
+
+$complete=wp_json_encode(array('version'=>1,'blocks'=>array(array('type'=>'group','children'=>array(
+    array('type'=>'heading','text'=>'A brace } inside the heading.'))))));
+$truncated=substr($complete,0,-2);
+$expected=syndamorph_decode_developer_plan($complete,$normal);
+$recovered=syndamorph_decode_developer_plan($truncated,$boundaryRepair);
+expect($normal===null&&$expected===$recovered&&$boundaryRepair['appended']===']}'&&
+    $boundaryRepair['beforeSha256']===hash('sha256',$truncated)&&$boundaryRepair['afterSha256']===hash('sha256',$complete),
+    'Outer-plan recovery changed content or failed to prove the exact delimiter repair.');
+expect(syndamorph_decode_developer_plan(substr($complete,0,-3),$invalidRepair)===null&&$invalidRepair===null,
+    'A partial root block was guessed.');
+echo "PASS: bounded outer Developer JSON recovery preserves every authored field\n";

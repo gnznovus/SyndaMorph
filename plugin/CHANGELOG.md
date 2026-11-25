@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.10] - 2026-11-26
+
+### Fixed
+- The existing native plan recovery can close a fully emitted root block when exactly the outer array and object delimiters are absent. History records the before and after hashes. The complete compiler contract still applies.
+- A frozen tabs design can bind a visible tab label through reciprocal ARIA IDs within its own widget. Developer receives the exact approved panel IDs and copy.
+
+### Verified
+- The archived GEN-000055 Developer response was recovered offline using the delimiter repair, two compiler field moves and two explicit identifier alignments. The result passed all six linked functional checks, eight responsive samples, and a real Gutenberg edit, save, and reload.
+- GEN-000055 visual fidelity remains open. The native recovery measured 2.456% pixel difference at 375 px. The original live job was held and its original response and cost remain archived.
+
 ## [0.12.9] - 2026-11-26
 
 ### Added
