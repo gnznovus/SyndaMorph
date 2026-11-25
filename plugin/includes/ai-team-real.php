@@ -394,10 +394,14 @@ add_action( 'rest_api_init', static function (): void {
                     syndamorph_history_append( $record['id'], $type, $data );
                 };
                 $emit( 'ready', $record );
+                $GLOBALS['syndamorph_active_job_id']=$record['id'];
                 $result = syndamorph_team_real_run( trim( $brief ), true, $emit, $format );
                 if ( is_wp_error( $result ) ) { $emit( 'job_error', syndamorph_team_failure_payload( $result ) ); }
                 else { $emit( 'job_complete', $result ); }
-            } finally { delete_transient( 'syndamorph_ai_real_job_lock' ); }
+            } finally {
+                unset($GLOBALS['syndamorph_active_job_id']);
+                delete_transient( 'syndamorph_ai_real_job_lock' );
+            }
             return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
         },
     ) );

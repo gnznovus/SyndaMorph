@@ -17,16 +17,19 @@ function syndamorph_learning_pattern(string $field): array {
 }
 /** Only vocabulary from our own native contract may become an instruction. */
 function syndamorph_learning_schema_rule(string $field,string $message): ?array {
-    list($name,$location)=syndamorph_learning_pattern($field);
+    [$name]=syndamorph_learning_pattern($field);
     if(str_contains($message,'Unsupported node field.') && in_array($name,array('contentWidth','gap','padding','margin','fontSize','fontWeight','lineHeight','letterSpacing','gradient','minHeight','justifyContent','verticalAlignment','borderRadius','background','color'),true)) {
         return array('rule'=>'Place '.$name.' inside the node style object, never as a node-level key.','pattern'=>$name,'block'=>'*');
     }
     if(str_contains($message,'Alignment belongs inside style.align.'))
         return array('rule'=>'Place text alignment inside style.align.','pattern'=>'align','block'=>'heading|paragraph');
+    if(str_ends_with($message,'Invalid text alignment.') && $name==='align')
+        return array('rule'=>'Choose left, center or right in style.align.','pattern'=>'align','block'=>'heading|paragraph');
     if(str_contains($message,'Invalid color.') && in_array($name,array('background','color'),true))
-        return array('rule'=>'Use six-digit hexadecimal values for style.'.$name.'. Move linear gradients to style.gradient instead of style.background.','pattern'=>$name,'block'=>'*');
+        return array('rule'=>'Use a six-digit hexadecimal color in style.'.$name.'.','pattern'=>$name,
+            'block'=>'group|column|heading|paragraph|button');
     if(str_contains($message,'Invalid two-color gradient.') && $name==='gradient')
-        return array('rule'=>'Use a two-color linear-gradient(ANGLEdeg,#rrggbb,#rrggbb) in style.gradient; remove unsupported extra stops.','pattern'=>'gradient','block'=>'group|column|button');
+        return array('rule'=>'Use a two-color linear-gradient(ANGLEdeg,#rrggbb,#rrggbb) in style.gradient. Revalidate the design if its gradient cannot be mapped faithfully.','pattern'=>'gradient','block'=>'group|column|button');
     if(str_contains($message,'Unsupported style property.') && $name==='plan')
         return array('rule'=>'Use flat native style keys such as fontSize and background, not nested Gutenberg style.typography or style.color objects.','pattern'=>'plan','block'=>'*');
     if(str_contains($message,'Invalid length.'))
@@ -35,6 +38,9 @@ function syndamorph_learning_schema_rule(string $field,string $message): ?array 
         return array('rule'=>'Use a 100–900 hundred-step numeric fontWeight value within style.','pattern'=>'fontWeight','block'=>'heading|paragraph|button');
     if(str_contains($message,'Invalid unitless line height.'))
         return array('rule'=>'Use a supported unitless 1–2.5 lineHeight inside style.','pattern'=>'lineHeight','block'=>'heading|paragraph|button');
+    if(str_ends_with($message,'This block supports only top and bottom margins.') && $name==='margin')
+        return array('rule'=>'Use a style.margin object with top and bottom sides for group, columns and buttons.',
+            'pattern'=>'margin','block'=>'group|columns|buttons');
     if(str_contains($message,'Constrained layout and flex alignment'))
         return array('rule'=>'Use separate nested groups for contentWidth and flex alignment.','pattern'=>'contentWidth','block'=>'group');
     return null;
@@ -68,33 +74,51 @@ function syndamorph_learning_record(string $category,string $task,string $block,
     }
     $item['sources']=array_slice($item['sources'],-40,null,true);
     if($item['verifiedCount']>0 && $item['status']!=='disabled')$item['status']='verified';
-    if($evidence)$item['evidence']=$evidence;
-    $item['lastSeen']=gmdate('c');$rows[$key]=$item;
+    if($evidence && ($verified || $item['verifiedCount']===0))$item['evidence']=$evidence;
+    $item['lastSeen']=gmdate('c');
+    unset($rows[$key]);
+    $rows[$key]=$item;
     if(count($rows)>150)$rows=array_slice($rows,-150,null,true);
-    update_option(SYNDAMORPH_LEARNING_OPTION,$rows,false);
+    if(!update_option(SYNDAMORPH_LEARNING_OPTION,$rows,false) && (syndamorph_learning_rows()[$key]??null)!==$item)return null;
     return $key;
 }
-function syndamorph_learning_schema(string $field,string $message,string $source,bool $verified): void {
+function syndamorph_learning_schema(string $field,string $message,string $source,bool $verified,string $block='*',array $proof=array()): ?string {
     $rule=syndamorph_learning_schema_rule($field,$message);
-    if(!$rule)return;
-    syndamorph_learning_record('agent','schema_repair',$rule['block'],$rule['pattern'],$rule['rule'],$source,$verified);
-}
-/**
- * Compiler-rejected combinations are authoritative negative constraints,
- * even if a job never finishes. This records only supported compiler vocabulary
- * (no user content) and is scoped to the exact rejected block/property pair.
- */
-function syndamorph_learning_compiler_rejection(array $focus,array $diagnostic,string $source): void {
-    $type=(string)($focus['node']['type']??'');
-    $property=(string)($focus['property']??'');
-    $message=(string)($diagnostic['message']??'');
-    if(str_ends_with($message,'This block supports only top and bottom margins.') &&
-        in_array($type,array('group','columns','buttons'),true) && $property==='style.margin'){
-        syndamorph_learning_record('agent','schema_repair',$type,'margin',
-            'Use '.$type.'.style.margin with only top and bottom keys. Shorthand and horizontal margins are outside this native contract.',
-            $source,true);
+    if(!$rule)return null;
+    if($block!=='*'){
+        if($rule['block']!=='*' && !in_array($block,explode('|',$rule['block']),true))return null;
+        $rule['block']=$block;
+        if($rule['pattern']==='background' && str_ends_with($message,'Invalid color.') &&
+            in_array($block,array('group','column','button'),true))
+            $rule['rule'].=' Use style.gradient for supported two-color gradients.';
+        if($rule['pattern']==='margin' && str_ends_with($message,'This block supports only top and bottom margins.'))
+            $rule['rule']='Use '.$block.'.style.margin with only top and bottom keys. Preserve horizontal spacing through approved native composition.';
     }
+    $proof['kind']='schema_correction';
+    $proof['diagnostic']=syndamorph_learning_schema_signature($field,$message);
+    return syndamorph_learning_record('agent','schema_repair',$rule['block'],$rule['pattern'],$rule['rule'],$source,$verified,$proof);
 }
+
+function syndamorph_learning_schema_signature(string $field,string $message): string {
+    $property=preg_replace('/^blocks\[0\](?:\.children\[\d+\])*(?:\.|$)/D','',$field);
+    $reason=str_replace('Native block plan rejected: ','',$message);
+    return hash('sha256',$property.'|'.$reason);
+}
+
+/** Persist only current compiler facts or complete, replayable transaction receipts. */
+function syndamorph_learning_compiler_receipt(array $receipt,string $source): ?string {
+    if(($receipt['compilerRevision']??null)!==syndamorph_learning_revision() ||
+        !is_string($receipt['artifactSha256']??null) || !preg_match('/^[a-f0-9]{64}$/D',$receipt['artifactSha256']))return null;
+    $proof=array('artifactSha256'=>$receipt['artifactSha256'],'route'=>$receipt['route']??'');
+    if(($receipt['fact']??'')==='decorative_group')
+        return syndamorph_learning_record('agent','schema_repair','group','children',
+            syndamorph_block_plan_decorative_group_rule(),$source,true,$proof+array('kind'=>'compiler_capability'));
+    $field=$receipt['field']??null;$message=$receipt['message']??null;$block=$receipt['block']??'*';
+    if(!is_string($field)||!is_string($message)||!in_array($block,array('*','group','columns','column','heading','paragraph','buttons','button'),true)||
+        !in_array($proof['route'],array('auto_repair','developer'),true))return null;
+    return syndamorph_learning_schema($field,$message,$source,true,$block,$proof);
+}
+
 /** Learn only evidence-backed style-property choices, not raw user copy or arbitrary markup. */
 function syndamorph_learning_repair(array $before,array $after,int $oldScore,int $newScore,string $source): void {
     if($newScore >= $oldScore || ($before['type']??null)!==($after['type']??null))return;
@@ -122,16 +146,22 @@ function syndamorph_learning_capability(array $notes,string $source): void {
         syndamorph_learning_record('capability','developer','*',$pattern,$rule,$source,false);
     }
 }
-function syndamorph_learning_retrieve(string $task,string $block='*',int $limit=3): array {
+function syndamorph_learning_retrieve(string $task,string $block='*',int $limit=3,array $diagnostic=array()): array {
+    if($task==='schema_repair' && !$diagnostic)return array();
+    $signature=$diagnostic?syndamorph_learning_schema_signature($diagnostic['field'],$diagnostic['message']):null;
     $revision=syndamorph_learning_revision();$result=array();
     foreach(syndamorph_learning_rows() as $item){
         if(($item['category']??'')!=='agent'||($item['status']??'')!=='verified'||($item['compilerRevision']??'')!==$revision ||
             !in_array($item['task']??'',$task==='developer'?array('schema_repair'):array($task),true))continue;
-        if($task==='repair' && $item['block']!=='*' && $item['block']!==$block && !in_array($block,explode('|',$item['block']),true))continue;
-        $result[]=array('rule'=>$item['rule'],'verifiedCount'=>$item['verifiedCount'],'occurrences'=>$item['occurrences']);
+        if($block!=='*' && $item['block']!=='*' && !in_array($block,explode('|',$item['block']),true))continue;
+        $evidence=$item['evidence']??array();
+        if($signature!==null && ($evidence['diagnostic']??null)!==$signature)continue;
+        $result[]=array('rule'=>$item['rule'],'verifiedCount'=>$item['verifiedCount'],
+            'compilerVerified'=>isset($evidence['artifactSha256']),'id'=>$item['id']);
     }
-    usort($result,static fn($a,$b)=>$b['verifiedCount']<=>$a['verifiedCount']);
-    return array_slice(array_column($result,'rule'),0,max(0,min(4,$limit)));
+    usort($result,static fn($a,$b)=>($b['compilerVerified']<=>$a['compilerVerified']) ?:
+        ($b['verifiedCount']<=>$a['verifiedCount']) ?: strcmp($a['id'],$b['id']));
+    return array_slice(array_values(array_unique(array_column($result,'rule'))),0,max(0,min(4,$limit)));
 }
 
 /** Record only native operation vocabulary. Do not retain raw patches or copy. */
@@ -139,13 +169,14 @@ function syndamorph_learning_operation_pattern(array $patch): array {
     $properties=array();
     foreach(is_array($patch['changes']??null)?$patch['changes']:array() as $change) {
         if(is_array($change) && is_string($change['path']??null) &&
-            preg_match('/^style\.(color|background|gradient|fontSize|fontWeight|lineHeight|letterSpacing|padding|margin|gap|minHeight|contentWidth|justifyContent|verticalAlignment|align|borderRadius)(?:\.(top|right|bottom|left))?$/D',$change['path'])) {
+            preg_match('/^style\.(color|background|gradient|fontSize|fontWeight|lineHeight|letterSpacing|textTransform|padding|margin|gap|minHeight|contentWidth|contentAlignment|justifyContent|verticalAlignment|align|borderRadius|width)(?:\.(top|right|bottom|left))?$/D',$change['path'])) {
             $properties[]=$change['path'];
         }
     }
     $properties=array_values(array_unique($properties));
     sort($properties);
-    return array('mode'=>empty($patch['wraps'])?'style':'structure','properties'=>$properties);
+    return array('mode'=>empty($patch['wraps'])?'style':(empty($patch['changes'])?'structure':'hybrid'),
+        'properties'=>$properties);
 }
 
 function syndamorph_learning_repair_categories(array $focus): array {
@@ -176,15 +207,16 @@ function syndamorph_learning_operation(array $assignment,array $patch,array $ver
         if(in_array($category,$categories,true))$metrics[$category]=$views;
     }
     $category=$categories[0];
-    $description=$pattern['mode']==='structure'?
+    $description=$pattern['mode']!=='style'?
         'Wrap ordered native children in a scoped group and preserve their IDs.':
         'Apply the supported style properties together and verify the affected layout.';
     $rule=$verified?$description:'Observed correction failed visual acceptance. Review the measurements before repeating this strategy.';
-    $key='operation_'.substr(hash('sha256',wp_json_encode(array($category,$pattern,$verified))),0,24);
     $relationship=count($assignment['nodes'])>1?'related_blocks':'single_block';
+    $layout=syndamorph_learning_layout($assignment['node']);
+    $key='operation_'.substr(hash('sha256',wp_json_encode(array($category,$pattern,$relationship,$layout,$verified))),0,24);
     return syndamorph_learning_record('agent','repair',$block,$key,$rule,$source,$verified,
-        array('protocol'=>2,'category'=>$category,'relationship'=>$relationship,
-            'layout'=>syndamorph_learning_layout($assignment['node']),'pattern'=>$pattern,
+        array('protocol'=>3,'category'=>$category,'relationship'=>$relationship,
+            'layout'=>$layout,'pattern'=>$pattern,
             'geometry'=>$metrics,'focusBefore'=>$verdict['focusBefore'],'focusAfter'=>$verdict['focusAfter'],
             'result'=>$verified?'verified_improvement':($verdict['accepted']?'accepted_unattributed':'rejected')));
 }
@@ -195,14 +227,16 @@ function syndamorph_learning_match_operation(array $assignment): array {
     $layout=syndamorph_learning_layout($assignment['node']);
     $relationship=count($assignment['nodes']??array())>1?'related_blocks':'single_block';
     $revision=syndamorph_learning_revision();
+    $modes=array('adaptive'=>array('style','structure','hybrid'),'structure'=>array('structure','hybrid'),
+        'style'=>array('style'))[$assignment['mode']]??array();
     $matches=array();
     foreach(syndamorph_learning_rows() as $id=>$row) {
         $evidence=$row['evidence']??array();
         if(($row['compilerRevision']??'')!==$revision || ($row['status']??'')!=='verified' ||
             ($row['task']??'')!=='repair' || ($row['block']??'')!==$block ||
-            ($evidence['protocol']??0)!==2 || !in_array($evidence['category']??'', $categories,true) ||
+            ($evidence['protocol']??0)!==3 || !in_array($evidence['category']??'', $categories,true) ||
             ($evidence['layout']??'')!==$layout || ($evidence['relationship']??'')!==$relationship ||
-            ($evidence['pattern']['mode']??'')!==$assignment['mode'])continue;
+            !in_array($evidence['pattern']['mode']??'',$modes,true))continue;
         $matches[]=array('id'=>$id,'rule'=>$row['rule'],'category'=>$evidence['category'],
             'pattern'=>$evidence['pattern'],'verifiedCount'=>$row['verifiedCount']);
     }
@@ -244,20 +278,16 @@ function syndamorph_learning_manage(string $key,string $operation): bool {
     update_option(SYNDAMORPH_LEARNING_OPTION,$rows,false);
     return true;
 }
-/** Extract only independently evidenced schema resolution pairs from legacy history. */
+/** Reindex verified current-compiler receipts. Old intermediate progress stays in History. */
 function syndamorph_learning_bootstrap(array $events,string $jobId): int {
-    $pending=array();$count=0;
+    $count=0;
     foreach($events as $event){
-        if(($event['type']??'')!=='schema_repair'||!is_array($event['data']??null))continue;
-        $d=$event['data'];$field=(string)($d['field']??'plan');$attempt=(int)($d['attempt']??0);
-        if($attempt<1||$attempt>3)continue;
-        if(($d['status']??'')==='required')$pending[$attempt]=array('field'=>$field,'message'=>(string)($d['message']??''));
-        if(($d['status']??'')==='resolved' && isset($pending[$attempt])){
-            $old=$pending[$attempt];
-            $rule=syndamorph_learning_schema_rule($old['field'],$old['message']);
-            if($rule){syndamorph_learning_schema($old['field'],$old['message'],'hist:'.$jobId.':'.$attempt,true);$count++;}
-            unset($pending[$attempt]);
-        }
+        $data=$event['data']??null;
+        if(($event['type']??'')!=='schema_repair'||!is_array($data)||($data['status']??'')!=='verified')continue;
+        $attempt=$data['attempt']??null;
+        if(!is_int($attempt)||$attempt<0)continue;
+        $source='job:'.$jobId.':schema:'.$attempt;
+        if(syndamorph_learning_compiler_receipt($data,$source)!==null)$count++;
     }
     return $count;
 }

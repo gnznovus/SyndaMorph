@@ -115,7 +115,7 @@ function syndamorph_job_control_requested(int $id): string {
 function syndamorph_job_resume_signature(): string {
     $files=array('production-collaboration.php','ai-team-real.php',
         'production-block-plan.php','production-surgery.php','production-repair.php',
-        'production-tools.php','production-visual-qa.php','production-job-memory.php','production-standards.php');
+        'production-tools.php','production-visual-qa.php','production-job-memory.php','production-learning.php','production-standards.php');
     $digest='';
     foreach($files as $file)$digest.=hash_file('sha256',__DIR__.'/'.$file);
     return hash('sha256',$digest);
@@ -339,9 +339,9 @@ add_action( 'rest_api_init', static function (): void {
         'callback'=>static function(){
             global $wpdb;
             list($jobs,$events)=syndamorph_history_tables();
-            // Read only small, structured repair events; avoid importing screenshots,
-            // raw briefs or model outputs. Require a finished GEN record.
-            $rows=$wpdb->get_results("SELECT e.job_id,e.payload FROM $events e INNER JOIN $jobs j ON j.id=e.job_id WHERE j.category='GEN' AND j.status IN ('completed','needs_review','uncompleted') AND e.event_type='schema_repair' ORDER BY e.id DESC LIMIT 1200",ARRAY_A);
+            // Read bounded compiler receipts. A later visual or editor failure
+            // cannot revoke a completed compiler verification.
+            $rows=$wpdb->get_results("SELECT e.job_id,e.payload FROM $events e INNER JOIN $jobs j ON j.id=e.job_id WHERE j.category='GEN' AND e.event_type='schema_repair' ORDER BY e.id DESC LIMIT 1200",ARRAY_A);
             if(!is_array($rows))return new WP_Error('sm_learning_archive','Archive unavailable.',array('status'=>503));
             $grouped=array();
             foreach(array_reverse($rows) as $row){

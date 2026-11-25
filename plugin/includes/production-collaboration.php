@@ -461,7 +461,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $baselineVerified=true;
         return null;
     };
-    $learningSource='job:'.bin2hex(random_bytes(8));
+    $activeJob=(int)($GLOBALS['syndamorph_active_job_id']??0);
+    $learningSource='job:'.($activeJob>0?(string)$activeJob:bin2hex(random_bytes(8)));
     $started=microtime(true);$calls=0;$cutoff=$max*0.8;$unmeteredReserve=0.0;$memory=new SyndaMorph_Job_Memory($brief);
     if (function_exists('set_time_limit')) @set_time_limit(1200);
     $prefix=syndamorph_production_cached_contract();
@@ -865,11 +866,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $error=$compiled;
         $data=(array)$error->get_error_data();
         $diag=array('code'=>$error->get_error_code(),'message'=>$error->get_error_message(),
-            'field'=>$data['field']??'plan','expected'=>$data['expected']??array());
+            'field'=>$data['field']??'plan','block'=>$data['block']??'*','expected'=>$data['expected']??array());
         if($diag['code']!=='sm_block_plan_invalid')break;
         $focus=syndamorph_surgery_extract($plan,$diag);
         if(!$focus)break;
-        $errorKey=hash('sha256',wp_json_encode(array($diag['code'],$diag['field'],$diag['message'],$focus['id'])));
+        $errorKey=SyndaMorph_Job_Memory::fingerprint(array($diag,$focus['id'],SyndaMorph_Job_Memory::fingerprint($plan)));
         if(($schemaAttempts[$errorKey]??0)>=$schemaRetryLimit){
             $compiled=new WP_Error('sm_schema_stagnation','Schema repair exhausted distinct attempts for an unchanged compiler error.',
                 array('field'=>$diag['field'],'diagnostic'=>$diag['message'],'attempts'=>$schemaAttempts[$errorKey]));
@@ -877,13 +878,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'reason'=>'same_error_retry_limit','attempts'=>$schemaAttempts[$errorKey]));
             break;
         }
-        // A compiler rejection is authoritative negative evidence even if this
-        // job never compiles. Retain only narrowly scoped, contract-proven rules.
-        if($useLearning)syndamorph_learning_compiler_rejection($focus,$diag,
-            $learningSource.':reject:'.$attempt);
-        // Generic schema lessons require successful recompilation to verify.
         if($useLearning)syndamorph_learning_schema($diag['field'],$diag['message'],
-            $learningSource.':schema:'.$attempt,false);
+            $learningSource.':schema:'.$attempt,false,$focus['node']['type']??'*');
         if($on_event)$on_event('schema_repair',array_merge($diag,array(
             'attempt'=>$attempt,'status'=>'detected','role'=>'compiler')));
         // Compiler owns proven schema transforms. Developer is asked only
@@ -899,33 +895,47 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 if($on_event)$on_event('schema_repair',array('field'=>$diag['field'],'status'=>'escalated','reason'=>'native_capability','role'=>'compiler'));
                 break;
             }
+            $paths=syndamorph_schema_patch_paths($focus);
+            if(!$paths){
+                $compiled=new WP_Error('sm_schema_unrepairable','Compiler diagnostic requires a change outside authorized schema edits.',
+                    array('field'=>$diag['field'],'diagnostic'=>$diag['message'],'expected'=>$diag['expected']));
+                if($on_event)$on_event('schema_repair',$diag+array('status'=>'escalated','reason'=>'no_authorized_edit','role'=>'compiler'));
+                break;
+            }
             $route='developer';
-            if($on_event)$on_event('schema_repair',array_merge($diag,array(
-                'attempt'=>$attempt,'status'=>'required','role'=>'developer')));
+            if($on_event)$on_event('schema_repair',$diag+array(
+                'attempt'=>$attempt,'status'=>'required','role'=>'developer','allowedPaths'=>$paths));
             $schemaAttempts[$errorKey]=($schemaAttempts[$errorKey]??0)+1;
             // Bind acknowledgement to this exact compiler diagnostic, including expectations.
-            $instructionId=hash('sha256',wp_json_encode(array($diag['code'],$diag['field'],
-                $diag['message'],$diag['expected'])));
-            $context=array('diagnostic'=>$diag,'instructionId'=>$instructionId,'target'=>$focus,
+            $instructionId=hash('sha256',wp_json_encode(array($diag,$focus['id'],$paths)));
+            $context=array('diagnostic'=>$diag,'instructionId'=>$instructionId,'target'=>$focus,'allowedPaths'=>$paths,
                 'rejectedPatches'=>array_values($schemaRejected[$errorKey]??array()),
                 'attemptsRemaining'=>$schemaRetryLimit-$schemaAttempts[$errorKey],
-                'learnedRules'=>$useLearning?syndamorph_learning_retrieve('schema_repair'):array());
-            $answer=$call('developer','Compiler Auto-Repair could not safely resolve this diagnostic. Follow diagnostic.expected. Return JSON {"acknowledged":{"instructionId":"copy instructionId from context","field":"copy diagnostic.field from context"},"patch":{"id":"assigned id","changes":[{"path":"style.fontSize","value":"2rem"}]}}. Change only the failing node style. Use op:remove only when correcting field placement while preserving the style intent. Preserve content and identity.',
+                'learnedRules'=>$useLearning?syndamorph_learning_retrieve('schema_repair',$focus['node']['type']??'*',3,$diag):array());
+            $answer=$call('developer','Follow diagnostic.expected. Acknowledge the exact instructionId and diagnostic.field. Return JSON with acknowledged {instructionId,field} and patch {id,changes:[{path,value}]}. Use only the supplied allowedPaths on the assigned node. Preserve the authored style, copy, links, structure and IDs. Use op:remove only to move an invalid background into style.gradient in the same patch. If no faithful edit is possible, return the acknowledgement and blocked:true.',
                 $context,syndamorph_collab_output_cap($provider,$model),array(),'schema_repair');
             if(is_wp_error($answer)){$compiled=$answer;break;}
             $surgery['paidPatches']++;
             $response=json_decode(syndamorph_native_json_text($answer),true);
             $ack=$response['acknowledged']??null;
+            $blocked=($response['blocked']??false)===true && !isset($response['patch']);
             if(!is_array($ack)||($ack['instructionId']??null)!==$instructionId||
-                ($ack['field']??null)!==$diag['field']||!is_array($response['patch']??null)){
+                ($ack['field']??null)!==$diag['field']||(!$blocked&&!is_array($response['patch']??null))){
                 $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],
                     'accepted'=>false,'reason'=>'compiler_instruction_not_acknowledged');
                 if($on_event)$on_event('schema_repair',array('field'=>$diag['field'],'status'=>'rejected',
                     'reason'=>'compiler_instruction_not_acknowledged','attempt'=>$attempt));
                 continue;
             }
+            if($blocked){
+                $compiled=new WP_Error('sm_schema_unrepairable','Developer reported no faithful edit for the compiler diagnostic.',
+                    array('field'=>$diag['field'],'diagnostic'=>$diag['message'],'expected'=>$diag['expected']));
+                if($on_event)$on_event('schema_repair',$diag+array('status'=>'escalated','reason'=>'developer_blocked','role'=>'developer'));
+                break;
+            }
             $proposal=$response['patch'];
-            $patchHash=hash('sha256',wp_json_encode($proposal));
+            $patchHash=SyndaMorph_Job_Memory::fingerprint(array($proposal['id']??null,
+                syndamorph_surgery_operation_identity($proposal,$focus)['signature']));
             if(isset($schemaRejected[$errorKey][$patchHash])){
                 $compiled=new WP_Error('sm_schema_stagnation','Developer repeated an ineffective schema repair proposal.',
                     array('field'=>$diag['field'],'diagnostic'=>$diag['message'],
@@ -934,16 +944,16 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                     'reason'=>'duplicate_patch','attempts'=>$schemaAttempts[$errorKey]));
                 break;
             }
-            $schemaRejected[$errorKey][$patchHash]=array('proposal'=>$proposal,'reason'=>$diag['message']);
-            $candidate=($proposal['id']??null)===$focus['id'] ?
-                syndamorph_surgery_apply($plan,$proposal,array($focus['id'])) :
-                new WP_Error('sm_surgery_scope','Compiler repair target differs from the acknowledged diagnostic.');
-            if(is_wp_error($candidate)){
-                $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],'accepted'=>false);
-                continue;
-            }
-            if(is_wp_error($candidate['error']) && ($candidate['error']->get_error_data()['field']??'plan')===$diag['field']){
-                $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],'accepted'=>false);
+            $candidate=syndamorph_schema_apply_patch($plan,$proposal,$focus,$paths);
+            $rejection=is_wp_error($candidate)?$candidate:null;
+            if(!$rejection && is_wp_error($candidate['error']) &&
+                ($candidate['error']->get_error_data()['field']??'plan')===$diag['field'])$rejection=$candidate['error'];
+            if($rejection){
+                $outcome=array('code'=>$rejection->get_error_code(),'reason'=>$rejection->get_error_message(),
+                    'patchSha256'=>$patchHash);
+                $schemaRejected[$errorKey][$patchHash]=array('proposal'=>$proposal)+$outcome;
+                $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],'accepted'=>false)+$outcome;
+                if($on_event)$on_event('schema_repair',array('attempt'=>$attempt,'field'=>$diag['field'],'status'=>'rejected')+$outcome);
                 continue;
             }
         }else{
@@ -960,7 +970,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $seenSchemaPlans[$fingerprint]=true;
         $before=$plan;$plan=$candidate['plan'];
         $compiled=$auto!==null?$auto['next']:syndamorph_surgery_verify($before,$plan);
-        $lessons[]=array('field'=>$diag['field'],'message'=>$diag['message'],'attempt'=>$attempt);
+        $lessons[]=array('field'=>$diag['field'],'message'=>$diag['message'],'attempt'=>$attempt,
+            'block'=>$focus['node']['type']??'*','route'=>$route);
         $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],'accepted'=>null,'compiled'=>!is_wp_error($compiled));
         if($on_event)$on_event('schema_repair',array('attempt'=>$attempt,'status'=>is_wp_error($compiled)?'progress':'resolved','role'=>$route==='developer'?'developer':'compiler','field'=>$diag['field'],'route'=>$route));
     }
@@ -990,8 +1001,17 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         array_merge(array('stage'=>'compilation','role'=>$compiled->get_error_code()==='sm_native_capability'?'compiler':'developer',
             'task'=>'developer','completedCalls'=>$calls,
             'generationCompleted'=>true,'workingPlanId'=>$workingId,'surgery'=>$surgery),(array)$compiled->get_error_data()));
-    if($useLearning)foreach($lessons as $lesson)syndamorph_learning_schema($lesson['field'],$lesson['message'],$learningSource.':schema:'.$lesson['attempt'],true);
     $plan=$compiled['plan'];$artifact=$compiled['artifact'];
+    if(in_array('decorative_group',$artifact['schemaFacts'],true))
+        $lessons[]=array('fact'=>'decorative_group','route'=>'compiler','attempt'=>0);
+    $receipt=array('status'=>'verified','compilerRevision'=>syndamorph_learning_revision(),
+        'artifactSha256'=>hash('sha256',$artifact['content']));
+    foreach($lessons as $lesson){
+        if(!isset($lesson['fact']) && !syndamorph_learning_schema_rule($lesson['field'],$lesson['message']))continue;
+        $verified=$receipt+$lesson;
+        if($on_event)$on_event('schema_repair',$verified);
+        if($useLearning)syndamorph_learning_compiler_receipt($verified,$learningSource.':schema:'.$lesson['attempt']);
+    }
     $outputs['developer']=wp_json_encode($plan);
     $implementationHandoff=array('from'=>'developer','to'=>'boss','type'=>'implementation_candidate',
         'sourcePlanSha256'=>SyndaMorph_Job_Memory::fingerprint($originalPlan),

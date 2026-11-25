@@ -36,7 +36,41 @@ function syndamorph_surgery_extract(array $plan,array $diagnostic): ?array {
         'code'=>(string)($diagnostic['code']??''),'message'=>mb_substr((string)($diagnostic['message']??''),0,180),
         'node'=>$local,'childCount'=>$childCount);
 }
-/** Only native style attributes are patchable; content, IDs and siblings are immutable. */
+/** Derive the editable paths from the compiler's failing property. */
+function syndamorph_schema_patch_paths(array $focus): array {
+    $property=$focus['property'];
+    if(!preg_match('/^style\.[a-zA-Z]+$/D',$property))return array();
+    $type=$focus['node']['type']??'';
+    if($property==='style.margin' && in_array($type,array('group','columns','buttons'),true))
+        return array($property,$property.'.top',$property.'.bottom');
+    if(in_array($property,array('style.margin','style.padding'),true))
+        return array($property,$property.'.top',$property.'.right',$property.'.bottom',$property.'.left');
+    if(str_ends_with($focus['message'],'Invalid color.') && $property==='style.background' &&
+        in_array($type,array('group','column','button'),true) && !isset($focus['node']['style']['gradient']))
+        return array($property,'style.gradient');
+    return array($property);
+}
+
+function syndamorph_schema_apply_patch(array $plan,array $proposal,array $focus,array $paths) {
+    if(($proposal['id']??null)!==$focus['id'])
+        return new WP_Error('sm_surgery_scope','Compiler repair target differs from the acknowledged diagnostic.');
+    foreach((array)($proposal['changes']??array()) as $change) {
+        if(!is_array($change)||!in_array($change['path']??null,$paths,true))
+            return new WP_Error('sm_surgery_scope','A schema repair edit is outside the diagnostic paths.');
+        if(($change['op']??'set')==='remove' &&
+            !($change['path']==='style.background' && in_array('style.gradient',$paths,true)))
+            return new WP_Error('sm_surgery_scope','Removing the failing value would discard the authored style.');
+    }
+    $candidate=syndamorph_surgery_apply($plan,$proposal,array($focus['id']));
+    if(is_wp_error($candidate))return $candidate;
+    if(in_array('style.gradient',$paths,true)){
+        $node=syndamorph_collab_find($candidate['plan']['blocks'],$focus['id']);
+        if(!isset($node['style']['background']) && !isset($node['style']['gradient']))
+            return new WP_Error('sm_surgery_scope','A background correction must retain a valid background or gradient.');
+    }
+    return $candidate;
+}
+
 /**
  * Field-only transaction. QA may edit a descendant of an issue-owning group,
  * but never a node outside that group's existing subtree.
@@ -297,15 +331,14 @@ function syndamorph_surgery_normalize(array $plan,array $diagnostic): ?array {
             if(!preg_match('/^0(?:\.0+)?(?:px|rem|em|vw|vh|svh|dvh)?$/D',$horizontal))return null;
         }
         $target['style']['margin']=array('top'=>$top,'bottom'=>$bottom);
-    }elseif($key==='style.gradient' &&
-        str_ends_with((string)($diagnostic['message']??''),'Invalid two-color gradient.') &&
-        in_array($target['type']??'',array('group','column','button'),true) &&
-        is_string($target['style']['gradient']??null)){
-        // Equivalent two-stop endpoint percentages are redundant CSS syntax.
-        $gradient=trim($target['style']['gradient']);
-        if(!preg_match('/^linear-gradient\\(\\s*(\\d{1,3})deg\\s*,\\s*(#[0-9a-f]{6})\\s+0%\\s*,\\s*(#[0-9a-f]{6})\\s+100%\\s*\\)$/iD',
-            $gradient,$stop)|| (int)$stop[1]>360)return null;
-        $target['style']['gradient']='linear-gradient('.$stop[1].'deg,'.$stop[2].','.$stop[3].')';
+    }elseif(in_array($target['type']??'',array('group','column','button'),true) &&
+        (($key==='style.gradient' && str_ends_with($focus['message'],'Invalid two-color gradient.')) ||
+        ($key==='style.background' && str_ends_with($focus['message'],'Invalid color.') &&
+            !array_key_exists('gradient',$target['style']))) &&
+        ($gradient=syndamorph_native_gradient($target['style'][substr($key,6)]??null,true))!==null) {
+        unset($target['style'][substr($key,6)]);
+        $target['style']['gradient']=$gradient;
+        $normalization=array('operation'=>'normalize_gradient','component'=>$focus['id'],'from'=>$key,'to'=>'style.gradient');
     }elseif(preg_match('/^style\\.(color|background)$/D',$key,$m) &&
         is_string($target['style'][$m[1]]??null)&&preg_match('/^#([a-f0-9]{3})$/iD',$target['style'][$m[1]],$hex)){
         $target['style'][$m[1]]='#'.implode('',array_map(static fn($v)=>$v.$v,str_split($hex[1])));

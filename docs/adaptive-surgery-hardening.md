@@ -6,6 +6,20 @@
 
 **Acceptance state** Engineering implemented and deterministically verified. Live Haiku 5.5 effectiveness and production acceptance require review.
 
+## GEN-000026 compiler recovery and verified learning
+
+GEN-000026 reached design approval and failed before native browser QA. Its original plan represented a decorative panel as a nested Group with a native gradient and minimum height, with no children. The compiler rejected that field as Invalid children. The schema handoff gave a generic children diagnostic alongside a style-only repair contract. Three paid retries proposed inserting a paragraph. Each proposal exceeded the actual edit authority. Seven archived calls used an estimated USD 0.008071 in total, including USD 0.002407 for the three schema retries.
+
+The native compiler accepts an empty inner Group when it has a native minimum height and background or gradient. It serializes the existing Group without adding text, links, CSS, or placeholder blocks. Content Groups, Columns, Column, and Buttons still require their declared children, and arbitrary structural edits remain outside schema repair. Compiler recovery also moves an equivalent supported two-color gradient from background to gradient and retains the existing deterministic alignment and vertical margin corrections.
+
+Schema repair now sends the exact compiler diagnostic and the permissible paths for that node. A children or other structural error outside the repair contract stops with its original diagnostic and expectation before requesting a style edit. Rejected operations record their actual validation failure and canonical signature. The existing budget and scoped retry limits remain in effect.
+
+Completed compiler validation emits receipts with block scope, compiler revision, artifact hash, and repair route. Verified rules persist across jobs. Developer generation can retrieve bounded preventive rules; schema repair retrieves rules for the current block and normalized diagnostic. Observations, rejected corrections, and historical intermediate events lack that verification. Reindexing consumes verified receipts from the active compiler. Measured visual lessons keep separate layout and component relationships, and hybrid lessons require structural authority.
+
+The read-only GEN-000026 replay compiled all 10 blocks with zero schema repair calls, matched the archived approved reference hash and literal copy, and passed the real Gutenberg serialization validator. The native artifact had no horizontal overflow at 375, 768, or 1440 px. The screenshot difference ratio was 0.17371, 0.35972, and 0.06035, respectively. At 768 px the approved CSS uses side-by-side columns while native Columns stack, moving the panel from x=432.4/y=109.9 to x=76.8/y=323.8. The native design contract now states the default Columns breakpoint. The historical archive retains its original status, and its visual fidelity remains open.
+
+GEN-000019 and GEN-000023 also compiled using two deterministic normalizations each with protected copy. GEN-000020 and GEN-000021 compiled on replay. These replays used zero provider calls. Local WordPress 7.1.2 passed renderer protocol 2 preflight with build c06d126ea5c37603df8066b7286b639d7a40825f59ed56e9123a18c27e151513. Live acceptance requires one explicitly budget-approved run using the archived brief and configuration.
+
 ## GEN-000025 and the verified best candidate
 
 The scheduler previously stopped after the CTA's only available strategy label, style, appeared in a rejected attempt. That decision conflated the rejected padding patch with every possible style edit. The same job also exposed a provenance bug: the plan and rendered artifact stayed on the accepted revision while raw Boss findings could be replaced by a later rejected candidate's review.

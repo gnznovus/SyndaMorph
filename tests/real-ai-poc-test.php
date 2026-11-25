@@ -216,10 +216,10 @@ function wp_remote_post($url,$args) {
             $ack=array('instructionId'=>$id,'field'=>$field);
             if(($GLOBALS['schema_ack_test']??'')==='missing')$ack=null;
             if(($GLOBALS['schema_ack_test']??'')==='mismatch')$ack['instructionId']='invalid-diagnostic-id';
+            $edit=array('path'=>'style.fontSize','value'=>!empty($GLOBALS['schema_stall_test'])?'1.1234567rem':'2rem');
+            if(!empty($GLOBALS['schema_stall_test']) && $i===6)$edit+=array('op'=>'set','target'=>'blocks[0].children[0]');
             $text=wp_json_encode(array('acknowledged'=>$ack,'patch'=>array(
-                'id'=>'blocks[0].children[0]',
-                'changes'=>array(array('path'=>'style.fontSize',
-                    'value'=>!empty($GLOBALS['schema_stall_test'])?'1.1234567rem':'2rem')))));
+                'id'=>'blocks[0].children[0]','changes'=>array($edit))));
         } else $text=match($i) {
             1 => '{"title":"Compiler-guided repair fixture","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid editable blocks"]}',
             2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
@@ -235,13 +235,7 @@ function wp_remote_post($url,$args) {
             2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
             3 => '{"decision":"approved","issues":[]}',
             4 => $GLOBALS['native_fixture'],
-            5 => wp_json_encode(array('acknowledged'=>array(
-                'instructionId'=>json_decode($req['messages'][0]['content'][0]['text'],true)['instructionId']??'',
-                'field'=>json_decode($req['messages'][0]['content'][0]['text'],true)['diagnostic']['field']??''),
-                'patch'=>array('id'=>'blocks[0]','changes'=>array(
-                    array('path'=>'style.background','op'=>'remove'),
-                    array('path'=>'style.gradient','value'=>'linear-gradient(135deg,#18283a,#203040)'))))),
-            6 => '{"decision":"approved","issues":[],"summary":"No measured defects"}',
+            5 => '{"decision":"approved","issues":[],"summary":"No measured defects"}',
             default => throw new RuntimeException('Unexpected surgery paid model call '.$i),
         };
     } elseif (!empty($GLOBALS['stall_test'])) {
@@ -883,6 +877,50 @@ $precisionPlan=$richPlan;
 $precisionPlan['blocks'][0]['children'][0]['style']['fontSize']='clamp(1.0625rem,1rem + 0.5vw,1.25rem)';
 expect(!is_wp_error(syndamorph_compile_block_plan(wp_json_encode($precisionPlan))),
     'Four-decimal CSS lengths incorrectly rejected (GEN-000004 regression)');
+// GEN-000026: native decoration preserves the approved empty panel and its copy.
+$decoration=array('type'=>'group','id'=>'decorative-panel','style'=>array(
+    'minHeight'=>'clamp(12rem,30vw,26rem)','gradient'=>'linear-gradient(200deg,#2f4f70,#14263a)'));
+$decorativePlan=$richPlan;
+$decorativePlan['blocks'][0]['children'][]=$decoration;
+$decorativeArtifact=syndamorph_compile_block_plan(wp_json_encode($decorativePlan));
+$withEmptyList=$decorativePlan;
+$withEmptyList['blocks'][0]['children'][3]['children']=array();
+expect(!is_wp_error($decorativeArtifact) && $decorativeArtifact['schemaFacts']===array('decorative_group') &&
+    $decorativeArtifact['content']===syndamorph_compile_block_plan(wp_json_encode($withEmptyList))['content'] &&
+    !str_contains($decorativeArtifact['content'],'<!-- wp:paragraph --><p></p>'),
+    'Decorative Group did not compile without adding content');
+$invalidContainer=$decorativePlan;
+unset($invalidContainer['blocks'][0]['children'][3]['style']['minHeight']);
+$priorDecorativeFixture=$GLOBALS['native_fixture'];
+$priorDecorativeLearning=syndamorph_learning_rows();
+update_option(SYNDAMORPH_LEARNING_OPTION,array(),false);
+$GLOBALS['native_fixture']=wp_json_encode($invalidContainer);
+$GLOBALS['generations']=array();
+$blockedStructure=syndamorph_team_real_run('Reject an incomplete content Group before requesting edits.',false,null,'gutenberg');
+expect(is_wp_error($blockedStructure) && $blockedStructure->get_error_code()==='sm_schema_unrepairable' &&
+    count($GLOBALS['generations'])===4 &&
+    str_contains($blockedStructure->get_error_data()['expected']['format'],'nested decorative Group'),
+    'Structural diagnostics must not spend the style repair budget');
+$GLOBALS['native_fixture']=wp_json_encode($decorativePlan);
+$GLOBALS['generations']=array();
+$decorativeReceipts=array();
+$replay=syndamorph_team_real_run('Compile a native decorative panel without adding spacer copy.',false,
+    static function($type,$data)use(&$decorativeReceipts):void{
+        if($type==='schema_repair' && ($data['status']??'')==='verified')$decorativeReceipts[]=$data;
+    },'gutenberg');
+$decorationRule=syndamorph_block_plan_decorative_group_rule();
+expect(is_array($replay) && count($GLOBALS['generations'])===5 && $replay['surgery']['paidPatches']===0 &&
+    ($decorativeReceipts[0]['fact']??'')==='decorative_group' &&
+    syndamorph_learning_retrieve('developer','group')===array($decorationRule) &&
+    syndamorph_learning_retrieve('developer','buttons')===array(),
+    'The validated compiler fact must persist and stay scoped to Group');
+$GLOBALS['native_fixture']=$priorDecorativeFixture;
+$GLOBALS['generations']=array();
+$recall=syndamorph_team_real_run('Retrieve verified compiler lessons from a prior job.',false,null,'gutenberg');
+$developerContext=json_decode($GLOBALS['generations'][3]['messages'][0]['content'][0]['text'],true);
+expect(is_array($recall) && in_array($decorationRule,$developerContext['learnedRules']??array(),true),
+    'Subsequent jobs must retrieve verified native schema facts');
+update_option(SYNDAMORPH_LEARNING_OPTION,$priorDecorativeLearning,false);
 // The remaining invalid seven-decimal value must not cause unlimited paid identical patches.
 $priorFixture=$GLOBALS['native_fixture'];
 $stallPlan=json_decode($priorFixture,true);
@@ -914,6 +952,12 @@ expect(is_array($accepted)&&($accepted['artifact']['blockCount']??0)===5
     &&count($GLOBALS['generations'])===6,
     'Properly acknowledged compiler guidance did not yield a valid repair: '.(is_wp_error($accepted)?$accepted->get_error_code().' '.$accepted->get_error_message():gettype($accepted)).'; calls='.count($GLOBALS['generations']));
 unset($GLOBALS['schema_ack_test']);
+$fontDiagnostic=json_decode($GLOBALS['generations'][4]['messages'][0]['content'][0]['text'],true);
+expect($fontDiagnostic['allowedPaths']===array('style.fontSize') &&
+    is_wp_error(syndamorph_schema_apply_patch(syndamorph_collab_ids($stallPlan),
+        array('id'=>$fontDiagnostic['target']['id'],'changes'=>array(array('path'=>'style.color','value'=>'#ffffff'))),
+        $fontDiagnostic['target'],$fontDiagnostic['allowedPaths'])),
+    'Schema instructions and edit enforcement must share the actual failing path');
 $GLOBALS['native_fixture']=$priorFixture;
 $GLOBALS['generations']=array();
 $nestedPlan=$richPlan;
@@ -963,14 +1007,13 @@ $GLOBALS['surgery_test']=true;
 $GLOBALS['generations']=array();$GLOBALS['inspection_calls']=array();
 $case=syndamorph_team_real_run('Recover one invalid background without regenerating the entire plan.',false,null,'gutenberg');
 expect(!is_wp_error($case),'GEN-012-style compiler surgery failed: '.(is_wp_error($case)?$case->get_error_message():'unknown'));
-expect(count($GLOBALS['generations'])===6,'Surgery should require one paid field patch, not full-plan retries');
-expect(!str_contains(wp_json_encode($GLOBALS['generations'][4]['messages'][0]['content']), 'Welcome & enjoy'),
-    'Paid schema repair received unrelated descendant content');
-expect($case['surgery']['paidPatches']===1&&$case['surgery']['fullRegenerations']===0,
-    'Surgery metrics do not distinguish patch calls from full generations');
+expect(count($GLOBALS['generations'])===5 &&
+    $case['surgery']['deterministic']===1 && $case['surgery']['paidPatches']===0 &&
+    $case['surgery']['fullRegenerations']===0,
+    'A supported gradient in the background field must normalize without a schema repair call');
 expect($case['surgery']['repairs'][0]['accepted']&&$case['surgery']['repairs'][0]['compiled'],
     'Surgical correction did not compile');
-expect(str_contains($case['artifact']['content'],'linear-gradient(135deg')&&
+expect(str_contains($case['artifact']['content'],'linear-gradient(135deg,#18283a,#203040)')&&
     str_contains($case['artifact']['content'],'Welcome &amp; enjoy'),
     'Compiled surgical plan lost the gradient or original content');
 $persisted=syndamorph_surgery_load($case['surgery']['workingPlanId']);
@@ -1495,19 +1538,28 @@ syndamorph_learning_repair($before,$after,10,4,'test:repair');
 expect(count(syndamorph_learning_retrieve('repair','button'))===1,'QA-accepted scoped repair did not produce lesson');
 syndamorph_learning_repair($before,$after,10,10,'test:rejected');
 expect(count(syndamorph_learning_retrieve('repair','button'))===1,'Rejected repair changed learning');
+$alignReceipt=array('attempt'=>5,'status'=>'verified','field'=>'blocks[0].children[0].align',
+    'message'=>'Alignment belongs inside style.align.','block'=>'heading','route'=>'auto_repair',
+    'compilerRevision'=>syndamorph_learning_revision(),'artifactSha256'=>hash('sha256',$styled['content']));
 $historyEvents=array(
-    array('type'=>'schema_repair','data'=>array('attempt'=>1,'status'=>'required','field'=>'blocks[0].align','message'=>'Alignment belongs inside style.align.')),
-    array('type'=>'schema_repair','data'=>array('attempt'=>1,'status'=>'resolved','field'=>'blocks[0].align'))
+    array('type'=>'schema_repair','data'=>array('attempt'=>1,'status'=>'required','field'=>'blocks[0].style.fontSize','message'=>'Invalid length.')),
+    array('type'=>'schema_repair','data'=>array('attempt'=>1,'status'=>'resolved','field'=>'blocks[0].style.fontSize')),
+    array('type'=>'schema_repair','data'=>$alignReceipt)
 );
-expect(syndamorph_learning_bootstrap($historyEvents,'GEN0009')===1,'Verified history bootstrap failed');
-expect(syndamorph_learning_bootstrap($historyEvents,'GEN0009')===1,'Idempotent bootstrap should recognize same evidence');
+expect(syndamorph_learning_bootstrap($historyEvents,'94')===1,'Only fully verified current receipts must be indexed');
+expect(syndamorph_learning_bootstrap($historyEvents,'94')===1,'Idempotent bootstrap should recognize same evidence');
+$alignDiagnostic=array('field'=>'blocks[0].children[3].align','message'=>'Native block plan rejected: Alignment belongs inside style.align.');
+expect(syndamorph_learning_retrieve('schema_repair','heading',3,$alignDiagnostic)===array('Place text alignment inside style.align.') &&
+    syndamorph_learning_retrieve('schema_repair','button',3,$alignDiagnostic)===array() &&
+    syndamorph_learning_retrieve('schema_repair','heading',3,array('field'=>'blocks[0].children[3].style.fontSize','message'=>'Invalid length.'))===array(),
+    'Schema repair retrieval leaked a lesson from an unrelated block or diagnostic');
 $rules=syndamorph_learning_retrieve('developer');
 expect(count($rules)===2,'Historical verified lessons were not indexed');
 syndamorph_learning_capability(array('Reference contains elements outside current native block schema.'),'test:capability');
 $snapshot=syndamorph_learning_snapshot();
 expect($snapshot['counts']['capability']===1&&$snapshot['counts']['observed']>=1,'Capability gap classification missing');
 expect(!in_array('Images, lists, tables and vector elements need an explicit compiler capability before native export.',syndamorph_learning_retrieve('developer'),true),'Capability observation injected into agent prompt');
-$staleRule=syndamorph_learning_snapshot()['lessons'][0];
+$staleRule=syndamorph_learning_rows()[$lessonId];
 $staleId=$staleRule['id'];
 $staleRows=syndamorph_learning_rows();
 $staleRows[$staleId]['compilerRevision']='obsolete-compiler-hash';
@@ -1518,6 +1570,23 @@ syndamorph_learning_schema('blocks[0].children[0].contentWidth','Unsupported nod
 expect(in_array($staleRule['rule'],syndamorph_learning_retrieve('developer'),true),'Reverification did not restore stale lesson');
 expect(syndamorph_learning_manage($lessonId,'delete'),'Learning deletion failed');
 expect(count(syndamorph_learning_retrieve('developer'))===1,'Deleted rule remained in retrieval');
+$layoutAssignment=array('focus'=>array(array('category'=>'alignment')),
+    'group'=>array('alignment|section'),'node'=>array('type'=>'group'),'nodes'=>array('section','title'),'mode'=>'adaptive');
+$hybridPatch=array('changes'=>array(array('path'=>'style.contentAlignment','value'=>'left')),
+    'wraps'=>array(array('parent'=>'section','children'=>array('title'))));
+$measuredVerdict=array('accepted'=>true,'geometryDeltas'=>array(),'states'=>array(),
+    'focusBefore'=>8,'focusAfter'=>4,'pixelDeltas'=>array(-0.01));
+$ordinaryId=syndamorph_learning_operation($layoutAssignment,$hybridPatch,$measuredVerdict,'test:container');
+$constrained=$layoutAssignment;
+$constrained['node']['style']['contentWidth']='40rem';
+$constrainedId=syndamorph_learning_operation($constrained,$hybridPatch,$measuredVerdict,'test:constrained');
+expect($ordinaryId!==null && $constrainedId!==null && $ordinaryId!==$constrainedId &&
+    array_column(syndamorph_learning_match_operation($layoutAssignment),'id')===array($ordinaryId) &&
+    array_column(syndamorph_learning_match_operation($constrained),'id')===array($constrainedId),
+    'Verified hybrid evidence must stay available for its original layout across jobs');
+$layoutAssignment['mode']='style';
+expect(syndamorph_learning_match_operation($layoutAssignment)===array(),
+    'Hybrid learning leaked into an assignment without structural authority');
 echo "PASS: persistent verified lessons, scope, deduplication, archive bootstrap, capability classification and management\n";
 
 $widths=array(1440,768,375);

@@ -67,6 +67,10 @@ $add('constrained child in default stack',array($stackChild),array('padding'=>'4
 $stackChild['style']['padding']=0;
 $add('constrained child in stretched stack',array($stackChild),array('padding'=>'4rem','justifyContent'=>'stretch'));
 $add('left aligned constrained child',array($heading),array('contentWidth'=>'25rem','contentAlignment'=>'left','padding'=>0));
+$add('empty decorated Group',array(
+    array('type'=>'heading','id'=>'decorative-heading','text'=>'Welcome'),
+    array('type'=>'group','id'=>'decorative-panel','style'=>array(
+        'minHeight'=>'clamp(12rem,30vw,26rem)','gradient'=>'linear-gradient(200deg,#2f4f70,#14263a)'))));
 $parity=$fixtures['constrained layout geometry'];
 $nativeHtml=do_blocks($parity['content']);
 $baseCss='*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,sans-serif}.wp-block-button__link{display:inline-block}.has-text-align-center{text-align:center}';
