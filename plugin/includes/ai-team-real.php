@@ -329,6 +329,20 @@ add_action( 'rest_api_init', static function (): void {
                 return new WP_Error('sm_resume_version','Production code has changed since pause. Continuation requires manual review.',array('status'=>409));
             if(wp_json_encode($context['settings']??array())!==wp_json_encode(syndamorph_models_settings()))
                 return new WP_Error('sm_resume_settings','Model or budget settings changed since pause.',array('status'=>409));
+            if($context['outputType']==='gutenberg'){
+                list($_,$events)=syndamorph_history_tables();
+                $raw=$wpdb->get_var($wpdb->prepare(
+                    "SELECT payload FROM $events WHERE job_id=%d AND event_type='renderer_ready' ORDER BY id ASC LIMIT 1",$id));
+                $recorded=is_string($raw)?json_decode($raw,true):null;
+                $widths=syndamorph_collab_viewports($context['brief']);
+                if(is_wp_error($widths))return $widths;
+                $ready=syndamorph_inspection_ready($widths);
+                if(is_wp_error($ready))return $ready;
+                if(!is_array($recorded)||!hash_equals((string)($recorded['build']??''),(string)$ready['build']))
+                    return new WP_Error('sm_resume_renderer_changed',
+                        'Renderer build changed since the checkpoint; replay is blocked to avoid divergent visual evidence.',
+                        array('status'=>409));
+            }
             $calls=syndamorph_job_resume_calls($id);
             if(is_wp_error($calls))return $calls;
             // DB compare-and-swap claims this paused job exactly once, even if
