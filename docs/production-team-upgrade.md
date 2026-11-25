@@ -54,9 +54,19 @@ The application checks document overflow, text outside the viewport, and overlap
 
 The Chromium regression deliberately introduced overflow only from 899 through 901 px. The design passed all three mandatory checks, with the extra probes catching the failure at 900 px and testing both boundary neighbors. Scripted orchestration tests verified rejection and rollback on the actual shared pipeline entry point.
 
+## v0.12.4 Bossy validation checkpoint
+
+Each structured requirement can carry a bounded browser predicate for literal text, a visible element, a keyboard-reachable link and local target, or a computed style. The browser owns the verdict for these predicates. Bossy's other design claims cite the available per-viewport or element evidence IDs. The orchestrator holds failed or uncertain design requirements. A justified not-applicable result is available for standard criteria, and functional or native implementation requirements that require a compiled artifact are deferred as uncertain to implementation QA. Archived list-only classifications retain their original contract.
+
+The compact evidence includes tags, DOM IDs and classes, computed typography and paint, link and fragment data, layout, accessible-name context and bounded axe findings. Targeted inspection can select a single tag, class or ID and one of the exact required widths. The design loop rejects a diagnostic that supplies the same observation again for the same artifact.
+
+The renderer's optional overlap image distinguishes matching pixels, source-only extent and Designer-only extent. Overlapping pixels with different paint are shown separately as unresolved. Tests verify these extent categories and show that the overlay leaves the numerical fidelity score unchanged. A localized pixel difference can indicate paint, geometry or content. It supplies no proof by itself about a particular element or behavior.
+
+The historical live audit remains the detection baseline. These deterministic tests establish rule behavior for the fixtures. Intentional source deviations still need an application-owned authorization path. Pinned fidelity thresholds continue to apply.
+
 ## Next checkpoints
 
-1. Project compact link, typography, background, accessibility, geometry and interaction evidence into review. Verify structured requirements separately from model confidence. Keep source deviations explicit and separate from content, responsiveness, behavior and feasibility. Use overlapping images as supplemental evidence of mismatches.
+1. Record explicitly authorized source deviations independently of content, responsive quality, behavior and feasibility.
 2. Trial an editable local tabbed-content block. The application owns its capability contract and scripts. Developer owns block architecture and recovery. Independent QA exercises browser state transitions and the WordPress editor rather than inheriting Bossy’s Touch observation.
 3. Verify both production adapters and rerun the defect benchmark with approval for any paid calls. Report detection, escape, false rejections, uncertainty, latency and cost. BKKGO establishes a scenario, while broader acceptance is measured separately.
 

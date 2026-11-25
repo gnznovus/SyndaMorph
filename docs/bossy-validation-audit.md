@@ -1,6 +1,8 @@
 # Bossy design validation reliability audit
 
-The v0.12 work-order checkpoint gives the reviewer stable requirement IDs and a pinned specification receipt. The rates below remain the measured baseline. Requirement-level decisions and equivalent live retesting are [later checkpoints](production-team-upgrade.md).
+The v0.12 work-order checkpoint gives the reviewer stable requirement IDs and a pinned specification receipt. [Production Team checkpoints](production-team-upgrade.md)
+
+v0.12.4 added browser-owned typed checks, compact semantic evidence and duplicate diagnostic rejection. These changes are verified with controlled defects. The live rates below still describe the original baseline until the updated review is benchmarked. [Validation checkpoint](production-team-upgrade.md#v0124-bossy-validation-checkpoint)
 
 SyndaMorph benchmarked the pre-Developer design gate at `d71f0321f064964c1d1ef523d249183505a96ff1` on the feature branch. Bossy explicitly identified 5 of 11 distinct defective designs for which Haiku 5.5 returned a verdict. The complete gate withheld handoff on 9 of 11, including three requests for more evidence. A missing gold marker and a wrong background reached handoff. A broken link also reached handoff in one of three trials with the same request. Bossy's approval needs independent evidence for requirements that can be measured.
 

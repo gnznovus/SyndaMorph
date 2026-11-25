@@ -142,7 +142,8 @@ function createRendererServer(render = runBrowserWorker) {
             const body = await readBody(req, limit);
             if (!body || typeof body !== 'object' || Array.isArray(body)) throw new RendererError('invalid_request_json', 400);
             if (req.url === '/crop') return reply(200, { images: cropScreenshots(body.items) });
-            if (req.url === '/compare') return reply(200, { comparison: compareScreenshots(body.reference, body.native, body.fitExtent === true) });
+            if (req.url === '/compare') return reply(200,{ comparison:compareScreenshots(
+                body.reference,body.native,body.fitExtent===true,body.includeOverlay===true) });
             if (typeof body.html !== 'string' || !body.html.trim()) throw new RendererError('invalid_html', 400);
             if (Buffer.byteLength(body.html) > MAX_HTML) throw new RendererError('request_limit', 413);
             if (req.url !== '/inspect') return reply(200, { html: await render(body.html, null, controller.signal) });

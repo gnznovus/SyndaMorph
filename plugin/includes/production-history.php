@@ -141,7 +141,7 @@ function syndamorph_job_resume_signature(): string {
         'production-block-plan.php','production-surgery.php','production-repair.php',
         'production-tools.php','production-visual-qa.php','production-job-memory.php','production-learning.php',
         'production-source.php','production-standards.php','production-specification.php','production-reference.php',
-        'production-touch.php','production-responsive.php');
+        'production-touch.php','production-responsive.php','production-design-evidence.php');
     $digest='';
     foreach($files as $file)$digest.=hash_file('sha256',__DIR__.'/'.$file);
     return hash('sha256',$digest);

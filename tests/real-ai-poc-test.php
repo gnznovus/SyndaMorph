@@ -111,7 +111,21 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    if(!empty($GLOBALS['responsive_design_test'])){
+    if(!empty($GLOBALS['design_requirement_test'])){
+        $expected=$GLOBALS['design_requirement_test']==='pass'?'Welcome & enjoy':'Unrendered required copy';
+        $text=match($i){
+            1=>wp_json_encode(array('version'=>1,'title'=>'Browser requirement fixture',
+                'sections'=>array(array('id'=>'hero','label'=>'Hero','parent'=>null)),
+                'requirements'=>array(array('id'=>'exact-pinned-headline','target'=>'hero','dimension'=>'content','basis'=>'brief',
+                    'requirement'=>'Preserve the required copy','acceptance'=>'Copy is visible at the required viewports',
+                    'check'=>array('kind'=>'text','value'=>$expected))))),
+            2=>'<section class="hero"><h2>Welcome &amp; enjoy</h2></section>',
+            3=>'{"decision":"approved","issues":[],"requirementChecks":[{"id":"exact-pinned-headline","status":"verified","evidence":["view-375"]}]}',
+            4=>$GLOBALS['native_fixture'],
+            5=>'{"decision":"approved","issues":[]}',
+            default=>throw new RuntimeException('Unexpected design requirement call '.$i),
+        };
+    }elseif(!empty($GLOBALS['responsive_design_test'])){
         $rollback=$GLOBALS['responsive_design_test']==='rollback';
         $text=match($i){
             1=>'{"title":"Responsive fixture","sections":["Hero"],"constraints":[],"acceptance":["Preserve the visible heading"]}',
@@ -1937,3 +1951,21 @@ foreach(array('escape','rollback') as $case){
 }
 unset($GLOBALS['responsive_design_test'],$GLOBALS['responsive_probe_widths']);
 echo "PASS: intermediate responsive gate and Designer surgical rollback\n";
+
+foreach(array('pass','false-approval') as $case){
+    $GLOBALS['design_requirement_test']=$case;
+    $GLOBALS['source_fixture_copy']='Welcome & enjoy';
+    $GLOBALS['generations']=array();
+    $result=syndamorph_collab_run('Preserve the required headline.',false,null,false);
+    if($case==='pass'){
+        expect(is_array($result)&&$result['designApproval']['requirementResults']['checks'][0]['owner']==='browser'&&
+            $result['designApproval']['requirementResults']['checks'][0]['status']==='verified',
+            'A matching measured work-order check did not reach the implementation handoff');
+    }else{
+        expect(is_wp_error($result)&&$result->get_error_code()==='sm_design_requirements'&&
+            $result->get_error_data()['requirements']['blocking']===array('exact-pinned-headline')&&
+            count($GLOBALS['generations'])===3,'A model self-approval bypassed a measured work-order failure');
+    }
+}
+unset($GLOBALS['design_requirement_test'],$GLOBALS['source_fixture_copy']);
+echo "PASS: browser-owned requirement verdicts across real pipeline handoffs\n";

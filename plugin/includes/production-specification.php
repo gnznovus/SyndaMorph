@@ -1,6 +1,7 @@
 <?php
 /** Versioned, browser-evidence-aligned work order shared by the production roles. */
 if (!defined('ABSPATH')) exit;
+require_once __DIR__.'/production-design-evidence.php';
 
 function syndamorph_production_specification(array $data) {
     $invalid = static fn(string $field): WP_Error => new WP_Error(
@@ -43,6 +44,11 @@ function syndamorph_production_specification(array $data) {
         $requirements[$key]=array('id'=>$key,'target'=>$target,'dimension'=>$requirement['dimension'],
             'basis'=>$requirement['basis'],'requirement'=>trim($requirement['requirement']),
             'acceptance'=>trim($requirement['acceptance']));
+        if(array_key_exists('check',$requirement)){
+            $check=syndamorph_design_check_contract($requirement['check']);
+            if($check===null)return $invalid('requirement check');
+            $requirements[$key]['check']=$check;
+        }
     }
     return array('version'=>1,'format'=>'structured','title'=>trim($data['title']),
         'sections'=>array_values($sections),'requirements'=>array_values($requirements));

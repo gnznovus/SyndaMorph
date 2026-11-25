@@ -74,3 +74,22 @@ test('existing DOM render endpoint remains available',async()=>{
     const result=await request('/render','<main><p>Original mode</p></main>');
     assert.match(result.html,/<p>Original mode<\/p>/);
 });
+
+test('browser facts expose painted markers, typography and live fragment semantics',async()=>{
+    const html='<section class="hero" style="background:linear-gradient(#18283a,#294c77)">'+
+        '<span id="gold-mark" style="display:block;width:2px;height:2px;background:#ffc900" aria-hidden="true"></span>'+
+        '<h2 style="font-family:serif">Welcome</h2><a class="room-link" href="#rooms">Rooms</a>'+
+        '<a href="#missing">Broken</a><p id="rooms">Available rooms</p></section>';
+    const {evidence}=await request('/inspect',html,[375]);
+    const [section,marker,title,link,broken]=evidence[0].snapshot.elements;
+    assert.match(section.styles.backgroundImage,/linear-gradient/);
+    assert.equal(marker.visible,true);
+    assert.equal(marker.id,'gold-mark');
+    assert.equal(marker.styles.backgroundColor,'rgb(255, 201, 0)');
+    assert.equal(title.styles.fontFamily,'serif');
+    assert.deepEqual(link.classes,['room-link']);
+    assert.equal(link.href,'#rooms');
+    assert.equal(link.fragmentTarget,true);
+    assert.equal(link.keyboardReachable,true);
+    assert.equal(broken.fragmentTarget,false);
+});

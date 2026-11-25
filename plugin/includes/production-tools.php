@@ -2,6 +2,7 @@
 /** Explicit shared tool surface for the AI Production Team. Orchestrator owns calls. */
 if(!defined('ABSPATH'))exit;
 require_once __DIR__.'/production-touch.php';
+require_once __DIR__.'/production-design-evidence.php';
 /** Runtime tool grants are per-role, not per-artifact. */
 function syndamorph_production_tool_grants(string $role): array {
     return array(
@@ -50,7 +51,8 @@ function syndamorph_production_tool(string $role,string $name,array $args) {
 function syndamorph_production_tool_catalog(string $role,array $artifacts=array()): array {
     $catalog=array(
         'playwright.inspect'=>array('purpose'=>'Inspect the indicated rendered artifact at the required viewports.',
-            'readOnly'=>true,'targets'=>isset($artifacts['native'])?array('reference','native'):array('reference')),
+            'readOnly'=>true,'targets'=>isset($artifacts['native'])?array('reference','native'):array('reference'),
+            'input'=>'Optional query with one simple tag/.class/#id selector and an exact required viewport width.'),
         'playwright.compare'=>array('purpose'=>'Compare reference and native screenshots and metrics.','readOnly'=>true,'targets'=>array('reference','native')),
         'playwright.crop'=>array('purpose'=>'Extract targeted screenshot evidence.','readOnly'=>true,'targets'=>array('reference','native')),
         'compiler.validate'=>array('purpose'=>'Validate native Gutenberg plan.','readOnly'=>true,'targets'=>array('plan')),
@@ -67,12 +69,16 @@ function syndamorph_production_tool_catalog(string $role,array $artifacts=array(
     return array_intersect_key($catalog,array_flip(array('playwright.inspect','compiler.validate','playwright.touch')),
         array_flip(syndamorph_production_tool_grants($role)));
 }
-function syndamorph_production_tool_evidence(array $samples,string $reason=''): array {
+function syndamorph_production_tool_evidence(array $samples,string $reason='',array $query=array()): array {
     $result=array('reason'=>$reason,'source'=>'playwright.computed','viewports'=>array());
     foreach($samples as $sample) {
         if(!is_array($sample))continue;
+        if(isset($query['width'])&&$query['width']!==$sample['width'])continue;
         $elements=array();
-        foreach(array_slice((array)($sample['snapshot']['elements']??array()),0,40) as $element){
+        $raw=(array)($sample['snapshot']['elements']??array());
+        if(isset($query['selector']))$raw=array_values(array_filter($raw,
+            static fn($element)=>syndamorph_design_matches($element,$query['selector'])));
+        foreach(array_slice($raw,0,40) as $element){
             $styles=(array)($element['styles']??array());
             $elements[]=array('tag'=>$element['tag']??'','id'=>$element['id']??'',
                 'text'=>mb_substr((string)($element['text']??''),0,110),
@@ -85,7 +91,9 @@ function syndamorph_production_tool_evidence(array $samples,string $reason=''): 
                 'textTransform'=>$styles['textTransform']??null,
                 'letterSpacing'=>$styles['letterSpacing']??null,
                 'color'=>$styles['color']??null,
-                'rect'=>$element['rect']??array());
+                'rect'=>$element['rect']??array())+array_intersect_key($element,array_flip(
+                    array('classes','visible','role','name','href','fragmentTarget','keyboardReachable')))+
+                array_intersect_key($styles,array_flip(array('backgroundColor','backgroundImage')));
         }
         $result['viewports'][]=array('width'=>$sample['width']??null,
             'overflow'=>$sample['snapshot']['overflow']??null,
@@ -117,6 +125,21 @@ function syndamorph_production_tool_request(string $role,array $request,array $a
     $plan=$name==='compiler.validate'?($artifacts['plan']??null):null;
     $html=$name==='playwright.inspect'?($artifacts[$target]??null):null;
     $viewports=$artifacts['viewports']??null;
+    $query=array();
+    if($name==='playwright.inspect'&&array_key_exists('query',$request)){
+        if(!is_array($request['query']))return new WP_Error('sm_tool_input','Invalid structured browser diagnostic.');
+        if(array_key_exists('selector',$request['query'])){
+            $check=syndamorph_design_check_contract(array('kind'=>'element','selector'=>$request['query']['selector']));
+            if($check===null)return new WP_Error('sm_tool_input','Diagnostic selector must be a single tag, class or ID.');
+            $query['selector']=$check['selector'];
+        }
+        if(array_key_exists('width',$request['query'])){
+            $width=$request['query']['width'];
+            if(!in_array($width,(array)$viewports,true))
+                return new WP_Error('sm_tool_input','Diagnostic width must be one of the required widths.');
+            $query['width']=$width;
+        }
+    }
     if($name==='playwright.inspect'&&(!is_string($html)||
         !is_array($viewports)||!$viewports))
         return new WP_Error('sm_tool_input','Server-owned inspection HTML and viewports are required.');
@@ -146,10 +169,10 @@ function syndamorph_production_tool_request(string $role,array $request,array $a
     $receipt=array('role'=>$role,'tool'=>$name,'target'=>$target,
         'artifactSha256'=>$fingerprint,'cache'=>$hit?'hit':'miss',
         'reason'=>mb_strcut($reason,0,260,'UTF-8'),
-        'viewports'=>$name==='playwright.inspect'?$viewports:array());
+        'viewports'=>$name==='playwright.inspect'?$viewports:array(),'query'=>$query);
     if($on_event)$on_event('tool_invocation',$receipt);
     return array('receipt'=>$receipt,'evidence'=>$name==='playwright.inspect'?
-        syndamorph_production_tool_evidence($cache[$key],$reason):
+        syndamorph_production_tool_evidence($cache[$key],$reason,$query):
         $cache[$key]);
 }
 

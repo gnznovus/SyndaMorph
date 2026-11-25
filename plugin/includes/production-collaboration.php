@@ -628,7 +628,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'published'=>false,'renderedInBrowser'=>false);
     };
     $touchNote=isset($source['referenceArchive']['runtimeSha256'])?' For a concrete interaction uncertainty, use the available Touch tool. First request the pinned width with actions:[]. Use only discovered target IDs in subsequent actions. A blocked request or inferred destination does not verify real behavior.':'';
-    $boss=$call('boss','Classify the job into a concise production specification. Return ONLY JSON {"version":1,"title":"short job title","sections":[{"id":"hero","label":"Hero","parent":null}],"requirements":[{"id":"hero-heading","target":"hero","dimension":"content","basis":"brief","requirement":"required result","acceptance":"observable pass condition"}]}. Put parents before children. A target is a section ID or page. Use short lowercase IDs, up to 12 sections and 24 requirements. Dimensions are content, visual, responsive, functional, implementation, accessibility. Basis is brief, source, or standard. Capture each explicit requirement, use the supplied viewport widths, and record unknown dependencies as verification needs. For an unsourced brief, permit generic marketing copy and provisional local CTAs without invented real-world facts.'.$sourceNote.$touchNote,
+    $boss=$call('boss','Classify the job into a concise production specification. Return ONLY JSON {"version":1,"title":"short job title","sections":[{"id":"hero","label":"Hero","parent":null}],"requirements":[{"id":"hero-heading","target":"hero","dimension":"content","basis":"brief","requirement":"required result","acceptance":"observable pass condition"}]}. Put parents before children. A target is a section ID or page. Use short lowercase IDs, up to 12 sections and 24 requirements. Dimensions are content, visual, responsive, functional, implementation, accessibility. Basis is brief, source, or standard. Capture each explicit requirement, use the supplied viewport widths, and record unknown dependencies as verification needs. For directly stated browser assertions use optional check {kind:text|element|link|style,selector:one simple tag/.class/#id,value:expected literal,field:computed property for style,widths:optional exact widths}. Text needs a value, element needs a selector, link needs both. Never invent a selector or asserted value. For an unsourced brief, permit generic marketing copy and provisional local CTAs without invented real-world facts.'.$sourceNote.$touchNote,
         array('brief'=>$brief,'viewportWidths'=>$viewports)+$sourceContext,
         syndamorph_collab_output_cap($provider,$model),$sourceImages,'boss',0.0,
         isset($source['referenceArchive'])?array('sourceArchive'=>$source['referenceArchive']):array());
@@ -666,7 +666,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $approvedReference=false;$designReviews=0;$handoffs=array($assignment);
     $priorDesignMeasurements=null;$priorDesignReview=null;$priorDesignDiff=null;
     $priorDesignImageHashes=null;$designSeenStates=array();
-    $pendingToolEvidence=null;$toolRequestKeys=array();$toolRequestCount=0;
+    $pendingToolEvidence=null;$toolRequestKeys=array();$reviewEvidenceSeen=array();$toolRequestCount=0;
     $responsiveReceipts=array();$designTrial=null;$responsive=null;$savedDesigns=array();
     for($designRound=1;;$designRound++){
         $control=syndamorph_job_control_gate();
@@ -740,6 +740,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         }
         $reviewContext+=$touchContext;
         $reviewContext['continuousResponsive']=$responsive;
+        $browserFacts=syndamorph_design_browser_facts($inspectReference,$specification);
+        $reviewContext['browserFacts']=$browserFacts;
+        $extraEvidence=array('responsive');
+        if($source!==null)$extraEvidence[]='pinned-source';
+        if($touchScenarios)$extraEvidence[]='touch-scenarios';
+        if(($pendingToolEvidence['receipt']['artifactSha256']??null)===$referenceHash)$extraEvidence[]='targeted-verification';
+        $reviewContext['evidenceIds']=$extraEvidence;
         $reviewContext['productionSpecification']=$specification;
         $reviewContext['specificationReceipt']=$specificationReceipt;
         if($source!==null){
@@ -790,7 +797,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $savedDesigns[$referenceHash]=true;
         }
         $priorDesignImageHashes=$currentImageHashes;
-        $review=$call('boss','Review the Designer reference against the brief, native compiler contract and browser evidence. In diff mode, focus on changed evidence and unresolved defects. Use nativeConstraints to resolve observed effects that cannot be converted. If they are present, give the Designer a supported alternative within the brief, or request human design review if the brief requires the effect. Browser-computed styles are authoritative for CSS values; do not reject a declared weight solely because a screenshot appears light. If evidence is insufficient, return JSON {"decision":"verification_required","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"specific browser diagnostic question"},"summary":"brief"} instead of requesting HTML changes. Otherwise return JSON {"decision":"approved|changes_requested|design_review_required","issues":[{"target":"section","problem":"measurable defect","requiredChange":"specific correction"}],"acceptedCapabilityDeviations":[],"summary":"brief"}. Request no more than three concrete issues. Do not demand browser verification from Designer.'.$sourceNote,
+        $review=$call('boss','Review the Designer reference against the brief, native compiler contract and browser evidence. In diff mode, focus on changed evidence and unresolved defects. Use nativeConstraints to resolve observed effects that cannot be converted. If they are present, give the Designer a supported alternative within the brief, or request human design review if the brief requires the effect. Browser-computed styles are authoritative for CSS values; do not reject a declared weight solely because a screenshot appears light. For a structured specification include requirementChecks:[{id,status:verified|failed|uncertain|not_applicable,evidence:[measured evidence IDs],reason}]. Explain standard criteria that do not apply. Functional and implementation criteria beyond the design stage await independent QA. Do not approve while a design requirement is unresolved. If evidence is insufficient, return JSON {"decision":"verification_required","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"specific browser diagnostic question"},"summary":"brief"} instead of requesting HTML changes. Otherwise return JSON {"decision":"approved|changes_requested|design_review_required","issues":[{"target":"section","problem":"measurable defect","requiredChange":"specific correction"}],"acceptedCapabilityDeviations":[],"summary":"brief"}. Request no more than three concrete issues. Do not demand browser verification from Designer.'.$sourceNote,
             $reviewContext,syndamorph_collab_output_cap($provider,$model),array_merge($referenceImages,$comparisonSourceImages),'final_approval');
         $priorDesignMeasurements=$measurements;
         if(is_wp_error($review))return $review;
@@ -810,6 +817,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $toolResult=syndamorph_production_tool_request('boss',$request,
                 array('reference'=>$reference,'viewports'=>$viewports),$on_event);
             if(is_wp_error($toolResult))return $toolResult;
+            $evidenceDigest=hash('sha256',$referenceHash.wp_json_encode($toolResult['evidence']['viewports']??array()));
+            if(isset($reviewEvidenceSeen[$evidenceDigest]))
+                return new WP_Error('sm_tool_stagnation','The requested diagnostic provided no new browser evidence.',
+                    array('stage'=>'design_approval','toolRequest'=>$request));
+            $reviewEvidenceSeen[$evidenceDigest]=true;
             $pendingToolEvidence=$toolResult;
             syndamorph_authority_gate($record,'pending_validation',
                 'Boss requested additional browser evidence before a design decision.',$on_event);
@@ -863,6 +875,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             syndamorph_authority_gate($record,'blocked','Deterministic intermediate or breakpoint findings remain open.',$on_event);
             return new WP_Error('sm_design_responsive','The Designer reference failed continuous responsive checks.',
                 array('stage'=>'design_approval','findings'=>$responsive['findings'],'widths'=>$responsive['widths']));
+        }
+        $requirementResults=syndamorph_design_requirements($specification,$inspectReference,$browserFacts,$approval,$extraEvidence);
+        if($on_event)$on_event('design_requirements',array('referenceSha256'=>$referenceHash)+$requirementResults);
+        if($decision==='approved' && $requirementResults['blocking']){
+            syndamorph_authority_gate($record,'blocked','Required design verifications are failed or uncertain.',$on_event);
+            return new WP_Error('sm_design_requirements','The Designer reference has unresolved required checks.',
+                array('stage'=>'design_approval','requirements'=>$requirementResults));
         }
         if($scopeRegion!==null && $decision==='approved' && !$sourceDesign['passed']) {
             syndamorph_authority_gate($record,'blocked','Pinned responsive source fidelity did not pass.',$on_event);
@@ -975,7 +994,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $designMemo=array('decision'=>'approved','referenceSha256'=>hash('sha256',$reference),
         'reviewRounds'=>$designReviews,'capabilityNotes'=>$capabilityNotes,'acceptedCapabilityDeviations'=>$deviations,
         'bossApproval'=>$approval,'productionSpecification'=>$specification,'specificationReceipt'=>$specificationReceipt,
-        'continuousResponsive'=>$responsive)+$touchContext;
+        'continuousResponsive'=>$responsive,'requirementResults'=>$requirementResults)+$touchContext;
     $handoffs[]=array('from'=>'boss','to'=>'developer','type'=>'approved_design',
         'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews,'agentPayload'=>$approval,
         'specificationReceipt'=>$specificationReceipt);

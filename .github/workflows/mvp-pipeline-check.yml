@@ -21,6 +21,8 @@ on:
       - 'plugin/includes/production-reference.php'
       - 'plugin/includes/production-touch.php'
       - 'plugin/includes/production-responsive.php'
+      - 'plugin/includes/production-design-evidence.php'
+      - 'tests/production-design-evidence-test.php'
       - 'tests/production-responsive-test.php'
       - 'tests/designer-responsive-wordpress.php'
       - 'plugin/includes/production-source.php'
@@ -62,6 +64,8 @@ on:
       - 'plugin/includes/production-reference.php'
       - 'plugin/includes/production-touch.php'
       - 'plugin/includes/production-responsive.php'
+      - 'plugin/includes/production-design-evidence.php'
+      - 'tests/production-design-evidence-test.php'
       - 'tests/production-responsive-test.php'
       - 'tests/designer-responsive-wordpress.php'
       - 'plugin/includes/production-source.php'
@@ -131,6 +135,7 @@ jobs:
           php -l plugin/includes/production-reference.php
           php -l plugin/includes/production-touch.php
           php -l plugin/includes/production-responsive.php
+          php -l plugin/includes/production-design-evidence.php
           php -l tests/designer-responsive-wordpress.php
           php -l plugin/includes/production-source.php
           node --check backend/production-source.js
@@ -153,6 +158,7 @@ jobs:
           node --check renderer/server.js
           php tests/real-ai-poc-test.php
           php tests/production-responsive-test.php
+          php tests/production-design-evidence-test.php
           node --check plugin/assets/demo-dialogue.js
           node --check plugin/assets/production-team.js
           node --check plugin/assets/production-workflow.js
@@ -187,6 +193,7 @@ jobs:
           trap 'docker rm -f syndamorph-inspection-test >/dev/null 2>&1 || true' EXIT
           for i in $(seq 1 30); do if curl -fsS -o /dev/null http://127.0.0.1:3999/healthz 2>/dev/null; then break; fi; sleep 1; done
           docker exec -i syndamorph-inspection-test node < renderer/transport.test.js
+          docker exec -i syndamorph-inspection-test node < renderer/overlap.test.js
           node --test renderer/inspect.test.js
           node tests/adaptive-surgery-benchmark.cjs
       - name: Real WordPress Gutenberg serialization gate

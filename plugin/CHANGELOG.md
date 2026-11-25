@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.4] - 2026-11-26
+
+### Added
+- Compact Bossy browser evidence for visible DOM identity, computed typography and paint, link destinations, keyboard reachability, fragment targets and accessibility findings.
+- Requirement-level verification with stable evidence IDs, deterministic checks for literal text, element presence, local links and computed styles, and explicit handoff for implementation checks.
+- A bounded selector and viewport for targeted inspection, with repeat-evidence rejection. The renderer can generate a supplemental overlap image without changing its pixel comparison.
+
+### Verified
+- Controlled browser and PHP tests cover missing visible elements, broken fragments, equivalent CSS colors and rejection of a model's approval when a browser-owned requirement fails.
+- Live detection and escape targets remain unmeasured on this version. Authorized responsive source deviations and implementation acceptance remain additional work.
+
 ## [0.12.3] - 2026-11-26
 
 ### Added

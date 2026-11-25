@@ -10,7 +10,43 @@ function decode(sample) {
     if (!img || img.width>1920 || img.height>HEIGHT || img.width*img.height<100) throw new Error('Screenshot dimensions are invalid.');
     return img;
 }
-function compareScreenshots(reference,native,fitExtent=false) {
+/** Visual extent labels are geometry, not claims about element semantics. */
+function overlapEvidence(a,b,width,beforeHeight,afterHeight) {
+    const maxHeight=Math.max(beforeHeight,afterHeight);
+    const scale=Math.min(1,320/width,420/maxHeight);
+    const cols=Math.max(1,Math.round(width*scale));
+    const rows=Math.max(1,Math.round(maxHeight*scale));
+    const data=Buffer.alloc(cols*rows*4);
+    const counts={ matching:0,sourceOnlyExtent:0,designerOnlyExtent:0,unresolvedOverlap:0 };
+    const palette={ matching:[220,220,220],sourceOnlyExtent:[233,158,34],
+        designerOnlyExtent:[36,146,202],unresolvedOverlap:[181,28,96] };
+    for(let y=0;y<rows;y++){
+        const logicalY=(y+0.5)*maxHeight/rows;
+        const before=logicalY<beforeHeight;
+        const after=logicalY<afterHeight;
+        for(let x=0;x<cols;x++){
+            let label;
+            if(!before)label='designerOnlyExtent';
+            else if(!after)label='sourceOnlyExtent';
+            else {
+                const pixel=(image,height)=>(Math.floor(logicalY*image.height/height)*image.width+
+                    Math.floor(x*image.width/cols))*4;
+                const at=pixel(a,beforeHeight),bt=pixel(b,afterHeight);
+                let delta=0;
+                for(let channel=0;channel<3;channel++)delta+=Math.abs(a.data[at+channel]-b.data[bt+channel]);
+                label=delta>72?'unresolvedOverlap':'matching';
+            }
+            counts[label]++;
+            const offset=(y*cols+x)*4;
+            for(let channel=0;channel<3;channel++)data[offset+channel]=palette[label][channel];
+            data[offset+3]=255;
+        }
+    }
+    return { width:cols,height:rows,counts,media_type:'image/jpeg',
+        data:jpeg.encode({data,width:cols,height:rows},75).data.toString('base64') };
+}
+
+function compareScreenshots(reference,native,fitExtent=false,includeOverlay=false) {
     if (!Array.isArray(reference) || !validViewports(reference.map(sample => sample?.width)) ||
         !Array.isArray(native) || native.length !== reference.length) throw new Error('Matched responsive viewports required.');
     return reference.map((ref,i)=>{
@@ -36,7 +72,8 @@ function compareScreenshots(reference,native,fitExtent=false) {
         }
         return {width,pixelDifferenceRatio:Number((changed/total).toFixed(5)),
             meanChannelDifference:Number((distance/total).toFixed(3)),
-            sampledPixels:total};
+            sampledPixels:total,...(includeOverlay?{ overlap:overlapEvidence(
+                a,b,width,fitExtent?ref.extent:a.height,fitExtent?result.extent:b.height) }:{})};
     });
 }
 function cropScreenshot(sample,rect) {

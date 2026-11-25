@@ -128,6 +128,7 @@ process.stdin.on('end', async () => {
                         copy: copyParts.join('').replace(/\s+/gu, ' ').trim(),
                         overflow: document.documentElement.scrollWidth > innerWidth,
                         height: document.documentElement.scrollHeight,
+                        elementCount: elements.length,
                         ...(literal ? { literal } : {}),
                         elements: elements.slice(0, 200).map(el => {
                             const r = el.getBoundingClientRect(), s = getComputedStyle(el);
@@ -150,15 +151,29 @@ process.stdin.on('end', async () => {
                                 }
                             }
                             const id = el.getAttribute('data-sm-node') || (el.tagName === 'A' ? el.parentElement?.getAttribute('data-sm-node') : null);
+                            const href=el.tagName==='A'?el.getAttribute('href'):null;
+                            let fragmentTarget=null;
+                            if(href?.startsWith('#')&&href.length>1){
+                                try { fragmentTarget=document.getElementById(decodeURIComponent(href.slice(1)))!==null; }
+                                catch { fragmentTarget=false; }
+                            }
+                            const backgroundImage=s.backgroundImage.replace(/url\([^)]*\)/g,'url([asset])');
                             return { tag: el.tagName.slice(0, 32), id: el.id.slice(0, 128), text: el.children.length ? '' : el.textContent.slice(0, 250),
                                 node: id?.slice(0, 128) ?? null,
+                                classes:[...el.classList].slice(0,12).map(name=>name.slice(0,64)),
+                                visible:r.width>0&&r.height>0&&el.checkVisibility({opacityProperty:true,visibilityProperty:true}),
+                                role:el.getAttribute('role')?.slice(0,80)??null,
+                                name:el.getAttribute('aria-label')?.slice(0,128)??null,
+                                href:href?.slice(0,300)??null,fragmentTarget,
+                                keyboardReachable:el.tabIndex>=0&&!el.matches(':disabled')&&!el.closest('[inert]'),
                                 parent: positions.get(el.parentElement) ?? null,
                                 normalizedText: text,
                                 rect: rect(r),
                                 textRect: text ? rect(range.getBoundingClientRect()) : null,
                                 lineRects: lines,
                                 wrapChangesGeometry,
-                                styles: Object.fromEntries(['color','backgroundColor','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','maxWidth','overflowWrap','padding','margin','gap','display','textAlign','textTransform','textWrapStyle','alignItems','justifyContent','borderRadius'].map(k => [k,s[k].slice(0, 128)])),
+                                styles: { ...Object.fromEntries(['color','backgroundColor','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','maxWidth','overflowWrap','padding','margin','gap','display','textAlign','textTransform','textWrapStyle','alignItems','justifyContent','borderRadius'].map(k => [k,s[k].slice(0, 128)])),
+                                    backgroundImage:backgroundImage.slice(0,240) },
                                 widthValue: el.computedStyleMap().get('width')?.toString().slice(0,128) ?? null,
                                 clipped: /^(?:hidden|clip)$/.test(s.overflowX) && el.scrollWidth > el.clientWidth + 2,
                                 missingAlt: el.tagName === 'IMG' && !el.hasAttribute('alt'),
