@@ -356,6 +356,19 @@ $richPlan['blocks'][0]['children'][0]['style']=array('color'=>'#ffffff','fontSiz
 $richPlan['blocks'][0]['children'][2]['children'][0]['style']=array('background'=>'#ffffff','color'=>'#18283a','borderRadius'=>'8px','padding'=>'1rem');
 $styled=syndamorph_compile_block_plan(wp_json_encode($richPlan));
 expect(!is_wp_error($styled),'Expanded Gutenberg native style schema failed to compile');
+$designReference='<section class="sm-hero"><style>.sm-hero{color:#ffffff}</style><h2>Welcome</h2><p>Introduction</p></section>';
+$designEdit=syndamorph_design_surgery($designReference,array('edits'=>array(
+    array('find'=>'.sm-hero{color:#ffffff}','replace'=>'.sm-hero{color:#f0f0f0}'))));
+expect(is_array($designEdit)&&str_contains($designEdit['reference'],'color:#f0f0f0')
+    &&str_contains($designEdit['reference'],'<p>Introduction</p>'),
+    'Designer surgery failed to preserve unrelated reference content');
+expect(is_wp_error(syndamorph_design_surgery($designReference,array('edits'=>array(
+    array('find'=>'unmatched declaration','replace'=>'padding:2rem'))))),
+    'Designer surgery accepted an unmatched edit');
+expect(is_wp_error(syndamorph_design_surgery($designReference,array('edits'=>array(
+    array('find'=>'<h2>Welcome</h2>','replace'=>'<script>alert(1)</script>'))))),
+    'Designer surgery accepted active markup');
+
 $guidancePlan=$richPlan;
 $guidancePlan['blocks'][0]['children'][0]['style']['fontSize']='1.1234567rem';
 $guided=syndamorph_compile_block_plan(wp_json_encode($guidancePlan));
