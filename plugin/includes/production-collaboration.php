@@ -1062,7 +1062,17 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $reject('Invalid or out-of-scope surgical JSON patch');continue;
         }
         if(in_array($patch['blocked']??null,array('capability','design_constraint','missing_evidence'),true)) {
-            $reject($attempt['diagnosis'],'blocked',$patch['blocked']);continue;
+            // A scoped expert has explicitly identified a non-editable blocker.
+            // No different style/structure strategy can override missing native
+            // capabilities or approved copy. Preserve the model's assessment,
+            // stop paying Developer, and ask Boss to resolve scope once.
+            $blocker=$patch['blocked'];
+            $reject($attempt['diagnosis'],'blocked',$blocker);
+            $terminationReason=$blocker==='missing_evidence'?'missing_evidence':'design_review_required';
+            if($on_event)$on_event('repair_capability_blocked',array(
+                'round'=>$round,'id'=>$id,'blockerType'=>$blocker,
+                'reason'=>$attempt['diagnosis'],'nextAction'=>'boss_scope_resolution'));
+            break;
         }
         if($assignment['mode']==='structure' && !$wraps) {
             $reject('Structural repair requires an authorized wrap or a blocker reason.');continue;
@@ -1108,7 +1118,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         // Each repair receives a fresh vision review of its changed component,
         // not the entire design report. Unaffected model findings are retained.
         $targetReview=$call('boss',
-            'Inspect changed components and affected layout with the browser evidence. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"reference, previous and candidate evidence"}]}. Reuse issue IDs. A newly noticed defect does not imply a regression. Report only open actionable issues; compiler checks are authoritative.',
+            'Inspect changed components and affected layout with the browser evidence. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"reference, previous and candidate evidence"}]}. Reuse issue IDs. A newly noticed defect does not imply a regression. Before claiming copy was added or removed, compare literal reference and candidate text; do not mistake excerpted measurements for complete copy. Report only open actionable issues; compiler checks are authoritative.',
             array('id'=>$id,'changedNodes'=>syndamorph_surgery_context(
                     syndamorph_collab_find($candidate['plan']['blocks'],$id)),
                 'previousIssues'=>array_values(array_filter($issues,static fn($issue)=>isset($affected[$issue['component']??'']))),
