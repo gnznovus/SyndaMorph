@@ -446,6 +446,43 @@ $richPlan['blocks'][0]['children'][0]['style']=array('color'=>'#ffffff','fontSiz
 $richPlan['blocks'][0]['children'][2]['children'][0]['style']=array('background'=>'#ffffff','color'=>'#18283a','borderRadius'=>'8px','padding'=>'1rem');
 $styled=syndamorph_compile_block_plan(wp_json_encode($richPlan));
 expect(!is_wp_error($styled),'Expanded Gutenberg native style schema failed to compile');
+// GEN-000019: schema auto-repair removes only an unsupported buttons margin.
+// Compiler-success is not final visual approval; browser QA still runs later.
+$badButtonsPlan=syndamorph_collab_ids($richPlan);
+$badButtonsPlan['blocks'][0]['children'][2]['style']=array(
+    'justifyContent'=>'left','margin'=>'0.5rem 0 0 0');
+$badButtonsError=syndamorph_compile_block_plan(wp_json_encode($badButtonsPlan));
+expect(is_wp_error($badButtonsError)&&$badButtonsError->get_error_message()==='Unsupported style for block.'&&
+    str_ends_with($badButtonsError->get_error_data()['field']??'','.style.margin'),
+    'GEN-000019 buttons.margin fixture no longer reproduces native compiler rejection');
+$buttonsDiagnostic=array('code'=>$badButtonsError->get_error_code(),
+    'message'=>$badButtonsError->get_error_message(),
+    'field'=>$badButtonsError->get_error_data()['field']);
+$autoButtons=syndamorph_compiler_auto_repair($badButtonsPlan,$buttonsDiagnostic);
+expect(is_array($autoButtons)&&$autoButtons['compiled']===true &&
+    !array_key_exists('margin',$autoButtons['plan']['blocks'][0]['children'][2]['style']) &&
+    ($autoButtons['plan']['blocks'][0]['children'][2]['style']['justifyContent']??null)==='left' &&
+    $autoButtons['plan']['blocks'][0]['children'][0]===$badButtonsPlan['blocks'][0]['children'][0] &&
+    array_key_exists('margin',$badButtonsPlan['blocks'][0]['children'][2]['style']),
+    'Compiler auto-repair did not transactionally remove only invalid buttons.margin');
+$badGradientPlan=syndamorph_collab_ids($richPlan);
+$badGradientPlan['blocks'][0]['style']['gradient']='linear-gradient(135deg,#18283a 0%,#203040 100%)';
+$badGradientError=syndamorph_compile_block_plan(wp_json_encode($badGradientPlan));
+$gradientDiagnostic=array('code'=>$badGradientError->get_error_code(),
+    'message'=>$badGradientError->get_error_message(),
+    'field'=>$badGradientError->get_error_data()['field']);
+$autoGradient=syndamorph_compiler_auto_repair($badGradientPlan,$gradientDiagnostic);
+expect(is_array($autoGradient)&&$autoGradient['compiled']===true&&
+    $autoGradient['plan']['blocks'][0]['style']['gradient']==='linear-gradient(135deg,#18283a,#203040)',
+    'Equivalent endpoint gradient stops were not normalized without Developer');
+$unsafeGradient=$badGradientPlan;
+$unsafeGradient['blocks'][0]['style']['gradient']='linear-gradient(135deg,#18283a 20%,#203040 80%)';
+$unsafeError=syndamorph_compile_block_plan(wp_json_encode($unsafeGradient));
+expect(syndamorph_compiler_auto_repair($unsafeGradient,array(
+    'code'=>$unsafeError->get_error_code(),'message'=>$unsafeError->get_error_message(),
+    'field'=>$unsafeError->get_error_data()['field']))===null,
+    'Unsafe gradient normalization changed explicit color-stop semantics');
+
 $compilerRequest=array('name'=>'compiler.validate','target'=>'plan',
     'reason'=>'Validate the native Gutenberg structure before continuing development');
 $GLOBALS['syndamorph_production_tool_cache']=array();
