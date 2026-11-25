@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.3] - 2026-11-26
+
+### Added
+- Intermediate viewport and CSS breakpoint-boundary probes on the existing Designer artifact.
+- Application-owned responsive findings and a design approval gate for measured overflow, clipped text and sibling text collisions.
+- Designer surgery records and rollback when a patch introduces responsive defects, removes measured component IDs or breaks previously passing source fidelity checks.
+
+### Verified
+- A real Chromium fixture passed 1440, 768 and 375 px while failing around 900 px. The new probes detected the failure.
+- Pipeline regressions blocked a scripted false approval and retained the previous Designer artifact after a regressing patch.
+
 ## [0.12.2] - 2026-11-26
 
 ### Added

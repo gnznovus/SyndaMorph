@@ -83,13 +83,19 @@ function wp_remote_post($url,$args) {
     if ($url === 'http://renderer:3000/inspect') {
         $input=json_decode($args['body'],true);
         $native=str_contains($input['html'],'<!-- wp:');
-        $GLOBALS['inspection_calls'][]=$native?'native':'reference';
-        $GLOBALS['inspection_sent_hashes'][]=hash('sha256',$input['html']);
-        $GLOBALS['inspection_sent_widths'][]=$input['viewports'];
-        if(!empty($GLOBALS['inspection_failures']))return array_shift($GLOBALS['inspection_failures']);
+        $designProbe=in_array('syndamorph_design_responsive_measure',
+            array_column(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS,6),'function'),true);
+        if($designProbe)$GLOBALS['responsive_probe_widths'][]=$input['viewports'];
+        else {
+            $GLOBALS['inspection_calls'][]=$native?'native':'reference';
+            $GLOBALS['inspection_sent_hashes'][]=hash('sha256',$input['html']);
+            $GLOBALS['inspection_sent_widths'][]=$input['viewports'];
+            if(!empty($GLOBALS['inspection_failures']))return array_shift($GLOBALS['inspection_failures']);
+        }
         return inspection_reply(array('evidence'=>array_map(
             static fn($width)=>array('width'=>$width,'screenshot'=>inspection_fixture_jpeg($width),'a11y'=>array(),'snapshot'=>(isset($GLOBALS['source_fixture_copy'])?array('copy'=>$GLOBALS['source_fixture_copy']):array())+array(
-                'overflow'=>false,'elements'=>array(array('tag'=>'H2','id'=>'','text'=>'Welcome & enjoy',
+                'overflow'=>$designProbe&&$width===900&&str_contains($input['html'],'--test-overflow:1'),
+                'elements'=>array(array('tag'=>'H2','id'=>'','text'=>'Welcome & enjoy',
                 'rect'=>array(0,0,300,70),'wrapChangesGeometry'=>str_contains($input['html'],'text-wrap:balance'),
                 'styles'=>array('textWrapStyle'=>'balance','fontSize'=>'32px','fontWeight'=>'700','color'=>'rgb(0, 0, 0)','letterSpacing'=>'normal'))))),
             $input['viewports'])));
@@ -105,7 +111,20 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    if(!empty($GLOBALS['team_touch_fixture'])){
+    if(!empty($GLOBALS['responsive_design_test'])){
+        $rollback=$GLOBALS['responsive_design_test']==='rollback';
+        $text=match($i){
+            1=>'{"title":"Responsive fixture","sections":["Hero"],"constraints":[],"acceptance":["Preserve the visible heading"]}',
+            2=>'<section class="hero"><style>.hero{--test-overflow:'.($rollback?'0':'1').';color:#111}</style><h2>Welcome &amp; enjoy</h2></section>',
+            3=>$rollback?'{"decision":"changes_requested","issues":[{"target":"Hero","problem":"Try a different accent","requiredChange":"Change title accent"}]}':
+                '{"decision":"approved","issues":[]}',
+            4=>'{"edits":[{"find":"--test-overflow:0","replace":"--test-overflow:1"}]}',
+            5=>'{"decision":"approved","issues":[]}',
+            6=>$GLOBALS['native_fixture'],
+            7=>'{"decision":"approved","issues":[]}',
+            default=>throw new RuntimeException('Unexpected responsive fixture call '.$i),
+        };
+    }elseif(!empty($GLOBALS['team_touch_fixture'])){
         $text=match($i){
             1=>'{"action":"tool_request","toolRequest":{"name":"playwright.touch","target":"source","reason":"Discover the compact menu","width":375,"actions":[]}}',
             2=>wp_json_encode(array('action'=>'tool_request','toolRequest'=>array('name'=>'playwright.touch','target'=>'source',
@@ -1896,3 +1915,25 @@ expect(!isset(syndamorph_production_tool_catalog('designer',array('sourceArchive
     'Touch was exposed without Boss ownership and a pinned source');
 unset($GLOBALS['source_fixture_copy'],$GLOBALS['source_fixture_ratio'],$GLOBALS['team_touch_fixture'],$GLOBALS['touch_inputs']);
 echo "PASS: pinned Boss Touch receipts, safe registry grants and downstream scenario handoff\n";
+
+foreach(array('escape','rollback') as $case){
+    $GLOBALS['responsive_design_test']=$case;
+    $GLOBALS['generations']=array();
+    $GLOBALS['responsive_probe_widths']=array();
+    $surgeryEvents=array();
+    $result=syndamorph_collab_run('Build the responsive welcome section.',false,
+        static function($event,$data)use(&$surgeryEvents){if($event==='design_surgery')$surgeryEvents[]=$data;},false);
+    expect(in_array(900,array_merge(...$GLOBALS['responsive_probe_widths']),true),'An intermediate width was never inspected');
+    if($case==='escape'){
+        expect(is_wp_error($result)&&$result->get_error_code()==='sm_design_responsive'&&
+            $result->get_error_data()['findings'][0]['width']===900&&count($GLOBALS['generations'])===3,
+            'A false approval bypassed the intermediate responsive gate');
+    }else{
+        expect(is_array($result)&&in_array('rolled_back',array_column($surgeryEvents,'status'),true)&&
+            str_contains($result['referenceHtml'],'--test-overflow:0')&&
+            $result['designApproval']['continuousResponsive']['passed'],
+            'A regressing surgical candidate displaced the verified reference');
+    }
+}
+unset($GLOBALS['responsive_design_test'],$GLOBALS['responsive_probe_widths']);
+echo "PASS: intermediate responsive gate and Designer surgical rollback\n";

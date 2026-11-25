@@ -20,6 +20,9 @@ on:
       - 'plugin/includes/production-specification.php'
       - 'plugin/includes/production-reference.php'
       - 'plugin/includes/production-touch.php'
+      - 'plugin/includes/production-responsive.php'
+      - 'tests/production-responsive-test.php'
+      - 'tests/designer-responsive-wordpress.php'
       - 'plugin/includes/production-source.php'
       - 'plugin/includes/production-inspection.php'
       - 'plugin/includes/production-scope*.php'
@@ -58,6 +61,9 @@ on:
       - 'plugin/includes/production-specification.php'
       - 'plugin/includes/production-reference.php'
       - 'plugin/includes/production-touch.php'
+      - 'plugin/includes/production-responsive.php'
+      - 'tests/production-responsive-test.php'
+      - 'tests/designer-responsive-wordpress.php'
       - 'plugin/includes/production-source.php'
       - 'plugin/includes/production-inspection.php'
       - 'plugin/includes/production-scope*.php'
@@ -124,6 +130,8 @@ jobs:
           php -l plugin/includes/production-specification.php
           php -l plugin/includes/production-reference.php
           php -l plugin/includes/production-touch.php
+          php -l plugin/includes/production-responsive.php
+          php -l tests/designer-responsive-wordpress.php
           php -l plugin/includes/production-source.php
           node --check backend/production-source.js
           php -l plugin/includes/production-inspection.php
@@ -144,6 +152,7 @@ jobs:
           node --check renderer/render-worker.js
           node --check renderer/server.js
           php tests/real-ai-poc-test.php
+          php tests/production-responsive-test.php
           node --check plugin/assets/demo-dialogue.js
           node --check plugin/assets/production-team.js
           node --check plugin/assets/production-workflow.js
@@ -187,6 +196,7 @@ jobs:
           for i in $(seq 1 60); do if curl -fsS -o /dev/null http://127.0.0.1:8085/wp-admin/install.php; then break; fi; sleep 2; done
           curl -fsS -o /dev/null -X POST 'http://127.0.0.1:8085/wp-admin/install.php?step=2' --data 'weblog_title=CI&user_name=ciadmin&admin_password=ci-only-test-password&admin_password2=ci-only-test-password&admin_email=ci@example.invalid&blog_public=0&Submit=Install+WordPress'
           docker compose exec -T wordpress php < tests/inspection-wordpress.php
+          docker compose exec -T wordpress php < tests/designer-responsive-wordpress.php
           docker compose exec -T wordpress mkdir -p /tmp/sm-bossy-audit
           docker compose cp tests/fixtures/bossy-approved-gen-000002.html wordpress:/tmp/sm-bossy-audit/bossy-approved-gen-000002.html
           docker compose cp tests/fixtures/bossy-design-cases.json wordpress:/tmp/sm-bossy-audit/bossy-design-cases.json

@@ -46,11 +46,18 @@ An observed result records a browser state change with before and after screensh
 
 On BKKGO at 375 px, `Open menu` exposed `Close menu` with the isolated recorded runtime. The authenticated test used archive `6efe86844a718453c4c9ff87d577fcfff25e44d6f53e338fdbafa0295f5290fd`. The browser fixture also verified that local state can change while GET and POST attempts are blocked. A prior prototype that booted from the live site rejected mismatched copy. Touch now requires recorded responses, including for replay of a saved scenario.
 
+## v0.12.3 Designer responsiveness checkpoint
+
+Designer uses the 1440 px source to anchor the design and targets continuous layout down to 375 px. Application-owned browser probes combine the mandatory and explicitly requested design widths with fixed interval samples and widths on both sides of declared media boundaries. The probe planner supports literal pixel, em and rem boundaries. Its `em` and `rem` estimates use the fresh renderer's 16 px initial font size. More than 32 required widths returns a bounded diagnostic. Existing inspection recovery leaves visual QA pending when a required viewport is unavailable.
+
+The application checks document overflow, text outside the viewport, and overlapping sibling text lines. The responsive receipt reaches Bossy and cannot be waived by an approval. A scripted repair that introduces findings, removes observed element IDs or breaks a previously passing pinned source result restores the prior reference. Candidate HTML, hashes and observations remain in History. The current probe suite samples the range. More complex component behaviors and authorized source deviations require explicit requirements and dedicated checks.
+
+The Chromium regression deliberately introduced overflow only from 899 through 901 px. The design passed all three mandatory checks, with the extra probes catching the failure at 900 px and testing both boundary neighbors. Scripted orchestration tests verified rejection and rollback on the actual shared pipeline entry point.
+
 ## Next checkpoints
 
-1. Validate continuous responsiveness with mandatory 1440, 768 and 375 CSS px checks and deterministic intermediate and breakpoint probes. Keep source deviations explicit in the specification and separate from content, behavior and native feasibility. Designer repairs the saved HTML through targeted operations with a measured accept or rollback.
-2. Project compact link, typography, background, accessibility, geometry and interaction evidence into review. Verify structured requirements separately from model confidence. Use overlapping images as supplemental evidence of mismatches.
-3. Trial an editable local tabbed-content block. The application owns its capability contract and scripts. Developer owns block architecture and recovery. Independent QA exercises browser state transitions and the WordPress editor rather than inheriting Bossy’s Touch observation.
-4. Verify both production adapters and rerun the defect benchmark with approval for any paid calls. Report detection, escape, false rejections, uncertainty, latency and cost. BKKGO establishes a scenario, while broader acceptance is measured separately.
+1. Project compact link, typography, background, accessibility, geometry and interaction evidence into review. Verify structured requirements separately from model confidence. Keep source deviations explicit and separate from content, responsiveness, behavior and feasibility. Use overlapping images as supplemental evidence of mismatches.
+2. Trial an editable local tabbed-content block. The application owns its capability contract and scripts. Developer owns block architecture and recovery. Independent QA exercises browser state transitions and the WordPress editor rather than inheriting Bossy’s Touch observation.
+3. Verify both production adapters and rerun the defect benchmark with approval for any paid calls. Report detection, escape, false rejections, uncertainty, latency and cost. BKKGO establishes a scenario, while broader acceptance is measured separately.
 
 No release has been authorized for this development series. Each checkpoint records the version, actual verification and outstanding work in the plugin changelog.

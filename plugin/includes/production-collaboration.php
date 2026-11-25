@@ -9,6 +9,7 @@ require_once __DIR__.'/production-inspection.php';
 require_once __DIR__.'/production-surgery.php';
 require_once __DIR__.'/production-tools.php';
 require_once __DIR__.'/production-specification.php';
+require_once __DIR__.'/production-responsive.php';
 
 /**
  * Agent decisions are immutable facts. Execution gates belong to the
@@ -657,7 +658,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
 
     // Designer owns the visual deliverable; Boss reviews real browser evidence
     // before the Developer receives the approved reference.
-    $reference=$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.'.$sourceNote,
+    $reference=$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Use the 1440px view for design identity and adapt continuously through 375px. Account for required checkpoints, neighboring breakpoint widths, and intermediate sizes. Use fluid containers and type while preserving content, hierarchy and required states. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.'.$sourceNote,
         array('brief'=>$brief,'requirements'=>$bossBrief)+$sourceContext+$touchContext,
         syndamorph_collab_output_cap($provider,$model),$sourceImages);
     if(is_wp_error($reference))return $reference;
@@ -666,6 +667,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $priorDesignMeasurements=null;$priorDesignReview=null;$priorDesignDiff=null;
     $priorDesignImageHashes=null;$designSeenStates=array();
     $pendingToolEvidence=null;$toolRequestKeys=array();$toolRequestCount=0;
+    $responsiveReceipts=array();$designTrial=null;$responsive=null;$savedDesigns=array();
     for($designRound=1;;$designRound++){
         $control=syndamorph_job_control_gate();
         if(is_wp_error($control))return $control;
@@ -688,9 +690,18 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         }
         if(is_wp_error($inspectReference)) {
             $outputs['designer']='A native compatibility check was completed. The saved design is pending visual QA.';
-            return $deferInspection($inspectReference,$reference,'design_inspection','designer',$capabilityNotes);
+            return $deferInspection($inspectReference,$designTrial['reference']??$reference,'design_inspection','designer',$capabilityNotes);
         }
         syndamorph_production_tool_seed($reference,$viewports,$inspectReference);
+        $referenceHash=hash('sha256',$reference);
+        $responsive=$responsiveReceipts[$referenceHash]??syndamorph_design_responsive_measure(
+            $reference,$viewports,$inspectReference,$renderer['build']);
+        if(is_wp_error($responsive)){
+            if($responsive->get_error_code()==='sm_responsive_complexity')return $responsive;
+            return $deferInspection($responsive,$designTrial['reference']??$reference,'design_inspection','designer',$capabilityNotes);
+        }
+        $responsiveReceipts[$referenceHash]=$responsive;
+        if($on_event)$on_event('design_responsive',array('referenceSha256'=>$referenceHash,'round'=>$designRound)+$responsive);
         $referenceImages=array();$imageOrder=array();$currentImageHashes=array();
         foreach($visionViewports as $index){
             $sample=$inspectReference[$index]??null;
@@ -702,7 +713,6 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 $imageOrder[]=$viewports[$index];
             }
         }
-        $priorDesignImageHashes=$currentImageHashes;
         $measurements=syndamorph_memory_measurements($inspectReference);
         $nativeConstraints=syndamorph_reference_unrealizable($inspectReference);
         $reviewContext=array('requirements'=>$brief,'referenceSha256'=>hash('sha256',$reference),
@@ -729,6 +739,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'current'=>count($measurements),'changed'=>count($changedMeasurements));
         }
         $reviewContext+=$touchContext;
+        $reviewContext['continuousResponsive']=$responsive;
         $reviewContext['productionSpecification']=$specification;
         $reviewContext['specificationReceipt']=$specificationReceipt;
         if($source!==null){
@@ -737,18 +748,48 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $reviewContext['sourceImageOrder']=array(1440,375);
         }
         $sourceDesign=$scopeRegion===null?null:syndamorph_source_review($scopeRegion,$reference);
+        $sourcePassed=null;
         if($sourceDesign!==null){
             if($on_event)$on_event('source_review',array('stage'=>'design','round'=>$designRound,'result'=>$sourceDesign));
             if(isset($sourceDesign['visual']['inspection']))return $deferInspection(new WP_Error('sm_inspect_missing_evidence',
-                'Pinned source comparison is pending.',$sourceDesign['visual']['inspection']),$reference,'design_inspection','designer',$capabilityNotes);
+                'Pinned source comparison is pending.',$sourceDesign['visual']['inspection']),
+                $designTrial['reference']??$reference,'design_inspection','designer',$capabilityNotes);
             $reviewContext['sourceVerification']=$sourceDesign;
+            $sourcePassed=$sourceDesign['passed'];
         }elseif($source!==null){
             $sourceVisual=syndamorph_production_source_visual($source,$inspectReference);
             if(is_wp_error($sourceVisual))return $deferInspection(new WP_Error('sm_inspect_missing_evidence',
                 'Pinned source visual comparison is pending.',array('comparisonCode'=>$sourceVisual->get_error_code())),
-                $reference,'design_inspection','designer',$capabilityNotes);
+                $designTrial['reference']??$reference,'design_inspection','designer',$capabilityNotes);
             $reviewContext['sourceVisualCheck']=$sourceVisual;
+            $sourcePassed=$sourceVisual['passed']&&$reviewContext['sourceCopyCheck']['status']==='equal';
         }
+        $elementIds=syndamorph_design_element_ids($inspectReference);
+        if($designTrial!==null){
+            $regressions=syndamorph_design_responsive_regressions($designTrial['responsive'],$responsive);
+            foreach(array_diff($designTrial['elementIds'],$elementIds) as $identity)
+                $regressions[]=array('code'=>'component-identity-removed','target'=>$identity);
+            if($designTrial['sourcePassed']===true&&$sourcePassed===false)
+                $regressions[]=array('code'=>'pinned-source-regressed','target'=>'section');
+            if($regressions){
+                $reference=$designTrial['reference'];
+                $priorDesignDiff=array('status'=>'rolled_back','candidateSha256'=>$referenceHash,
+                    'retainedSha256'=>hash('sha256',$reference),'regressions'=>$regressions);
+                if($on_event)$on_event('design_surgery',array('round'=>$designRound)+$priorDesignDiff);
+                $pendingToolEvidence=array('source'=>'playwright.designer','surgery'=>$priorDesignDiff);
+                $designTrial=null;
+                continue;
+            }
+            if($on_event)$on_event('design_surgery',array('status'=>'responsive_checked','round'=>$designRound,
+                'candidateSha256'=>$referenceHash,'priorSha256'=>hash('sha256',$designTrial['reference'])));
+            $designTrial=null;
+        }
+        if($on_event&&!isset($savedDesigns[$referenceHash])){
+            $on_event('design_candidate',array('round'=>$designRound,'referenceSha256'=>$referenceHash,
+                'referenceHtml'=>$reference,'responsive'=>$responsive,'pinnedSourcePassed'=>$sourcePassed));
+            $savedDesigns[$referenceHash]=true;
+        }
+        $priorDesignImageHashes=$currentImageHashes;
         $review=$call('boss','Review the Designer reference against the brief, native compiler contract and browser evidence. In diff mode, focus on changed evidence and unresolved defects. Use nativeConstraints to resolve observed effects that cannot be converted. If they are present, give the Designer a supported alternative within the brief, or request human design review if the brief requires the effect. Browser-computed styles are authoritative for CSS values; do not reject a declared weight solely because a screenshot appears light. If evidence is insufficient, return JSON {"decision":"verification_required","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"specific browser diagnostic question"},"summary":"brief"} instead of requesting HTML changes. Otherwise return JSON {"decision":"approved|changes_requested|design_review_required","issues":[{"target":"section","problem":"measurable defect","requiredChange":"specific correction"}],"acceptedCapabilityDeviations":[],"summary":"brief"}. Request no more than three concrete issues. Do not demand browser verification from Designer.'.$sourceNote,
             $reviewContext,syndamorph_collab_output_cap($provider,$model),array_merge($referenceImages,$comparisonSourceImages),'final_approval');
         $priorDesignMeasurements=$measurements;
@@ -818,6 +859,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'Boss approval contains unresolved issues; request an explicit consistent decision.',
                 array('stage'=>'design_approval','issues'=>$approval['issues']));
         }
+        if($decision==='approved' && !$responsive['passed']){
+            syndamorph_authority_gate($record,'blocked','Deterministic intermediate or breakpoint findings remain open.',$on_event);
+            return new WP_Error('sm_design_responsive','The Designer reference failed continuous responsive checks.',
+                array('stage'=>'design_approval','findings'=>$responsive['findings'],'widths'=>$responsive['widths']));
+        }
         if($scopeRegion!==null && $decision==='approved' && !$sourceDesign['passed']) {
             syndamorph_authority_gate($record,'blocked','Pinned responsive source fidelity did not pass.',$on_event);
             return new WP_Error('sm_source_fidelity','The Designer reference still differs from the pinned source.',
@@ -864,7 +910,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         },$handoff['issues']);
         sort($issueFamilies);
         $issueKey=wp_json_encode($issueFamilies);
-        $stateKey=hash('sha256',$issueKey.wp_json_encode($measurements));
+        $stateKey=hash('sha256',$issueKey.wp_json_encode(array($measurements,$responsive)));
         if(($designSeenStates[$stateKey]??0)>=2)
             return new WP_Error('sm_design_stagnation',
                 'Designer review repeated the same unresolved issues against an unchanged reference.',
@@ -909,6 +955,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'Designer surgery could not be applied atomically; retain existing reference for manual review.',
                 array('stage'=>'design_approval','cause'=>$surgical->get_error_code(),'issues'=>$handoff['issues']));
         }else{
+            $designTrial=array('reference'=>$reference,'responsive'=>$responsive,
+                'sourcePassed'=>$sourcePassed,'elementIds'=>$elementIds);
             $reference=$surgical['reference'];
             $pendingToolEvidence=null;
             $priorDesignDiff=array('beforeHash'=>hash('sha256',$beforeReference),
@@ -926,7 +974,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if($on_event&&$capabilityNotes)$on_event('capability_preflight',array('notes'=>$capabilityNotes));
     $designMemo=array('decision'=>'approved','referenceSha256'=>hash('sha256',$reference),
         'reviewRounds'=>$designReviews,'capabilityNotes'=>$capabilityNotes,'acceptedCapabilityDeviations'=>$deviations,
-        'bossApproval'=>$approval,'productionSpecification'=>$specification,'specificationReceipt'=>$specificationReceipt)+$touchContext;
+        'bossApproval'=>$approval,'productionSpecification'=>$specification,'specificationReceipt'=>$specificationReceipt,
+        'continuousResponsive'=>$responsive)+$touchContext;
     $handoffs[]=array('from'=>'boss','to'=>'developer','type'=>'approved_design',
         'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews,'agentPayload'=>$approval,
         'specificationReceipt'=>$specificationReceipt);
