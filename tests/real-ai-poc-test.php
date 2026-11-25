@@ -356,6 +356,18 @@ $richPlan['blocks'][0]['children'][0]['style']=array('color'=>'#ffffff','fontSiz
 $richPlan['blocks'][0]['children'][2]['children'][0]['style']=array('background'=>'#ffffff','color'=>'#18283a','borderRadius'=>'8px','padding'=>'1rem');
 $styled=syndamorph_compile_block_plan(wp_json_encode($richPlan));
 expect(!is_wp_error($styled),'Expanded Gutenberg native style schema failed to compile');
+$GLOBALS['syndamorph_resume_calls']=array(array('role'=>'developer','task'=>'repair','text'=>'cached-model-patch','metric'=>array('outputTokens'=>17)));
+$GLOBALS['syndamorph_resume_index']=0;
+$GLOBALS['syndamorph_resume_suppress']=true;
+$wrong=syndamorph_job_resume_take('boss','repair');
+expect(is_wp_error($wrong)&&$wrong->get_error_code()==='sm_resume_diverged'&&$GLOBALS['syndamorph_resume_index']===0,
+    'Replay divergence must halt without consuming or duplicating a paid call');
+$replayed=syndamorph_job_resume_take('developer','repair');
+expect(is_array($replayed)&&$replayed['text']==='cached-model-patch'&&$GLOBALS['syndamorph_resume_index']===1,
+    'Resume failed to reuse the exact recorded developer response');
+expect(syndamorph_job_resume_take('developer','repair')===null&&!isset($GLOBALS['syndamorph_resume_suppress']),
+    'Replay did not release suppression at the first new operation');
+unset($GLOBALS['syndamorph_resume_calls'],$GLOBALS['syndamorph_resume_index']);
 $designReference='<section class="sm-hero"><style>.sm-hero{color:#ffffff}</style><h2>Welcome</h2><p>Introduction</p></section>';
 $designEdit=syndamorph_design_surgery($designReference,array('edits'=>array(
     array('find'=>'.sm-hero{color:#ffffff}','replace'=>'.sm-hero{color:#f0f0f0}'))));
