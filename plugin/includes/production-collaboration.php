@@ -765,7 +765,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         array('stage'=>'design_approval','reviewRounds'=>$designReviews,'issues'=>end($handoffs)['issues']??array()));
     $outputs['designer']='Visual reference approved by Boss; see referenceHtml.';
     $outputs['reference']=$reference;
-    syndamorph_learning_capability($capabilityNotes,$learningSource.':capability');
+    if($useLearning)syndamorph_learning_capability($capabilityNotes,$learningSource.':capability');
     if($on_event&&$capabilityNotes)$on_event('capability_preflight',array('notes'=>$capabilityNotes));
     $designMemo=array('decision'=>'approved','referenceSha256'=>hash('sha256',$reference),
         'reviewRounds'=>$designReviews,'capabilityNotes'=>$capabilityNotes,'acceptedCapabilityDeviations'=>$deviations,
@@ -917,7 +917,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     }
     unset($repairRecord);
     foreach($autoCorrections??array() as $correction) {
-        $record=$correction+array('status'=>$validated?'accepted':'rolled_back',
+        $record=$correction+array('owner'=>'compiler','status'=>$validated?'accepted':'rolled_back',
             'originalPlanId'=>$surgery['originalPlanId'],'candidatePlanId'=>$surgery['schemaCandidateId']??null,
             'compiled'=>$validated,'requiresVisualQa'=>true);
         $surgery['compilerCorrections'][]=$record;
@@ -930,6 +930,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if($useLearning)foreach($lessons as $lesson)syndamorph_learning_schema($lesson['field'],$lesson['message'],$learningSource.':schema:'.$lesson['attempt'],true);
     $plan=$compiled['plan'];$artifact=$compiled['artifact'];
     $outputs['developer']=wp_json_encode($plan);
+    $implementationHandoff=array('from'=>'developer','to'=>'boss','type'=>'implementation_candidate',
+        'sourcePlanSha256'=>SyndaMorph_Job_Memory::fingerprint($originalPlan),
+        'compiledPlanSha256'=>SyndaMorph_Job_Memory::fingerprint($plan),
+        'compilerCorrections'=>$surgery['compilerCorrections']??array());
+    $handoffs[]=$implementationHandoff;
+    if($on_event)$on_event('handoff',$implementationHandoff);
     $memory->remember($plan);
     
     $inspectNative=syndamorph_production_tool('developer','playwright.inspect',array('html'=>$artifact['preview'],'viewports'=>$viewports));
@@ -964,6 +970,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $review=$call('boss','Assess the frozen design and browser evidence for the implementation. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"measurable defect and suggested correction","kind":"implementation","status":"open","repairStrategy":"optional: style|structure|hybrid"}],"summary":"..."}. Use category content for literal copy disputes and consult copyComparison. Reuse deterministic issue IDs where applicable. Compiler checks are authoritative. Put host responsibilities, unsupported capabilities and pending editor verification in notes. Approve only with no actionable defects.',
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$modelEvidence($inspectReference),'native'=>$modelEvidence($inspectNative),
             'deterministicIssues'=>$issues,'copyComparison'=>$copyCheck,'pixelComparison'=>$comparison,
+            'implementationHandoff'=>$implementationHandoff,
             'components'=>syndamorph_surgery_context($plan['blocks'][0],121),'compilerChecks'=>$artifact['checks'],
             'imageOrder'=>array_merge(...array_map(static fn($index)=>array($viewports[$index].'-reference',$viewports[$index].'-native'),$visionViewports))),
         6144,$screenshots,'validation');
@@ -1201,11 +1208,16 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $terminationReason='visual_crop_blocked';$reject('Scoped evidence unavailable','blocked','browser');break;
         }
         $scopedScreenshots=$scope['images'];
+        $candidateHandoff=array('from'=>$route,'to'=>'boss','type'=>'revision_candidate','id'=>$id,
+            'candidateSha256'=>SyndaMorph_Job_Memory::fingerprint($candidate['plan']),
+            'operation'=>$patch);
+        $handoffs[]=$candidateHandoff;
+        if($on_event)$on_event('handoff',$candidateHandoff);
         // Each repair receives a fresh vision review of its changed component,
         // not the entire design report. Unaffected model findings are retained.
         $targetReview=$call('boss',
             'Inspect changed components and affected layout with the browser evidence. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"reference, previous and candidate evidence","repairStrategy":"optional: style|structure|hybrid"}]}. Use category content for literal copy disputes and consult copyComparison. Reuse issue IDs. A newly noticed defect does not imply a regression. Before claiming copy was added or removed, compare literal reference and candidate text; do not mistake excerpted measurements for complete copy. Report only open actionable issues; compiler checks are authoritative.',
-            array('id'=>$id,'changedNodes'=>syndamorph_surgery_context(
+            array('id'=>$id,'candidateHandoff'=>$candidateHandoff,'changedNodes'=>syndamorph_surgery_context(
                     syndamorph_collab_find($candidate['plan']['blocks'],$id)),
                 'previousIssues'=>array_values(array_filter($issues,static fn($issue)=>isset($affected[$issue['component']??'']))),
                 'impact'=>$impact,'reviewScope'=>$reviewIds,'compilerChecks'=>$candidate['artifact']['checks'],'imageScope'=>$scope['mode'],

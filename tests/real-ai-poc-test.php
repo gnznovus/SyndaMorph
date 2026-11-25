@@ -1097,6 +1097,11 @@ $handoffJob=syndamorph_collab_run('Exercise explicit Boss hybrid instructions wi
 unset($GLOBALS['adaptive_specific_strategy']);
 $firstRepair=json_decode($GLOBALS['generations'][5]['messages'][0]['content'][0]['text'],true);
 $qaHandoffs=array_column($handoffJob['handoffs'],null,'type');
+$qaInput=json_decode($GLOBALS['generations'][6]['messages'][0]['content'][0]['text'],true);
+expect($qaInput['candidateHandoff']===$qaHandoffs['revision_candidate'] &&
+    $qaInput['candidateHandoff']['from']==='developer' &&
+    $qaInput['candidateHandoff']['operation']['wraps'][0]['id']==='text-stack',
+    'Scoped QA must receive the exact Developer operation and artifact identity');
 expect($firstRepair['repairScope']['bossInstructions']===$qaHandoffs['qa_review']['issues'] &&
     $firstRepair['repairScope']['requestedStrategies']===array('hybrid') &&
     $firstRepair['repairScope']['allowedOperations']===array('style','structure','hybrid') &&
