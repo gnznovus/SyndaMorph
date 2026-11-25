@@ -86,7 +86,16 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    if(!empty($GLOBALS['tool_designer_test'])){
+    if(!empty($GLOBALS['boss_approved_deviation_test'])){
+        $text=match($i){
+            1=>'{"title":"GEN-000018 approval regression","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Heading and CTA visible"]}',
+            2=>'<section class="ph-hero"><style>.ph-hero__inner{max-width:44rem}.ph-hero__eyebrow{text-transform:uppercase}</style><div class="ph-hero__inner"><p class="ph-hero__eyebrow">Hotel</p><h2>Welcome &amp; enjoy</h2></div></section>',
+            3=>'{"decision":"approved","issues":[],"acceptedCapabilityDeviations":["Uppercase label accepted as a minor visual-only limitation; validate the native mapping during QA."],"summary":"Approved browser reference"}',
+            4=>$GLOBALS['native_fixture'],
+            5=>'{"decision":"approved","issues":[],"summary":"Native QA approved"}',
+            default=>throw new RuntimeException('Approved Boss was overridden or Designer was called for needless surgery: '.$i),
+        };
+    }elseif(!empty($GLOBALS['tool_designer_test'])){
         $text=match($i){
             1=>'{"title":"Designer Tool Fixture","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Correct heading weight"]}',
             2=>'<section><h2>Welcome &amp; enjoy</h2></section>',
@@ -456,6 +465,22 @@ $overlongRequest['reason']=str_repeat('x',4097);
 expect(is_wp_error(syndamorph_production_tool_request('developer',$overlongRequest,array('plan'=>$richPlan))),
     'Tool requests must retain a hard maximum input budget');
 
+
+// GEN-000018: an explicit issue-free Boss approval is final for the design
+// stage even when accepted capability deviations are narrative strings.
+$GLOBALS['boss_approved_deviation_test']=true;
+$GLOBALS['generations']=array();
+$approvalEvents=array();
+$accepted=syndamorph_team_real_run('Approve the hero with a nonblocking typography mapping caveat.',
+    false,static function(string $type,array $data)use(&$approvalEvents):void{
+        if($type==='handoff')$approvalEvents[]=$data;
+    },'gutenberg');
+expect(is_array($accepted)&&count($GLOBALS['generations'])===5 &&
+    ($accepted['designApproval']['reviewRounds']??null)===1 &&
+    count(array_filter($approvalEvents,static fn($event)=>
+        ($event['type']??'')==='design_review'&&($event['decision']??'')==='approved'))===1,
+    'GEN-000018: orchestrator overrode Boss approval or sent Designer into repair');
+unset($GLOBALS['boss_approved_deviation_test']);
 
 // Agents share the same read-only Playwright capability, without exposing
 // executable HTML, native mutation, arbitrary endpoints, or duplicate renders.
