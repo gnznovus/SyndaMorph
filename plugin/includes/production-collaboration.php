@@ -417,9 +417,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $contextLimit=in_array($stage,array('repair','revision_validation'),true)?24000:160000;
         if (!is_string($encoded) || strlen($encoded)>$contextLimit) return new WP_Error('sm_team_context','Agent context exceeds safe limit.',array('stage'=>'context','role'=>$role,'task'=>$stage,'completedCalls'=>$calls));
         $system=syndamorph_production_task_context($role,$stage)."\n".$instruction.
-            "\nIf needed to resolve a concrete uncertainty, you may return ONLY JSON ".
-            '{"action":"tool_request","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"specific measurable question"}}. '.
-            'The orchestrator will return cached browser evidence, then you must complete the original assignment. Never ask for tools merely to defer your work.';
+            "\nIf a concrete uncertainty requires one of the provided read-only availableTools, you may return ONLY JSON ".
+            '{"action":"tool_request","toolRequest":{"name":"registered tool name","target":"authorized artifact","reason":"specific measurable question"}}. '.
+            'The orchestrator will return measured or cached evidence; then complete the original assignment. Never request a tool merely to defer work and never request write permissions.';
         $allowance=syndamorph_collab_allowance(strlen($encoded)+strlen($prefix)+strlen($system),count($images),$cap,$in,$out);
         if (syndamorph_collab_cost($usage,$in,$out)+$allowance+$nextAllowance>($stage==='scope_resolution'?$max:$cutoff))
             return new WP_Error('sm_team_budget','No safe budget for another model call.',array('stage'=>'budget','role'=>$role,'task'=>$stage,'completedCalls'=>$calls));
