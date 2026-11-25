@@ -90,7 +90,9 @@ function wp_remote_post($url,$args) {
         $repairContext=json_decode($req['messages'][0]['content'][0]['text']??'{}',true);
         $id=$repairContext['instructionId']??'';
         $field=$repairContext['diagnostic']['field']??'';
-        if($i>=5) {
+        if(($GLOBALS['schema_ack_test']??'')==='valid' && $i===6){
+            $text='{"decision":"approved","issues":[],"summary":"Schema-guided correction passed"}';
+        } elseif($i>=5) {
             $ack=array('instructionId'=>$id,'field'=>$field);
             if(($GLOBALS['schema_ack_test']??'')==='missing')$ack=null;
             if(($GLOBALS['schema_ack_test']??'')==='mismatch')$ack['instructionId']='invalid-diagnostic-id';
