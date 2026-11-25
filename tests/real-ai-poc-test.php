@@ -351,7 +351,7 @@ $GLOBALS['generations']=array();
 $GLOBALS['schema_stall_test']=true;
 $stallResult=syndamorph_team_real_run('Recover repeated invalid native font size.',false,null,'gutenberg');
 expect(is_wp_error($stallResult)&&$stallResult->get_error_code()==='sm_schema_stagnation',
-    'Repeated identical invalid schema patches did not halt with actionable stagnation');
+    'Repeated identical invalid schema patches did not halt with actionable stagnation: '.(is_wp_error($stallResult)?$stallResult->get_error_code().' '.$stallResult->get_error_message():gettype($stallResult)).'; model calls='.count($GLOBALS['generations']));
 expect(count($GLOBALS['generations'])===6,
     'Same-error guard allowed more than two identical paid Developer repair proposals');
 expect(!empty($stallResult->get_error_data()['workingPlanId']),
