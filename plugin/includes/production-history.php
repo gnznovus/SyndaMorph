@@ -86,8 +86,9 @@ function syndamorph_history_append( int $id, string $event, array $data ): void 
         throw new RuntimeException( 'History event could not be recorded.' );
     }
     $update = array( 'updated_at' => gmdate( 'Y-m-d H:i:s' ) );
-    if ( 'job_complete' === $event ) { $update['status'] = 'generated' === ($data['status'] ?? '') ? 'completed' : (in_array(($data['status'] ?? ''),array('uncompleted','needs_review','failed','completed','stopped','aborted'),true) ? $data['status'] : 'needs_review'); }
+    if ( 'job_complete' === $event ) { $update['status'] = 'generated' === ($data['status'] ?? '') ? 'completed' : (in_array(($data['status'] ?? ''),array('uncompleted','needs_review','failed','completed','stopped','aborted','paused'),true) ? $data['status'] : 'needs_review'); }
     if ( 'job_error' === $event ) { $update['status'] = 'failed'; }
+    if ( 'job_resumed' === $event ) { $update['status'] = 'running'; }
     if ( 'editor_validation' === $event && !empty($data['passed']) && !empty($data['completionEligible']) ) { $update['status'] = 'completed'; }
     if ( 'job_title' === $event ) { $update['title'] = mb_substr( sanitize_text_field( (string) ( $data['title'] ?? '' ) ), 0, 200 ); }
     if ( false === $wpdb->update( $jobs, $update, array( 'id' => $id ) ) ) {
@@ -105,14 +106,64 @@ function syndamorph_job_control_requested(int $id): string {
     $key='syndamorph_job_control_'.$id;
     $state=$wpdb->get_var($wpdb->prepare(
         "SELECT option_value FROM {$wpdb->options} WHERE option_name=%s LIMIT 1",$key));
-    return is_string($state)&&in_array($state,array('stop','abort'),true)?$state:'';
+    return is_string($state)&&in_array($state,array('pause','stop','abort'),true)?$state:'';
 }
+/**
+ * Replay a paused job using archived completed model outputs. Reconstruction
+ * never calls a provider for an already completed operation.
+ */
+function syndamorph_job_resume_signature(): string {
+    return hash('sha256',hash_file('sha256',__DIR__.'/production-collaboration.php').
+        hash_file('sha256',__DIR__.'/ai-team-real.php'));
+}
+function syndamorph_job_resume_calls(int $id) {
+    global $wpdb;
+    list($jobs,$events)=syndamorph_history_tables();
+    $rows=$wpdb->get_results($wpdb->prepare(
+        "SELECT event_type,payload FROM $events WHERE job_id=%d AND event_type IN ('agent_start','agent_delta','agent_complete') ORDER BY id ASC",$id),ARRAY_A);
+    if(!is_array($rows))return new WP_Error('sm_resume_archive','Could not read archived model calls.');
+    $calls=array();$current=null;
+    foreach($rows as $row){
+        $data=json_decode($row['payload'],true);
+        if(!is_array($data))continue;
+        if($row['event_type']==='agent_start')$current=array('role'=>$data['role']??'',
+            'task'=>$data['task']??'','text'=>'');
+        elseif($row['event_type']==='agent_delta' && is_array($current) &&
+            ($data['role']??'')===$current['role']&&($data['task']??'')===$current['task']){
+            $current['text'].=(string)($data['text']??'');
+            if(strlen($current['text'])>120000)return new WP_Error('sm_resume_size','Archived response exceeds the safe replay limit.');
+        }elseif($row['event_type']==='agent_complete'&&is_array($current)&&
+            ($data['role']??'')===$current['role']&&($data['task']??'')===$current['task']){
+            $current['metric']=$data['metric']??array();
+            $calls[]=$current;$current=null;
+        }
+    }
+    if($current!==null)return new WP_Error('sm_resume_incomplete','Previous model call did not finish; automatic continuation is unsafe.');
+    return $calls;
+}
+function syndamorph_job_resume_take(string $role,string $task){
+    if(!isset($GLOBALS['syndamorph_resume_calls']))return null;
+    $calls=$GLOBALS['syndamorph_resume_calls'];
+    $index=(int)($GLOBALS['syndamorph_resume_index']??0);
+    if($index>=count($calls)){
+        unset($GLOBALS['syndamorph_resume_suppress']);
+        return null;
+    }
+    $saved=$calls[$index];
+    if($saved['role']!==$role||$saved['task']!==$task)
+        return new WP_Error('sm_resume_diverged','Replay call sequence differs from the paused checkpoint; no paid call was retried.',
+            array('expectedRole'=>$saved['role'],'expectedTask'=>$saved['task'],'actualRole'=>$role,'actualTask'=>$task));
+    $GLOBALS['syndamorph_resume_index']=$index+1;
+    if($index+1>=count($calls))unset($GLOBALS['syndamorph_resume_suppress']);
+    return $saved;
+}
+
 function syndamorph_job_control_gate() {
     $id=(int)($GLOBALS['syndamorph_active_job_id']??0);
     $action=syndamorph_job_control_requested($id);
     return $action!==''?new WP_Error('sm_team_'.$action,
-        $action==='stop'?'Production stopped at a safe operation boundary.':
-            'Production aborted at a safe operation boundary.',
+        $action==='pause'?'Production paused at a safe operation boundary.':($action==='stop'?'Production stopped at a safe operation boundary.':
+            'Production aborted at a safe operation boundary.'),
         array('controlAction'=>$action,'stage'=>'operator_control','jobId'=>$id)):null;
 }
 
@@ -155,8 +206,8 @@ add_action( 'rest_api_init', static function (): void {
         'callback'=>static function(WP_REST_Request $request){
             global $wpdb;
             $id=(int)$request['id'];$action=(string)$request->get_param('action');
-            if(!in_array($action,array('stop','abort'),true))
-                return new WP_Error('sm_control_unsupported','Only Stop and Abort are available until durable job continuation is implemented.',array('status'=>400));
+            if(!in_array($action,array('pause','stop','abort'),true))
+                return new WP_Error('sm_control_unsupported','Unsupported production control action.',array('status'=>400));
             list($jobs)=syndamorph_history_tables();
             $row=$wpdb->get_row($wpdb->prepare("SELECT id,status,category FROM $jobs WHERE id=%d",$id),ARRAY_A);
             if(!$row||$row['category']!=='GEN')
