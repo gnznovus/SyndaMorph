@@ -213,14 +213,14 @@ function syndamorph_surgery_normalize(array $plan,array $diagnostic): ?array {
         foreach($nested as $k=>$v)if(array_key_exists($mapping[$k],$target['style']))return null;
         unset($target['style']['color']);foreach($nested as $k=>$v)$target['style'][$mapping[$k]]=$v;
     }elseif($key==='style.margin' && ($target['type']??'')==='buttons' &&
-        ($diagnostic['message']??'')==='Unsupported style for block.' &&
+        str_ends_with((string)($diagnostic['message']??''),'Unsupported style for block.') &&
         array_key_exists('margin',$target['style']??array())){
         // Buttons margins are not part of Gutenberg plan v1. Removing them is
         // schema-safe, but may affect spacing: the existing browser QA remains
         // mandatory before final delivery. Never migrate a margin speculatively.
         unset($target['style']['margin']);
     }elseif($key==='style.gradient' &&
-        ($diagnostic['message']??'')==='Invalid two-color gradient.' &&
+        str_ends_with((string)($diagnostic['message']??''),'Invalid two-color gradient.') &&
         in_array($target['type']??'',array('group','column','button'),true) &&
         is_string($target['style']['gradient']??null)){
         // Equivalent two-stop endpoint percentages are redundant CSS syntax.
