@@ -43,7 +43,14 @@
     });
     let running = false;
     let liveCost = 0;
-    const showCost = () => text(liveCostLabel,'    let completed = 0;
+    const showCost = () => text(liveCostLabel, String.fromCharCode(36) + liveCost.toFixed(6));
+    const setControls = enabled => {
+        if (stopControl) stopControl.disabled = !enabled;
+        if (abortControl) abortControl.disabled = !enabled;
+        if (pauseControl) { pauseControl.disabled = true; pauseControl.title = 'Pause requires durable resumable execution and is not available yet.'; }
+        if (resumeControl) { resumeControl.disabled = true; resumeControl.hidden = true; }
+    };
+    let completed = 0;
     let currentIdentity = null;
     let activeFormat = 'html';
     let replaying = false;
@@ -476,7 +483,7 @@
         if(!window.confirm(explanation))return;
         stopControl.disabled=true;abortControl.disabled=true;
         try {
-            const base=cfg.url.replace(/\\/ai\\/team-stream(?:\\?.*)?$/,'');
+            const base=cfg.url.split('/ai/team-stream')[0];
             const response=await fetch(base+'/history/'+encodeURIComponent(currentIdentity.id)+'/control',{
                 method:'POST',credentials:'same-origin',
                 headers:{'Content-Type':'application/json','X-WP-Nonce':cfg.nonce},
