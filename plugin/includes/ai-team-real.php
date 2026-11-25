@@ -327,6 +327,12 @@ add_action( 'rest_api_init', static function (): void {
                 return new WP_Error('sm_resume_settings','Model or budget settings changed since pause.',array('status'=>409));
             $calls=syndamorph_job_resume_calls($id);
             if(is_wp_error($calls))return $calls;
+            // DB compare-and-swap claims this paused job exactly once, even if
+            // two administrators submit Resume concurrently.
+            $claimed=$wpdb->query($wpdb->prepare(
+                "UPDATE $jobs SET status='running' WHERE id=%d AND status='paused'",$id));
+            if($claimed!==1)return new WP_Error('sm_resume_claimed',
+                'The paused job was already claimed for continuation.',array('status'=>409));
             set_transient('syndamorph_ai_real_job_lock',1,20*MINUTE_IN_SECONDS);
             update_option('syndamorph_job_control_'.$id,'running',false);
             syndamorph_team_sse_resume($id,$context['brief'],$context['outputType'],$calls);
