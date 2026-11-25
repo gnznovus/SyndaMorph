@@ -72,6 +72,9 @@ function syndamorph_production_tool_evidence(array $samples,string $reason=''): 
                 'fontWeight'=>$styles['fontWeight']??null,
                 'fontFamily'=>$styles['fontFamily']??null,
                 'fontSize'=>$styles['fontSize']??null,
+                'maxWidth'=>$styles['maxWidth']??null,
+                'textTransform'=>$styles['textTransform']??null,
+                'letterSpacing'=>$styles['letterSpacing']??null,
                 'color'=>$styles['color']??null,
                 'rect'=>$element['rect']??array());
         }
@@ -90,9 +93,13 @@ function syndamorph_production_tool_request(string $role,array $request,array $a
     $name=$request['name']??null;
     $reason=$request['reason']??null;
     $target=$request['target']??null;
-    if(!is_string($name)||!is_string($reason)||strlen(trim($reason))<8||
-        strlen($reason)>260||!is_string($target))
-        return new WP_Error('sm_tool_request_contract','Tool request requires name, target and a bounded reason.');
+    // A diagnostic question may be detailed (GEN-000017 used 473 bytes).
+    // Validate a generous hard ceiling, then cap archived/prompt-visible text.
+    if(!is_string($name)||!is_string($target)||!is_string($reason)||
+        strlen(trim($reason))<8||strlen($reason)>4096)
+        return new WP_Error('sm_tool_request_contract',
+            'Tool request requires a valid name, target, and diagnostic reason (8-4096 bytes).');
+    $reason=mb_strcut(trim($reason),0,1024,'UTF-8');
     $catalog=syndamorph_production_tool_catalog($role);
     if(!isset($catalog[$name])||!($catalog[$name]['readOnly']??false)||
         !in_array($target,$catalog[$name]['targets'],true))
@@ -127,7 +134,8 @@ function syndamorph_production_tool_request(string $role,array $request,array $a
                     'blockCount'=>$result['blockCount']??null)): $result;
     }
     $receipt=array('role'=>$role,'tool'=>$name,'target'=>$target,
-        'artifactSha256'=>$fingerprint,'cache'=>$hit?'hit':'miss','reason'=>$reason,
+        'artifactSha256'=>$fingerprint,'cache'=>$hit?'hit':'miss',
+        'reason'=>mb_strcut($reason,0,260,'UTF-8'),
         'viewports'=>$name==='playwright.inspect'?$viewports:array());
     if($on_event)$on_event('tool_invocation',$receipt);
     return array('receipt'=>$receipt,'evidence'=>$name==='playwright.inspect'?
