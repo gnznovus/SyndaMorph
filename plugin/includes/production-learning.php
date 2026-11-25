@@ -11,13 +11,16 @@ function syndamorph_learning_rows(): array {
 }
 function syndamorph_learning_pattern(string $field): array {
     $parts=explode('.',$field);$name=(string)end($parts);
-    $safe=array('align','contentWidth','gap','padding','margin','fontSize','fontWeight','lineHeight','letterSpacing','gradient','minHeight','justifyContent','verticalAlignment','borderRadius','background','color','textTransform','href','text','level','children','plan');
+    $safe=array('align','contentWidth','contentAlignment','gap','padding','margin','fontSize','fontWeight','lineHeight','letterSpacing','gradient','minHeight','justifyContent','verticalAlignment','borderRadius','background','color','textTransform','href','text','level','children','plan');
     if(!in_array($name,$safe,true))$name='plan';
     return array($name,$name==='plan'?'plan':(str_contains($field,'.style.')?'style':'node'));
 }
 /** Only vocabulary from our own native contract may become an instruction. */
 function syndamorph_learning_schema_rule(string $field,string $message): ?array {
     [$name]=syndamorph_learning_pattern($field);
+    if(str_ends_with($message,'Unsupported node field.') && $name==='contentAlignment')
+        return array('rule'=>'Place Group contentAlignment inside style alongside contentWidth.',
+            'pattern'=>'contentAlignment','block'=>'group');
     if(str_contains($message,'Unsupported node field.') && in_array($name,array('contentWidth','gap','padding','margin','fontSize','fontWeight','lineHeight','letterSpacing','gradient','minHeight','justifyContent','verticalAlignment','borderRadius','background','color'),true)) {
         return array('rule'=>'Place '.$name.' inside the node style object, never as a node-level key.','pattern'=>$name,'block'=>'*');
     }

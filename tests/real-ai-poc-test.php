@@ -1570,6 +1570,16 @@ syndamorph_learning_schema('blocks[0].children[0].contentWidth','Unsupported nod
 expect(in_array($staleRule['rule'],syndamorph_learning_retrieve('developer'),true),'Reverification did not restore stale lesson');
 expect(syndamorph_learning_manage($lessonId,'delete'),'Learning deletion failed');
 expect(count(syndamorph_learning_retrieve('developer'))===1,'Deleted rule remained in retrieval');
+$groupAlignment=$alignReceipt;
+$groupAlignment['attempt']=6;
+$groupAlignment['field']='blocks[0].children[2].contentAlignment';
+$groupAlignment['message']='Native block plan rejected: Unsupported node field.';
+$groupAlignment['block']='group';
+expect(syndamorph_learning_compiler_receipt($groupAlignment,'job:95:schema:6')!==null &&
+    syndamorph_learning_retrieve('schema_repair','group',3,$groupAlignment)===
+        array('Place Group contentAlignment inside style alongside contentWidth.') &&
+    syndamorph_learning_retrieve('schema_repair','heading',3,$groupAlignment)===array(),
+    'Verified Group contentAlignment correction failed scoped retrieval');
 $layoutAssignment=array('focus'=>array(array('category'=>'alignment')),
     'group'=>array('alignment|section'),'node'=>array('type'=>'group'),'nodes'=>array('section','title'),'mode'=>'adaptive');
 $hybridPatch=array('changes'=>array(array('path'=>'style.contentAlignment','value'=>'left')),

@@ -7,7 +7,7 @@
 
 **GEN-000023 investigation:** [Ranked causes, replay, and remaining limits](adaptive-surgery-hardening.md#independent-investigation-of-gen-000019-through-gen-000023).
 
-**GEN-000026 Adaptive Learning** The decorative Group, matching schema-edit authority, and scoped compiler receipts are implemented and deterministically verified. The archived artifact passed the Gutenberg validator; its tablet breakpoint difference remains open. Live acceptance requires the separately authorized budget. [Trace and replay evidence](adaptive-surgery-hardening.md#gen-000026-compiler-recovery-and-verified-learning)
+**GEN-000026 Adaptive Learning** The decorative Group, matching schema-edit authority, and scoped compiler receipts are implemented and deterministically verified. The archived artifact passed the Gutenberg validator; its tablet breakpoint difference remains open. The budget-approved GEN-000027 reached Completed after browser QA resolved all findings and Gutenberg validated all seven blocks. [Trace and replay evidence](adaptive-surgery-hardening.md#gen-000026-compiler-recovery-and-verified-learning)
 
 **November 25 hardening checkpoint:** [GEN-000019 through GEN-000021 findings, tests, and GEN-000022 gate](adaptive-surgery-hardening.md).
 

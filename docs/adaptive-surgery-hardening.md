@@ -18,7 +18,16 @@ Completed compiler validation emits receipts with block scope, compiler revision
 
 The read-only GEN-000026 replay compiled all 10 blocks with zero schema repair calls, matched the archived approved reference hash and literal copy, and passed the real Gutenberg serialization validator. The native artifact had no horizontal overflow at 375, 768, or 1440 px. The screenshot difference ratio was 0.17371, 0.35972, and 0.06035, respectively. At 768 px the approved CSS uses side-by-side columns while native Columns stack, moving the panel from x=432.4/y=109.9 to x=76.8/y=323.8. The native design contract now states the default Columns breakpoint. The historical archive retains its original status, and its visual fidelity remains open.
 
-GEN-000019 and GEN-000023 also compiled using two deterministic normalizations each with protected copy. GEN-000020 and GEN-000021 compiled on replay. These replays used zero provider calls. Local WordPress 7.1.2 passed renderer protocol 2 preflight with build c06d126ea5c37603df8066b7286b639d7a40825f59ed56e9123a18c27e151513. Live acceptance requires one explicitly budget-approved run using the archived brief and configuration.
+GEN-000019 and GEN-000023 also compiled using two deterministic normalizations each with protected copy. GEN-000020 and GEN-000021 compiled on replay. These replays used zero provider calls. Local WordPress 7.1.2 passed renderer protocol 2 preflight with build c06d126ea5c37603df8066b7286b639d7a40825f59ed56e9123a18c27e151513.
+
+### Live acceptance result
+
+GEN-000027 ran once with explicit approval and the exact GEN-000026 brief, provider, model, pricing and USD 1.00 cap. Six placements of contentWidth, contentAlignment and text align were corrected deterministically without a model schema repair call. Four verified schema receipts and three accepted visual operations were persisted. A fresh request retrieved the applicable Group and heading lessons. Review identified and corrected the missing receipt mapping for Group contentAlignment.
+
+Three distinct repairs were accepted. Their scores were 26 to 8, 8 to 4, and 4 to 0. Three other repairs kept the retained candidate unchanged. The approved copy matched at each viewport, and the final renderer comparisons sampled zero differing pixels at 375, 768 and 1440 CSS px. The WordPress History UI validated and recorded seven registered Gutenberg blocks, then marked the job Completed. The archived artifact SHA-256 is 0271925c0854854a5213ad4858d2cc3750ff6cca3044e35b721e2f79acb5114c.
+
+All 15 calls reported provider token usage. The run used 94,710 uncached input, 29,129 output, 25,704 cache-read, and 1,836 cache-write tokens. The configured rates produced a metered estimate of USD 0.024522. No page was published.
+
 
 ## GEN-000025 and the verified best candidate
 
