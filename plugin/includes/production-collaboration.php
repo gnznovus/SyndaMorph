@@ -524,7 +524,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             return new WP_Error('sm_reference_unsafe','Designer reference failed HTML safety checks.',
                 array('stage'=>'design','designRound'=>$designRound));
         $capabilityNotes=syndamorph_reference_capability_notes($reference);
-        $inspectReference=syndamorph_production_tool('designer','playwright.inspect',array('html'=>$reference,'viewports'=>$viewports));
+        $inspectReference=syndamorph_production_tool_cached_inspection($reference,$viewports);
+        if($inspectReference===null)
+            $inspectReference=syndamorph_production_tool('designer','playwright.inspect',array('html'=>$reference,'viewports'=>$viewports));
         if(is_wp_error($inspectReference)) {
             $outputs['designer']='A native compatibility check was completed. The saved design is pending visual QA.';
             return $deferInspection($inspectReference,$reference,'design_inspection','designer',$capabilityNotes);
