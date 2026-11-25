@@ -82,7 +82,7 @@ process.stdin.on('end', async () => {
                                 rect: rect(r),
                                 textRect: text ? rect(range.getBoundingClientRect()) : null,
                                 lineRects: text ? [...range.getClientRects()].slice(0, 12).map(rect) : [],
-                                styles: Object.fromEntries(['color','backgroundColor','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','padding','margin','gap','display','textAlign','textTransform','alignItems','justifyContent','borderRadius'].map(k => [k,s[k].slice(0, 128)])),
+                                styles: Object.fromEntries(['color','backgroundColor','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','maxWidth','overflowWrap','padding','margin','gap','display','textAlign','textTransform','alignItems','justifyContent','borderRadius'].map(k => [k,s[k].slice(0, 128)])),
                                 clipped: /^(?:hidden|clip)$/.test(s.overflowX) && el.scrollWidth > el.clientWidth + 2,
                                 missingAlt: el.tagName === 'IMG' && !el.hasAttribute('alt'),
                                 unnamedControl: ['A','BUTTON'].includes(el.tagName) && !(el.textContent.trim() || el.getAttribute('aria-label') || el.querySelector('img[alt]:not([alt=""])'))
