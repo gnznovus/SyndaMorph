@@ -79,7 +79,9 @@ async function verifyOverlayEvidence(browser) {
             const [id,key] = args;
             const cfg = window.SyndaMorphTeam;
             const endpoint = cfg.scopeUrl + '/' + id;
-            const request = async (target, payload) => {
+            const request = async (resource, payload, params = {}) => {
+                const target = new URL(resource);
+                for (const [name,value] of Object.entries(params)) target.searchParams.set(name,value);
                 const response = await fetch(target, {method:payload?'POST':'GET',credentials:'same-origin',headers:{
                     'X-WP-Nonce':cfg.nonce,'Content-Type':'application/json'},body:payload?JSON.stringify(payload):undefined});
                 const data = await response.json();
@@ -93,7 +95,7 @@ async function verifyOverlayEvidence(browser) {
                 return document.querySelector('#syndamorph-team-scope-progress').innerText;
             }
             if(operation==='pattern') {
-                const native = await request(endpoint + '?region=' + key);
+                const native = await request(endpoint,null,{region:key});
                 if(!native.eligible)throw Error('Expected full region source and Designer-reference QA');
                 const blockCount = validate(native.content);
                 const validation = await request(cfg.historyUrl + '/' + native.id + '/validate-native',
@@ -102,7 +104,7 @@ async function verifyOverlayEvidence(browser) {
             }
             if(operation==='assemble') {
                 await request(endpoint,{action:'assemble'});
-                const native = await request(endpoint + '?draft=1');
+                const native = await request(endpoint,null,{draft:'1'});
                 const blockCount = validate(native.content,7200);
                 return request(endpoint,{action:'verify_page',valid:true,checksum:native.checksum,blockCount});
             }
