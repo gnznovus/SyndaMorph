@@ -432,6 +432,16 @@ $compilerRequest=array('name'=>'compiler.validate','target'=>'plan',
     'reason'=>'Validate the native Gutenberg structure before continuing development');
 $GLOBALS['syndamorph_production_tool_cache']=array();
 $GLOBALS['syndamorph_production_tool_count']=0;
+$nativeCheck=syndamorph_production_tool_request('developer',$compilerRequest,
+    array('plan'=>$richPlan));
+$nativeCache=syndamorph_production_tool_request('developer',$compilerRequest,
+    array('plan'=>$richPlan));
+expect(is_array($nativeCheck)&&($nativeCheck['evidence']['valid']??false)===true&&
+    ($nativeCheck['receipt']['cache']??null)==='miss'&&($nativeCache['receipt']['cache']??null)==='hit',
+    'Global compiler validation tool did not return a deterministic cached result');
+expect(is_wp_error(syndamorph_production_tool_request('boss',$compilerRequest,
+    array('plan'=>$richPlan))),
+    'Boss received unauthorized native compiler validation access');
 // Regression: GEN-000017 Boss diagnostic was 473 characters, which
 // previously failed at the arbitrary 260-byte reason contract.
 $longDiagnostic='At 375, 768 and 1440 CSS px, report the browser-computed max-width of every leaf heading, paragraph and button, and the computed text-transform and letter-spacing of the headline and eyebrow, to confirm that the leaf max-width and casing/wrapping effects flagged in the previous review are removed. The surgery changed one 54-byte segment to 24 bytes, but changedMeasurements is empty and verificationEvidence is null, so the fix cannot be confirmed from the supplied data.';
@@ -445,16 +455,7 @@ $overlongRequest=$longToolRequest;
 $overlongRequest['reason']=str_repeat('x',4097);
 expect(is_wp_error(syndamorph_production_tool_request('developer',$overlongRequest,array('plan'=>$richPlan))),
     'Tool requests must retain a hard maximum input budget');
-$nativeCheck=syndamorph_production_tool_request('developer',$compilerRequest,
-    array('plan'=>$richPlan));
-$nativeCache=syndamorph_production_tool_request('developer',$compilerRequest,
-    array('plan'=>$richPlan));
-expect(is_array($nativeCheck)&&($nativeCheck['evidence']['valid']??false)===true&&
-    ($nativeCheck['receipt']['cache']??null)==='miss'&&($nativeCache['receipt']['cache']??null)==='hit',
-    'Global compiler validation tool did not return a deterministic cached result');
-expect(is_wp_error(syndamorph_production_tool_request('boss',$compilerRequest,
-    array('plan'=>$richPlan))),
-    'Boss received unauthorized native compiler validation access');
+
 
 // Agents share the same read-only Playwright capability, without exposing
 // executable HTML, native mutation, arbitrary endpoints, or duplicate renders.
