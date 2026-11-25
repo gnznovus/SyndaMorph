@@ -799,9 +799,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'reason'=>'same_error_retry_limit','attempts'=>$schemaAttempts[$errorKey]));
             break;
         }
-        // Record failures as observations immediately; only compiled recovery
-        // upgrades the same evidence to a verified, reusable lesson.
-        syndamorph_learning_schema($diag['field'],$diag['message'],$learningSource.':schema:'.$attempt,false);
+        // A compiler rejection is authoritative negative evidence even if this
+        // job never compiles. Retain only narrowly scoped, contract-proven rules.
+        if($useLearning)syndamorph_learning_compiler_rejection($focus,$diag,
+            $learningSource.':reject:'.$attempt);
+        // Generic schema lessons require successful recompilation to verify.
+        if($useLearning)syndamorph_learning_schema($diag['field'],$diag['message'],
+            $learningSource.':schema:'.$attempt,false);
         if($on_event)$on_event('schema_repair',array_merge($diag,array('attempt'=>$attempt,'status'=>'required','role'=>'developer')));
         // Compiler owns proven schema transforms. Developer is asked only
         // when no known deterministic transaction advances this diagnostic.
