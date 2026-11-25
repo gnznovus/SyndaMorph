@@ -552,6 +552,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if($on_event)$on_event('working_plan',array('id'=>$workingId,'revision'=>1));
     $compiled=syndamorph_surgery_verify($plan,$plan);
     $lessons=array();
+    // F11: bound repeated failures of the exact compiler diagnostic and unchanged plan,
+    // never the total number of distinct repairs needed for a valid document.
+    $schemaAttempts=array();$schemaRejected=array();$schemaRetryLimit=3;
     for($attempt=1;is_wp_error($compiled);$attempt++){
         $error=$compiled;
         $data=(array)$error->get_error_data();
@@ -559,6 +562,15 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         if($diag['code']!=='sm_block_plan_invalid')break;
         $focus=syndamorph_surgery_extract($plan,$diag);
         if(!$focus)break;
+        $errorKey=hash('sha256',wp_json_encode(array($diag['code'],$diag['field'],$diag['message'],
+            hash('sha256',wp_json_encode($plan)))));
+        if(($schemaAttempts[$errorKey]??0)>=$schemaRetryLimit){
+            $compiled=new WP_Error('sm_schema_stagnation','Schema repair exhausted distinct attempts for an unchanged compiler error.',
+                array('field'=>$diag['field'],'diagnostic'=>$diag['message'],'attempts'=>$schemaAttempts[$errorKey]));
+            if($on_event)$on_event('schema_repair',array('field'=>$diag['field'],'status'=>'escalated',
+                'reason'=>'same_error_retry_limit','attempts'=>$schemaAttempts[$errorKey]));
+            break;
+        }
         // Record failures as observations immediately; only compiled recovery
         // upgrades the same evidence to a verified, reusable lesson.
         syndamorph_learning_schema($diag['field'],$diag['message'],$learningSource.':schema:'.$attempt,false);
@@ -572,12 +584,26 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         }
         if($candidate===null){
             $route='developer';
-            $context=array('diagnostic'=>$diag,'target'=>$focus,'learnedRules'=>$useLearning?syndamorph_learning_retrieve('schema_repair'):array());
+            $schemaAttempts[$errorKey]=($schemaAttempts[$errorKey]??0)+1;
+            $context=array('diagnostic'=>$diag,'target'=>$focus,
+                'rejectedPatches'=>array_values($schemaRejected[$errorKey]??array()),
+                'attemptsRemaining'=>$schemaRetryLimit-$schemaAttempts[$errorKey],
+                'learnedRules'=>$useLearning?syndamorph_learning_retrieve('schema_repair'):array());
             $answer=$call('developer','Surgical schema repair. Return JSON {"id":"existing id","changes":[{"path":"style.fontSize","value":"2rem"}]}. Update only the failing node style using the cached compiler contract. Preserve content and identity.',
                 $context,2048,array(),'schema_repair');
             if(is_wp_error($answer)){$compiled=$answer;break;}
             $surgery['paidPatches']++;
             $proposal=json_decode(syndamorph_native_json_text($answer),true);
+            $patchHash=hash('sha256',wp_json_encode($proposal));
+            if(isset($schemaRejected[$errorKey][$patchHash])){
+                $compiled=new WP_Error('sm_schema_stagnation','Developer repeated an ineffective schema repair proposal.',
+                    array('field'=>$diag['field'],'diagnostic'=>$diag['message'],
+                        'attempts'=>$schemaAttempts[$errorKey],'reason'=>'duplicate_patch'));
+                if($on_event)$on_event('schema_repair',array('field'=>$diag['field'],'status'=>'escalated',
+                    'reason'=>'duplicate_patch','attempts'=>$schemaAttempts[$errorKey]));
+                break;
+            }
+            $schemaRejected[$errorKey][$patchHash]=array('proposal'=>$proposal,'reason'=>$diag['message']);
             $candidate=is_array($proposal)?syndamorph_surgery_apply($plan,$proposal):new WP_Error('sm_surgery_contract','Invalid JSON patch.');
             if(is_wp_error($candidate)){
                 $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],'accepted'=>false);
