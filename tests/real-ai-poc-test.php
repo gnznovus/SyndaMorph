@@ -396,7 +396,7 @@ $GLOBALS['generations']=array();
 $accepted=syndamorph_team_real_run('Verify guided schema repair.',false,null,'gutenberg');
 expect(is_array($accepted)&&($accepted['artifact']['blockCount']??0)===5
     &&count($GLOBALS['generations'])===6,
-    'Properly acknowledged compiler guidance did not yield a valid repair');
+    'Properly acknowledged compiler guidance did not yield a valid repair: '.(is_wp_error($accepted)?$accepted->get_error_code().' '.$accepted->get_error_message():gettype($accepted)).'; calls='.count($GLOBALS['generations']));
 unset($GLOBALS['schema_ack_test']);
 $GLOBALS['native_fixture']=$priorFixture;
 $GLOBALS['generations']=array();
