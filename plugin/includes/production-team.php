@@ -142,20 +142,39 @@ function syndamorph_team_render_tab(): void {
                 </section>
 
                 <section id="sm-team-panel-production" class="sm-team-panel" role="tabpanel" aria-labelledby="sm-team-tab-production" data-panel="production" hidden>
-                    <div class="sm-stats" aria-label="Production overview">
-                        <div class="sm-stat"><span class="sm-stat-label">Current job</span><span class="sm-stat-value sm-stat-small" id="syndamorph-team-job-state">Not started</span></div>
-                        <div class="sm-stat"><span class="sm-stat-label">Conversation turns</span><span class="sm-stat-value" id="syndamorph-team-handoffs">00 turns</span></div>
-                        <div class="sm-stat"><span class="sm-stat-label">Output readiness</span><span class="sm-stat-value sm-stat-small" id="syndamorph-team-output-state">Not generated</span></div>
-                    </div>
                     <div class="sm-team-layout sm-team-production-grid">
                         <section class="sm-card" aria-labelledby="sm-team-timeline-title">
+                            <div class="sm-production-control" aria-label="Production control panel">
+                                <div class="sm-production-control-top">
+                                    <div class="sm-production-identity">
+                                        <strong id="syndamorph-team-current-job">No job submitted</strong>
+                                        <span id="syndamorph-team-active-agent">No active operation</span>
+                                    </div>
+                                    <span class="sm-status-pill" id="syndamorph-team-job-state" data-state="idle">Not started</span>
+                                </div>
+                                <div class="sm-production-metrics">
+                                    <div><span class="sm-stat-label">Current operation</span>
+                                        <strong id="syndamorph-team-operation">Standing by</strong></div>
+                                    <div><span class="sm-stat-label">Estimated AI cost</span>
+                                        <strong id="syndamorph-team-live-cost">$0.000000</strong></div>
+                                </div>
+                                <div class="sm-production-progress">
+                                    <span id="syndamorph-team-handoffs">0 tasks completed</span>
+                                    <span id="syndamorph-team-output-state">Not generated</span>
+                                </div>
+                                <div class="sm-production-actions" role="group" aria-label="Job execution controls">
+                                    <button type="button" class="sm-team-secondary" id="syndamorph-team-pause" disabled>Pause</button>
+                                    <button type="button" class="sm-team-secondary" id="syndamorph-team-resume" hidden disabled>Resume</button>
+                                    <button type="button" class="sm-team-secondary" id="syndamorph-team-stop" disabled>Stop</button>
+                                    <button type="button" class="sm-team-secondary sm-production-abort" id="syndamorph-team-abort" disabled>Abort</button>
+                                </div>
+                            </div>
                             <div class="sm-card-header sm-team-feed-heading">
                                 <div><h2 class="sm-card-title" id="sm-team-timeline-title">Live Production Feed</h2>
                                 <p class="sm-card-caption">Real agent messages and handoffs stream as they are generated.</p></div>
                                 <span class="sm-status-pill" id="syndamorph-team-feed-state" data-state="idle">Idle</span>
                             </div>
                             <div class="sm-card-body">
-                                <p class="sm-team-job-header" id="syndamorph-team-current-job">No job submitted</p>
                                 <ol class="sm-team-timeline" id="syndamorph-team-timeline" aria-live="polite" aria-relevant="additions">
                                     <li class="sm-team-empty">No activity yet. Start Production from Setup.</li>
                                 </ol>
