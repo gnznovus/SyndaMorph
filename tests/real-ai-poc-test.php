@@ -86,7 +86,25 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    if (!empty($GLOBALS['schema_stall_test']) || !empty($GLOBALS['schema_ack_test'])) {
+    if(!empty($GLOBALS['tool_verification_test'])){
+        $text=match($i){
+            1=>'{"title":"Global tools fixture","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Heading visible"]}',
+            2=>'<section><h2>Welcome &amp; enjoy</h2></section>',
+            3=>'{"decision":"verification_required","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"Check actual browser-computed headline font weight"},"summary":"Verify typography"}',
+            4=>'{"decision":"approved","issues":[],"summary":"Computed styles verified"}',
+            5=>$GLOBALS['native_fixture'],
+            6=>'{"decision":"approved","issues":[],"summary":"Native reference verified"}',
+            default=>throw new RuntimeException('Unexpected verification model call '.$i),
+        };
+    }elseif(!empty($GLOBALS['tool_dispute_test'])){
+        $text=match($i){
+            1=>'{"title":"Design dispute fixture","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Heading visible"]}',
+            2=>'<section><h2>Welcome &amp; enjoy</h2></section>',
+            3=>'{"decision":"changes_requested","issues":[{"target":"heading","problem":"Weight looks wrong despite computed weight 700","requiredChange":"Confirm browser font weight"}]}',
+            4=>'{"action":"no_change","reason":"Computed browser styles support declared weight; no source edit is justified"}',
+            default=>throw new RuntimeException('Unexpected disputed regeneration model call '.$i),
+        };
+    }elseif(!empty($GLOBALS['schema_stall_test']) || !empty($GLOBALS['schema_ack_test'])) {
         $repairContext=json_decode($req['messages'][0]['content'][0]['text']??'{}',true);
         $id=$repairContext['instructionId']??'';
         $field=$repairContext['diagnostic']['field']??'';
@@ -389,6 +407,40 @@ $richPlan['blocks'][0]['children'][0]['style']=array('color'=>'#ffffff','fontSiz
 $richPlan['blocks'][0]['children'][2]['children'][0]['style']=array('background'=>'#ffffff','color'=>'#18283a','borderRadius'=>'8px','padding'=>'1rem');
 $styled=syndamorph_compile_block_plan(wp_json_encode($richPlan));
 expect(!is_wp_error($styled),'Expanded Gutenberg native style schema failed to compile');
+
+// Agents share the same read-only Playwright capability, without exposing
+// executable HTML, native mutation, arbitrary endpoints, or duplicate renders.
+$tools=syndamorph_production_tool_catalog('designer');
+expect(isset($tools['playwright.inspect'])&&!isset($tools['compiler.patch']),
+    'Designer must discover globally registered Playwright without native mutation grants');
+$originalInspections=$GLOBALS['inspection_calls'];
+$GLOBALS['tool_verification_test']=true;
+$GLOBALS['generations']=array();
+$GLOBALS['inspection_calls']=array();
+$toolReceipts=array();
+$verified=syndamorph_team_real_run('Inspect the hotel hero with the globally shared Playwright tool.',false,
+    static function(string $type,array $data)use(&$toolReceipts):void{
+        if($type==='tool_invocation')$toolReceipts[]=$data;
+    },'gutenberg');
+expect(is_array($verified)&&$verified['designApproval']['reviewRounds']===2 &&
+    count($GLOBALS['generations'])===6&&count($toolReceipts)===1 &&
+    $toolReceipts[0]['cache']==='hit'&&$toolReceipts[0]['role']==='boss' &&
+    $GLOBALS['inspection_calls']===array('reference','native'),
+    'On-demand Boss inspection must reuse the existing browser evidence without an extra renderer call');
+$bossToolContext=json_decode($GLOBALS['generations'][3]['messages'][0]['content'][0]['text'],true);
+expect(($bossToolContext['verificationEvidence']['evidence']['source']??'')==='playwright.computed',
+    'Boss continuation did not receive structured computed-style evidence');
+unset($GLOBALS['tool_verification_test']);
+$GLOBALS['tool_dispute_test']=true;
+$GLOBALS['generations']=array();
+$disputed=syndamorph_team_real_run('Reject unsupported design complaints without a full regeneration.',false,null,'gutenberg');
+expect(is_wp_error($disputed)&&$disputed->get_error_code()==='sm_design_dispute'&&
+    count($GLOBALS['generations'])===4,
+    'Evidence-based Designer dispute caused another full design regeneration');
+unset($GLOBALS['tool_dispute_test']);
+$GLOBALS['inspection_calls']=$originalInspections;
+$GLOBALS['generations']=$beforeReplayGenerations;
+
 $GLOBALS['syndamorph_resume_calls']=array(array('role'=>'developer','task'=>'repair','text'=>'cached-model-patch','metric'=>array('outputTokens'=>17)));
 $GLOBALS['syndamorph_resume_index']=0;
 $GLOBALS['syndamorph_resume_suppress']=true;
