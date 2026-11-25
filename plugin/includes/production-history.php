@@ -127,7 +127,8 @@ function syndamorph_job_control_requested(int $id): string {
 function syndamorph_job_resume_signature(): string {
     $files=array('production-collaboration.php','ai-team-real.php',
         'production-block-plan.php','production-surgery.php','production-repair.php',
-        'production-tools.php','production-visual-qa.php','production-job-memory.php','production-learning.php','production-source.php','production-standards.php');
+        'production-tools.php','production-visual-qa.php','production-job-memory.php','production-learning.php',
+        'production-source.php','production-standards.php','production-specification.php');
     $digest='';
     foreach($files as $file)$digest.=hash_file('sha256',__DIR__.'/'.$file);
     return hash('sha256',$digest);

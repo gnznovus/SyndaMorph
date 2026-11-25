@@ -1,5 +1,7 @@
 # Adaptive Surgery hardening
 
+The v0.12 upgrade retains separate Designer HTML and Developer native-plan surgery. The specification now reaches both roles through the existing handoffs. Continuous viewport probes and evidence-based Designer rollback are tracked in the [upgrade checkpoints](production-team-upgrade.md).
+
 **Branch** `feat/secure-gateway-leasing-v1`
 
 **Date** November 25, 2026 (Asia/Bangkok)

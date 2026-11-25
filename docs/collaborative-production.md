@@ -4,6 +4,8 @@
 
 This specification applies only when **Native Gutenberg** is selected. HTML/CSS production retains its four-agent stream and explicit manual conversion. No automatic publishing or paid retries occur.
 
+The v0.12 native path carries an application-bound production specification throughout the existing handoffs. [Current responsibilities and contract](production-team-upgrade.md)
+
 ## Contract
 
 1. Boss defines criteria. Designer produces the scoped HTML/CSS visual reference, renders it in Playwright, and submits real desktop/mobile evidence to Boss. Boss explicitly approves or requests a targeted design correction (at most two review rounds). Developer cannot start before approval.

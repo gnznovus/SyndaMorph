@@ -326,6 +326,7 @@ function wp_remote_post($url,$args) {
         4 => 'Review: headline and section pass; test contrast and responsiveness in browser before shipping.',
         default => throw new RuntimeException('Too many AI calls'),
     };
+    if($i===1 && isset($GLOBALS['team_specification_fixture']))$text=wp_json_encode($GLOBALS['team_specification_fixture']);
     $mockInput=!empty($GLOBALS['cutoff_fixture']) && str_contains($req['system'][1]['text']??'','Task: validation.')?
         $GLOBALS['cutoff_fixture']:1200;
     return array('status'=>200,'body'=>json_encode(array(
@@ -465,7 +466,14 @@ $GLOBALS['generations']=array();
 $GLOBALS['native_mode']=true;
 $GLOBALS['inspection_calls']=array();
 $GLOBALS['options']['syndamorph_ai_model_settings']['maxJobUsd']=1.0;
+$GLOBALS['team_specification_fixture']=array('version'=>1,'title'=>'Premium hotel hero',
+    'sections'=>array(array('id'=>'hero','label'=>'Hero','parent'=>null),
+        array('id'=>'heading','label'=>'Hero heading','parent'=>'hero')),
+    'requirements'=>array(array('id'=>'editable-heading','target'=>'heading','dimension'=>'implementation',
+        'basis'=>'brief','requirement'=>'An editable native heading','acceptance'=>'Heading block survives editor round-trip',
+        'status'=>'verified')));
 $native=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
+unset($GLOBALS['team_specification_fixture']);
 expect(is_array($native) && $native['outputType']==='gutenberg','Native pipeline failed: '.(is_wp_error($native) ? $native->get_error_code().' · '.$native->get_error_message() : gettype($native)));
 expect($native['artifact']['blockCount']===5 && $native['checks']['contains_heading'],'Native compilation failed');
 expect(str_contains($native['artifact']['content'],'<!-- wp:group') && str_contains($native['artifact']['content'],'Welcome &amp; enjoy'),'Native serialization failed');
@@ -482,6 +490,33 @@ expect(count($GLOBALS['generations'][2]['messages'][0]['content'])===3,'Boss did
 expect(str_contains(wp_json_encode($GLOBALS['generations'][3]['system']),'JSON'),'Native developer contract missing');
 expect(($GLOBALS['generations'][3]['system'][0]['cache_control']['type']??null)==='ephemeral','Cache prefix absent');
 expect($GLOBALS['generations'][0]['system'][0]===$GLOBALS['generations'][4]['system'][0],'Shared cache prefix not stable');
+$assignment=$native['handoffs'][0];
+$specification=$assignment['requirements']['specification'];
+$specificationReceipt=$assignment['specificationReceipt'];
+expect($specification['format']==='structured' && $specification['sections'][1]['parent']==='hero' &&
+    $specification['requirements'][0]['id']==='editable-heading' && !isset($specification['requirements'][0]['status']),
+    'Planning must preserve hierarchy and requirement IDs without self-certifying verification');
+expect($specificationReceipt['specificationSha256']===hash('sha256',wp_json_encode($specification)) &&
+    $specificationReceipt['sourceEvidenceSha256']===null && $specificationReceipt['viewportWidths']===array(1440,768,375) &&
+    $native['designApproval']['specificationReceipt']===$specificationReceipt,
+    'Application-owned specification receipt must bind the brief and exact viewport widths');
+$requestContext=static fn($index)=>json_decode($GLOBALS['generations'][$index]['messages'][0]['content'][0]['text'],true);
+expect($requestContext(1)['requirements']['specification']===$specification &&
+    $requestContext(2)['productionSpecification']===$specification &&
+    $requestContext(3)['design']['productionSpecification']===$specification &&
+    $requestContext(4)['design']['productionSpecification']===$specification,
+    'Designer, Boss review, Developer and implementation QA did not receive the same specification');
+$legacyspec=syndamorph_collab_requirements('{"title":"Archive","sections":["Hero"],"constraints":[],"acceptance":["Keep headline"]}');
+expect($legacyspec['specification']['format']==='legacy' && $legacyspec['specification']['requirements'][0]['basis']===null,
+    'Archived planning has no attributed source or acceptance verdict');
+$broken=$specification;
+$broken['sections'][1]['parent']='heading';
+expect(is_wp_error(syndamorph_production_specification($broken)),'Cyclic specification hierarchy was accepted');
+$broken=$specification;
+$broken['requirements'][0]['target']='missing-section';
+expect(is_wp_error(syndamorph_production_specification($broken)),'Requirement with an unknown target was accepted');
+expect(is_wp_error(syndamorph_collab_requirements('{"title":"Archive","sections":[],"constraints":[],"acceptance":[1," "]}')),
+    'Empty legacy acceptance criteria were accepted');
 $finishFixture=$GLOBALS['native_fixture'];
 $finishCropCalls=$GLOBALS['crop_calls']??0;
 $GLOBALS['design_feasibility_test']=true;

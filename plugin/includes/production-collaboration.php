@@ -8,6 +8,7 @@ require_once __DIR__.'/production-visual-qa.php';
 require_once __DIR__.'/production-inspection.php';
 require_once __DIR__.'/production-surgery.php';
 require_once __DIR__.'/production-tools.php';
+require_once __DIR__.'/production-specification.php';
 
 /**
  * Agent decisions are immutable facts. Execution gates belong to the
@@ -59,14 +60,24 @@ function syndamorph_collab_requirements(string $raw) {
     $data=json_decode(syndamorph_native_json_text($raw),true);
     if(!is_array($data)||!is_string($data['title']??null)||trim($data['title'])==='')
         return new WP_Error('sm_boss_contract','Boss must return structured JSON requirements.');
+    if(array_key_exists('version',$data)){
+        $specification=syndamorph_production_specification($data);
+        if(is_wp_error($specification))return $specification;
+        return array('title'=>$specification['title'],'sections'=>array_column($specification['sections'],'label'),
+            'constraints'=>array_column(array_filter($specification['requirements'],
+                static fn($item)=>$item['dimension']==='implementation'),'requirement'),
+            'acceptance'=>array_column($specification['requirements'],'acceptance'),'specification'=>$specification);
+    }
     $result=array('title'=>mb_substr(trim($data['title']),0,100));
     foreach(array('sections','constraints','acceptance') as $field){
         if(!is_array($data[$field]??null)||!array_is_list($data[$field])||
             ($field==='acceptance'&&count($data[$field])===0))
             return new WP_Error('sm_boss_contract','Boss requirements are missing '.$field.'.');
-        $result[$field]=array_map(static fn($v)=>mb_substr(trim($v),0,180),
-            array_slice(array_values(array_filter($data[$field],'is_string')),0,12));
+        $result[$field]=array_slice(array_values(array_filter(array_map(static fn($v)=>
+            is_string($v)?mb_substr(trim($v),0,180):'',$data[$field]),static fn($v)=>$v!=='')),0,12);
     }
+    if(!$result['acceptance'])return new WP_Error('sm_boss_contract','Boss requirements lack measurable acceptance criteria.');
+    $result['specification']=syndamorph_production_legacy_specification($result);
     return $result;
 }
 function syndamorph_collab_cost(array $usage, float $input, float $output): float {
@@ -614,16 +625,19 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'bossApproved'=>false,'nativeEditorVerified'=>false),
             'published'=>false,'renderedInBrowser'=>false);
     };
-    $boss=$call('boss','Classify the job into a concise work order. Return ONLY JSON {"title":"short job title","sections":["..."],"constraints":["..."],"acceptance":["..."]}. Use the supplied acceptance viewport widths exactly. Include concrete requested sections, implementability constraints and testable acceptance criteria. Maximum 12 short strings per list, no speculative objections, markdown or HTML. For an unsourced brief, permit generic marketing copy and provisional local CTAs without invented real-world facts.'.$sourceNote,
+    $boss=$call('boss','Classify the job into a concise production specification. Return ONLY JSON {"version":1,"title":"short job title","sections":[{"id":"hero","label":"Hero","parent":null}],"requirements":[{"id":"hero-heading","target":"hero","dimension":"content","basis":"brief","requirement":"required result","acceptance":"observable pass condition"}]}. Put parents before children. A target is a section ID or page. Use short lowercase IDs, up to 12 sections and 24 requirements. Dimensions are content, visual, responsive, functional, implementation, accessibility. Basis is brief, source, or standard. Capture each explicit requirement, use the supplied viewport widths, and record unknown dependencies as verification needs. For an unsourced brief, permit generic marketing copy and provisional local CTAs without invented real-world facts.'.$sourceNote,
         array('brief'=>$brief,'viewportWidths'=>$viewports)+$sourceContext,
         syndamorph_collab_output_cap($provider,$model),$sourceImages);
     if(is_wp_error($boss))return $boss;
     $bossBrief=syndamorph_collab_requirements($boss);
     if(is_wp_error($bossBrief))return $bossBrief;
+    $specification=$bossBrief['specification'];
+    $specificationReceipt=syndamorph_production_specification_receipt($specification,$brief,$viewports,$source);
     $outputs['boss']=wp_json_encode($bossBrief);
     if($on_event)$on_event('job_title',array('title'=>$bossBrief['title']));
     $assignment=array('from'=>'boss','to'=>'designer','type'=>'assignment',
-        'requirements'=>$bossBrief,'briefSha256'=>hash('sha256',$brief));
+        'requirements'=>$bossBrief,'briefSha256'=>$specificationReceipt['briefSha256'],
+        'specificationReceipt'=>$specificationReceipt);
     if($on_event)$on_event('handoff',$assignment);
 
     // Designer owns the visual deliverable; Boss reviews real browser evidence
@@ -699,6 +713,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $reviewContext['measurementSummary']=array('baseline'=>count($priorDesignMeasurements),
                 'current'=>count($measurements),'changed'=>count($changedMeasurements));
         }
+        $reviewContext['productionSpecification']=$specification;
+        $reviewContext['specificationReceipt']=$specificationReceipt;
         if($source!==null){
             $reviewContext+=$sourceContext;
             $reviewContext['sourceCopyCheck']=syndamorph_production_source_copy($source,$inspectReference);
@@ -894,9 +910,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if($on_event&&$capabilityNotes)$on_event('capability_preflight',array('notes'=>$capabilityNotes));
     $designMemo=array('decision'=>'approved','referenceSha256'=>hash('sha256',$reference),
         'reviewRounds'=>$designReviews,'capabilityNotes'=>$capabilityNotes,'acceptedCapabilityDeviations'=>$deviations,
-        'bossApproval'=>$approval);
+        'bossApproval'=>$approval,'productionSpecification'=>$specification,'specificationReceipt'=>$specificationReceipt);
     $handoffs[]=array('from'=>'boss','to'=>'developer','type'=>'approved_design',
-        'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews,'agentPayload'=>$approval);
+        'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews,'agentPayload'=>$approval,
+        'specificationReceipt'=>$specificationReceipt);
     if($on_event)$on_event('handoff',end($handoffs));
     $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON using the cached compiler contract. Preserve content and visual intent. Return JSON only, with stable unique IDs and supported native styles.'.$sourceNote,
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,

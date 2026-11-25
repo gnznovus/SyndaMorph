@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.0] - 2026-11-25
+
+### Added
+- Versioned Bossy work orders with section hierarchy, requirement IDs, evidence basis and observable acceptance criteria.
+- A specification receipt that binds the original brief, pinned source evidence and required viewports to the Designer and Developer handoffs.
+
+### Verified
+- The shared production path carries one specification through design generation, review, native implementation and QA. Existing structured and legacy planning fixtures exercise the same entry point.
+- The public release remains v0.11.1. Reference acquisition, Touch, continuous responsiveness, requirement-level verdicts and independent interactive acceptance are later checkpoints.
+
 ## [0.11.1] - 2026-11-20
 
 ### Added
