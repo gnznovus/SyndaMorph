@@ -237,9 +237,7 @@ function syndamorph_team_sse_run( string $brief, string $format = 'html' ): void
                 $status=$action==='pause'?'paused':($action==='stop'?'stopped':'aborted');
                 if($status==='paused')
                     update_option('syndamorph_job_resume_signature_'.$id,syndamorph_job_resume_signature(),false);
-                $emit('job_complete',array('status'=>$status,'controlAction'=>$status,
-                    'message'=>$result->get_error_message(),'outputType'=>$format,
-                    'published'=>false,'resumeAvailable'=>$status==='paused'));
+                $emit('job_complete',syndamorph_job_control_payload($id,$format,$status,$result->get_error_message()));
             }else $emit( 'job_error', syndamorph_team_failure_payload( $result ) );
         } else {
             $emit( 'job_complete', $result );
@@ -286,14 +284,11 @@ function syndamorph_team_sse_resume(int $id,string $brief,string $format,array $
                 $action=str_replace('sm_team_','',$code);
                 $status=$action==='pause'?'paused':($action==='stop'?'stopped':'aborted');
                 if($status==='paused')update_option('syndamorph_job_resume_signature_'.$id,syndamorph_job_resume_signature(),false);
-                $emit('job_complete',array('status'=>$status,'controlAction'=>$status,
-                    'message'=>$result->get_error_message(),'outputType'=>$format,
-                    'published'=>false,'resumeAvailable'=>$status==='paused'));
+                $emit('job_complete',syndamorph_job_control_payload($id,$format,$status,$result->get_error_message()));
             }elseif(str_starts_with($code,'sm_resume_')){
                 $emit('resume_blocked',array('code'=>$code,'message'=>$result->get_error_message()));
-                $emit('job_complete',array('status'=>'paused','controlAction'=>'paused',
-                    'message'=>'Resume is blocked by checkpoint divergence; no earlier paid call was retried.',
-                    'outputType'=>$format,'published'=>false,'resumeAvailable'=>true));
+                $emit('job_complete',syndamorph_job_control_payload($id,$format,'paused',
+                    'Resume is blocked by checkpoint divergence; no earlier paid call was retried.'));
             }else $emit('job_error',syndamorph_team_failure_payload($result));
         }else $emit('job_complete',$result);
     }catch(Throwable $error){
