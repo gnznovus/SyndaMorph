@@ -303,6 +303,17 @@
             const finishedTask=data.task || data.role;
             if (requiredTasks().includes(finishedTask) && !completedRoles.has(finishedTask)) { completedRoles.add(finishedTask); completed++; }
             text(handoffs, completed + ' / ' + requiredTasks().length + ' initial tasks completed');
+        } else if (type === 'tool_invocation') {
+            const item=document.createElement('li');item.className='sm-team-step';
+            item.textContent=(labels[data.role]||data.role||'Agent')+' requested '+(data.tool||'tool')+
+                ' · '+(data.cache==='hit'?'cached evidence':'fresh diagnostic')+
+                (data.reason?' · '+data.reason:'');
+            timeline.append(item);followLatest();
+        } else if (type === 'design_dispute') {
+            const item=document.createElement('li');item.className='sm-team-step';
+            item.textContent='Design evidence dispute · reference preserved'+
+                (data.reason?' · '+data.reason:'');
+            timeline.append(item);followLatest();
         } else if (type === 'design_surgery') {
             const item=document.createElement('li');item.className='sm-team-step';
             item.textContent='Designer surgery · '+data.status+' · review round '+data.round;
