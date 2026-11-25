@@ -253,6 +253,51 @@ function syndamorph_team_sse_run( string $brief, string $format = 'html' ): void
     exit;
 }
 
+/* Resume in a fresh PHP request by replaying only previously completed calls. */
+function syndamorph_team_sse_resume(int $id,string $brief,string $format,array $calls): void {
+    if(!headers_sent()){
+        header('Content-Type: text/event-stream; charset=utf-8');
+        header('Cache-Control: no-cache, no-store, no-transform');
+        header('X-Accel-Buffering: no');
+        header('X-Content-Type-Options: nosniff');
+    }
+    while(ob_get_level()>0){if(!@ob_end_flush())break;}
+    $GLOBALS['syndamorph_active_job_id']=$id;
+    $GLOBALS['syndamorph_resume_calls']=$calls;
+    $GLOBALS['syndamorph_resume_index']=0;
+    $emit=static function(string $type,array $data)use($id):void{
+        if(!empty($GLOBALS['syndamorph_resume_suppress']))return;
+        syndamorph_history_append($id,$type,$data);
+        syndamorph_team_sse_emit($type,$data);
+    };
+    try{
+        syndamorph_history_append($id,'job_resumed',array('status'=>'running','replayedCalls'=>count($calls)));
+        syndamorph_team_sse_emit('job_resumed',array('status'=>'running','replayedCalls'=>count($calls)));
+        $GLOBALS['syndamorph_resume_suppress']=true;
+        $result=syndamorph_team_real_run($brief,true,$emit,$format);
+        unset($GLOBALS['syndamorph_resume_suppress']);
+        if(is_wp_error($result)){
+            $code=$result->get_error_code();
+            if(in_array($code,array('sm_team_pause','sm_team_stop','sm_team_abort'),true)){
+                $action=str_replace('sm_team_','',$code);
+                $status=$action==='pause'?'paused':($action==='stop'?'stopped':'aborted');
+                if($status==='paused')update_option('syndamorph_job_resume_signature_'.$id,syndamorph_job_resume_signature(),false);
+                $emit('job_complete',array('status'=>$status,'controlAction'=>$status,
+                    'message'=>$result->get_error_message(),'outputType'=>$format,
+                    'published'=>false,'resumeAvailable'=>$status==='paused'));
+            }else $emit('job_error',syndamorph_team_failure_payload($result));
+        }else $emit('job_complete',$result);
+    }catch(Throwable $error){
+        $failure=array('code'=>'sm_team_internal','stage'=>'system','message'=>'Continuation failed. Inspect History before retrying.');
+        try{syndamorph_history_append($id,'job_error',$failure);}catch(Throwable $ignored){}
+        syndamorph_team_sse_emit('job_error',$failure);
+    }finally{
+        unset($GLOBALS['syndamorph_active_job_id'],$GLOBALS['syndamorph_resume_calls'],
+            $GLOBALS['syndamorph_resume_index'],$GLOBALS['syndamorph_resume_suppress']);
+        delete_transient('syndamorph_ai_real_job_lock');
+    }
+    exit;
+}
 add_action( 'rest_api_init', static function (): void {
     register_rest_route( 'syndamorph/v1', '/ai/team-stream', array(
         'methods' => 'POST',
