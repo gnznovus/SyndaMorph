@@ -343,9 +343,17 @@
                 ' · '+(Array.isArray(data.issueIds)?data.issueIds.slice(0,3).join(', '):'')+
                 (data.nextAction?' · '+data.nextAction:'');
             timeline.append(item);followLatest();
+        } else if (type === 'compiler_auto_repair') {
+            const item=document.createElement('li');item.className='sm-team-step';
+            item.textContent='Compiler auto-repair · '+(data.status||'applied')+' · '+(data.field||'')+
+                (data.compiled?' · schema passed':' · next schema check')+' · browser QA required';
+            timeline.append(item);followLatest();
         } else if (type === 'schema_repair') {
             const item=document.createElement('li');item.className='sm-team-step';
-            item.textContent='Schema repair '+data.attempt+' · '+data.status+' · '+(data.field||'')+(data.message?' · '+data.message:'');timeline.append(item);
+            const owner=data.role==='compiler'?'Compiler':data.role==='developer'?'Developer':'Schema';
+            item.textContent=owner+' schema '+data.attempt+' · '+data.status+' · '+(data.field||'')+
+                (data.message?' · '+data.message:'');
+            timeline.append(item);followLatest();
         } else if (type === 'revision') {
             const item=document.createElement('li');item.className='sm-team-step';
             item.textContent='Revision '+data.round+' · '+data.id+' · '+(data.accepted?'Accepted':data.status==='duplicate'?'Duplicate skipped':'Not accepted')+(Number.isFinite(data.before)&&Number.isFinite(data.after)?' · findings '+data.before+' → '+data.after:'')+(data.detail?' · '+data.detail:'');
