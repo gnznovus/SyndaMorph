@@ -428,6 +428,20 @@ $richPlan['blocks'][0]['children'][0]['style']=array('color'=>'#ffffff','fontSiz
 $richPlan['blocks'][0]['children'][2]['children'][0]['style']=array('background'=>'#ffffff','color'=>'#18283a','borderRadius'=>'8px','padding'=>'1rem');
 $styled=syndamorph_compile_block_plan(wp_json_encode($richPlan));
 expect(!is_wp_error($styled),'Expanded Gutenberg native style schema failed to compile');
+$compilerRequest=array('name'=>'compiler.validate','target'=>'plan',
+    'reason'=>'Validate the native Gutenberg structure before continuing development');
+$GLOBALS['syndamorph_production_tool_cache']=array();
+$GLOBALS['syndamorph_production_tool_count']=0;
+$nativeCheck=syndamorph_production_tool_request('developer',$compilerRequest,
+    array('plan'=>$richPlan));
+$nativeCache=syndamorph_production_tool_request('developer',$compilerRequest,
+    array('plan'=>$richPlan));
+expect(is_array($nativeCheck)&&($nativeCheck['evidence']['valid']??false)===true&&
+    ($nativeCheck['receipt']['cache']??null)==='miss'&&($nativeCache['receipt']['cache']??null)==='hit',
+    'Global compiler validation tool did not return a deterministic cached result');
+expect(is_wp_error(syndamorph_production_tool_request('boss',$compilerRequest,
+    array('plan'=>$richPlan))),
+    'Boss received unauthorized native compiler validation access');
 
 // Agents share the same read-only Playwright capability, without exposing
 // executable HTML, native mutation, arbitrary endpoints, or duplicate renders.
@@ -443,14 +457,6 @@ $verified=syndamorph_team_real_run('Inspect the hotel hero with the globally sha
     static function(string $type,array $data)use(&$toolReceipts):void{
         if($type==='tool_invocation')$toolReceipts[]=$data;
     },'gutenberg');
-if(!is_array($verified)||($verified['designApproval']['reviewRounds']??null)!==2 ||
-    count($GLOBALS['generations'])!==6||count($toolReceipts)!==1 ||
-    ($toolReceipts[0]['cache']??null)!=='hit'||
-    $GLOBALS['inspection_calls']!==array('reference','native'))
-    fwrite(STDERR,"TOOL_DEBUG ".wp_json_encode(array('error'=>is_wp_error($verified)?$verified->get_error_code():null,
-        'rounds'=>$verified['designApproval']['reviewRounds']??null,
-        'calls'=>count($GLOBALS['generations']),'receipts'=>$toolReceipts,
-        'inspections'=>$GLOBALS['inspection_calls']))."\n");
 expect(is_array($verified)&&$verified['designApproval']['reviewRounds']===2 &&
     count($GLOBALS['generations'])===6&&count($toolReceipts)===1 &&
     $toolReceipts[0]['cache']==='hit'&&$toolReceipts[0]['role']==='boss' &&
