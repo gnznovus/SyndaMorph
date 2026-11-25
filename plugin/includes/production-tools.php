@@ -134,3 +134,27 @@ function syndamorph_production_tool_cached_inspection(string $html,array $viewpo
     $key=hash('sha256','playwright.inspect'."\0".hash('sha256',$html)."\0".wp_json_encode($viewports));
     return $GLOBALS['syndamorph_production_tool_cache'][$key]??null;
 }
+
+/**
+ * Resolve a model-requested diagnostic without handing the model raw tool
+ * arguments. One fresh follow-up response per tool request, depth-limited.
+ * Saved tool-request responses can be replayed deterministically on Resume.
+ */
+function syndamorph_production_tool_followup(string $reply,string $role,string $stage,
+    string $instruction,array $context,int $cap,array $images,float $reserve,
+    array $viewports,?callable $on_event,callable $call) {
+    $parsed=json_decode(syndamorph_native_json_text($reply),true);
+    if(!is_array($parsed)||($parsed['action']??'')!=='tool_request')return null;
+    $depth=(int)($context['_toolDepth']??0);
+    if($depth>=2)return new WP_Error('sm_tool_loop',
+        'Agent repeated tool requests instead of completing its assigned work.');
+    $request=(array)($parsed['toolRequest']??array());
+    $reference=$context['reference']??($GLOBALS['syndamorph_current_reference']??null);
+    $toolResult=syndamorph_production_tool_request($role,$request,
+        array('reference'=>$reference,'viewports'=>$viewports),$on_event);
+    if(is_wp_error($toolResult))return $toolResult;
+    $context['_toolDepth']=$depth+1;
+    $context['toolEvidence']=$toolResult;
+    $context['toolFollowup']='Use the attached measured evidence to complete the original task. Do not request the same tool repeatedly.';
+    return $call($role,$instruction,$context,$cap,$images,$stage,$reserve);
+}
