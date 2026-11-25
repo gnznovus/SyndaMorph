@@ -79,6 +79,20 @@ function syndamorph_learning_schema(string $field,string $message,string $source
     if(!$rule)return;
     syndamorph_learning_record('agent','schema_repair',$rule['block'],$rule['pattern'],$rule['rule'],$source,$verified);
 }
+/**
+ * Compiler-rejected combinations are authoritative negative constraints,
+ * even if a job never finishes. This records only supported compiler vocabulary
+ * (no user content) and is scoped to the exact rejected block/property pair.
+ */
+function syndamorph_learning_compiler_rejection(array $focus,array $diagnostic,string $source): void {
+    $type=(string)($focus['node']['type']??'');
+    $property=(string)($focus['property']??'');
+    $message=(string)($diagnostic['message']??'');
+    if($message==='Unsupported style for block.' && $type==='buttons' && $property==='style.margin'){
+        syndamorph_learning_record('agent','schema_repair','buttons','margin',
+            'Never set buttons.style.margin: the native compiler rejects it. Use the parent group gap for vertical spacing; validate visual fidelity.', $source,true);
+    }
+}
 /** Learn only evidence-backed style-property choices, not raw user copy or arbitrary markup. */
 function syndamorph_learning_repair(array $before,array $after,int $oldScore,int $newScore,string $source): void {
     if($newScore >= $oldScore || ($before['type']??null)!==($after['type']??null))return;
