@@ -2,6 +2,7 @@
 
 const { createHash } = require('node:crypto');
 const { capture } = require('./capture');
+const { enabled: referenceEnabled, storeReferences } = require('./production-reference');
 
 const WIDTHS = [1440, 768, 375];
 const HEIGHT = 900;
@@ -150,8 +151,11 @@ async function productionSource(url, sectionId = null, variants = null) {
     let selected;
     const evidence = [];
     const pages = [];
+    const snapshots = [];
+    const archive=referenceEnabled() && (sectionId!==null || variants!==null);
+    const archiveTransport=archive?{ responses:new Map(),bytes:0 }:undefined;
     for (const width of WIDTHS) {
-        const current = await capture(url, 'browser', { width, inspect: async (page, regions, diagnostics) => {
+        const current = await capture(url,'browser',{ width,archive,archiveTransport,inspect: async (page,regions,diagnostics,reference) => {
             const resolved = new URL(page.url());
             resolved.hash = '';
             const url = resolved.href;
@@ -170,8 +174,9 @@ async function productionSource(url, sectionId = null, variants = null) {
             const entry = rows.find(item => item.id === requested[width]);
             if (requested[width] && !entry?.view) throw new Error('Selected section is absent at a required viewport.');
             const screenshot = entry ? await sectionScreenshot(page, entry.sourceRef, width) : null;
-            return { url, rows, entry, screenshot, diagnostics, fontFaces };
+            return { url, rows, entry, screenshot, diagnostics, fontFaces, reference };
         } });
+        if(current.reference)snapshots.push(current.reference);
         manifestURL = current.url;
         primary ||= current.rows;
         if (current.entry) {
@@ -189,6 +194,7 @@ async function productionSource(url, sectionId = null, variants = null) {
     }
     const manifest = { version: 1, sourceURL: manifestURL, viewportWidths: WIDTHS, pages };
     return { manifest: { ...manifest, sha256: digest(stableJSON(manifest)) },
+        ...(archive ? { referenceArchive:await storeReferences(snapshots) } : {}),
         section: selected ? { id: variants === null ? selected.id : identity(manifestURL, WIDTHS.map(width => requested[width])),
             label: selected.label, sourceRef: selected.sourceRef,
             kind: selected.kind, evidence, evidenceSha256: digest(stableJSON(evidence)) } : null };

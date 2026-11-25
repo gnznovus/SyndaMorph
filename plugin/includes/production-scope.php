@@ -15,6 +15,9 @@ function syndamorph_scope_open(string $mode,array $capture) {
         !is_array($capture['sections']??null)||!$capture['sections']||count($capture['sections'])>180||
         array_column($capture['views']??array(),'width')!==SYNDAMORPH_SOURCE_WIDTHS)
         return syndamorph_scope_error('capture','Responsive discovery produced no usable manifest.',422);
+    if((getenv('SYNDAMORPH_REFERENCE_ARCHIVE')==='1'||array_key_exists('referenceArchive',$capture)) &&
+        !syndamorph_production_reference_valid($capture['referenceArchive']??null,$capture['url']))
+        return syndamorph_scope_error('reference','Rendered source reference failed verification.',422);
     $regions=array();
     foreach($capture['sections'] as $source) {
         $key=$source['id']??'';
@@ -38,7 +41,8 @@ function syndamorph_scope_open(string $mode,array $capture) {
         'status'=>'needs_review','selected'=>null,'page'=>null,'spentUsd'=>0.0,'meteringComplete'=>true,
         'captures'=>array_map(static fn($view)=>array('width'=>$view['width'],'regions'=>$view['discovered']??count($view['order']??array()),
             'blockedRequests'=>$view['network']['denied']??0,'failedResponses'=>$view['network']['error']??0,
-            'browserErrors'=>count($view['browserErrors']??array())),$capture['views']));
+            'browserErrors'=>count($view['browserErrors']??array())),$capture['views']))+
+        array_intersect_key($capture,array('referenceArchive'=>true));
     syndamorph_history_append($record['id'],'scope_manifest',$manifest);
     return $manifest;
 }
@@ -133,6 +137,11 @@ function syndamorph_scope_run(array $manifest,string $key,bool $retry,?callable 
     $settings=syndamorph_models_settings();
     $available=min($available,(float)($manifest['sectionBudgetUsd']??$settings['maxJobUsd']??0));
     $engineSource=syndamorph_scope_engine_source($source,$manifest['sourceUrl']);
+    if(array_key_exists('referenceArchive',$manifest)) {
+        if(!syndamorph_production_reference_valid($manifest['referenceArchive'],$manifest['sourceUrl']))
+            return syndamorph_scope_error('reference','Pinned rendered reference is unavailable.');
+        $engineSource['referenceArchive']=$manifest['referenceArchive'];
+    }
     $job=syndamorph_history_create('GEN',$region['label'],array('workflow'=>'three-agent-v2','outputType'=>'gutenberg',
         'brief'=>$brief,'settings'=>$settings,'standards'=>syndamorph_production_standards(),
         'scope'=>array('id'=>$manifest['id'],'region'=>$key,'checkpoint'=>$region['checkpoint'],'sourceUrl'=>$manifest['sourceUrl'],

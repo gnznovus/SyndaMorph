@@ -1787,6 +1787,29 @@ unset($GLOBALS['source_fixture_user']);
 $truncated=$sourceFixture;
 array_pop($truncated['section']['evidence']);
 expect(!syndamorph_production_source_valid($truncated),'A missing viewport passed source admission');
+$archive=array('version'=>1,'format'=>'singlefile-2.27.3','sourceUrl'=>$sourceFixture['url'],'views'=>array());
+$archiveIdentity=array(1,$archive['format'],$archive['sourceUrl']);
+foreach(array(1440,768,375) as $width){
+    $digests=array_map(static fn($part)=>hash('sha256',$width.'-'.$part),array('dom','baseline','html','replay'));
+    $archive['views'][]=array('width'=>$width,'viewportHeight'=>900,'scrollWidth'=>$width,'pageHeight'=>920,
+        'verified'=>true,'javascriptEnabled'=>false,'externalRequests'=>0,'pixelDifferenceRatio'=>0.001,
+        'copySha256'=>hash('sha256','Welcome & enjoy'))+
+        array_combine(array('sourceDOMSha256','sourceScreenshotSha256','archiveSha256','replayScreenshotSha256'),$digests);
+    $archiveIdentity[]=array_merge(array($width),$digests);
+}
+$archive['id']=hash('sha256',json_encode($archiveIdentity,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE));
+expect(syndamorph_production_source_valid($sourceFixture+array('referenceArchive'=>$archive)),
+    'Complete archive receipt did not pass pinned source admission');
+$badArchive=$archive;
+$badArchive['views'][2]['externalRequests']=1;
+expect(!syndamorph_production_source_valid($sourceFixture+array('referenceArchive'=>$badArchive)),
+    'An archive which requested an external asset passed source admission');
+$badArchive=$archive;
+$badArchive['views'][1]['archiveSha256']=hash('sha256','different HTML');
+expect(!syndamorph_production_source_valid($sourceFixture+array('referenceArchive'=>$badArchive)),
+    'A replaced archive did not invalidate the receipt');
+expect(!syndamorph_production_reference_valid($archive,'https://other.example/site'),
+    'Archive receipt could be reused for a different source');
 $GLOBALS['source_fixture_copy']='Welcome & enjoy';
 foreach(array(0.0,0.02) as $ratio){
     // Source/Designer and Designer/native agree. Only the final source/native

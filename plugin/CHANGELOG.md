@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.1] - 2026-11-25
+
+### Added
+- Opt-in SingleFile acquisition in the existing capture service with separate 1440, 768 and 375 px source and offline archive evidence.
+- A guarded browser transport, immutable archive files, and application-validated receipt provenance through Section, Full Page and manually selected source handoffs.
+- Real Chromium regressions for offline replay, divergent responsive trees, missing widths and mismatched saved HTML.
+
+### Limitations
+- Archives are static visual references. Interactive discovery and acceptance are separate checkpoints.
+- The opt-in service requires Node.js 24 or later and the pinned SingleFile dependencies. The WordPress ZIP contains the receipt contract only.
+
 ## [0.12.0] - 2026-11-25
 
 ### Added

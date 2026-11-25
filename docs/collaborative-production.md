@@ -122,6 +122,8 @@ Production Setup accepts a URL with **Native Gutenberg** output. Select **Sectio
 
 Manual viewport selections must pass pinned copy and pixel comparisons before Developer handoff. The design approval contract, live evaluation and known gaps are documented in the [Bossy reliability audit](bossy-validation-audit.md).
 
+The optional capture service also verifies and archives a separate standalone SingleFile document for each required width. Its receipt accompanies source evidence into both scope adapters. [Reference acquisition and setup](production-team-upgrade.md#v0121-reference-acquisition)
+
 Inspection pins the source URL, region identity, DOM selector, viewport-specific markup, text and resource inventory, screenshot and source order at 1440, 768 and 375 CSS pixels in administrator-only History. Exact source anchors are preferred when joining variants. Different trees can be aligned using unique content and landmarks. Ambiguous or device-only regions stay visible and block complete acceptance when their other required evidence is missing. Page screenshots and overlay-region screenshots retain the original overlay. Screenshots for unrelated regions temporarily suppress the captured overlay and its backdrop and record that isolation.
 
 Each ready region starts its own existing Boss, Designer, Developer, native compiler, browser, Adaptive Surgery and editor workflow. The source comparison adds literal text, links, asset and function checks against what is actually visible at each width. For different source copy, the compiler can put native groups behind fixed desktop, compact, tablet or mobile visibility classes. Every group remains available in Gutenberg for editing. The SyndaMorph stylesheet applies the viewport rules on the front end.

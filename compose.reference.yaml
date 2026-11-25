@@ -1,0 +1,16 @@
+services:
+  wordpress:
+    environment:
+      SYNDAMORPH_REFERENCE_ARCHIVE: "1"
+  backend:
+    build:
+      args:
+        SYNDAMORPH_INSTALL_SINGLEFILE: "1"
+    environment:
+      SYNDAMORPH_REFERENCE_ARCHIVE: "1"
+      SYNDAMORPH_REFERENCE_DIR: "/var/lib/syndamorph-references"
+    volumes:
+      - reference_archives:/var/lib/syndamorph-references
+
+volumes:
+  reference_archives:

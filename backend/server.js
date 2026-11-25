@@ -2,6 +2,7 @@
 const http = require('node:http');
 const { capture, captureResponsive } = require('./capture');
 const { productionSource } = require('./production-source');
+const { enabled: referenceEnabled } = require('./production-reference');
 const { createAnalyzeHandler } = require('./mvp/endpoint');
 const { runCommunicationPoc } = require('./purr-poc');
 
@@ -35,8 +36,11 @@ http.createServer(async (req, res) => {
         }
         if (typeof input.url !== 'string' || input.url.length > 2048) return respond(res, 400, { error: 'Invalid URL.' });
         if (req.url === '/production-source') {
-            const result = await productionSource(input.url, input.sectionId, input.variants);
-            return respond(res, 200, result);
+            const archives=referenceEnabled() && (input.sectionId!=null || input.variants!=null);
+            if(archives && responsiveInProgress)return respond(res,429,{ error:'Responsive capture is already running.' });
+            if(archives)responsiveInProgress=true;
+            try { return respond(res,200,await productionSource(input.url,input.sectionId,input.variants)); }
+            finally { if(archives)responsiveInProgress=false; }
         }
         if (req.url === '/mvp/analyze') {
             const result = await analyze(input);
@@ -52,6 +56,8 @@ http.createServer(async (req, res) => {
                 res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
                 return res.end(body);
             } catch (error) {
+                if (error.code === 'sm_reference_unverified')
+                    return respond(res, 422, { error: 'Rendered reference verification is incomplete.' });
                 return respond(res, 422, { error: error.message === 'URL host is not approved for this POC.'
                     ? error.message : 'Responsive page capture failed. Verify all three viewport renders.' });
             } finally { responsiveInProgress = false; }

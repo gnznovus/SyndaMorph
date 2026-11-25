@@ -69,5 +69,6 @@ function syndamorph_production_specification_receipt(array $specification,string
     return array('version'=>$specification['version'],'format'=>$specification['format'],
         'specificationSha256'=>hash('sha256',wp_json_encode($specification)),
         'briefSha256'=>hash('sha256',$brief),'sourceEvidenceSha256'=>$source['section']['evidenceSha256']??null,
+        'referenceArchiveId'=>$source['referenceArchive']['id']??null,
         'viewportWidths'=>$viewports);
 }

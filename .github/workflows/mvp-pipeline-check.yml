@@ -5,6 +5,7 @@ on:
     paths:
       - 'backend/**'
       - 'compose.yaml'
+      - 'compose.reference.yaml'
       - 'plugin/includes/production-team.php'
       - 'plugin/includes/production-standards.php'
       - 'plugin/includes/production-job-memory.php'
@@ -17,6 +18,7 @@ on:
       - 'plugin/includes/ai-team-real.php'
       - 'plugin/includes/production-collaboration.php'
       - 'plugin/includes/production-specification.php'
+      - 'plugin/includes/production-reference.php'
       - 'plugin/includes/production-source.php'
       - 'plugin/includes/production-inspection.php'
       - 'plugin/includes/production-scope*.php'
@@ -53,6 +55,7 @@ on:
       - 'plugin/includes/production-repair.php'
       - 'plugin/includes/production-collaboration.php'
       - 'plugin/includes/production-specification.php'
+      - 'plugin/includes/production-reference.php'
       - 'plugin/includes/production-source.php'
       - 'plugin/includes/production-inspection.php'
       - 'plugin/includes/production-scope*.php'
@@ -65,6 +68,7 @@ on:
       - 'plugin/includes/production-visual-qa.php'
       - 'backend/**'
       - 'compose.yaml'
+      - 'compose.reference.yaml'
       - 'plugin/includes/production-team.php'
       - 'plugin/includes/production-standards.php'
       - 'plugin/includes/production-job-memory.php'
@@ -116,6 +120,7 @@ jobs:
           php -l plugin/includes/production-block-plan.php
           php -l plugin/includes/production-collaboration.php
           php -l plugin/includes/production-specification.php
+          php -l plugin/includes/production-reference.php
           php -l plugin/includes/production-source.php
           node --check backend/production-source.js
           php -l plugin/includes/production-inspection.php
@@ -157,6 +162,11 @@ jobs:
           npm test --prefix backend
       - name: Docker Compose validation
         run: docker compose config --quiet
+      - name: Opt-in offline archive verification
+        run: |
+          docker compose -f compose.yaml -f compose.reference.yaml config --quiet
+          docker compose -f compose.yaml -f compose.reference.yaml build backend
+          docker compose -f compose.yaml -f compose.reference.yaml run --rm --no-deps -T -e SYNDAMORPH_TEST_REFERENCE=1 -v "${{ github.workspace }}/backend/production-reference.test.js:/app/production-reference.test.js:ro" backend node --test production-reference.test.js
       - name: Real Playwright inspection smoke test
         run: |
           docker build -t syndamorph-inspection ./renderer

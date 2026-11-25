@@ -1,6 +1,7 @@
 <?php
 /** Browser source evidence for one independently checkpointed native production section. */
 if (!defined('ABSPATH')) exit;
+require_once __DIR__.'/production-reference.php';
 
 function syndamorph_production_source_capture(string $url,?string $sectionId,?array $variants=null) {
     $endpoint=getenv('SYNDAMORPH_BACKEND_URL');
@@ -31,6 +32,9 @@ function syndamorph_production_source_capture(string $url,?string $sectionId,?ar
     $manifest=$body['manifest'];
     if($sectionId===null&&$variants===null)return array('manifest'=>$manifest);
     $source=array('url'=>$manifest['sourceURL']??null,'manifestSha256'=>$manifest['sha256']??null,'section'=>$body['section']??null);
+    if(getenv('SYNDAMORPH_REFERENCE_ARCHIVE')==='1'&&!array_key_exists('referenceArchive',$body))
+        return new WP_Error('sm_source_reference','The capture service did not supply a verified reference archive.',array('status'=>422));
+    if(array_key_exists('referenceArchive',$body))$source['referenceArchive']=$body['referenceArchive'];
     if(!syndamorph_production_source_valid($source)||
         ($sectionId!==null&&$source['section']['id']!==$sectionId)||
         ($variants!==null&&array_column($source['section']['evidence'],'sectionId','width')!=$variants))
@@ -44,6 +48,8 @@ function syndamorph_production_source_capture(string $url,?string $sectionId,?ar
 function syndamorph_production_source_valid(array $source): bool {
     if(!is_string($source['url']??null)||!is_string($source['manifestSha256']??null)||
         !preg_match('/^[a-f0-9]{64}$/D',$source['manifestSha256'])||!is_array($source['section']??null))return false;
+    if(array_key_exists('referenceArchive',$source) &&
+        !syndamorph_production_reference_valid($source['referenceArchive'],$source['url']))return false;
     $section=$source['section'];
     if(!is_string($section['id']??null)||!preg_match('/^[a-f0-9]{24}$/D',$section['id'])||
         !is_string($section['sourceRef']??null)||!is_string($section['label']??null)||
@@ -94,7 +100,8 @@ function syndamorph_production_source_context(array $source): array {
         }
         $facts[]=$view;
     }
-    return array('identity'=>syndamorph_production_source_identity($source),'views'=>$facts);
+    return array('identity'=>syndamorph_production_source_identity($source),'views'=>$facts)+
+        array_intersect_key($source,array('referenceArchive'=>true));
 }
 
 function syndamorph_production_source_copy(array $source,array $native): array {

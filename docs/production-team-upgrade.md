@@ -18,13 +18,30 @@ The native work order now accepts a versioned classification with section identi
 
 Archived list-based planning outputs can be normalized without inventing an evidence basis or verification status. Historical completed records remain readable. In-flight resume still checks the engine signature, and a checkpoint from an incompatible engine remains inspectable in History. This phase uses the existing history schema.
 
+## v0.12.1 reference acquisition
+
+SingleFile 2.27.3 runs inside the existing Node capture service with its dependencies pinned separately from the default installation. Section and Full Page use the same discovery path. Manual URL acquisition attaches a receipt when a section is selected. Capture remains deterministic and makes zero provider calls.
+
+The service renders each required width, scrolls to load deferred content, waits for stable layout, text, fonts and images, and pins the original DOM and full-page PNG. SingleFile archives that browser state. A fresh browser context blocks page JavaScript and external requests, then verifies matching geometry, text, computed typography, loaded fonts and visible image dimensions. The pixel gate uses full-page PNGs with a 1.5% maximum difference. The three verified views are required as a set. Original source evidence remains the authority for later comparisons.
+
+The archive browser uses a dead proxy, with a service-controlled read path for allowlisted public resources. The transport pins validated IPv4 addresses, strips cookies, enforces size and time limits, and reuses the actual responses fetched by that capture. The archive path rejects redirects and additional document navigation. Use the canonical source URL and add only required resource hosts to the existing allowlist.
+
+WordPress validates the receipt’s exact widths, source URL, hashes and offline verification before admitting it. Bossy receives compact receipt metadata with the original source evidence. The HTML, original DOM, screenshots, and measurement files stay in the capture service’s private volume under the receipt ID. Legacy history records and default source capture still use their existing format.
+
+```sh
+docker compose -f compose.yaml -f compose.reference.yaml up -d --build backend wordpress
+```
+
+The Compose override installs the optional dependencies, enables both ends of the receipt contract and mounts the archive volume. The default Compose configuration leaves archive acquisition disabled. SingleFile is an AGPL-3.0-or-later dependency of the opt-in capture service and is absent from the WordPress ZIP. [SingleFile version and license](https://github.com/gildas-lormeau/single-file-cli/tree/v2.27.3)
+
+The authenticated BKKGO capture returned HTTP 200, 16 regions, and receipt `d92c36a68a0fe3ac4fbbc6f7716b8cc32ac5deab5eb66b3933021f6d94e65515`. All three offline views had zero changed pixels, zero external requests, and all five live font faces. Desktop and compact source DOM hashes differed. A separate mobile attempt timed out loading a required React script from the CDN and returned incomplete evidence. The verifier rejected it before storing a verified set.
+
 ## Next checkpoints
 
-1. Make SingleFile opt-in in the existing capture service. Keep it out of the WordPress ZIP. Verify offline references independently of the archiver and keep the live source baseline authoritative. BKKGO requires desktop and compact capture families. Monolith remains a documented alternative.
-2. Grant Touch only bounded, isolated interaction against a pinned target with network and action guards. A workflow that cannot be executed safely stays unverified. Store reproducible scenarios with explicit provenance.
-3. Validate continuous responsiveness with mandatory 1440, 768 and 375 CSS px checks and deterministic intermediate and breakpoint probes. Keep source deviations explicit in the specification and separate from content, behavior and native feasibility. Designer repairs the saved HTML through targeted operations with a measured accept or rollback.
-4. Project compact link, typography, background, accessibility, geometry and interaction evidence into review. Verify structured requirements separately from model confidence. Use overlapping images as supplemental evidence of mismatches.
-5. Trial an editable local tabbed-content block. The application owns its capability contract and scripts. Developer owns block architecture and recovery. Independent QA exercises browser state transitions and the WordPress editor rather than inheriting Bossy’s Touch observation.
-6. Verify both production adapters and rerun the defect benchmark with approval for any paid calls. Report detection, escape, false rejections, uncertainty, latency and cost. BKKGO establishes a scenario, while broader acceptance is measured separately.
+1. Grant Touch only bounded, isolated interaction against a pinned target with network and action guards. A workflow that cannot be executed safely stays unverified. Store reproducible scenarios with explicit provenance.
+2. Validate continuous responsiveness with mandatory 1440, 768 and 375 CSS px checks and deterministic intermediate and breakpoint probes. Keep source deviations explicit in the specification and separate from content, behavior and native feasibility. Designer repairs the saved HTML through targeted operations with a measured accept or rollback.
+3. Project compact link, typography, background, accessibility, geometry and interaction evidence into review. Verify structured requirements separately from model confidence. Use overlapping images as supplemental evidence of mismatches.
+4. Trial an editable local tabbed-content block. The application owns its capability contract and scripts. Developer owns block architecture and recovery. Independent QA exercises browser state transitions and the WordPress editor rather than inheriting Bossy’s Touch observation.
+5. Verify both production adapters and rerun the defect benchmark with approval for any paid calls. Report detection, escape, false rejections, uncertainty, latency and cost. BKKGO establishes a scenario, while broader acceptance is measured separately.
 
 No release has been authorized for this development series. Each checkpoint records the version, actual verification and outstanding work in the plugin changelog.
