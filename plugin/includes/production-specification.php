@@ -2,6 +2,7 @@
 /** Versioned, browser-evidence-aligned work order shared by the production roles. */
 if (!defined('ABSPATH')) exit;
 require_once __DIR__.'/production-design-evidence.php';
+require_once __DIR__.'/production-tabs.php';
 
 function syndamorph_production_specification(array $data) {
     $invalid = static fn(string $field): WP_Error => new WP_Error(
@@ -44,7 +45,7 @@ function syndamorph_production_specification(array $data) {
         $requirements[$key]=array('id'=>$key,'target'=>$target,'dimension'=>$requirement['dimension'],
             'basis'=>$requirement['basis'],'requirement'=>trim($requirement['requirement']),
             'acceptance'=>trim($requirement['acceptance']));
-        if(array_key_exists('check',$requirement)){
+        if(isset($requirement['check'])){
             $check=syndamorph_design_check_contract($requirement['check']);
             if($check===null)return $invalid('requirement check');
             $requirements[$key]['check']=$check;
@@ -54,17 +55,44 @@ function syndamorph_production_specification(array $data) {
     if(!is_array($interactions)||!array_is_list($interactions)||count($interactions)>12)
         return $invalid('interactions');
     $classified=array();
+    $provenRequirements=array();
     foreach($interactions as $interaction){
         if(!is_array($interaction)||!$id($interaction['id']??null)||!$id($interaction['kind']??null)||
-            !$id($interaction['requirementId']??null)||!isset($requirements[$interaction['requirementId']])||
-            $requirements[$interaction['requirementId']]['dimension']!=='functional'||
             !in_array($interaction['classification']??null,array('native','reusable','new_special','external','unsupported'),true)||
             !$text($interaction['behavior']??null,240)||isset($classified[$interaction['id']]))
-            return $invalid('interaction identities, behavior and functional requirements');
-        $requirement=$requirements[$interaction['requirementId']];
+            return $invalid('interaction ID, classification, or behavior length');
+        $primary=$interaction['requirementId']??null;
+        if($primary===null&&$interaction['kind']==='tabs'&&is_array($interaction['proof']??null)){
+            foreach($interaction['proof'] as $item){
+                $candidate=is_array($item)?($item['requirementId']??null):null;
+                if($id($candidate)&&($requirements[$candidate]['dimension']??null)==='functional'){
+                    $primary=$candidate;
+                    break;
+                }
+            }
+        }
+        if(!$id($primary)||($requirements[$primary]['dimension']??null)!=='functional')
+            return $invalid('interaction must reference a functional requirement');
+        $requirement=$requirements[$primary];
         $classified[$interaction['id']]=array('id'=>$interaction['id'],'kind'=>$interaction['kind'],
             'requirementId'=>$requirement['id'],'target'=>$requirement['target'],
             'classification'=>$interaction['classification'],'behavior'=>trim($interaction['behavior']));
+        if(!array_key_exists('proof',$interaction))continue;
+        if($interaction['kind']!=='tabs'||!in_array($interaction['classification'],array('reusable','new_special'),true)||
+            !$list($interaction['proof'],8))return $invalid('tab implementation proof');
+        $allowed=syndamorph_tabs_proof_contract();
+        $proof=array();
+        foreach($interaction['proof'] as $item){
+            if(!is_array($item)||!$id($item['requirementId']??null)||!$id($item['check']??null)||
+                !isset($allowed[$item['check']],$requirements[$item['requirementId']])||isset($provenRequirements[$item['requirementId']]))
+                return $invalid('tab proof requirement and check');
+            $linked=$requirements[$item['requirementId']];
+            if($linked['target']!==$requirement['target']||$linked['dimension']!==$allowed[$item['check']])
+                return $invalid('tab proof scope and quality dimension');
+            $provenRequirements[$linked['id']]=true;
+            $proof[]=array('requirementId'=>$linked['id'],'check'=>$item['check']);
+        }
+        $classified[$interaction['id']]['proof']=$proof;
     }
     return array('version'=>1,'format'=>'structured','title'=>trim($data['title']),
         'sections'=>array_values($sections),'requirements'=>array_values($requirements))+

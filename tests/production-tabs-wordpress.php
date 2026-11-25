@@ -39,12 +39,18 @@ foreach(array($first,$second) as $widget){
     $reference.='</div>';
 }
 $interactions=array_map(static fn($id)=>array('id'=>$id,'kind'=>'tabs','classification'=>'reusable'),array('details','neighborhood'));
+$interactions[0]['proof']=array(
+    array('requirementId'=>'about-click','check'=>'tab-click'),
+    array('requirementId'=>'about-a11y','check'=>'tab-accessibility'),
+    array('requirementId'=>'about-style','check'=>'tab-style'),
+);
 $design=syndamorph_tabs_design_copy($reference,$interactions);
 $expect($design===$artifact['tabWidgets'],'Approved tab panel identities and copy did not match.');
 $widths=array(1440,768,375);
 $receipt=syndamorph_tabs_verify($artifact,$widths,$interactions,$design);
 $expect($receipt['status']==='passed'&&array_column($receipt['viewports'],'width')===$widths,
     'Chromium functional receipt failed: '.wp_json_encode($receipt));
+$expect($receipt['verifiedRequirements']===array('about-click','about-a11y','about-style'),'Tab QA did not record each linked requirement.');
 $final=array('artifact'=>$artifact,'quality'=>array('functionalChecks'=>$receipt));
 $expect(syndamorph_functional_acceptance($final,hash('sha256',$artifact['content'])),'Verified exact artifact was rejected.');
 $expect(!syndamorph_functional_acceptance($final,str_repeat('a',64)),'Changed artifact reused old QA.');
@@ -62,6 +68,11 @@ $tampered=$artifact;
 $tampered['preview']=str_replace('role="tabpanel"','role="region"',$artifact['preview']);
 $failed=syndamorph_tabs_verify($tampered,$widths,$interactions,$design);
 $expect($failed['status']==='failed','Broken functional markup passed QA.');
+$tampered=$artifact;
+$tampered['preview'].='<style>[role="tab"]:focus-visible{outline:none!important}</style>';
+$failed=syndamorph_tabs_verify($tampered,$widths,$interactions,$design);
+$expect($failed['status']==='failed'&&$failed['viewports'][0]['checks'][0]['focusVisible']===false,
+    'The compiled block passed its accessibility proof without a visible focus indicator.');
 
 $post=wp_insert_post(wp_slash(array('post_type'=>'page','post_status'=>'draft','post_author'=>1,
     'post_title'=>'SyndaMorph Tabs QA','post_name'=>'syndamorph-tabs-qa','post_content'=>$artifact['content'])),true);

@@ -2010,3 +2010,31 @@ expect(syndamorph_design_run_check($placement,array($golden))['status']==='verif
     syndamorph_design_run_check($padding,array($shifted))['status']==='failed',
     'Direct geometry checks did not distinguish centered placement or vertical padding.');
 echo "PASS: direct centered-placement and vertical-padding requirement checks\n";
+
+$tabRequirements=array(
+    array('id'=>'initial-tab','dimension'=>'functional'),
+    array('id'=>'keyboard-tab','dimension'=>'functional'),
+    array('id'=>'styled-tab','dimension'=>'visual'),
+    array('id'=>'accessible-tab','dimension'=>'accessibility'),
+    array('id'=>'visual-identity','dimension'=>'visual'),
+);
+$tabOrder=array('version'=>1,'title'=>'Tab proof fixture','sections'=>array(array('id'=>'hero','label'=>'Hero')),
+    'requirements'=>array_map(static fn($requirement)=>$requirement+array('target'=>'hero','basis'=>'brief',
+        'requirement'=>'Required behavior','acceptance'=>'Observable condition','check'=>null),$tabRequirements),
+    'interactions'=>array(array('id'=>'hotel-tabs','kind'=>'tabs','classification'=>'reusable',
+        'requirementId'=>'initial-tab','behavior'=>'Two panels and an active tab.',
+        'proof'=>array(array('requirementId'=>'initial-tab','check'=>'tab-initial'),
+            array('requirementId'=>'keyboard-tab','check'=>'tab-keyboard'),array('requirementId'=>'styled-tab','check'=>'tab-style'),
+            array('requirementId'=>'accessible-tab','check'=>'tab-accessibility')))));
+$normalized=syndamorph_production_specification($tabOrder);
+expect(!is_wp_error($normalized),'Tabbed qualification was not accepted.');
+$tabGate=syndamorph_design_requirements($normalized,array(),array(),array(),array());
+expect($tabGate['blocking']===array('visual-identity')&&$tabGate['checks'][2]['owner']==='implementation_qa',
+    'The design gate bypassed an ordinary visual requirement or demanded compiled tab proof too early.');
+unset($tabOrder['interactions'][0]['requirementId']);
+$normalized=syndamorph_production_specification($tabOrder);
+expect(!is_wp_error($normalized)&&$normalized['interactions'][0]['requirementId']==='initial-tab',
+    'The explicit functional proof did not normalize a missing legacy primary requirement field.');
+$tabOrder['interactions'][0]['proof'][2]['check']='tab-keyboard';
+expect(is_wp_error(syndamorph_production_specification($tabOrder)), 'A tab proof could satisfy an unrelated quality dimension.');
+echo "PASS: separate design and native proof ownership for multiple tab requirements\n";

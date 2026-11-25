@@ -156,15 +156,19 @@ function syndamorph_design_requirements(array $specification,array $samples,arra
     }
     $checks=array();
     $blocking=array();
+    $implementationProof=array();
+    foreach($specification['interactions']??array() as $interaction)
+        foreach($interaction['proof']??array() as $proof)$implementationProof[$proof['requirementId']]=$proof['check'];
     foreach($specification['requirements'] as $requirement){
         $id=$requirement['id'];
         $result=array('id'=>$id,'dimension'=>$requirement['dimension'],'owner'=>'boss',
             'status'=>'uncertain','evidence'=>array());
         if(isset($requirement['check'])){
             $result=array_replace($result,syndamorph_design_run_check($requirement['check'],$samples));
-        }elseif(in_array($requirement['dimension'],array('functional','implementation'),true)){
+        }elseif(isset($implementationProof[$id])||in_array($requirement['dimension'],array('functional','implementation'),true)){
             $result['owner']='implementation_qa';
             $result['reason']='Requires independent implementation evidence.';
+            if(isset($implementationProof[$id]))$result['check']=$implementationProof[$id];
             $checks[]=$result;
             continue;
         }else{

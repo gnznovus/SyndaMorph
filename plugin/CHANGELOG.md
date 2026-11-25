@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.9] - 2026-11-26
+
+### Added
+- One Content Tabs interaction can link multiple requirements to explicit compiled-artifact checks. Design retains ordinary appearance and content checks. Native QA owns runtime focus, ARIA, styling and behavior.
+- Chromium measures native tab styling and keyboard focus as part of the existing artifact-bound functional receipt. Each linked requirement receives proof from the same independently tested block.
+
+### Verified
+- Real WordPress and Chromium verified the multi-requirement receipt at all three required widths and blocked an injected missing keyboard-focus indicator. The contract rejects tests assigned to an unrelated quality dimension.
+- The previous checkpoint's live follow-up detected 11 of 12 distinct faults, including one transport failure in the denominator. All 14 defective trials were held and all four controls passed.
+
 ## [0.12.8] - 2026-11-26
 
 ### Added

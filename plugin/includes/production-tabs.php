@@ -2,6 +2,11 @@
 /** Bounded editable, local-only tabbed content for the native production engine. */
 if (!defined('ABSPATH')) exit;
 
+function syndamorph_tabs_proof_contract(): array {
+    return array('tab-block'=>'implementation','tab-initial'=>'functional','tab-click'=>'functional',
+        'tab-keyboard'=>'functional','tab-style'=>'visual','tab-accessibility'=>'accessibility');
+}
+
 function syndamorph_tabs_panels($panels): ?array {
     if(!is_array($panels)||!array_is_list($panels)||count($panels)<2||count($panels)>6)return null;
     $result=array();
@@ -138,7 +143,8 @@ function syndamorph_tabs_verify(array $artifact,array $widths,array $interaction
                 $check['contentMatches']=($check['copy']??null)===$copy;
                 unset($check['copy']);
                 $valid=$valid&&$check['contentMatches']&&($check['initial']??null)===true&&($check['structure']??null)===true&&
-                    ($check['click']??null)===true&&($check['keyboard']??null)===true&&($check['isolation']??null)===true;
+                    ($check['click']??null)===true&&($check['keyboard']??null)===true&&($check['isolation']??null)===true&&
+                    ($check['focusVisible']??null)===true&&($check['nativeStyle']??null)===true;
             }
             unset($check);
             $passed=$passed&&$valid;
@@ -146,7 +152,12 @@ function syndamorph_tabs_verify(array $artifact,array $widths,array $interaction
         }
     }
     if(!$passed)$receipt['status']='failed';
-    elseif(!$receipt['blockers']&&array_column($receipt['viewports'],'width')===$widths)$receipt['status']='passed';
+    elseif(!$receipt['blockers']&&array_column($receipt['viewports'],'width')===$widths){
+        $receipt['status']='passed';
+        $receipt['verifiedRequirements']=array();
+        foreach($interactions as $interaction)
+            foreach($interaction['proof']??array() as $proof)$receipt['verifiedRequirements'][]=$proof['requirementId'];
+    }
     return $receipt;
 }
 

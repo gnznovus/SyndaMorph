@@ -92,10 +92,18 @@ QA runs the responsive probe planner on the retained Gutenberg preview and on th
 
 When required browser evidence is missing, the existing History reinspection action can verify the saved native preview deterministically. The original job result, artifacts, and token records are preserved. A recovered receipt supplements only an exact matching artifact and preview. Editor verification and independent source, functional and visual gates still apply. The scoped fixture verifies that a pending receipt blocks promotion, and a successful browser-only retry restores editor review.
 
-## Remaining acceptance
+## v0.12.8 measured review evidence
 
 In v0.12.8, Bossy receives the measured verdicts alongside the evidence. Explicit work orders can also measure viewport centering and vertical padding. Scoped source review includes the expected and observed link inventory when they differ. Deterministic replay held all 28 scripted defect approvals and passed all six valid combinations.
 
-The first updated live audit held all 14 defective trials with 8/11 actionable model detections among distinct faults with a complete verdict. The strict Through Our Lens conversion is still pending source fidelity and a completed design review. [Design validation audit](bossy-validation-audit.md#v0127-live-benchmark)
+## v0.12.9 native interaction proof
+
+A tab work order now links each requirement to an application-supported check. Design still validates its appearance, hierarchy, responsive sketch and exact panel content. Compiled-artifact QA owns registration, local state, click, keyboard, native styling, ARIA and visible focus. The bounded proof list must match the interaction scope and the declared requirement dimension. A final receipt records the linked requirements only after all exact-width browser checks pass.
+
+A disposable WordPress test verified three linked requirements for one block, independent state across widgets, visible keyboard focus, selection styling and rejection of an injected missing focus indicator. Earlier live tab jobs exposed the ownership gap and an overly strict planning shape. Their archived attempts remain distinct from the controlled WordPress proof.
+
+## Remaining acceptance
+
+The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)
 
 No release has been authorized for this development series. Each checkpoint records the version, actual verification and outstanding work in the plugin changelog.

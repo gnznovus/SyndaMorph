@@ -16,6 +16,10 @@ The separate strict BKKGO Through Our Lens Section conversion ran as `GEN-000051
 
 Bossy now sees browser-owned checks before it decides, including checked widths and outcomes. The fixture work order adds explicit viewport centering and pinned per-width vertical padding. With scripted approvals, the combined gate held all 28 defective fixture/mode combinations. All six valid combinations advanced. Scoped link disagreement now includes measured counts and examples for both inventories.
 
+The follow-up retained the 18-trial sequence and standard audit ceiling. Only the archived BKKGO review received the production Section allowance of 16,384 output tokens. Bossy correctly requested corrections for all 11 distinct defective artifacts with a completed verdict. Counting the unmetered CTA transport failure as undetected, coverage was 11/12 (91.7%). The combined gate held all 14 defective trials and passed all four valid trials. There were zero verification-required verdicts. The BKKGO review cited the measured 35 px heading reflow.
+
+Seventeen metered requests used 311,033 uncached input tokens, 30,956 cache-read tokens and 40,157 output tokens, at an estimated $0.05173324. Median model latency was 10.216 s and nearest-rank p90 was 18.610 s for metered requests. The transport failure retained a $0.04534875 reserve. The audit resumed on the same pinned commit, skipped the failed request, and closed with a $0.09708199 estimate including reserve. The sample met the development targets. It supplies no broad production escape estimate.
+
 ### v0.12.6 deterministic replay
 
 The hotel fixtures replayed with one candidate-independent, browser-checked work order per approved variant. A scripted approval reached handoff in all six valid fixture/mode combinations. The application held 25 of 27 defective combinations (92.6%) and let two through (7.4%), both brief-only geometry changes involving vertical padding or desktop column placement. The replay covered 8/10 brief-only, 9/9 manual URL and 8/8 scoped defects. The historical denominator below also includes archived BKKGO. No model calls occurred in this replay.

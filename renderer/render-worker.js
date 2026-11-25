@@ -70,6 +70,11 @@ process.stdin.on('end', async () => {
                     const total=await controls.count();
                     const state=()=>widget.evaluate(el=>{
                         const tabs=[...el.querySelectorAll(':scope > [role="tablist"] > [role="tab"]')];
+                        const listStyle=getComputedStyle(tabs[0].parentElement);
+                        const selectedTab=tabs.find(tab=>tab.getAttribute('aria-selected')==='true');
+                        const selectedStyle=selectedTab?getComputedStyle(selectedTab):null;
+                        const focused=tabs.indexOf(document.activeElement);
+                        const focusStyle=focused>=0?getComputedStyle(tabs[focused]):null;
                         const select=tabs.map((tab,index)=>tab.getAttribute('aria-selected')==='true'?index:-1).filter(index=>index>=0);
                         const targets=tabs.map(tab=>document.getElementById(tab.getAttribute('aria-controls')));
                         const visible=targets.map((panel,index)=>panel&&panel.parentElement===el&&!panel.hidden&&
@@ -83,7 +88,14 @@ process.stdin.on('end', async () => {
                             copy:tabs.map((tab,index)=>({label:tab.textContent,
                                 heading:targets[index]?.querySelector('h3')?.textContent,
                                 body:targets[index]?.querySelector('p')?.textContent})),
-                            focused:tabs.indexOf(document.activeElement)};
+                            focused,
+                            focusVisible:focused>=0&&tabs[focused].matches(':focus-visible')&&
+                                focusStyle.outlineStyle==='solid'&&parseFloat(focusStyle.outlineWidth)>=2&&
+                                focusStyle.outlineColor!=='rgba(0, 0, 0, 0)',
+                            nativeStyle:listStyle.display==='flex'&&listStyle.flexWrap==='wrap'&&
+                                tabs.every(tab=>tab.getBoundingClientRect().height>=44)&&
+                                selectedStyle?.borderBottomStyle==='solid'&&selectedStyle.borderBottomWidth==='2px'&&
+                                selectedStyle.borderBottomColor===selectedStyle.color};
                     });
                     const only=(indices,index)=>indices.length===1&&indices[0]===index;
                     const correct=(value,index)=>only(value.select,index)&&only(value.visible,index)&&only(value.tabStops,index);
@@ -96,6 +108,7 @@ process.stdin.on('end', async () => {
                     const before=await state();
                     let click=true;
                     let keyboard=true;
+                    let focusVisible=false;
                     try{
                         for(let index=1;index<total;index++){
                             await controls.nth(index).click({timeout:1500});
@@ -108,6 +121,7 @@ process.stdin.on('end', async () => {
                         await controls.first().press(direction==='rtl'?'ArrowLeft':'ArrowRight',{timeout:1500});
                         const arrow=await state();
                         keyboard=correct(home,0)&&home.focused===0&&correct(arrow,1)&&arrow.focused===1;
+                        focusVisible=home.focusVisible&&arrow.focusVisible;
                         await controls.nth(1).press('Home',{timeout:1500});
                     }catch(_){
                         click=false;
@@ -116,7 +130,7 @@ process.stdin.on('end', async () => {
                     const others=await widgets.evaluateAll((items,current)=>items.filter((_,index)=>index!==current)
                         .map(item=>item.innerHTML),i);
                     checks.push({component,total,initial:correct(before,0),structure:before.structure,copy:before.copy,
-                        click,keyboard,isolation:JSON.stringify(untouched)===JSON.stringify(others)});
+                        click,keyboard,focusVisible,nativeStyle:before.nativeStyle,isolation:JSON.stringify(untouched)===JSON.stringify(others)});
                 }
                 evidence.push({width,checks});
             }
