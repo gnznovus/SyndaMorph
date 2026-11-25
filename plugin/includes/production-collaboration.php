@@ -510,6 +510,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $approval=array('decision'=>'rejected','issues'=>array());
     $approvedReference=false;$designReviews=0;$handoffs=array($assignment);
     $priorDesignMeasurements=null;$priorDesignReview=null;$priorDesignDiff=null;
+    $priorDesignImageHashes=null;
     for($designRound=1;;$designRound++){
         $control=syndamorph_job_control_gate();
         if(is_wp_error($control))return $control;
@@ -525,12 +526,22 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $outputs['designer']='A native compatibility check was completed. The saved design is pending visual QA.';
             return $deferInspection($inspectReference,$reference,'design_inspection','designer',$capabilityNotes);
         }
-        $referenceImages=array_map(static fn($sample)=>array('media_type'=>'image/jpeg','data'=>$sample['screenshot']),
-            array_values(array_intersect_key($inspectReference,array_flip($visionViewports))));
+        $referenceImages=array();$imageOrder=array();$currentImageHashes=array();
+        foreach($visionViewports as $index){
+            $sample=$inspectReference[$index]??null;
+            if(!is_array($sample))continue;
+            $imageHash=hash('sha256',(string)($sample['screenshot']??''));
+            $currentImageHashes[$index]=$imageHash;
+            if($priorDesignImageHashes===null||($priorDesignImageHashes[$index]??null)!==$imageHash){
+                $referenceImages[]=array('media_type'=>'image/jpeg','data'=>$sample['screenshot']);
+                $imageOrder[]=$viewports[$index];
+            }
+        }
+        $priorDesignImageHashes=$currentImageHashes;
         $measurements=syndamorph_memory_measurements($inspectReference);
         $reviewContext=array('requirements'=>$brief,'referenceSha256'=>hash('sha256',$reference),
             'capabilityNotes'=>$capabilityNotes,
-            'imageOrder'=>array_intersect_key($viewports,array_flip($visionViewports)));
+            'imageOrder'=>$imageOrder,'unchangedScreenshotCount'=>count($visionViewports)-count($imageOrder));
         if($priorDesignMeasurements===null){
             $reviewContext['measurements']=$measurements;
             $reviewContext['reviewMode']='baseline';
