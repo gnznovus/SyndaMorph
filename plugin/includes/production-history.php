@@ -154,7 +154,8 @@ function syndamorph_job_resume_take(string $role,string $task){
         return new WP_Error('sm_resume_diverged','Replay call sequence differs from the paused checkpoint; no paid call was retried.',
             array('expectedRole'=>$saved['role'],'expectedTask'=>$saved['task'],'actualRole'=>$role,'actualTask'=>$task));
     $GLOBALS['syndamorph_resume_index']=$index+1;
-    if($index+1>=count($calls))unset($GLOBALS['syndamorph_resume_suppress']);
+    // Keep historical events suppressed until the NEXT uncached operation;
+    // work between this reply and the next call has already been recorded.
     return $saved;
 }
 
