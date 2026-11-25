@@ -308,6 +308,18 @@ expect(str_contains($ui, 'syndamorph-rich-content') &&
 expect(syndamorph_history_label('GEN',1)==='GEN-000001', 'GEN ID format wrong');
 expect(syndamorph_history_label('REF',123)==='REF-000123', 'REF ID format wrong');
 expect(str_contains($ui, 'data-panel="history"') && str_contains($client, 'SyndaMorphProductionReplay'), 'History/replay integration missing');
+expect(!str_contains($ui,'<div class="sm-stats" aria-label="Production overview">')
+    && str_contains($ui,'class="sm-production-control"')
+    && str_contains($ui,'id="syndamorph-team-live-cost"')
+    && str_contains($ui,'id="syndamorph-team-pause"')
+    && str_contains($ui,'id="syndamorph-team-resume"')
+    && str_contains($ui,'id="syndamorph-team-stop"')
+    && str_contains($ui,'id="syndamorph-team-abort"'),
+    'Production controls must replace summary cards inside the existing feed');
+expect(str_contains($client,"/history/'+encodeURIComponent(currentIdentity.id)+'/resume")
+    && str_contains($client,"/history/'+encodeURIComponent(currentIdentity.id)+'/control"),
+    'Client must use authenticated production-control and continuation endpoints');
+
 $archive = file_get_contents(dirname(__DIR__) . '/plugin/includes/production-history.php');
 expect(str_contains($archive, 'UNIQUE KEY category_sequence') && str_contains($archive, 'ORDER BY id ASC'), 'Job identity or event ordering missing');
 
