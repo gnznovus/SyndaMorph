@@ -983,3 +983,41 @@
 /* Terminal production diagnostic */
 #syndamorph-production-team .sm-team-failure {border-inline-start:3px solid #dc2626;background:#fff4f4;padding:16px;overflow-wrap:anywhere;}
 #syndamorph-production-team .sm-team-failure p {margin:8px 0 0;color:#653333;white-space:pre-wrap;}
+
+
+/* Production control belongs to the existing shell and feed card. */
+#syndamorph-production-team .sm-production-control {
+    display: grid; gap: 16px; padding: 20px 24px;
+    border-bottom: 1px solid var(--sm-border); background: var(--sm-card);
+}
+#syndamorph-production-team .sm-production-control-top,
+#syndamorph-production-team .sm-production-metrics,
+#syndamorph-production-team .sm-production-progress,
+#syndamorph-production-team .sm-production-actions {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+#syndamorph-production-team .sm-production-identity { display: grid; gap: 4px; min-width: 0; }
+#syndamorph-production-team .sm-production-identity strong { font-size: 13px; overflow-wrap: anywhere; }
+#syndamorph-production-team .sm-production-identity > span,
+#syndamorph-production-team .sm-production-progress { color: var(--sm-muted); font-size: 11px; }
+#syndamorph-production-team .sm-production-metrics > div { display: grid; gap: 5px; }
+#syndamorph-production-team .sm-production-metrics strong { font-size: 13px; }
+#syndamorph-production-team .sm-production-metrics > div:last-child { text-align: right; }
+#syndamorph-production-team .sm-production-progress {
+    padding-top: 10px; border-top: 1px solid var(--sm-border);
+}
+#syndamorph-production-team .sm-production-actions {
+    display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px;
+}
+#syndamorph-production-team .sm-production-actions button {
+    min-width: 0; width: 100%; min-height: 37px; font-size: 12px;
+}
+#syndamorph-production-team .sm-production-actions button:disabled {
+    opacity: .45; cursor: not-allowed;
+}
+#syndamorph-production-team .sm-production-actions button[hidden] { display: none; }
+#syndamorph-production-team .sm-production-abort:not(:disabled) { color: var(--sm-accent); border-color: var(--sm-accent); }
+@media(max-width:782px){
+    #syndamorph-production-team .sm-production-control { padding: 16px 17px; }
+    #syndamorph-production-team .sm-production-metrics { align-items: flex-start; }
+}
