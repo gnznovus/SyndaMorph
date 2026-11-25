@@ -1186,7 +1186,8 @@ $GLOBALS['inspection_escalation_test']='approved';
 $GLOBALS['inspection_failures']=array(inspection_reply(array('evidence'=>$duplicate)));
 $designPending=syndamorph_collab_run('Archive the approved-for-inspection reference.',false,static function(){});
 expect($designPending['status']==='uncompleted'&&$designPending['stageStatus']['browserQa']==='pending'&&
-    !$designPending['quality']['bossApproved']&&$designPending['quality']['escalation']['decision']==='await_renderer'&&
+    !$designPending['quality']['bossApproved']&&$designPending['quality']['escalation']['decision']==='pending'&&
+    $designPending['quality']['escalation']['owner']==='orchestrator'&&
     $designPending['quality']['inspection']['stage']==='design_inspection'&&count($GLOBALS['generations'])===3&&
     $designPending['usage']['inputTokens']===3600&&isset($designPending['referenceCheckpoint']),
     'Pending Designer inspection lost the artifact, hid usage, or accepted the Boss approval claim');
