@@ -341,6 +341,27 @@ expect(count($GLOBALS['generations'][2]['messages'][0]['content'])===3,'Boss did
 expect(str_contains(wp_json_encode($GLOBALS['generations'][3]['system']),'JSON'),'Native developer contract missing');
 expect(($GLOBALS['generations'][3]['system'][0]['cache_control']['type']??null)==='ephemeral','Cache prefix absent');
 expect($GLOBALS['generations'][0]['system'][0]===$GLOBALS['generations'][4]['system'][0],'Shared cache prefix not stable');
+$beforeReplayGenerations=$GLOBALS['generations'];
+$beforeReplayInspections=$GLOBALS['inspection_calls'];
+$GLOBALS['generations']=array(array('cached'=>true),array('cached'=>true),array('cached'=>true));
+$GLOBALS['syndamorph_resume_calls']=array(
+    array('role'=>'boss','task'=>'boss','text'=>'{"title":"Premium hotel hero","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid editable blocks"]}',
+        'metric'=>array('inputTokens'=>356,'outputTokens'=>100)),
+    array('role'=>'designer','task'=>'designer','text'=>'<section class="hero"><style>.hero{padding:3rem}</style><h2>Welcome &amp; enjoy</h2></section>',
+        'metric'=>array('inputTokens'=>400,'outputTokens'=>110)),
+    array('role'=>'boss','task'=>'final_approval','text'=>'{"decision":"approved","issues":[],"summary":"Approved design"}',
+        'metric'=>array('inputTokens'=>500,'outputTokens'=>120)),
+);
+$GLOBALS['syndamorph_resume_index']=0;
+$GLOBALS['syndamorph_resume_suppress']=true;
+$resumed=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
+expect(is_array($resumed)&&$resumed['status']==='needs_review'
+    &&count($GLOBALS['generations'])===5&&$GLOBALS['syndamorph_resume_index']===3,
+    'Paused native production did not reuse three completed paid calls and execute only remaining two');
+unset($GLOBALS['syndamorph_resume_calls'],$GLOBALS['syndamorph_resume_index'],$GLOBALS['syndamorph_resume_suppress']);
+$GLOBALS['generations']=$beforeReplayGenerations;
+$GLOBALS['inspection_calls']=$beforeReplayInspections;
+
 foreach(array(
     '{"version":2,"blocks":[]}',
     '{"version":1,"blocks":[{"type":"html","text":"bad"}]}',
