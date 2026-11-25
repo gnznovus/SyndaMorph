@@ -445,6 +445,7 @@
             if (reset) reset.disabled = true;
             try {
                 clearMessages(); clearReports(); timeline.replaceChildren();
+                liveCost=0;showCost();paused=false;setControls(false);
                 results.hidden = true; completed = 0; completedRoles.clear();
                 activeFormat = record.context?.outputType || 'html';
                 syncRoster();
@@ -476,11 +477,13 @@
                 } else if (record.status !== 'failed') {
                     if (record.status === 'completed') { text(job,'Completed'); text(output,'Validated or archived output'); }
                     else if (record.status === 'uncompleted') { text(job,'Uncompleted'); text(output,'Best artifact available'); }
-                    setFeed('Historical replay complete · no AI calls', 'success');
+                    else if (record.status === 'paused') { paused=true;text(job,'Paused');text(output,'Checkpoint saved'); }
+                    else if (['stopped','aborted'].includes(record.status)) {text(job,record.status);text(output,'Recorded work preserved');}
+                    setFeed('Historical replay complete · no AI calls',record.status==='paused'?'idle':'success');
                 }
                 if (!animated && !results.hidden) tab('results');
             } finally {
-                replaying = false; run.disabled = false; if (reset) reset.disabled = false;
+                replaying = false; setControls(false);run.disabled = false; if (reset) reset.disabled = false;
             }
         }
     });
