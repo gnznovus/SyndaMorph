@@ -345,6 +345,30 @@ function syndamorph_repair_image_index(array $focus,array $viewports): int {
     arsort($priority,SORT_NUMERIC);
     return (int)array_search(array_key_first($priority),$viewports,true);
 }
+/**
+ * Designer surgery: exact unique, bounded replacements against a persisted HTML
+ * reference. A mismatch is a rejected transaction, never a partial mutation.
+ */
+function syndamorph_design_surgery(string $reference,array $response) {
+    $edits=$response['edits']??null;
+    if(!is_array($edits)||!array_is_list($edits)||count($edits)<1||count($edits)>5)
+        return new WP_Error('sm_design_surgery_contract','Expected one to five scoped {find,replace} edits.');
+    $candidate=$reference;$changed=array();
+    foreach($edits as $edit){
+        $find=$edit['find']??null;$replace=$edit['replace']??null;
+        if(!is_string($find)||!is_string($replace)||$find===''||strlen($find)>2400||strlen($replace)>3600||
+            substr_count($candidate,$find)!==1||$find===$replace)
+            return new WP_Error('sm_design_surgery_scope','Edit must replace exactly one existing bounded fragment.');
+        $candidate=str_replace($find,$replace,$candidate);
+        $changed[]=array('beforeHash'=>hash('sha256',$find),'afterHash'=>hash('sha256',$replace),
+            'beforeBytes'=>strlen($find),'afterBytes'=>strlen($replace));
+    }
+    if(strlen($candidate)>120000||!preg_match('~<section\\b~i',$candidate)||
+        preg_match('~<\\s*(?:script|iframe|object|embed|form|link|meta)\\b|\\bon[a-z]+\\s*=|\\b(?:javascript:|https?://|@import)~i',$candidate))
+        return new WP_Error('sm_reference_unsafe','Surgical design candidate failed HTML safety checks.');
+    return array('reference'=>$candidate,'changes'=>$changed);
+}
+
 function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bool $useLearning=true) {
     $viewports=syndamorph_collab_viewports($brief);
     if(is_wp_error($viewports))return $viewports;
@@ -520,9 +544,25 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $handoffs[]=$handoff;
         if($on_event)$on_event('handoff',$handoff);
         if($decision==='approved'){$approvedReference=true;break;}
-        $reference=$call('designer','Revise the existing visual reference ONLY for the Boss review issues. Preserve accepted sections, copy and intent; return full updated safe HTML reference only.',
-            array('reference'=>$reference,'feedback'=>$handoff['issues'],'requirements'=>$brief),16384,array(),'design_correction');
-        if(is_wp_error($reference))return $reference;
+        $beforeReference=$reference;
+        $patchReply=$call('designer','Apply only Boss-requested design surgery. Return JSON {"edits":[{"find":"exact unique fragment of existing HTML/CSS","replace":"replacement fragment"}]}; maximum 5 edits. Do not return the whole reference. Preserve all untouched markup and styling.',
+            array('reference'=>$reference,'feedback'=>$handoff['issues'],'requirements'=>$brief),4096,array(),'design_correction');
+        if(is_wp_error($patchReply))return $patchReply;
+        $parsedPatch=json_decode(syndamorph_native_json_text($patchReply),true);
+        $surgical=is_array($parsedPatch)?syndamorph_design_surgery($reference,$parsedPatch):
+            new WP_Error('sm_design_surgery_contract','Designer returned no structured patch.');
+        if(is_wp_error($surgical)){
+            if($on_event)$on_event('design_surgery',array('status'=>'fallback','reason'=>$surgical->get_error_code(),'round'=>$designRound));
+            // Structural redesign is the explicitly recorded fallback, not silent regeneration.
+            $reference=$call('designer','Surgical change could not be applied. Perform a broad reference correction preserving every accepted part, and return only the full HTML artifact.',
+                array('reference'=>$reference,'feedback'=>$handoff['issues'],'failure'=>$surgical->get_error_message()),16384,array(),'design_correction');
+            if(is_wp_error($reference))return $reference;
+        }else{
+            $reference=$surgical['reference'];
+            if($on_event)$on_event('design_surgery',array('status'=>'applied','round'=>$designRound,
+                'beforeHash'=>hash('sha256',$beforeReference),'afterHash'=>hash('sha256',$reference),
+                'changes'=>$surgical['changes']));
+        }
     }
     if(!$approvedReference)return new WP_Error('sm_design_unapproved','Boss did not approve the visual reference.',
         array('stage'=>'design_approval','reviewRounds'=>$designReviews,'issues'=>end($handoffs)['issues']??array()));
@@ -767,7 +807,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $instruction='Diagnose the related visual defects using the aligned reference, prior attempts and current geometry. Return only JSON {"id":"assigned owner","diagnosis":"cause with evidence","changes":[{"target":"authorized id","path":"style.margin.bottom","value":"1rem"}]}. Apply up to eight combined edits only to the explicit authorized nodes. Omit unused changes. Preserve text, links, block types, existing IDs and unrelated siblings. Never return a full node or plan. If a supported repair is impossible, use {"id":"assigned owner","blocked":"capability|design_constraint|missing_evidence","diagnosis":"why"}.';
             if($assignment['strategy']==='contract_correction')$instruction.=' Correct the specific contract failure in previousAttempts before trying new style values.';
             if($assignment['mode']==='structure')$instruction.=' Use a different strategy: include wraps:[{"parent":"authorized parent","children":["consecutive child id","next child id"],"id":"new-group-id","style":{"justifyContent":"center","gap":"1rem"}}]. Preserve the same child order. Wrap at most twice and combine with style edits in one operation.';
-            $repair=$call('developer',$instruction,$repairContext,$assignment['mode']==='structure'?4096:2048,
+            $repair=$call('developer',$instruction,$repairContext,syndamorph_collab_output_cap(),
                 $repairScope['images'],'repair',$reviewReserve);
             if(is_wp_error($repair)) {
                 $terminationReason=$repair->get_error_code()==='sm_team_budget'?'budget_80_percent':'developer_blocked';
