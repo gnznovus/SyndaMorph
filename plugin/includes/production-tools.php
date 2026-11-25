@@ -55,7 +55,10 @@ function syndamorph_production_tool_catalog(string $role): array {
         'compiler.validate'=>array('purpose'=>'Validate native Gutenberg plan.','readOnly'=>true,'targets'=>array('plan')),
         'compiler.patch'=>array('purpose'=>'Apply a validated native-block patch.','readOnly'=>false,'targets'=>array('plan')),
     );
-    return array_intersect_key($catalog,array_flip(syndamorph_production_tool_grants($role)));
+    // Only advertise executable on-demand adapters. Other shared tools are
+    // still invoked directly by the orchestrator during their owning phases.
+    return array_intersect_key($catalog,array_flip(array('playwright.inspect','compiler.validate')),
+        array_flip(syndamorph_production_tool_grants($role)));
 }
 function syndamorph_production_tool_evidence(array $samples,string $reason=''): array {
     $result=array('reason'=>$reason,'source'=>'playwright.computed','viewports'=>array());
@@ -94,31 +97,42 @@ function syndamorph_production_tool_request(string $role,array $request,array $a
     if(!isset($catalog[$name])||!($catalog[$name]['readOnly']??false)||
         !in_array($target,$catalog[$name]['targets'],true))
         return new WP_Error('sm_tool_denied','Requested tool or target is unavailable to this agent.');
-    // First integration enables only supported single-artifact Playwright inspection.
-    // Other capabilities remain discoverable but are not implicitly executable.
-    if($name!=='playwright.inspect'||$target!=='reference')
-        return new WP_Error('sm_tool_unavailable','This tool needs a dedicated bounded artifact adapter.');
-    $html=$artifacts['reference']??null;
+    $plan=$name==='compiler.validate'?($artifacts['plan']??null):null;
+    $html=$name==='playwright.inspect'?($artifacts['reference']??null):null;
     $viewports=$artifacts['viewports']??null;
-    if(!is_string($html)||!is_array($viewports)||!$viewports)
-        return new WP_Error('sm_tool_input','Reference HTML and viewports are required.');
-    $key=hash('sha256',$name."\0".hash('sha256',$html)."\0".wp_json_encode($viewports));
+    if($name==='playwright.inspect'&&($target!=='reference'||!is_string($html)||
+        !is_array($viewports)||!$viewports))
+        return new WP_Error('sm_tool_input','Server-owned reference HTML and viewports are required.');
+    if($name==='compiler.validate'&&($target!=='plan'||!is_array($plan)))
+        return new WP_Error('sm_tool_input','Server-owned native plan is required.');
+    $fingerprint=hash('sha256',$name==="playwright.inspect"?$html:wp_json_encode($plan));
+    $key=hash('sha256',$name."\\0".$fingerprint."\\0".
+        wp_json_encode($name==='playwright.inspect'?$viewports:array()));
     if(!isset($GLOBALS['syndamorph_production_tool_cache']))
         $GLOBALS['syndamorph_production_tool_cache']=array();
     $cache=&$GLOBALS['syndamorph_production_tool_cache'];
     $hit=isset($cache[$key]);
-    if(!$hit) {
+    if(!$hit){
         $count=(int)($GLOBALS['syndamorph_production_tool_count']??0);
         if($count>=12)return new WP_Error('sm_tool_budget','Job diagnostic tool-call ceiling reached.');
         $GLOBALS['syndamorph_production_tool_count']=$count+1;
-        $samples=syndamorph_production_tool($role,$name,array('html'=>$html,'viewports'=>$viewports));
-        if(is_wp_error($samples))return $samples;
-        $cache[$key]=$samples;
+        $result=$name==='playwright.inspect'?
+            syndamorph_production_tool($role,$name,array('html'=>$html,'viewports'=>$viewports)):
+            syndamorph_production_tool($role,$name,array('plan'=>$plan));
+        if($name==='playwright.inspect'&&is_wp_error($result))return $result;
+        $cache[$key]=$name==='compiler.validate'?
+            (is_wp_error($result)?array('valid'=>false,'code'=>$result->get_error_code(),
+                'message'=>mb_substr($result->get_error_message(),0,300)):
+                array('valid'=>true,'checks'=>$result['checks']??array(),
+                    'blockCount'=>$result['blockCount']??null)): $result;
     }
-    $receipt=array('role'=>$role,'tool'=>$name,'target'=>$target,'artifactSha256'=>hash('sha256',$html),
-        'cache'=>$hit?'hit':'miss','reason'=>$reason,'viewports'=>$viewports);
+    $receipt=array('role'=>$role,'tool'=>$name,'target'=>$target,
+        'artifactSha256'=>$fingerprint,'cache'=>$hit?'hit':'miss','reason'=>$reason,
+        'viewports'=>$name==='playwright.inspect'?$viewports:array());
     if($on_event)$on_event('tool_invocation',$receipt);
-    return array('receipt'=>$receipt,'evidence'=>syndamorph_production_tool_evidence($cache[$key],$reason));
+    return array('receipt'=>$receipt,'evidence'=>$name==='playwright.inspect'?
+        syndamorph_production_tool_evidence($cache[$key],$reason):
+        $cache[$key]);
 }
 
 /** Seed the global diagnostic cache from an inspection already required by QA. */
@@ -151,7 +165,8 @@ function syndamorph_production_tool_followup(string $reply,string $role,string $
     $request=(array)($parsed['toolRequest']??array());
     $reference=$context['reference']??($GLOBALS['syndamorph_current_reference']??null);
     $toolResult=syndamorph_production_tool_request($role,$request,
-        array('reference'=>$reference,'viewports'=>$viewports),$on_event);
+        array('reference'=>$reference,'viewports'=>$viewports,
+            'plan'=>$context['plan']??null),$on_event);
     if(is_wp_error($toolResult))return $toolResult;
     $context['_toolDepth']=$depth+1;
     $context['toolEvidence']=$toolResult;
