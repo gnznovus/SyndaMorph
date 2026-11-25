@@ -86,7 +86,16 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    if (!empty($GLOBALS['surgery_test'])) {
+    if (!empty($GLOBALS['schema_stall_test'])) {
+        $text=match($i) {
+            1 => '{"title":"Same-error schema guard","sections":["Hero"],"constraints":[],"acceptance":[]}',
+            2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
+            3 => '{"decision":"approved","issues":[]}',
+            4 => $GLOBALS['native_fixture'],
+            5,6 => '{"id":"blocks[0].children[0]","changes":[{"path":"style.fontSize","value":"1.1234567rem"}]}',
+            default => throw new RuntimeException('Same-error schema guard consumed an extra paid AI call '.$i),
+        };
+    } elseif (!empty($GLOBALS['surgery_test'])) {
         $text=match($i) {
             1 => '{"title":"Surgical recovery fixture","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid editable blocks"]}',
             2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
@@ -333,6 +342,23 @@ $precisionPlan=$richPlan;
 $precisionPlan['blocks'][0]['children'][0]['style']['fontSize']='clamp(1.0625rem,1rem + 0.5vw,1.25rem)';
 expect(!is_wp_error(syndamorph_compile_block_plan(wp_json_encode($precisionPlan))),
     'Four-decimal CSS lengths incorrectly rejected (GEN-000004 regression)');
+// The remaining invalid seven-decimal value must not cause unlimited paid identical patches.
+$priorFixture=$GLOBALS['native_fixture'];
+$stallPlan=json_decode($priorFixture,true);
+$stallPlan['blocks'][0]['children'][0]['style']['fontSize']='1.1234567rem';
+$GLOBALS['native_fixture']=wp_json_encode($stallPlan);
+$GLOBALS['generations']=array();
+$GLOBALS['schema_stall_test']=true;
+$stallResult=syndamorph_team_real_run('Recover repeated invalid native font size.',false,null,'gutenberg');
+expect(is_wp_error($stallResult)&&$stallResult->get_error_code()==='sm_schema_stagnation',
+    'Repeated identical invalid schema patches did not halt with actionable stagnation');
+expect(count($GLOBALS['generations'])===6,
+    'Same-error guard allowed more than two identical paid Developer repair proposals');
+expect(!empty($stallResult->get_error_data()['workingPlanId']),
+    'Same-error schema escalation lost the persistent working plan checkpoint');
+unset($GLOBALS['schema_stall_test']);
+$GLOBALS['native_fixture']=$priorFixture;
+$GLOBALS['generations']=array();
 $nestedPlan=$richPlan;
 $nestedPlan['blocks'][0]['children'][0]['style']=array('typography'=>array('fontSize'=>'2rem'));
 $nestedPlan=syndamorph_collab_ids($nestedPlan);
