@@ -86,7 +86,17 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    if(!empty($GLOBALS['tool_verification_test'])){
+    if(!empty($GLOBALS['tool_generic_test'])){
+        $text=match($i){
+            1=>'{"title":"Global Developer Tools","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid heading"]}',
+            2=>'<section><h2>Welcome &amp; enjoy</h2></section>',
+            3=>'{"decision":"approved","issues":[],"summary":"Approved reference"}',
+            4=>'{"action":"tool_request","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"Confirm reference heading browser typography before implementing native blocks"}}',
+            5=>$GLOBALS['native_fixture'],
+            6=>'{"decision":"approved","issues":[],"summary":"Native QA approved"}',
+            default=>throw new RuntimeException('Unexpected generic tool call '.$i),
+        };
+    }elseif(!empty($GLOBALS['tool_verification_test'])){
         $text=match($i){
             1=>'{"title":"Global tools fixture","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Heading visible"]}',
             2=>'<section><h2>Welcome &amp; enjoy</h2></section>',
@@ -439,6 +449,27 @@ $bossToolContext=json_decode($GLOBALS['generations'][3]['messages'][0]['content'
 expect(($bossToolContext['verificationEvidence']['evidence']['source']??'')==='playwright.computed',
     'Boss continuation did not receive structured computed-style evidence');
 unset($GLOBALS['tool_verification_test']);
+$GLOBALS['tool_generic_test']=true;
+$GLOBALS['generations']=array();
+$GLOBALS['inspection_calls']=array();
+$genericReceipts=array();
+$generic=syndamorph_team_real_run('Allow Developer to inspect the reference on demand.',false,
+    static function(string $type,array $data)use(&$genericReceipts):void{
+        if($type==='tool_invocation')$genericReceipts[]=$data;
+    },'gutenberg');
+expect(is_array($generic)&&count($GLOBALS['generations'])===6 &&
+    count($genericReceipts)===1&&$genericReceipts[0]['role']==='developer'&&
+    $genericReceipts[0]['cache']==='hit'&&$GLOBALS['inspection_calls']===array('reference','native'),
+    'Developer could not request the globally cached Playwright tool on demand');
+$devToolContext=json_decode($GLOBALS['generations'][4]['messages'][0]['content'][0]['text'],true);
+expect(($devToolContext['toolEvidence']['evidence']['source']??null)==='playwright.computed',
+    'Developer did not receive requested deterministic tool evidence');
+unset($GLOBALS['tool_generic_test']);
+expect(is_wp_error(syndamorph_production_tool_request('designer',
+    array('name'=>'compiler.patch','target'=>'plan','reason'=>'Edit Gutenberg plan outside Designer scope'),
+    array('plan'=>array()))),
+    'Global tools allowed Designer to mutate native compiler artifacts');
+
 $GLOBALS['tool_dispute_test']=true;
 $GLOBALS['generations']=array();
 $disputed=syndamorph_team_real_run('Reject unsupported design complaints without a full regeneration.',false,null,'gutenberg');
