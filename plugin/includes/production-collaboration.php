@@ -508,8 +508,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             2048,array(),'scope_resolution');
         if(!is_wp_error($reply)) {
             $decision=json_decode(syndamorph_native_json_text($reply),true);
-            if(is_array($decision)&&in_array($decision['decision']??null,array('await_renderer','manual_review_required','continue_independent'),true)) {
-                $escalation['decision']=$decision['decision'];
+            $resolution=syndamorph_authority_decision('boss','inspection_escalation',$decision,
+                array('await_renderer','manual_review_required','continue_independent'),$on_event);
+            if(!is_wp_error($resolution)){
+                syndamorph_authority_gate($resolution,'pending_validation',
+                    'Renderer evidence is still missing; no model decision bypasses the visual gate.',$on_event);
+                $escalation['decision']=$resolution['decision'];
                 // Use application-owned actions, never model prose as a workflow instruction.
                 $escalation['nextAction']=array(
                     'await_renderer'=>'Retry the exact required widths on the saved artifact.',
@@ -630,6 +634,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 array('reference'=>$reference,'viewports'=>$viewports),$on_event);
             if(is_wp_error($toolResult))return $toolResult;
             $pendingToolEvidence=$toolResult;
+            syndamorph_authority_gate($record,'pending_validation',
+                'Boss requested additional browser evidence before a design decision.',$on_event);
             continue;
         }
         if(!is_array($approval['issues']??null))
@@ -1192,8 +1198,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $escalation['nextAction']=$response->get_error_code()==='sm_team_budget'?'budget_review':'manual_review';
         }else {
             $decision=json_decode(syndamorph_native_json_text($response),true);
-            if(is_array($decision)&&in_array($decision['decision']??'',array('engineering_blocked','design_review_required','manual_review_required'),true)){
-                $escalation['decision']=$decision['decision'];
+            $resolution=syndamorph_authority_decision('boss','qa_escalation',$decision,
+                array('engineering_blocked','design_review_required','manual_review_required'),$on_event);
+            if(!is_wp_error($resolution)){
+                syndamorph_authority_gate($resolution,'blocked',
+                    'QA escalation cannot revoke design approval or bypass quality gates.',$on_event);
+                $escalation['decision']=$resolution['decision'];
                 $escalation['summary']=mb_substr((string)($decision['summary']??''),0,240);
                 $escalation['nextAction']=mb_substr((string)($decision['nextAction']??''),0,200);
             }
