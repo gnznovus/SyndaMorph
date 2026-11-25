@@ -9,6 +9,38 @@ require_once __DIR__.'/production-inspection.php';
 require_once __DIR__.'/production-surgery.php';
 require_once __DIR__.'/production-tools.php';
 
+/**
+ * Agent decisions are immutable facts. Execution gates belong to the
+ * orchestrator and must never be emitted as a different agent decision.
+ */
+function syndamorph_authority_decision(string $owner,string $stage,$payload,array $allowed,
+    ?callable $on_event=null) {
+    if(!is_array($payload)||!is_string($payload['decision']??null)||
+        !in_array($payload['decision'],$allowed,true))
+        return new WP_Error('sm_agent_decision_contract',
+            'Agent decision is missing or outside its stage contract.',
+            array('stage'=>$stage,'owner'=>$owner));
+    $decision=array('owner'=>$owner,'stage'=>$stage,'decision'=>$payload['decision'],
+        'issues'=>is_array($payload['issues']??null)?$payload['issues']:array(),
+        'summary'=>mb_substr((string)($payload['summary']??''),0,400));
+    if($on_event)$on_event('agent_decision',$decision);
+    return $decision;
+}
+/**
+ * A gate may block advancement but cannot mutate the decision it received.
+ * Explicit model approval plus contradictory issues is a contract error, not
+ * permission for the orchestrator to invent a changes_requested decision.
+ */
+function syndamorph_authority_gate(array $decision,string $status,string $reason='',
+    ?callable $on_event=null): array {
+    if(!in_array($status,array('ready','blocked','pending_validation'),true))
+        throw new InvalidArgumentException('Unknown execution gate status.');
+    $gate=array('owner'=>'orchestrator','stage'=>$decision['stage'],
+        'agentDecision'=>$decision['decision'],'executionStatus'=>$status,
+        'reason'=>mb_substr($reason,0,300));
+    if($on_event)$on_event('execution_gate',$gate);
+    return $gate;
+}
 /** Overall hard limit; each task requests a smaller cap when suitable. */
 function syndamorph_collab_output_cap(): int { return 16384; }
 
@@ -582,8 +614,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $priorDesignMeasurements=$measurements;
         if(is_wp_error($review))return $review;
         $parsed=json_decode(syndamorph_native_json_text($review),true);
-        $approval=is_array($parsed)?$parsed:array('decision'=>'changes_requested','issues'=>array(
-            array('target'=>'reference','problem'=>'Invalid review contract','requiredChange'=>'Submit structured decision')));
+        $record=syndamorph_authority_decision('boss','design_approval',$parsed,
+            array('approved','changes_requested','verification_required'),$on_event);
+        if(is_wp_error($record))return $record;
+        $approval=$parsed;
+        if(!is_array($approval['issues']??null))
+            return new WP_Error('sm_boss_review_contract','Boss must return a structured issues list.',
+                array('stage'=>'design_approval'));
         $designReviews++;
         if(($approval['decision']??'')==='verification_required'){
             $request=(array)($approval['toolRequest']??array());
@@ -614,10 +651,16 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $on_event('capability_preflight',array('notes'=>$unresolvedNotes,
                 'status'=>'advisory','decision'=>'approved',
                 'detail'=>'Carry native mapping limitations into Developer and QA validation.'));
-        if($decision==='approved' && !empty($approval['issues']))
+        if($decision==='approved' && !empty($approval['issues'])){
+            syndamorph_authority_gate($record,'blocked','Boss approval contains unresolved issues.',$on_event);
             return new WP_Error('sm_boss_review_contract',
                 'Boss approval contains unresolved issues; request an explicit consistent decision.',
                 array('stage'=>'design_approval','issues'=>$approval['issues']));
+        }
+        syndamorph_authority_gate($record,
+            $decision==='approved'?'ready':'blocked',
+            $decision==='approved'?'Boss explicitly approved visual reference.':'Boss requested specific design changes.',
+            $on_event);
         $handoff=array('from'=>'boss','to'=>'designer','type'=>'design_review','decision'=>$decision,
             'referenceSha256'=>hash('sha256',$reference),'acceptedCapabilityDeviations'=>$deviations,
             'issues'=>array_slice(array_map(static function($item){
@@ -852,15 +895,30 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         6144,$screenshots,'validation');
     if (is_wp_error($review)) return $review;$outputs['validator']=$review;
     $parsed=json_decode(syndamorph_native_json_text($review),true);
-    $bossQaApproved=is_array($parsed)&&($parsed['decision']??'')==='approved';
+    $qaRecord=syndamorph_authority_decision('boss','implementation_qa',$parsed,
+        array('approved','changes_requested'),$on_event);
+    if(is_wp_error($qaRecord))return $qaRecord;
+    if(!is_array($parsed['issues']??null))
+        return new WP_Error('sm_boss_qa_contract','Boss QA must return a structured issues list.',
+            array('stage'=>'implementation_qa'));
+    $bossQaApproved=$qaRecord['decision']==='approved';
+    if($bossQaApproved&&!empty($parsed['issues'])){
+        syndamorph_authority_gate($qaRecord,'blocked','Boss approved while reporting open QA issues.',$on_event);
+        return new WP_Error('sm_boss_qa_contract',
+            'Boss QA approval contradicts its issue list; no repair was authorized.',
+            array('stage'=>'implementation_qa','issues'=>$parsed['issues']));
+    }
+    syndamorph_authority_gate($qaRecord,
+        $bossQaApproved&&empty($issues)?'ready':'blocked',
+        !$bossQaApproved?'Boss requested implementation changes.':
+            (!empty($issues)?'Deterministic implementation checks remain open.':'Boss and deterministic QA checks passed.'),
+        $on_event);
     if($on_event)$on_event('handoff',array('from'=>'boss','to'=>'developer','type'=>'qa_review',
-        'decision'=>$bossQaApproved?'approved':'changes_requested',
+        'decision'=>$qaRecord['decision'],'executionStatus'=>$bossQaApproved&&empty($issues)?'ready':'blocked',
         'issueIds'=>array_slice(array_values(array_filter(array_map(
             static fn($i)=>is_array($i)?sanitize_key((string)($i['id']??'')):'',
-            (array)($parsed['issues']??array())))),0,12)));
-    if (!is_array($parsed) || !is_array($parsed['issues']??null)) {
-        $issues[]=array('id'=>'validator-format','component'=>'blocks[0]','severity'=>'medium','detail'=>'Validator did not return structured findings.');
-    } else {
+            $parsed['issues']))),0,12)));
+    {
         foreach(array_slice($parsed['issues'],0,20) as $issue) {
             if(!is_array($issue))continue;
             $normalized=syndamorph_issue_model($issue,$plan);
@@ -1044,10 +1102,17 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $reject('Scoped visual validation unavailable','blocked','vision');break;
         }
         $parsedTarget=json_decode(syndamorph_native_json_text($targetReview),true);
-        if (!is_array($parsedTarget) || !is_array($parsedTarget['issues']??null) ||
-            !in_array($parsedTarget['decision']??'',array('approved','changes_requested'),true)) {
+        $targetRecord=syndamorph_authority_decision('boss','revision_validation',$parsedTarget,
+            array('approved','changes_requested'),$on_event);
+        if(is_wp_error($targetRecord)||!is_array($parsedTarget['issues']??null)||
+            (($parsedTarget['decision']??'')==='approved'&&!empty($parsedTarget['issues']))) {
+            if(!is_wp_error($targetRecord))
+                syndamorph_authority_gate($targetRecord,'blocked','Contradictory or malformed scoped QA issues.',$on_event);
             $reject('Scoped Validator response invalid','rejected','vision_contract');continue;
         }
+        syndamorph_authority_gate($targetRecord,
+            $targetRecord['decision']==='approved'?'pending_validation':'blocked',
+            'Deterministic comparison and repair acceptance remain independently enforced.',$on_event);
         foreach(array_slice($parsedTarget['issues'],0,10) as $issue) {
             if(!is_array($issue))continue;
             $normalized=syndamorph_issue_model($issue,$candidate['plan']);
