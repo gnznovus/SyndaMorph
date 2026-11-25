@@ -511,6 +511,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $approvedReference=false;$designReviews=0;$handoffs=array($assignment);
     $priorDesignMeasurements=null;$priorDesignReview=null;$priorDesignDiff=null;
     $priorDesignImageHashes=null;$designSeenStates=array();
+    $pendingToolEvidence=null;$toolRequestKeys=array();$toolRequestCount=0;
     for($designRound=1;;$designRound++){
         $control=syndamorph_job_control_gate();
         if(is_wp_error($control))return $control;
@@ -526,6 +527,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $outputs['designer']='A native compatibility check was completed. The saved design is pending visual QA.';
             return $deferInspection($inspectReference,$reference,'design_inspection','designer',$capabilityNotes);
         }
+        syndamorph_production_tool_seed($reference,$viewports,$inspectReference);
         $referenceImages=array();$imageOrder=array();$currentImageHashes=array();
         foreach($visionViewports as $index){
             $sample=$inspectReference[$index]??null;
@@ -540,6 +542,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $priorDesignImageHashes=$currentImageHashes;
         $measurements=syndamorph_memory_measurements($inspectReference);
         $reviewContext=array('requirements'=>$brief,'referenceSha256'=>hash('sha256',$reference),
+            'availableTools'=>syndamorph_production_tool_catalog('boss'),
+            'verificationEvidence'=>$pendingToolEvidence,
             'capabilityNotes'=>$capabilityNotes,
             'imageOrder'=>$imageOrder,'unchangedScreenshotCount'=>count($visionViewports)-count($imageOrder));
         if($priorDesignMeasurements===null){
@@ -559,7 +563,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $reviewContext['measurementSummary']=array('baseline'=>count($priorDesignMeasurements),
                 'current'=>count($measurements),'changed'=>count($changedMeasurements));
         }
-        $review=$call('boss','Review the Designer reference against the brief, native compiler contract and browser evidence. In diff mode, rely on cached prior findings and examine changes, unresolved defects and any global regression visible in fresh evidence; never silently reapprove unresolved issues. Return JSON {"decision":"approved|changes_requested","issues":[{"target":"section","problem":"precise defect","requiredChange":"specific revision"}],"acceptedCapabilityDeviations":[{"note":"exact supplied note","reason":"why the reference remains valid with a native alternative"}],"summary":"brief decision"}. At most three issues.',
+        $review=$call('boss','Review the Designer reference against the brief, native compiler contract and browser evidence. In diff mode, focus on changed evidence and unresolved defects. Browser-computed styles are authoritative for CSS values; do not reject a declared weight solely because a screenshot appears light. If evidence is insufficient, return JSON {"decision":"verification_required","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"specific browser diagnostic question"},"summary":"brief"} instead of requesting HTML changes. Otherwise return JSON {"decision":"approved|changes_requested","issues":[{"target":"section","problem":"measurable defect","requiredChange":"specific correction"}],"acceptedCapabilityDeviations":[],"summary":"brief"}. Request no more than three concrete issues. Do not demand browser verification from Designer.',
             $reviewContext,4096,$referenceImages,'final_approval');
         $priorDesignMeasurements=$measurements;
         if(is_wp_error($review))return $review;
@@ -567,6 +571,19 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $approval=is_array($parsed)?$parsed:array('decision'=>'changes_requested','issues'=>array(
             array('target'=>'reference','problem'=>'Invalid review contract','requiredChange'=>'Submit structured decision')));
         $designReviews++;
+        if(($approval['decision']??'')==='verification_required'){
+            $request=(array)($approval['toolRequest']??array());
+            $requestKey=hash('sha256',hash('sha256',$reference).wp_json_encode($request));
+            if(isset($toolRequestKeys[$requestKey])||$toolRequestCount>=3)
+                return new WP_Error('sm_tool_stagnation','Repeated verification request against unchanged design evidence.',
+                    array('stage'=>'design_approval','toolRequest'=>$request));
+            $toolRequestKeys[$requestKey]=true;$toolRequestCount++;
+            $toolResult=syndamorph_production_tool_request('boss',$request,
+                array('reference'=>$reference,'viewports'=>$viewports),$on_event);
+            if(is_wp_error($toolResult))return $toolResult;
+            $pendingToolEvidence=$toolResult;
+            continue;
+        }
         $decision=($approval['decision']??'')==='approved'?'approved':'changes_requested';
         $deviations=array();
         foreach((array)($approval['acceptedCapabilityDeviations']??array()) as $deviation) {
@@ -593,27 +610,54 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'issues'=>$handoff['issues']);
         if($on_event)$on_event('handoff',$handoff);
         if($decision==='approved'){$approvedReference=true;break;}
-        $stateKey=hash('sha256',hash('sha256',$reference).wp_json_encode($handoff['issues']));
-        if(isset($designSeenStates[$stateKey]))
+        $issueKey=wp_json_encode(array_map(static fn($issue)=>strtolower(trim((string)($issue['target']??''))).'|'.strtolower(trim((string)($issue['problem']??''))),$handoff['issues']));
+        $stateKey=hash('sha256',$issueKey);
+        if(($designSeenStates[$stateKey]??0)>=2)
             return new WP_Error('sm_design_stagnation',
                 'Designer review repeated the same unresolved issues against an unchanged reference.',
                 array('stage'=>'design_approval','reviewRounds'=>$designReviews,'issues'=>$handoff['issues']));
-        $designSeenStates[$stateKey]=true;
+        $designSeenStates[$stateKey]=($designSeenStates[$stateKey]??0)+1;
         $beforeReference=$reference;
-        $patchReply=$call('designer','Apply only Boss-requested design surgery. Return JSON {"edits":[{"find":"exact unique fragment of existing HTML/CSS","replace":"replacement fragment"}]}; maximum 5 edits. Do not return the whole reference. Preserve all untouched markup and styling.',
-            array('reference'=>$reference,'feedback'=>$handoff['issues'],'requirements'=>$brief),syndamorph_collab_output_cap(),array(),'design_correction');
+        $patchReply=$call('designer','Apply only actual design defects using JSON {"edits":[{"find":"exact unique fragment","replace":"replacement"}]}. Maximum five edits. If a browser diagnostic is required, return JSON {"action":"verification_required","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"specific question"}}. If Boss feedback contradicts recorded evidence, return JSON {"action":"no_change","reason":"specific evidence-based dispute"}; never fabricate an edit or return empty edits. Do not return the whole reference.',
+            array('reference'=>$reference,'feedback'=>$handoff['issues'],'requirements'=>$brief,
+                'availableTools'=>syndamorph_production_tool_catalog('designer'),
+                'verificationEvidence'=>$pendingToolEvidence),syndamorph_collab_output_cap(),array(),'design_correction');
         if(is_wp_error($patchReply))return $patchReply;
         $parsedPatch=json_decode(syndamorph_native_json_text($patchReply),true);
+        if(is_array($parsedPatch)&&($parsedPatch['action']??'')==='verification_required'){
+            $request=(array)($parsedPatch['toolRequest']??array());
+            $requestKey=hash('sha256',hash('sha256',$reference).wp_json_encode($request));
+            if(isset($toolRequestKeys[$requestKey])||$toolRequestCount>=3)
+                return new WP_Error('sm_tool_stagnation','Repeated Designer verification request on unchanged design.',
+                    array('stage'=>'design_approval','toolRequest'=>$request));
+            $toolRequestKeys[$requestKey]=true;$toolRequestCount++;
+            $toolResult=syndamorph_production_tool_request('designer',$request,
+                array('reference'=>$reference,'viewports'=>$viewports),$on_event);
+            if(is_wp_error($toolResult))return $toolResult;
+            $pendingToolEvidence=$toolResult;
+            continue;
+        }
+        if(is_array($parsedPatch) &&
+            (($parsedPatch['action']??'')==='no_change' || ($parsedPatch['edits']??null)===array())){
+            if($on_event)$on_event('design_dispute',array('round'=>$designRound,
+                'referenceSha256'=>hash('sha256',$reference),
+                'reason'=>mb_substr((string)($parsedPatch['reason']??'No valid design change was proposed.'),0,260)));
+            return new WP_Error('sm_design_dispute',
+                'Designer disputed an unverified Boss requirement; reference preserved for evidence-based review.',
+                array('stage'=>'design_approval','reviewRounds'=>$designReviews,
+                    'reason'=>$parsedPatch['reason']??'No actionable patch','issues'=>$handoff['issues']));
+        }
         $surgical=is_array($parsedPatch)?syndamorph_design_surgery($reference,$parsedPatch):
             new WP_Error('sm_design_surgery_contract','Designer returned no structured patch.');
         if(is_wp_error($surgical)){
-            if($on_event)$on_event('design_surgery',array('status'=>'fallback','reason'=>$surgical->get_error_code(),'round'=>$designRound));
-            // Structural redesign is the explicitly recorded fallback, not silent regeneration.
-            $reference=$call('designer','Surgical change could not be applied. Perform a broad reference correction preserving every accepted part, and return only the full HTML artifact.',
-                array('reference'=>$reference,'feedback'=>$handoff['issues'],'failure'=>$surgical->get_error_message()),16384,array(),'design_correction');
-            if(is_wp_error($reference))return $reference;
+            // Invalid or stale surgery is not proof that the whole design must be rewritten.
+            if($on_event)$on_event('design_surgery',array('status'=>'rejected','reason'=>$surgical->get_error_code(),'round'=>$designRound));
+            return new WP_Error('sm_design_surgery_blocked',
+                'Designer surgery could not be applied atomically; retain existing reference for manual review.',
+                array('stage'=>'design_approval','cause'=>$surgical->get_error_code(),'issues'=>$handoff['issues']));
         }else{
             $reference=$surgical['reference'];
+            $pendingToolEvidence=null;
             $priorDesignDiff=array('beforeHash'=>hash('sha256',$beforeReference),
                 'afterHash'=>hash('sha256',$reference),'changes'=>$surgical['changes']);
             if($on_event)$on_event('design_surgery',array('status'=>'applied','round'=>$designRound,
