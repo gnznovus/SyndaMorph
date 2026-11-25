@@ -86,13 +86,34 @@ function syndamorph_history_append( int $id, string $event, array $data ): void 
         throw new RuntimeException( 'History event could not be recorded.' );
     }
     $update = array( 'updated_at' => gmdate( 'Y-m-d H:i:s' ) );
-    if ( 'job_complete' === $event ) { $update['status'] = 'generated' === ($data['status'] ?? '') ? 'completed' : (in_array(($data['status'] ?? ''),array('uncompleted','needs_review','failed','completed'),true) ? $data['status'] : 'needs_review'); }
+    if ( 'job_complete' === $event ) { $update['status'] = 'generated' === ($data['status'] ?? '') ? 'completed' : (in_array(($data['status'] ?? ''),array('uncompleted','needs_review','failed','completed','stopped','aborted'),true) ? $data['status'] : 'needs_review'); }
     if ( 'job_error' === $event ) { $update['status'] = 'failed'; }
     if ( 'editor_validation' === $event && !empty($data['passed']) && !empty($data['completionEligible']) ) { $update['status'] = 'completed'; }
     if ( 'job_title' === $event ) { $update['title'] = mb_substr( sanitize_text_field( (string) ( $data['title'] ?? '' ) ), 0, 200 ); }
     if ( false === $wpdb->update( $jobs, $update, array( 'id' => $id ) ) ) {
         throw new RuntimeException( 'History job metadata could not be updated.' );
     }
+}
+
+/**
+ * Durable cooperative job control. Read directly from the DB so a long-running
+ * PHP request cannot use a stale options cache after another request updates it.
+ */
+function syndamorph_job_control_requested(int $id): string {
+    if($id<1)return '';
+    global $wpdb;
+    $key='syndamorph_job_control_'.$id;
+    $state=$wpdb->get_var($wpdb->prepare(
+        "SELECT option_value FROM {$wpdb->options} WHERE option_name=%s LIMIT 1",$key));
+    return is_string($state)&&in_array($state,array('stop','abort'),true)?$state:'';
+}
+function syndamorph_job_control_gate() {
+    $id=(int)($GLOBALS['syndamorph_active_job_id']??0);
+    $action=syndamorph_job_control_requested($id);
+    return $action!==''?new WP_Error('sm_team_'.$action,
+        $action==='stop'?'Production stopped at a safe operation boundary.':
+            'Production aborted at a safe operation boundary.',
+        array('controlAction'=>$action,'stage'=>'operator_control','jobId'=>$id)):null;
 }
 
 function syndamorph_history_summary( array $row ): array {
@@ -129,6 +150,26 @@ add_action( 'rest_api_init', static function (): void {
             return rest_ensure_response( array( 'jobs' => array_map( 'syndamorph_history_summary', array_slice( $rows, 0, 50 ) ), 'more' => count( $rows ) > 50 ) );
         },
     ) );
+    register_rest_route('syndamorph/v1','/history/(?P<id>[0-9]+)/control',array(
+        'methods'=>'POST','permission_callback'=>$permission,
+        'callback'=>static function(WP_REST_Request $request){
+            global $wpdb;
+            $id=(int)$request['id'];$action=(string)$request->get_param('action');
+            if(!in_array($action,array('stop','abort'),true))
+                return new WP_Error('sm_control_unsupported','Only Stop and Abort are available until durable job continuation is implemented.',array('status'=>400));
+            list($jobs)=syndamorph_history_tables();
+            $row=$wpdb->get_row($wpdb->prepare("SELECT id,status,category FROM $jobs WHERE id=%d",$id),ARRAY_A);
+            if(!$row||$row['category']!=='GEN')
+                return new WP_Error('sm_control_unknown','Unknown production job.',array('status'=>404));
+            if($row['status']!=='running')
+                return new WP_Error('sm_control_terminal','Only a running job can be stopped or aborted.',array('status'=>409));
+            $existing=syndamorph_job_control_requested($id);
+            if($existing!=='')return rest_ensure_response(array('action'=>$existing,'state'=>'requested','id'=>$id));
+            update_option('syndamorph_job_control_'.$id,$action,false);
+            syndamorph_history_append($id,'control_requested',array('action'=>$action,'state'=>'requested'));
+            return rest_ensure_response(array('action'=>$action,'state'=>'requested','id'=>$id));
+        }
+    ));
     register_rest_route('syndamorph/v1','/history/(?P<id>[0-9]+)/reinspect-reference',array(
         'methods'=>'POST','permission_callback'=>$permission,
         'callback'=>static function(WP_REST_Request $request){
