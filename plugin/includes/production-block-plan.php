@@ -23,7 +23,7 @@ function syndamorph_compile_block_plan( string $raw ) {
         $count = 0; $headings = 0; $field = 'blocks[0]'; $previewIds = array();
         $escape = static fn( string $s ): string => htmlspecialchars( $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' );
         $length = static function ( $v ): string {
-            $unit = '[0-9]{1,3}(?:\.[0-9]{1,3})?(?:px|rem|em|vw|vh|svh|dvh)';
+            $unit = '[0-9]{1,3}(?:\.[0-9]{1,6})?(?:px|rem|em|vw|vh|svh|dvh)';
             if ($v === 0 || $v === 0.0) $v='0';
             if ( ! is_string( $v ) || ! preg_match( '~^(?:0|' . $unit . '|clamp\(\s*' . $unit . '\s*,\s*' . $unit . '(?:\s+\+\s+' . $unit . ')?\s*,\s*' . $unit . '\s*\))$~D', $v ) ) { throw new InvalidArgumentException( 'Invalid length.' ); }
             return $v === '0' ? '0px' : $v;
