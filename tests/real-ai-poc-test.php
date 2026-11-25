@@ -88,7 +88,7 @@ function wp_remote_post($url,$args) {
     $i=count($GLOBALS['generations']);
     if (!empty($GLOBALS['schema_stall_test'])) {
         $text=match($i) {
-            1 => '{"title":"Same-error schema guard","sections":["Hero"],"constraints":[],"acceptance":[]}',
+            1 => '{"title":"Same-error schema guard","sections":["Hero"],"constraints":["Native Gutenberg"],"acceptance":["Valid editable blocks"]}',
             2 => '<section><h2>Welcome &amp; enjoy</h2></section>',
             3 => '{"decision":"approved","issues":[]}',
             4 => $GLOBALS['native_fixture'],
