@@ -64,17 +64,19 @@ function syndamorph_scope_locked(callable $operation) {
 function syndamorph_scope_account(int $id): array {
     global $wpdb;
     list(,$events)=syndamorph_history_tables();
-    $rows=$wpdb->get_col($wpdb->prepare("SELECT payload FROM $events WHERE job_id=%d AND event_type IN ('agent_complete','agent_failure') ORDER BY id",$id));
+    $rows=$wpdb->get_results($wpdb->prepare("SELECT event_type,payload FROM $events WHERE job_id=%d AND event_type IN ('agent_complete','agent_failure') ORDER BY id",$id),ARRAY_A);
     $total=0.0;
+    $completed=0;
     $usage=array_fill_keys(array('inputTokens','outputTokens','cacheReadTokens','cacheWriteTokens'),0);
     $known=is_array($rows);
-    foreach($rows??array() as $raw) {
-        $metric=json_decode($raw,true)['metric']??array();
+    foreach($rows??array() as $row) {
+        if($row['event_type']==='agent_complete')$completed++;
+        $metric=json_decode($row['payload'],true)['metric']??array();
         $total+=(float)($metric['estimatedCostUsd']??0);
         foreach($usage as $key=>$_)$usage[$key]+=(int)($metric[$key]??0);
         $known=$known&&($metric['metering']??'')==='provider_reported';
     }
-    return array('estimatedCostUsd'=>round($total,6),'meteringComplete'=>$known,'usage'=>$usage);
+    return array('estimatedCostUsd'=>round($total,6),'meteringComplete'=>$known,'usage'=>$usage,'completedCalls'=>$completed);
 }
 
 function syndamorph_scope_status(array $manifest): array {
@@ -144,7 +146,11 @@ function syndamorph_scope_run(array $manifest,string $key,bool $retry,?callable 
     try {
         $emit('ready',$job+array('outputType'=>'gutenberg'));
         $result=($engine??'syndamorph_collab_run')($brief,true,$emit,true,$engineSource,$available,$availableWork);
-        $emit(is_wp_error($result)?'job_error':'job_complete',is_wp_error($result)?syndamorph_team_failure_payload($result):$result);
+        if(is_wp_error($result)) {
+            $failure=syndamorph_team_failure_payload($result);
+            $failure['completedCalls']=syndamorph_scope_account($job['id'])['completedCalls'];
+            $emit('job_error',$failure);
+        } else $emit('job_complete',$result);
     } catch(Throwable $error) {
         $emit('job_error',array('code'=>'sm_scope_internal','message'=>'Production stopped before the section result could be archived.'));
         $emit('agent_failure',array('metric'=>array('metering'=>'unavailable')));
@@ -197,6 +203,8 @@ function syndamorph_scope_save_pattern(array $manifest,string $key) {
     $manifest['regions'][$key]['patternId']=$saved->ID;
     $manifest['regions'][$key]['patternEditor']=get_edit_post_link($saved->ID,'raw');
     $manifest['regions'][$key]['artifactSha256']=$candidate['checksum'];
+    $manifest['regions'][$key]['status']='pattern_saved';
+    unset($manifest['regions'][$key]['checkpointAvailable'],$manifest['regions'][$key]['issue']);
     if($manifest['mode']==='section')$manifest['status']='completed';
     syndamorph_history_append($manifest['id'],'scope_manifest',$manifest);
     return syndamorph_scope_status($manifest);

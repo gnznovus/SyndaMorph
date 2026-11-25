@@ -120,6 +120,16 @@ if($phase==='setup') {
     $tiny=scope_ok(syndamorph_scope_configure(scope_ok(syndamorph_scope_open('section',$capture)),$brief,$keys[0],0.000001));
     $tiny=scope_ok(syndamorph_scope_run($tiny,$keys[0],false,$engine));
     scope_expect($tiny['regions'][$keys[0]]['status']==='failed'&&count($calls)===15&&$tiny['spentUsd']===0.0,'Budget was not enforced before provider invocation.');
+    $mismatch=$capture;
+    $mismatch['sections'][0]['variants'][375]['inventory']['text'][]='A captured sentence omitted by the Designer.';
+    $rejected=scope_ok(syndamorph_scope_configure(scope_ok(syndamorph_scope_open('section',$mismatch)),$brief,$keys[0]));
+    $rejected=scope_ok(syndamorph_scope_run($rejected,$keys[0],false,$engine));
+    $attempt=$rejected['regions'][$keys[0]]['attempts'][0];
+    $failure=syndamorph_history_latest($attempt['id'],'job_error');
+    $decision=syndamorph_history_latest($attempt['id'],'agent_decision');
+    $gate=syndamorph_history_latest($attempt['id'],'execution_gate');
+    scope_expect($failure['code']==='sm_source_fidelity'&&$failure['completedCalls']===3&&count($calls)===18&&
+        $decision['decision']==='approved'&&$gate['executionStatus']==='blocked','Source fidelity failure must block advancement without rewriting Boss approval or losing cost accounting.');
     echo wp_json_encode(array('section'=>$section['id'],'page'=>$page['id'],'keys'=>$keys,'mockCalls'=>count($calls))).PHP_EOL;
 } elseif($phase==='retry') {
     $page=syndamorph_scope_status(syndamorph_history_latest((int)getenv('SM_SCOPE_JOB'),'scope_manifest'));

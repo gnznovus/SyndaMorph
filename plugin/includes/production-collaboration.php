@@ -775,9 +775,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 array('stage'=>'design_approval','issues'=>$approval['issues']));
         }
         if($scopeRegion!==null && $decision==='approved' && !$sourceDesign['passed']) {
-            $decision='changes_requested';
-            $approval['issues']=array(array('target'=>'captured source','problem'=>'Pinned responsive source fidelity did not pass.',
-                'requiredChange'=>'Match literal copy and measured viewport appearance; use the source verification details.'));
+            syndamorph_authority_gate($record,'blocked','Pinned responsive source fidelity did not pass.',$on_event);
+            return new WP_Error('sm_source_fidelity','The Designer reference still differs from the pinned source.',
+                array('stage'=>'design_approval','role'=>'boss','completedCalls'=>$calls));
         }
         if($scopeRegion===null && $source!==null && $decision==='approved' && $reviewContext['sourceCopyCheck']['status']!=='equal'){
             syndamorph_authority_gate($record,'blocked','Designer reference did not preserve the captured literal copy.',$on_event);
