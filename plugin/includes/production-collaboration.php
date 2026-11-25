@@ -806,7 +806,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         // Generic schema lessons require successful recompilation to verify.
         if($useLearning)syndamorph_learning_schema($diag['field'],$diag['message'],
             $learningSource.':schema:'.$attempt,false);
-        if($on_event)$on_event('schema_repair',array_merge($diag,array('attempt'=>$attempt,'status'=>'required','role'=>'developer')));
+        if($on_event)$on_event('schema_repair',array_merge($diag,array(
+            'attempt'=>$attempt,'status'=>'detected','role'=>'compiler')));
         // Compiler owns proven schema transforms. Developer is asked only
         // when no known deterministic transaction advances this diagnostic.
         $route='auto_repair';
@@ -814,6 +815,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $candidate=$auto===null?null:array('plan'=>$auto['plan']);
         if($candidate===null){
             $route='developer';
+            if($on_event)$on_event('schema_repair',array_merge($diag,array(
+                'attempt'=>$attempt,'status'=>'required','role'=>'developer')));
             $schemaAttempts[$errorKey]=($schemaAttempts[$errorKey]??0)+1;
             // Bind acknowledgement to this exact compiler diagnostic, including expectations.
             $instructionId=hash('sha256',wp_json_encode(array($diag['code'],$diag['field'],
@@ -868,7 +871,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $lessons[]=array('field'=>$diag['field'],'message'=>$diag['message'],'attempt'=>$attempt);
         if(syndamorph_surgery_save($plan,$workingId)==='')return new WP_Error('sm_surgery_persist','Schema recovery draft could not be saved.');
         $surgery['repairs'][]=array('attempt'=>$attempt,'route'=>$route,'field'=>$diag['field'],'accepted'=>true,'compiled'=>!is_wp_error($compiled));
-        if($on_event)$on_event('schema_repair',array('attempt'=>$attempt,'status'=>is_wp_error($compiled)?'progress':'resolved','role'=>'developer','field'=>$diag['field'],'route'=>$route));
+        if($on_event)$on_event('schema_repair',array('attempt'=>$attempt,'status'=>is_wp_error($compiled)?'progress':'resolved','role'=>$route==='developer'?'developer':'compiler','field'=>$diag['field'],'route'=>$route));
     }
     if(is_wp_error($compiled))return new WP_Error($compiled->get_error_code(),$compiled->get_error_message(),
         array_merge(array('stage'=>'compilation','role'=>'developer','task'=>'developer','completedCalls'=>$calls,
