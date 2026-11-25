@@ -394,6 +394,17 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $stage=$stage ?: $role;
         $control=syndamorph_job_control_gate();
         if(is_wp_error($control))return $control;
+        $cached=syndamorph_job_resume_take($role,$stage);
+        if(is_wp_error($cached))return $cached;
+        if(is_array($cached)){
+            $priorMetric=(array)($cached['metric']??array());
+            foreach($usage as $key=>$_)$usage[$key]+=(int)($priorMetric[$key]??0);
+            $metrics[]=$priorMetric;
+            $calls++;
+            $events[]=array('role'=>$role,'task'=>$stage,'status'=>'completed',
+                'model'=>$model,'replayed'=>true);
+            return $cached['text'];
+        }
         if(!syndamorph_agent_scope($role,$stage))return new WP_Error('sm_agent_scope','Task outside agent scope.');
         $cap=min($cap,syndamorph_collab_output_cap());
         $encoded=wp_json_encode($context);
