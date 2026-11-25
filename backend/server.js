@@ -2,7 +2,8 @@
 const http = require('node:http');
 const { capture, captureResponsive } = require('./capture');
 const { productionSource } = require('./production-source');
-const { enabled: referenceEnabled } = require('./production-reference');
+const { enabled: referenceEnabled,readReference } = require('./production-reference');
+const { validateTouchActions,inspectTouch } = require('./production-touch');
 const { createAnalyzeHandler } = require('./mvp/endpoint');
 const { runCommunicationPoc } = require('./purr-poc');
 
@@ -16,7 +17,7 @@ const respond = (res, status, value) => {
     res.end(JSON.stringify(value));
 };
 http.createServer(async (req, res) => {
-    if (!['/capture', '/production-source', '/mvp/analyze', '/purr/communication-poc'].includes(req.url) || req.method !== 'POST') {
+    if (!['/capture','/production-source','/production-touch','/mvp/analyze','/purr/communication-poc'].includes(req.url) || req.method !== 'POST') {
         return respond(res, 404, { error: 'Not found.' });
     }
     if (req.headers['x-syndamorph-token'] !== TOKEN) return respond(res, 403, { error: 'Forbidden.' });
@@ -33,6 +34,22 @@ http.createServer(async (req, res) => {
             if (typeof input.job !== 'string' || input.job.length > 200) return respond(res, 400, { error: 'Invalid POC job.' });
             const result = await runCommunicationPoc(input.job);
             return respond(res, 200, result);
+        }
+        if(req.url==='/production-touch'){
+            if(!referenceEnabled())return respond(res,503,{ error:'Touch requires a verified source archive.' });
+            if(responsiveInProgress)return respond(res,429,{ error:'Responsive capture is already running.' });
+            const actions=validateTouchActions(input.actions);
+            responsiveInProgress=true;
+            try {
+                const pinned=await readReference(input.archiveId,input.width);
+                if(!pinned.runtime.size)return respond(res,200,{ version:1,archiveId:input.archiveId,status:'unknown',
+                    reason:'runtime_not_recorded',initial:{ width:input.width,targets:[] },scenarios:[] });
+                const receipt=await capture(pinned.sourceUrl,'browser',{ width:input.width,touch:true,
+                    recordedResponses:pinned.runtime,
+                    inspect:(page,_regions,_diagnostics,_archive,seal)=>inspectTouch(page,
+                        { width:input.width,actions,copySha256:pinned.copySha256 },seal) });
+                return respond(res,200,{ archiveId:input.archiveId,mode:'recorded',...receipt });
+            } finally { responsiveInProgress=false; }
         }
         if (typeof input.url !== 'string' || input.url.length > 2048) return respond(res, 400, { error: 'Invalid URL.' });
         if (req.url === '/production-source') {
@@ -78,6 +95,7 @@ http.createServer(async (req, res) => {
             const [code, publicMessage] = errorTypes[message] || [502, 'Purr Gateway request failed or timed out.'];
             return respond(res, code, { error: publicMessage });
         }
+        if(req.url==='/production-touch')return respond(res,422,{ error:'Touch inspection evidence is unavailable.' });
         if (req.url === '/mvp/analyze' && !allowed.test(message)) {
             return respond(res, 422, { error: 'MVP analysis failed; inspect server diagnostics.' });
         }

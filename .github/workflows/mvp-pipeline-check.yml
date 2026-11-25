@@ -19,6 +19,7 @@ on:
       - 'plugin/includes/production-collaboration.php'
       - 'plugin/includes/production-specification.php'
       - 'plugin/includes/production-reference.php'
+      - 'plugin/includes/production-touch.php'
       - 'plugin/includes/production-source.php'
       - 'plugin/includes/production-inspection.php'
       - 'plugin/includes/production-scope*.php'
@@ -56,6 +57,7 @@ on:
       - 'plugin/includes/production-collaboration.php'
       - 'plugin/includes/production-specification.php'
       - 'plugin/includes/production-reference.php'
+      - 'plugin/includes/production-touch.php'
       - 'plugin/includes/production-source.php'
       - 'plugin/includes/production-inspection.php'
       - 'plugin/includes/production-scope*.php'
@@ -121,6 +123,7 @@ jobs:
           php -l plugin/includes/production-collaboration.php
           php -l plugin/includes/production-specification.php
           php -l plugin/includes/production-reference.php
+          php -l plugin/includes/production-touch.php
           php -l plugin/includes/production-source.php
           node --check backend/production-source.js
           php -l plugin/includes/production-inspection.php
@@ -167,6 +170,7 @@ jobs:
           docker compose -f compose.yaml -f compose.reference.yaml config --quiet
           docker compose -f compose.yaml -f compose.reference.yaml build backend
           docker compose -f compose.yaml -f compose.reference.yaml run --rm --no-deps -T -e SYNDAMORPH_TEST_REFERENCE=1 -v "${{ github.workspace }}/backend/production-reference.test.js:/app/production-reference.test.js:ro" backend node --test production-reference.test.js
+          docker compose -f compose.yaml -f compose.reference.yaml run --rm --no-deps -T -e SYNDAMORPH_TEST_REFERENCE=1 -v "${{ github.workspace }}/backend/production-touch.test.js:/app/production-touch.test.js:ro" backend node --test production-touch.test.js
       - name: Real Playwright inspection smoke test
         run: |
           docker build -t syndamorph-inspection ./renderer

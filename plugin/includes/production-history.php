@@ -108,6 +108,18 @@ function syndamorph_history_latest(int $id,string $type): ?array {
     return is_array($data)?$data:null;
 }
 
+function syndamorph_history_touch_receipt(int $id,string $key): ?array {
+    global $wpdb;
+    list(,$events)=syndamorph_history_tables();
+    $rows=$wpdb->get_col($wpdb->prepare(
+        "SELECT payload FROM $events WHERE job_id=%d AND event_type='touch_inspection' ORDER BY id DESC LIMIT 6",$id));
+    foreach($rows??array() as $raw){
+        $data=json_decode($raw,true);
+        if(is_array($data)&&($data['key']??null)===$key&&is_array($data['result']??null))return $data;
+    }
+    return null;
+}
+
 /**
  * Durable cooperative job control. Read directly from the DB so a long-running
  * PHP request cannot use a stale options cache after another request updates it.
@@ -128,7 +140,8 @@ function syndamorph_job_resume_signature(): string {
     $files=array('production-collaboration.php','ai-team-real.php',
         'production-block-plan.php','production-surgery.php','production-repair.php',
         'production-tools.php','production-visual-qa.php','production-job-memory.php','production-learning.php',
-        'production-source.php','production-standards.php','production-specification.php','production-reference.php');
+        'production-source.php','production-standards.php','production-specification.php','production-reference.php',
+        'production-touch.php');
     $digest='';
     foreach($files as $file)$digest.=hash_file('sha256',__DIR__.'/'.$file);
     return hash('sha256',$digest);

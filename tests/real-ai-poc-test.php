@@ -53,6 +53,17 @@ function wp_remote_get($url,$args) {
     ),'has_more'=>false)) );
 }
 function wp_remote_post($url,$args) {
+    if($url==='http://backend:3100/production-touch'){
+        $input=json_decode($args['body'],true);
+        $GLOBALS['touch_inputs'][]=$input;
+        $target=array('id'=>str_repeat('f',24),'tag'=>'button','name'=>'Open menu','permitsClick'=>true);
+        return array('status'=>200,'body'=>wp_json_encode(array('version'=>1,'archiveId'=>$input['archiveId'],'status'=>'observed',
+            'initial'=>array('width'=>$input['width'],'targets'=>array($target)),
+            'scenarios'=>!$input['actions']?array():array(array('action'=>$input['actions'][0],'target'=>$target,
+                'status'=>'observed','remoteEffects'=>'unverified','blockedRequests'=>array(),
+                'before'=>array('sha256'=>str_repeat('a',64),'image'=>'private-before'),
+                'after'=>array('sha256'=>str_repeat('b',64),'image'=>'private-after'))))));
+    }
     if ($url === 'http://renderer:3000/crop') {
         $GLOBALS['crop_calls']=($GLOBALS['crop_calls']??0)+1;
         $items=json_decode($args['body'],true)['items'];
@@ -94,7 +105,19 @@ function wp_remote_post($url,$args) {
     $GLOBALS['generations'][]=$req;
     if ($args['headers']['x-api-key']!=='sensitive-test-key') throw new RuntimeException('Credential missing');
     $i=count($GLOBALS['generations']);
-    if(isset($GLOBALS['progressive_test'])){
+    if(!empty($GLOBALS['team_touch_fixture'])){
+        $text=match($i){
+            1=>'{"action":"tool_request","toolRequest":{"name":"playwright.touch","target":"source","reason":"Discover the compact menu","width":375,"actions":[]}}',
+            2=>wp_json_encode(array('action'=>'tool_request','toolRequest'=>array('name'=>'playwright.touch','target'=>'source',
+                'reason'=>'Verify the compact menu opens','width'=>375,'actions'=>array(array('type'=>'click','target'=>str_repeat('f',24)))))),
+            3=>'{"title":"Welcome with local navigation","sections":["Hero"],"constraints":[],"acceptance":["Keep headline"]}',
+            4=>'<section class="hero"><h2>Welcome &amp; enjoy</h2></section>',
+            5=>'{"decision":"approved","issues":[]}',
+            6=>$GLOBALS['native_fixture'],
+            7=>'{"decision":"approved","issues":[]}',
+            default=>throw new RuntimeException('Unexpected Touch fixture call '.$i),
+        };
+    }elseif(isset($GLOBALS['progressive_test'])){
         $heading='blocks[0].children[0]';$cta='blocks[0].children[2].children[0]';
         $finding=array('id'=>'cta-typography','component'=>$cta,'severity'=>'medium','category'=>'typography',
             'detail'=>'Retained CTA needs a different line height.','repairStrategy'=>'style');
@@ -1843,3 +1866,33 @@ expect(is_wp_error($copyBlocked) && $copyBlocked->get_error_code()==='sm_source_
     count($GLOBALS['generations'])===3,'A source-copy mismatch reached Developer generation');
 unset($GLOBALS['source_fixture_copy'],$GLOBALS['source_fixture_ratio'],$GLOBALS['source_fixture_comparisons']);
 echo "PASS: pinned three-viewport URL evidence, source-copy protection and independent visual gate\n";
+
+putenv('SYNDAMORPH_BACKEND_URL=http://backend:3100/capture');
+putenv('SYNDAMORPH_BACKEND_TOKEN=touch-fixture-token');
+$archive['runtimeSha256']=hash('sha256','fixture runtime');
+$archive['id']=hash('sha256',json_encode(array_merge($archiveIdentity,array($archive['runtimeSha256'])),
+    JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE));
+$GLOBALS['source_fixture_copy']='Welcome & enjoy';
+$GLOBALS['source_fixture_ratio']=0.0;
+$GLOBALS['team_touch_fixture']=true;
+$GLOBALS['touch_inputs']=array();
+$GLOBALS['generations']=array();
+$touchEvents=array();
+$touched=syndamorph_collab_run('Preserve a sourced section and inspect the local menu.',false,
+    static function($event,$data)use(&$touchEvents){if($event==='touch_inspection')$touchEvents[]=$data;},
+    false,$sourceFixture+array('referenceArchive'=>$archive));
+expect(is_array($touched) && count($GLOBALS['touch_inputs'])===2 && count($touchEvents)===2,
+    'Boss planning did not call the real shared Touch adapter contract');
+expect($GLOBALS['touch_inputs'][1]===array('archiveId'=>$archive['id'],'width'=>375,
+    'actions'=>array(array('type'=>'click','target'=>str_repeat('f',24)))),
+    'Touch request used an unpinned identifier or unsupported browser input');
+expect(($touched['designApproval']['touchScenarios'][0]['status']??null)==='observed' &&
+    ($touched['designApproval']['touchScenarios'][0]['remoteEffects']??null)==='unverified' &&
+    str_contains(wp_json_encode($touchEvents[1]),'private-before') &&
+    !str_contains(wp_json_encode($GLOBALS['generations'][2]),'private-before'),
+    'Archived screenshots or observed-state limitations leaked into the wrong output');
+expect(!isset(syndamorph_production_tool_catalog('designer',array('sourceArchive'=>$archive))['playwright.touch']) &&
+    !isset(syndamorph_production_tool_catalog('boss')['playwright.touch']),
+    'Touch was exposed without Boss ownership and a pinned source');
+unset($GLOBALS['source_fixture_copy'],$GLOBALS['source_fixture_ratio'],$GLOBALS['team_touch_fixture'],$GLOBALS['touch_inputs']);
+echo "PASS: pinned Boss Touch receipts, safe registry grants and downstream scenario handoff\n";

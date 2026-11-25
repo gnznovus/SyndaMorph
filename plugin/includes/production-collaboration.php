@@ -448,6 +448,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     ?float $budgetLimit=null,?float $workingLimit=null) {
     $GLOBALS['syndamorph_production_tool_cache']=array();
     $GLOBALS['syndamorph_production_tool_count']=0;
+    $GLOBALS['syndamorph_touch_receipts']=array();
     unset($GLOBALS['syndamorph_current_reference']);
     $viewports=syndamorph_collab_viewports($brief);
     if(is_wp_error($viewports))return $viewports;
@@ -625,25 +626,39 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'bossApproved'=>false,'nativeEditorVerified'=>false),
             'published'=>false,'renderedInBrowser'=>false);
     };
-    $boss=$call('boss','Classify the job into a concise production specification. Return ONLY JSON {"version":1,"title":"short job title","sections":[{"id":"hero","label":"Hero","parent":null}],"requirements":[{"id":"hero-heading","target":"hero","dimension":"content","basis":"brief","requirement":"required result","acceptance":"observable pass condition"}]}. Put parents before children. A target is a section ID or page. Use short lowercase IDs, up to 12 sections and 24 requirements. Dimensions are content, visual, responsive, functional, implementation, accessibility. Basis is brief, source, or standard. Capture each explicit requirement, use the supplied viewport widths, and record unknown dependencies as verification needs. For an unsourced brief, permit generic marketing copy and provisional local CTAs without invented real-world facts.'.$sourceNote,
+    $touchNote=isset($source['referenceArchive']['runtimeSha256'])?' For a concrete interaction uncertainty, use the available Touch tool. First request the pinned width with actions:[]. Use only discovered target IDs in subsequent actions. A blocked request or inferred destination does not verify real behavior.':'';
+    $boss=$call('boss','Classify the job into a concise production specification. Return ONLY JSON {"version":1,"title":"short job title","sections":[{"id":"hero","label":"Hero","parent":null}],"requirements":[{"id":"hero-heading","target":"hero","dimension":"content","basis":"brief","requirement":"required result","acceptance":"observable pass condition"}]}. Put parents before children. A target is a section ID or page. Use short lowercase IDs, up to 12 sections and 24 requirements. Dimensions are content, visual, responsive, functional, implementation, accessibility. Basis is brief, source, or standard. Capture each explicit requirement, use the supplied viewport widths, and record unknown dependencies as verification needs. For an unsourced brief, permit generic marketing copy and provisional local CTAs without invented real-world facts.'.$sourceNote.$touchNote,
         array('brief'=>$brief,'viewportWidths'=>$viewports)+$sourceContext,
-        syndamorph_collab_output_cap($provider,$model),$sourceImages);
+        syndamorph_collab_output_cap($provider,$model),$sourceImages,'boss',0.0,
+        isset($source['referenceArchive'])?array('sourceArchive'=>$source['referenceArchive']):array());
     if(is_wp_error($boss))return $boss;
     $bossBrief=syndamorph_collab_requirements($boss);
     if(is_wp_error($bossBrief))return $bossBrief;
     $specification=$bossBrief['specification'];
     $specificationReceipt=syndamorph_production_specification_receipt($specification,$brief,$viewports,$source);
+    $touchScenarios=array();
+    foreach($GLOBALS['syndamorph_touch_receipts'] as $touch){
+        foreach($touch['result']['scenarios'] as $scenario){
+            $touchScenarios[]=array('receipt'=>$touch['key'],'width'=>$touch['input']['width'],
+                'action'=>$scenario['action'],'status'=>$scenario['status'],'reason'=>$scenario['reason']??null,
+                'remoteEffects'=>$scenario['remoteEffects']??'unverified',
+                'blockedRequestCount'=>count((array)($scenario['blockedRequests']??array())),
+                'component'=>$scenario['target']['name']??null,'destination'=>$scenario['target']['destination']??null,
+                'beforeSha256'=>$scenario['before']['sha256']??null,'afterSha256'=>$scenario['after']['sha256']??null);
+        }
+    }
+    $touchContext=$touchScenarios?array('touchScenarios'=>$touchScenarios):array();
     $outputs['boss']=wp_json_encode($bossBrief);
     if($on_event)$on_event('job_title',array('title'=>$bossBrief['title']));
     $assignment=array('from'=>'boss','to'=>'designer','type'=>'assignment',
         'requirements'=>$bossBrief,'briefSha256'=>$specificationReceipt['briefSha256'],
-        'specificationReceipt'=>$specificationReceipt);
+        'specificationReceipt'=>$specificationReceipt)+$touchContext;
     if($on_event)$on_event('handoff',$assignment);
 
     // Designer owns the visual deliverable; Boss reviews real browser evidence
     // before the Developer receives the approved reference.
     $reference=$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.'.$sourceNote,
-        array('brief'=>$brief,'requirements'=>$bossBrief)+$sourceContext,
+        array('brief'=>$brief,'requirements'=>$bossBrief)+$sourceContext+$touchContext,
         syndamorph_collab_output_cap($provider,$model),$sourceImages);
     if(is_wp_error($reference))return $reference;
     $approval=array('decision'=>'rejected','issues'=>array());
@@ -713,6 +728,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $reviewContext['measurementSummary']=array('baseline'=>count($priorDesignMeasurements),
                 'current'=>count($measurements),'changed'=>count($changedMeasurements));
         }
+        $reviewContext+=$touchContext;
         $reviewContext['productionSpecification']=$specification;
         $reviewContext['specificationReceipt']=$specificationReceipt;
         if($source!==null){
@@ -910,7 +926,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if($on_event&&$capabilityNotes)$on_event('capability_preflight',array('notes'=>$capabilityNotes));
     $designMemo=array('decision'=>'approved','referenceSha256'=>hash('sha256',$reference),
         'reviewRounds'=>$designReviews,'capabilityNotes'=>$capabilityNotes,'acceptedCapabilityDeviations'=>$deviations,
-        'bossApproval'=>$approval,'productionSpecification'=>$specification,'specificationReceipt'=>$specificationReceipt);
+        'bossApproval'=>$approval,'productionSpecification'=>$specification,'specificationReceipt'=>$specificationReceipt)+$touchContext;
     $handoffs[]=array('from'=>'boss','to'=>'developer','type'=>'approved_design',
         'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews,'agentPayload'=>$approval,
         'specificationReceipt'=>$specificationReceipt);

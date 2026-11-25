@@ -26,6 +26,10 @@ function syndamorph_production_reference_valid($archive,string $sourceUrl): bool
         }
         $provenance[]=$identity;
     }
+    if(array_key_exists('runtimeSha256',$archive)){
+        if(!$digest($archive['runtimeSha256']))return false;
+        $provenance[]=$archive['runtimeSha256'];
+    }
     $identity=json_encode($provenance,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
     return is_string($identity) && hash_equals($archive['id'],hash('sha256',$identity));
 }

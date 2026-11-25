@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.2] - 2026-11-26
+
+### Added
+- A Bossy Touch tool for bounded click, hover, scroll, drag and resize against verified source runtime receipts.
+- Checksummed response recording and isolated JavaScript replay from private capture artifacts, with browser egress sealed before the first gesture.
+- Archived screenshots and structured state transitions with observed, inferred or unknown outcomes, carried as scenario references through the production handoffs.
+
+### Verified
+- The captured BKKGO 375 px menu opened using the recorded runtime and local-only Touch actions.
+- Existing visual-only archives remain readable. Interaction inspection requires a new runtime capture when the old archive lacks recorded responses.
+
 ## [0.12.1] - 2026-11-25
 
 ### Added

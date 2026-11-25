@@ -168,17 +168,25 @@ async function captureReference(page,width,diagnostics) {
     }
 }
 
-async function storeReferences(views) {
+async function storeReferences(views,runtimeResponses=null) {
     if(views.map(view=>view.facts.width).join(',')!==WIDTHS.join(',') ||
         views.some(view=>view.url!==views[0].url || view.facts.verified!==true))throw archiveError(new Error('Exact-width verification missing.'));
     const root=process.env.SYNDAMORPH_REFERENCE_DIR;
     if(!root || !path.isAbsolute(root))throw archiveError(new Error('Reference directory is not configured.'));
-    const data={ version:1, format:'singlefile-2.27.3',sourceUrl:views[0].url,views:views.map(view=>view.facts) };
-    const id=hash(JSON.stringify([data.version,data.format,data.sourceUrl,...data.views.map(view=>[
-        view.width,view.sourceDOMSha256,view.sourceScreenshotSha256,view.archiveSha256,view.replayScreenshotSha256,
-    ])]));
     let temporary=null;
     try {
+        const runtime=[];
+        for(const [request,pending] of runtimeResponses??[]) {
+            const response=await pending.catch(()=>null);
+            if(response)runtime.push({ request,response,sha256:hash(response.body) });
+        }
+        const frozen=runtime.map(({ request,response,sha256 })=>({
+            request,status:response.status,headers:response.headers,sha256,bytes:response.body.length,
+        }));
+        const recorded=runtime.length?JSON.stringify(frozen):null;
+        const data={ version:1,format:'singlefile-2.27.3',sourceUrl:views[0].url,views:views.map(view=>view.facts),
+            ...(recorded?{ runtimeSha256:hash(recorded) }:{}) };
+        const id=hash(JSON.stringify(referenceIdentity(data)));
         await fs.mkdir(root,{ recursive:true,mode:0o700 });
         temporary=await fs.mkdtemp(path.join(root,'.capture-'));
         for(const item of views){
@@ -191,6 +199,12 @@ async function storeReferences(views) {
                 fs.writeFile(path.join(temporary,width+'-evidence.json'),JSON.stringify({
                     measurements:item.baseline,diagnostics:item.diagnostics }),{ flag:'wx',mode:0o600 }),
             ]);
+        }
+        if(recorded){
+            await fs.writeFile(path.join(temporary,'runtime.json'),recorded,{ flag:'wx',mode:0o600 });
+            for(const [i,item] of runtime.entries()){
+                await fs.writeFile(path.join(temporary,'runtime-'+i+'.bin'),item.response.body,{ flag:'wx',mode:0o600 });
+            }
         }
         const receipt={ ...data,id };
         await fs.writeFile(path.join(temporary,'receipt.json'),JSON.stringify(receipt),{ flag:'wx',mode:0o600 });
@@ -206,10 +220,55 @@ async function storeReferences(views) {
                     if(hash(await fs.readFile(path.join(root,id,view.width+suffix)))!==checksum)throw error;
                 }
             }
+            if(recorded) {
+                if((await fs.readFile(path.join(root,id,'runtime.json'),'utf8'))!==recorded)throw error;
+                for(const [i,item] of runtime.entries()){
+                    if(hash(await fs.readFile(path.join(root,id,'runtime-'+i+'.bin')))!==item.sha256)throw error;
+                }
+            }
         }
         return receipt;
     } catch(error) { throw archiveError(error); }
     finally { if(temporary)await fs.rm(temporary,{ recursive:true,force:true }); }
 }
 
-module.exports={ enabled,prepareReferencePage,captureReference,storeReferences };
+function referenceIdentity(data) {
+    const base=[data.version,data.format,data.sourceUrl,...data.views.map(view=>[
+        view.width,view.sourceDOMSha256,view.sourceScreenshotSha256,view.archiveSha256,view.replayScreenshotSha256,
+    ])];
+    if(data.runtimeSha256)base.push(data.runtimeSha256);
+    return base;
+}
+
+async function readReference(id,width) {
+    if(typeof id!=='string' || !/^[a-f0-9]{64}$/.test(id) || !WIDTHS.includes(width))throw archiveError();
+    const root=process.env.SYNDAMORPH_REFERENCE_DIR;
+    if(!enabled() || !root || !path.isAbsolute(root))throw archiveError();
+    try {
+        const directory=path.join(root,id);
+        const receipt=JSON.parse(await fs.readFile(path.join(directory,'receipt.json'),'utf8'));
+        const view=receipt.views.find(item=>item.width===width);
+        if(receipt.id!==id || hash(JSON.stringify(referenceIdentity(receipt)))!==id ||
+            view?.verified!==true || view.externalRequests!==0 ||
+            view.archiveSha256!==hash(await fs.readFile(path.join(directory,width+'.html'))))throw new Error('Reference mismatch.');
+        const runtime=new Map();
+        if(receipt.runtimeSha256){
+            const text=await fs.readFile(path.join(directory,'runtime.json'),'utf8');
+            if(hash(text)!==receipt.runtimeSha256)throw new Error('Source runtime receipt mismatch.');
+            const entries=JSON.parse(text);
+            if(!Array.isArray(entries) || entries.length>250 ||
+                entries.some(entry=>!Number.isInteger(entry.bytes)||entry.bytes<0||entry.bytes>6000000) ||
+                entries.reduce((total,entry)=>total+entry.bytes,0)>32000000)throw new Error('Source runtime exceeds limits.');
+            for(const [i,entry] of entries.entries()){
+                const file=path.join(directory,'runtime-'+i+'.bin');
+                if((await fs.stat(file)).size!==entry.bytes)throw new Error('Source runtime asset size mismatch.');
+                const body=await fs.readFile(file);
+                if(hash(body)!==entry.sha256)throw new Error('Source runtime asset mismatch.');
+                runtime.set(entry.request,{ status:entry.status,headers:entry.headers,body });
+            }
+        }
+        return { sourceUrl:receipt.sourceUrl,copySha256:view.copySha256,runtime };
+    } catch(error) { throw archiveError(error); }
+}
+
+module.exports={ enabled,prepareReferencePage,captureReference,storeReferences,readReference };

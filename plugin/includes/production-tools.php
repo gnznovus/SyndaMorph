@@ -1,10 +1,11 @@
 <?php
 /** Explicit shared tool surface for the AI Production Team. Orchestrator owns calls. */
 if(!defined('ABSPATH'))exit;
+require_once __DIR__.'/production-touch.php';
 /** Runtime tool grants are per-role, not per-artifact. */
 function syndamorph_production_tool_grants(string $role): array {
     return array(
-        'boss'=>array('playwright.inspect','playwright.compare','playwright.crop'),
+        'boss'=>array('playwright.inspect','playwright.compare','playwright.crop','playwright.touch'),
         'designer'=>array('playwright.inspect','playwright.compare','playwright.crop'),
         'developer'=>array('playwright.inspect','playwright.compare','playwright.crop','compiler.validate','compiler.patch'),
         'validator'=>array('playwright.inspect','playwright.compare','playwright.crop')
@@ -55,9 +56,15 @@ function syndamorph_production_tool_catalog(string $role,array $artifacts=array(
         'compiler.validate'=>array('purpose'=>'Validate native Gutenberg plan.','readOnly'=>true,'targets'=>array('plan')),
         'compiler.patch'=>array('purpose'=>'Apply a validated native-block patch.','readOnly'=>false,'targets'=>array('plan')),
     );
+    if(is_string($artifacts['sourceArchive']['runtimeSha256']??null)){
+        $catalog['playwright.touch']=array('purpose'=>'Use a verified source snapshot identity to investigate local UI with external requests blocked.',
+            'readOnly'=>true,'targets'=>array('source'),'widths'=>array(1440,768,375),
+            'actions'=>array('click','hover','scroll','drag','resize'),
+            'input'=>'Provide width and actions. Use an empty list to inventory controls. Click/hover/drag use a returned target ID. Drag adds dx, scroll adds dy, resize adds width.');
+    }
     // Only advertise executable on-demand adapters. Other shared tools are
     // still invoked directly by the orchestrator during their owning phases.
-    return array_intersect_key($catalog,array_flip(array('playwright.inspect','compiler.validate')),
+    return array_intersect_key($catalog,array_flip(array('playwright.inspect','compiler.validate','playwright.touch')),
         array_flip(syndamorph_production_tool_grants($role)));
 }
 function syndamorph_production_tool_evidence(array $samples,string $reason=''): array {
@@ -106,6 +113,7 @@ function syndamorph_production_tool_request(string $role,array $request,array $a
     if(!isset($catalog[$name])||!($catalog[$name]['readOnly']??false)||
         !in_array($target,$catalog[$name]['targets'],true))
         return new WP_Error('sm_tool_denied','Requested tool or target is unavailable to this agent.');
+    if($name==='playwright.touch')return syndamorph_production_touch($request,$artifacts['sourceArchive'],$on_event);
     $plan=$name==='compiler.validate'?($artifacts['plan']??null):null;
     $html=$name==='playwright.inspect'?($artifacts[$target]??null):null;
     $viewports=$artifacts['viewports']??null;

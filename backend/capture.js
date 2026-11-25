@@ -56,23 +56,32 @@ async function assertPublicHost(url) {
 async function capture(urlValue, mode = 'auto', options = {}) {
     const url = validateURL(urlValue);
     const archive = options.archive === true;
-    if(archive)url.hash='';
+    const touch = options.touch === true;
+    const guarded = archive || touch;
+    if(guarded)url.hash='';
     if (!['auto', 'static', 'browser'].includes(mode)) throw new Error('Unsupported render mode.');
-    await assertPublicHost(url);
+    if(!options.recordedResponses)await assertPublicHost(url);
     let browser;
     try {
-        browser = await chromium.launch(archive ? { headless:true,
+        browser = await chromium.launch(guarded ? { headless:true,
             proxy:{ server:'http://127.0.0.1:9',bypass:'<-loopback>' },
             args:['--disable-web-security','--force-webrtc-ip-handling-policy=disable_non_proxied_udp'] } : { headless:true });
         const context = await browser.newContext({
             viewport: { width: options.width || 1440, height: 900 }, deviceScaleFactor: 1,
             serviceWorkers: 'block', acceptDownloads: false,
             permissions: [], javaScriptEnabled: mode !== 'static',
-            ...(archive ? { colorScheme:'light',reducedMotion:'reduce',locale:'en-US',timezoneId:'Asia/Bangkok' } : {}),
+            ...(guarded ? { colorScheme:'light',reducedMotion:'reduce',locale:'en-US',timezoneId:'Asia/Bangkok' } : {}),
         });
         let count = 0;
         const archiveTransport = options.archiveTransport ?? { responses:new Map(), bytes:0 };
         const archiveResponses = archiveTransport.responses;
+        const touchBlocked=[];
+        let networkSealed=false;
+        const sealNetwork=()=>{
+            if(!touch)throw new Error('Touch network guard is unavailable.');
+            networkSealed=true;
+            return touchBlocked;
+        };
         const requestFailures = [];
         const responses = { success: 0, error: 0, denied: 0, byType: {} };
         const browserErrors = [];
@@ -80,6 +89,12 @@ async function capture(urlValue, mode = 'auto', options = {}) {
             if (requestFailures.length < 25) requestFailures.push({ kind, detail: String(detail).slice(0, 180) });
         };
         await context.route('**/*', async (route) => {
+            if(networkSealed){
+                const request=route.request();
+                if(touchBlocked.length<32)touchBlocked.push({ method:request.method(),resourceType:request.resourceType(),
+                    navigation:request.isNavigationRequest() });
+                return route.abort('blockedbyclient');
+            }
             try {
                 if (++count > MAX_REQUESTS) { responses.denied++; addFailure('request_limit', route.request().resourceType()); return route.abort('blockedbyclient'); }
                 // Navigation stays on explicitly approved source hosts.
@@ -91,16 +106,21 @@ async function capture(urlValue, mode = 'auto', options = {}) {
                     addFailure('blocked_method',request.resourceType());
                     return route.abort('blockedbyclient');
                 }
-                if (archive) {
+                if (guarded) {
                     if(request.isNavigationRequest() && (request.frame().parentFrame() || target.href!==url.href)){
                         responses.denied++;
                         addFailure('blocked_navigation',request.resourceType());
                         return route.abort('blockedbyclient');
                     }
                     const key=request.method()+' '+target.href;
+                    if(options.recordedResponses){
+                        const recorded=options.recordedResponses.get(key);
+                        if(recorded)return route.fulfill(recorded);
+                        return route.abort('blockedbyclient');
+                    }
                     if(!archiveResponses.has(key)){
                         const retrieval=referenceFetch(target,request,publicIPv4).then(response=>{
-                            if(response.status<300 && archiveTransport.bytes+response.body.length<=32000000)
+                            if(response.status<300 && archiveResponses.size<=250 && archiveTransport.bytes+response.body.length<=32000000)
                                 archiveTransport.bytes+=response.body.length;
                             else archiveResponses.delete(key);
                             return response;
@@ -122,9 +142,10 @@ async function capture(urlValue, mode = 'auto', options = {}) {
                 return route.abort('blockedbyclient');
             }
         });
-        if(archive)await context.routeWebSocket(/.*/,socket => {
+        if(guarded)await context.routeWebSocket(/.*/,socket => {
             responses.denied++;
             addFailure('blocked_websocket','WebSocket');
+            if(networkSealed && touchBlocked.length<32)touchBlocked.push({ method:'CONNECT',resourceType:'websocket',navigation:false });
             socket.close({ code:1008,reason:'Reference capture' });
         });
         const page = await context.newPage();
@@ -137,7 +158,7 @@ async function capture(urlValue, mode = 'auto', options = {}) {
             if (response.status() >= 400) { responses.error++; addFailure('http_error', kind + ' HTTP ' + response.status()); }
             else responses.success++;
         });
-        const response = await page.goto(url.toString(), { waitUntil: archive?'load':'domcontentloaded', timeout: 15000 });
+        const response = await page.goto(url.toString(), { waitUntil: guarded?'load':'domcontentloaded', timeout: 15000 });
         if (!response || response.status() >= 400) throw new Error('Page request failed (HTTP ' + (response?.status() || 'unknown') + ').');
         if (mode !== 'static') {
             // Async app bootstraps may need React and other CDN scripts before
@@ -173,7 +194,7 @@ async function capture(urlValue, mode = 'auto', options = {}) {
             diagnostics.sectionCount = 0;
             diagnostics.structureOnlySections = 0;
         }
-        if (options.inspect) return await options.inspect(page, result, diagnostics, reference);
+        if (options.inspect) return await options.inspect(page,result,diagnostics,reference,touch?sealNetwork:null);
         return { url: page.url(), mode: mode === 'static' ? 'static' : 'browser', diagnostics, sections: result, warnings: [
             'Captured DOM and computed styles are an approximation; scripts and interactive behavior are not converted.',
             'Images remain remote for this POC; asset portability is not implemented.',
@@ -199,7 +220,7 @@ async function captureResponsive(url) {
         if(captured.reference)snapshots.push(captured.reference);
     }
     return { url: canonical, mode: 'browser', sections: reconcileResponsive(canonical, views),
-        ...(archive ? { referenceArchive:await storeReferences(snapshots) } : {}),
+        ...(archive ? { referenceArchive:await storeReferences(snapshots,archiveTransport.responses) } : {}),
         views: views.map(({ sections, ...view }) => ({ ...view, discovered: sections.length,
             order: sections.map(section => section.sourceRef) })) };
 }

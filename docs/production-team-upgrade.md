@@ -36,12 +36,21 @@ The Compose override installs the optional dependencies, enables both ends of th
 
 The authenticated BKKGO capture returned HTTP 200, 16 regions, and receipt `d92c36a68a0fe3ac4fbbc6f7716b8cc32ac5deab5eb66b3933021f6d94e65515`. All three offline views had zero changed pixels, zero external requests, and all five live font faces. Desktop and compact source DOM hashes differed. A separate mobile attempt timed out loading a required React script from the CDN and returned incomplete evidence. The verifier rejected it before storing a verified set.
 
+## v0.12.2 Touch checkpoint
+
+Bossy can request `playwright.touch` during source classification when the work order has a verified runtime receipt. The existing registry supplies the archive identity and allows one inventory request and a bounded follow-up within the job's existing tool limits. The browser discovers target IDs. Agents provide no URLs, selectors, request bodies or executable code.
+
+Reference capture records the public HTTP responses already used by the live browser. Their hashes bind the response inventory to the archive receipt. Touch boots a fresh Chromium context using only those responses, verifies the live-rendered copy against the corresponding pinned width, and seals the request route before any action. HTTP, document navigation, WebSockets and downloads remain unavailable during interaction. The action guard also rejects links that leave the document, sensitive controls and forms. It uses a maximum of five gestures.
+
+An observed result records a browser state change with before and after screenshot hashes, measured target state and a replayable action. A link can carry an inferred destination without testing navigation. Unavailable or unsafe behavior remains unknown. Remote effects are always unverified. Raw screenshots stay in private History. Designer, Bossy and Developer receive compact scenario references. QA will independently replay implemented behavior during its later checkpoint.
+
+On BKKGO at 375 px, `Open menu` exposed `Close menu` with the isolated recorded runtime. The authenticated test used archive `6efe86844a718453c4c9ff87d577fcfff25e44d6f53e338fdbafa0295f5290fd`. The browser fixture also verified that local state can change while GET and POST attempts are blocked. A prior prototype that booted from the live site rejected mismatched copy. Touch now requires recorded responses, including for replay of a saved scenario.
+
 ## Next checkpoints
 
-1. Grant Touch only bounded, isolated interaction against a pinned target with network and action guards. A workflow that cannot be executed safely stays unverified. Store reproducible scenarios with explicit provenance.
-2. Validate continuous responsiveness with mandatory 1440, 768 and 375 CSS px checks and deterministic intermediate and breakpoint probes. Keep source deviations explicit in the specification and separate from content, behavior and native feasibility. Designer repairs the saved HTML through targeted operations with a measured accept or rollback.
-3. Project compact link, typography, background, accessibility, geometry and interaction evidence into review. Verify structured requirements separately from model confidence. Use overlapping images as supplemental evidence of mismatches.
-4. Trial an editable local tabbed-content block. The application owns its capability contract and scripts. Developer owns block architecture and recovery. Independent QA exercises browser state transitions and the WordPress editor rather than inheriting Bossy’s Touch observation.
-5. Verify both production adapters and rerun the defect benchmark with approval for any paid calls. Report detection, escape, false rejections, uncertainty, latency and cost. BKKGO establishes a scenario, while broader acceptance is measured separately.
+1. Validate continuous responsiveness with mandatory 1440, 768 and 375 CSS px checks and deterministic intermediate and breakpoint probes. Keep source deviations explicit in the specification and separate from content, behavior and native feasibility. Designer repairs the saved HTML through targeted operations with a measured accept or rollback.
+2. Project compact link, typography, background, accessibility, geometry and interaction evidence into review. Verify structured requirements separately from model confidence. Use overlapping images as supplemental evidence of mismatches.
+3. Trial an editable local tabbed-content block. The application owns its capability contract and scripts. Developer owns block architecture and recovery. Independent QA exercises browser state transitions and the WordPress editor rather than inheriting Bossy’s Touch observation.
+4. Verify both production adapters and rerun the defect benchmark with approval for any paid calls. Report detection, escape, false rejections, uncertainty, latency and cost. BKKGO establishes a scenario, while broader acceptance is measured separately.
 
 No release has been authorized for this development series. Each checkpoint records the version, actual verification and outstanding work in the plugin changelog.

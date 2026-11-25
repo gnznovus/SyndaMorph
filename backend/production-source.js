@@ -194,7 +194,7 @@ async function productionSource(url, sectionId = null, variants = null) {
     }
     const manifest = { version: 1, sourceURL: manifestURL, viewportWidths: WIDTHS, pages };
     return { manifest: { ...manifest, sha256: digest(stableJSON(manifest)) },
-        ...(archive ? { referenceArchive:await storeReferences(snapshots) } : {}),
+        ...(archive ? { referenceArchive:await storeReferences(snapshots,archiveTransport.responses) } : {}),
         section: selected ? { id: variants === null ? selected.id : identity(manifestURL, WIDTHS.map(width => requested[width])),
             label: selected.label, sourceRef: selected.sourceRef,
             kind: selected.kind, evidence, evidenceSha256: digest(stableJSON(evidence)) } : null };
