@@ -329,26 +329,6 @@ expect(is_wp_error($refused) && $refused->code==='sm_generation_incomplete' &&
     $refused->args['stopReason']==='refusal', 'Refusal misreported as token exhaustion');
 unset($GLOBALS['stop_reason_test']);
 
-// GEN-000020: once Developer reports an unsupported native capability,
- // stop paid style/structure retries and escalate exactly once to Boss.
-$GLOBALS['capability_blocker_test']=true;
-$GLOBALS['generations']=array();
-$blockedEvents=array();
-$blockedJob=syndamorph_team_real_run('Verify unsupported mobile CTA capability escalation.',
-    false,static function(string $type,array $data)use(&$blockedEvents):void{
-        if(in_array($type,array('repair_capability_blocked','repair_escalation'),true))
-            $blockedEvents[]=array('type'=>$type,'data'=>$data);
-    },'gutenberg');
-expect(is_array($blockedJob)&&$blockedJob['status']==='uncompleted'&&
-    count($GLOBALS['generations'])===7&&
-    count($blockedJob['quality']['revisions'])===1&&
-    ($blockedJob['quality']['revisions'][0]['validation']??'')==='capability'&&
-    count(array_filter($blockedEvents,static fn($e)=>$e['type']==='repair_capability_blocked'))===1&&
-    ($blockedJob['quality']['escalation']['decision']??'')==='design_review_required',
-    'GEN-000020 must escalate a native capability blocker without repeat paid Developer surgery');
-unset($GLOBALS['capability_blocker_test']);
-$GLOBALS['generations']=array();
-
 // Guard against reintroducing a second POC brief or source-required paid job.
 $ui = file_get_contents(dirname(__DIR__) . '/plugin/includes/production-team.php');
 $client = file_get_contents(dirname(__DIR__) . '/plugin/assets/ai-team-real.js');
@@ -441,6 +421,26 @@ expect(count($GLOBALS['generations'][2]['messages'][0]['content'])===3,'Boss did
 expect(str_contains(wp_json_encode($GLOBALS['generations'][3]['system']),'JSON'),'Native developer contract missing');
 expect(($GLOBALS['generations'][3]['system'][0]['cache_control']['type']??null)==='ephemeral','Cache prefix absent');
 expect($GLOBALS['generations'][0]['system'][0]===$GLOBALS['generations'][4]['system'][0],'Shared cache prefix not stable');
+// GEN-000020: once Developer reports an unsupported native capability,
+ // stop paid style/structure retries and escalate exactly once to Boss.
+$GLOBALS['capability_blocker_test']=true;
+$GLOBALS['generations']=array();
+$blockedEvents=array();
+$blockedJob=syndamorph_team_real_run('Verify unsupported mobile CTA capability escalation.',
+    false,static function(string $type,array $data)use(&$blockedEvents):void{
+        if(in_array($type,array('repair_capability_blocked','repair_escalation'),true))
+            $blockedEvents[]=array('type'=>$type,'data'=>$data);
+    },'gutenberg');
+expect(is_array($blockedJob)&&$blockedJob['status']==='uncompleted'&&
+    count($GLOBALS['generations'])===7&&
+    count($blockedJob['quality']['revisions'])===1&&
+    ($blockedJob['quality']['revisions'][0]['validation']??'')==='capability'&&
+    count(array_filter($blockedEvents,static fn($e)=>$e['type']==='repair_capability_blocked'))===1&&
+    ($blockedJob['quality']['escalation']['decision']??'')==='design_review_required',
+    'GEN-000020 must escalate a native capability blocker without repeat paid Developer surgery');
+unset($GLOBALS['capability_blocker_test']);
+$GLOBALS['generations']=array();
+
 $beforeReplayGenerations=$GLOBALS['generations'];
 $beforeReplayInspections=$GLOBALS['inspection_calls'];
 // Live pipeline regression for GEN-000019: automatic compiler surgery must
