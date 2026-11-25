@@ -120,3 +120,11 @@ function syndamorph_production_tool_request(string $role,array $request,array $a
     if($on_event)$on_event('tool_invocation',$receipt);
     return array('receipt'=>$receipt,'evidence'=>syndamorph_production_tool_evidence($cache[$key],$reason));
 }
+
+/** Seed the global diagnostic cache from an inspection already required by QA. */
+function syndamorph_production_tool_seed(string $html,array $viewports,array $samples): void {
+    $key=hash('sha256','playwright.inspect'."\0".hash('sha256',$html)."\0".wp_json_encode($viewports));
+    if(!isset($GLOBALS['syndamorph_production_tool_cache']))
+        $GLOBALS['syndamorph_production_tool_cache']=array();
+    $GLOBALS['syndamorph_production_tool_cache'][$key]=$samples;
+}
