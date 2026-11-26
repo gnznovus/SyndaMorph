@@ -115,6 +115,24 @@ function syndamorph_scope_planning_checkpoint(int $id): ?string {
     return $planning['text'];
 }
 
+/** A private recovery candidate must be bound to the current native result and approved reference. */
+function syndamorph_scope_native_review_checkpoint(int $id,?array $final): ?array {
+    if(($final['status']??null)!=='uncompleted'||!is_string($final['artifact']['content']??null)||
+        !is_string($final['referenceHtml']??null))return null;
+    $saved=syndamorph_history_latest($id,'native_layout_recovery');
+    $content=$saved['artifact']['content']??null;
+    $hash=$saved['artifactSha256']??null;
+    if(($saved['hold']??null)!=='implementation_review'||!is_array($saved['plan']??null)||
+        !is_string($content)||!is_string($hash)||hash('sha256',$content)!==$hash||
+        ($saved['previousArtifactSha256']??null)!==hash('sha256',$final['artifact']['content'])||
+        ($saved['approvedDesignerSha256']??null)!==hash('sha256',$final['referenceHtml'])||
+        ($saved['sourceReview']['passed']??null)!==true)
+        return null;
+    $observations=$saved['implementationEvidence']??array();
+    if(!is_array($observations)||strlen(wp_json_encode($observations))>12000)return null;
+    return array('artifactSha256'=>$hash,'plan'=>$saved['plan'],'archivedObservations'=>$observations);
+}
+
 function syndamorph_scope_status(array $manifest): array {
     global $wpdb;
     list($jobs)=syndamorph_history_tables();
@@ -157,12 +175,16 @@ function syndamorph_scope_status(array $manifest): array {
                 $region['recoveryStage']=$last['status']==='failed'?syndamorph_scope_recovery_stage($failure):null;
                 if($region['recoveryStage']==='planning'&&syndamorph_scope_planning_checkpoint($last['id'])===null)
                     $region['recoveryStage']=null;
+                if($region['status']!=='needs_review'&&syndamorph_scope_native_review_checkpoint($last['id'],$final)!==null)
+                    $region['recoveryStage']='native_review';
                 $region['designReviewRecovery']=$region['recoveryStage']==='design_approval';
                 $region['designDecisionRequired']=$last['status']==='failed'&&($failure['code']??null)==='sm_design_review_required';
                 if(isset($failure['sourceScroll']))$region['sourceScroll']=$failure['sourceScroll'];
                 $region['issue']=$failure['message']??$final['quality']['issues'][0]['detail']??
                     (in_array($functional,array('pending','failed'),true)?'Functional QA '.$functional.'. See the artifact receipt in History.':null)??
                     (in_array($responsive,array('pending','failed'),true)?'Responsive QA '.$responsive.'. See the artifact receipt in History.':null);
+                if($region['recoveryStage']==='native_review')
+                    $region['issue']='The recovered native artifact is ready for independent implementation review.';
                 if($region['designDecisionRequired']){
                     $decision=syndamorph_history_latest($last['id'],'agent_decision');
                     if(($decision['stage']??null)==='design_approval'&&($decision['decision']??null)==='design_review_required'&&
@@ -263,7 +285,11 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
     $context=json_decode($row['context']??'',true);
     $saved=$context['scope']??array();
     $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
-    if(($row['status']??null)!=='failed'||($context['outputType']??null)!=='gutenberg'||
+    $rowStatus=$row['status']??null;
+    $final=$stage==='native_review'?syndamorph_history_latest($id,'job_complete'):null;
+    $nativeReview=$stage==='native_review'?syndamorph_scope_native_review_checkpoint($id,$final):null;
+    if(!in_array($rowStatus,$nativeReview===null?array('failed'):array('failed','uncompleted'),true)||
+        ($stage==='native_review'&&$nativeReview===null)||($context['outputType']??null)!=='gutenberg'||
         ($context['brief']??null)!==$manifest['brief']||($saved['id']??null)!==$manifest['id']||
         ($saved['region']??null)!==$key||($saved['checkpoint']??null)!==$region['checkpoint']||
         ($saved['sourceUrl']??null)!==$manifest['sourceUrl']||($source['id']??null)!==$key)
@@ -347,10 +373,19 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
             }
         }
     }
-    if($stage==='developer'){
-        if($edits||$extendWorkOrder)return syndamorph_scope_error('review_checkpoint','Developer recovery requires the unchanged design and work order.');
-        $approved=syndamorph_history_latest($id,'handoff');
-        $checked=syndamorph_history_latest($id,'design_requirements');
+    if(in_array($stage,array('developer','native_review'),true)){
+        if($edits||$extendWorkOrder)return syndamorph_scope_error('review_checkpoint','Implementation recovery requires the unchanged design and work order.');
+        if($nativeReview===null){
+            $approved=syndamorph_history_latest($id,'handoff');
+            $checked=syndamorph_history_latest($id,'design_requirements');
+        }else{
+            $approved=null;
+            foreach($final['handoffs']??array() as $handoff){
+                if(($handoff['type']??null)==='approved_design')$approved=$handoff;
+            }
+            $checked=array('referenceSha256'=>$final['designApproval']['referenceSha256']??null)+
+                ($final['designApproval']['requirementResults']??array());
+        }
         if(($approved['type']??null)!=='approved_design'||($approved['from']??null)!=='boss'||
             ($approved['to']??null)!=='developer'||($approved['referenceSha256']??null)!==$sha||
             ($approved['specificationReceipt']??null)!==$assignment['specificationReceipt']||
@@ -358,6 +393,7 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
             ($checked['referenceSha256']??null)!==$sha||($checked['blocking']??null)!==array()||!is_array($checked['checks']??null))
             return syndamorph_scope_error('review_checkpoint','The approved design handoff or its independent checklist cannot be verified.');
         $savedApproval=$approved+array('requirementReceipt'=>array('checks'=>$checked['checks'],'blocking'=>$checked['blocking']));
+        if($nativeReview!==null)$resume['nativeReview']=$nativeReview;
     }
     $touch=array();
     $storedScenarios=$stage==='planning'?(syndamorph_history_latest($id,'source_scroll_verified')['observed']??array()):
@@ -413,14 +449,15 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
             'changes'=>$patch['changes'],'sourceMeasurements'=>$delta['views']);
     }
     if(get_transient('syndamorph_ai_real_job_lock'))return syndamorph_scope_error('busy','Another AI production job is running.',429);
-    $started=$wpdb->query($wpdb->prepare("UPDATE $jobs SET status='running',updated_at=%s WHERE id=%d AND status='failed'",
-        gmdate('Y-m-d H:i:s'),$id));
+    $started=$wpdb->query($wpdb->prepare("UPDATE $jobs SET status='running',updated_at=%s WHERE id=%d AND status=%s",
+        gmdate('Y-m-d H:i:s'),$id,$rowStatus));
     if($started!==1)return syndamorph_scope_error('busy','The saved checkpoint has already been claimed.',429);
     $emit=static function(string $type,array $data)use($id):void{syndamorph_history_append($id,$type,$data);};
     set_transient('syndamorph_ai_real_job_lock',1,20*MINUTE_IN_SECONDS);
     $GLOBALS['syndamorph_active_job_id']=$id;
     try{
         $identity=$stage==='planning'?array('planningSha256'=>hash('sha256',$resume['planningText'])):array('referenceSha256'=>$sha);
+        if($nativeReview!==null)$identity['nativeArtifactSha256']=$nativeReview['artifactSha256'];
         $emit('job_resumed',array('stage'=>$stage,'priorCompletedCalls'=>$account['completedCalls'],
             'priorEstimatedCostUsd'=>$account['estimatedCostUsd'],'priorUnmeteredReserveUsd'=>$account['unmeteredReserveUsd'])+$identity);
         $resume['account']=$account;

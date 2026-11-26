@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.25] - 2026-11-26
+
+### Added
+
+- Source-backed Sections can resume at implementation review from an exact retained native plan and its approved Designer reference. Compiler, source, responsive and host checks must pass before the paid review. The continuation keeps the original usage and sends no Designer or Developer requests.
+- Native horizontal Row groups support editable labels. Decorative Grid tiles can retain an explicitly required minimum height.
+
+### Verified
+
+- GEN-000051 completed on its original job and saved private, unsynced Pattern 64 in local WordPress. Pinned source differences were 0.310%, 0% and 0%. The approved Designer-to-native comparison measured 0% at all three required widths. All 35 blocks survived an actual Gutenberg edit, save and reload. Three implementation reviews cost an estimated $0.016709. The original job finished with $0.150708 in estimated spend and $0.021800 reserved.
+
 ## [0.12.24] - 2026-11-26
 
 ### Fixed

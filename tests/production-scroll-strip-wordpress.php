@@ -56,6 +56,8 @@ foreach(array('desktop-grid'=>4,'compact-grid'=>2) as $id=>$count){
     $expect($node['squareGrid']===$count&&array_column($node['children'],'id')===$expectedOrder,
         'Grid repair changed tile identities or visual order.');
     $node['style']['visibility']=$count===4?'desktop':'compact';
+    foreach($node['children'] as &$tile)$tile['style']['minHeight']='clamp(1px, 20vw, 100px)';
+    unset($tile);
     unset($node);
 }
 $badGrid=$gridPlan;
@@ -113,6 +115,24 @@ $expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($flowPlan))),'F
 $flowPlan['blocks'][0]['style']=array('flow'=>true,'gap'=>0);
 $flowPlan['blocks'][0]['children'][1]['style']['flow']=true;
 $expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($flowPlan))),'Decorative Grid accepted incompatible Flow layout.');
+$rowPlan=$make(array('type'=>'group','id'=>'native-labels','style'=>array('row'=>true,'gap'=>'24px','justifyContent'=>'right'),
+    'children'=>array(
+        array('type'=>'paragraph','id'=>'native-label-first','text'=>'Through Our Lens →','style'=>array('margin'=>0)),
+        array('type'=>'paragraph','id'=>'native-label-second','text'=>'Follow on Instagram ↗','style'=>array('margin'=>0)))));
+$rowArtifact=syndamorph_compile_block_plan(wp_json_encode($rowPlan));
+$expect(!is_wp_error($rowArtifact),'Non-interactive labels did not compile to a native Row.');
+$rowViews=syndamorph_collab_inspect($rowArtifact['preview'],array(1440,375));
+$expect(!is_wp_error($rowViews),'Native Row could not be inspected.');
+foreach($rowViews as $view){
+    $labels=array_column($view['snapshot']['elements'],null,'node');
+    $first=$labels['native-label-first'];
+    $second=$labels['native-label-second'];
+    $expect($first['href']===null&&$second['href']===null&&
+        $first['rect'][1]===$second['rect'][1]&&abs($second['rect'][0]-$first['rect'][0]-$first['rect'][2]-24)<1,
+        'Native Row moved its second label or silently attached a link.');
+}
+$rowPlan['blocks'][0]['children'][1]['style']['flow']=true;
+$expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($rowPlan))),'Row accepted an incompatible Flow layout.');
 
 $artifact=syndamorph_compile_block_plan(wp_json_encode($make($strip)));
 $expect(!is_wp_error($artifact),'Native scroll plan did not compile.');

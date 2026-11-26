@@ -84,7 +84,7 @@ function syndamorph_surgery_apply(array $plan,array $proposal,?array $authorized
     $scope=syndamorph_collab_find($plan['blocks'],$owner);
     if($scope===null)return new WP_Error('sm_surgery_target','Assigned repair component not found.');
     $allowed=array('color','background','gradient','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing',
-        'textTransform','textDecoration','padding','margin','gap','minHeight','contentWidth','contentAlignment','flow','justifyContent','verticalAlignment','align','borderRadius','width');
+        'textTransform','textDecoration','padding','margin','gap','minHeight','contentWidth','contentAlignment','flow','row','justifyContent','verticalAlignment','align','borderRadius','width');
     $touches=array();
     foreach($changes as $change){
         if(!is_array($change)||!is_string($change['path']??null)||
@@ -274,7 +274,7 @@ function syndamorph_surgery_operation(array $plan,array $proposal,array $authori
             !is_string($groupId)||!preg_match('/^[a-zA-Z0-9_-]{1,80}$/D',$groupId) ||
             syndamorph_collab_find($candidate['blocks'],$groupId)!==null ||
             !is_array($children)||!array_is_list($children)||count($children)<1||count($children)>12 ||
-            !is_array($style)||array_diff(array_keys($style),array('contentWidth','contentAlignment','justifyContent','verticalAlignment','gap','minHeight','padding'))) {
+            !is_array($style)||array_diff(array_keys($style),array('contentWidth','contentAlignment','flow','row','justifyContent','verticalAlignment','gap','minHeight','padding'))) {
             return new WP_Error('sm_surgery_structure','Wrap exceeds the assigned native layout scope.');
         }
         foreach($children as $child)if(!is_string($child)||!in_array($child,$authorized,true)) {

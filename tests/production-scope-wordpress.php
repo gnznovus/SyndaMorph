@@ -233,6 +233,44 @@ if($phase==='setup') {
         array_slice($calls,$priorCalls)===array('North:developer','North:validation')&&
         (syndamorph_history_latest($prior['id'],'design_approval_replay')['status']??null)==='revalidated',
         'Developer recovery failed to reuse the verified approval or repeated the reviewed stages.');
+    $nativeId=$prior['id'];
+    $held=syndamorph_history_latest($nativeId,'job_complete');
+    $held['status']='uncompleted';
+    $held['quality']['bossApproved']=false;
+    $held['sourceAcceptance']['passed']=false;
+    syndamorph_history_append($nativeId,'job_complete',$held);
+    $nativePlan=json_decode($held['outputs']['developer'],true,64,JSON_THROW_ON_ERROR);
+    $nativePlan['blocks'][0]['children'][0]['style']['color']='#172025';
+    $nativeArtifact=scope_ok(syndamorph_compile_block_plan(wp_json_encode($nativePlan)));
+    $nativeSha=hash('sha256',$nativeArtifact['content']);
+    $nativeCheckpoint=array('hold'=>'implementation_review','artifactSha256'=>$nativeSha,
+        'previousArtifactSha256'=>hash('sha256',$held['artifact']['content']),
+        'approvedDesignerSha256'=>hash('sha256',$held['referenceHtml']),
+        'sourceReview'=>array('passed'=>true),'plan'=>$nativePlan,'artifact'=>$nativeArtifact);
+    scope_expect($nativeSha!==$nativeCheckpoint['previousArtifactSha256'],'The recovery fixture did not change the artifact.');
+    syndamorph_history_append($nativeId,'native_layout_recovery',array_replace($nativeCheckpoint,
+        array('approvedDesignerSha256'=>str_repeat('a',64))));
+    $beforeNativeReview=count($calls);
+    scope_expect(is_wp_error(syndamorph_scope_resume_checkpoint($continued,$keys[0],array(),$engine))&&
+        count($calls)===$beforeNativeReview,'A mismatched native checkpoint reused an unrelated design approval.');
+    $invalidNative=$nativeCheckpoint;
+    $invalidNative['plan']['blocks'][0]['children'][0]['text']='Changed literal text';
+    syndamorph_history_append($nativeId,'native_layout_recovery',$invalidNative);
+    $blockedNative=scope_ok(syndamorph_scope_resume_checkpoint($continued,$keys[0],array(),$engine));
+    scope_expect($blockedNative['regions'][$keys[0]]['status']==='failed'&&count($calls)===$beforeNativeReview&&
+        (syndamorph_history_latest($nativeId,'job_error')['code']??null)==='sm_native_review_identity',
+        'Native review charged for a plan that no longer compiled to the archived artifact.');
+    syndamorph_history_append($nativeId,'native_layout_recovery',$nativeCheckpoint);
+    $nativeRecovered=scope_ok(syndamorph_scope_resume_checkpoint($blockedNative,$keys[0],array(),$engine));
+    $nativeAttempt=end($nativeRecovered['regions'][$keys[0]]['attempts']);
+    $nativeResult=syndamorph_history_latest($nativeId,'job_complete');
+    scope_expect($nativeAttempt['id']===$nativeId&&$nativeAttempt['status']==='needs_review'&&
+        $nativeResult['artifact']['contentSha256']===$nativeSha&&$nativeAttempt['completedCalls']===6&&
+        $nativeAttempt['unmeteredReserveUsd']===$prior['unmeteredReserveUsd']&&
+        array_slice($calls,$beforeNativeReview)===array('North:validation'),
+        'Native review changed the archived artifact, repeated a production stage or lost the original accounting: '.
+        wp_json_encode(array($nativeRecovered['regions'][$keys[0]]['status'],$nativeResult['quality']['issues']??array(),
+            syndamorph_history_latest($nativeId,'job_error'))));
     $planning=scope_ok(syndamorph_scope_configure(scope_ok(syndamorph_scope_open('section',$capture)),$brief,$keys[0]));
     $order=wp_json_encode(array('version'=>1,'title'=>'North','sections'=>array(array('id'=>'north','label'=>'North')),
         'requirements'=>array(array('id'=>'north-paragraph','target'=>'north','dimension'=>'content','basis'=>'source',

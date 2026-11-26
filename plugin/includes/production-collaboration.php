@@ -388,6 +388,27 @@ function syndamorph_collab_style_findings(array $reference,array $native,array $
     }
     return array_slice(array_values($issues),0,50);
 }
+
+/** Report painted leaf positions in rendered order so component IDs cannot imply tile order. */
+function syndamorph_collab_painted_leaves(array $samples): array {
+    $result=array();
+    foreach($samples as $sample){
+        $elements=$sample['snapshot']['elements']??array();
+        $parents=array_fill_keys(array_filter(array_column($elements,'parent'),'is_int'),true);
+        $leaves=array();
+        foreach($elements as $index=>$node){
+            $paint=$node['styles']['backgroundColor']??'';
+            $rect=$node['rect']??array();
+            if(isset($parents[$index])||($node['visible']??null)!==true||count($rect)!==4||
+                $rect[2]<12||$rect[3]<12||($node['normalizedText']??'')!==''||
+                !preg_match('/^rgb\([0-9]+, [0-9]+, [0-9]+\)$/D',$paint))continue;
+            $leaves[]=array('component'=>$node['node']??null,'rect'=>$rect,'backgroundColor'=>$paint);
+        }
+        usort($leaves,static fn($a,$b)=>array($a['rect'][1],$a['rect'][0])<=>array($b['rect'][1],$b['rect'][0]));
+        if($leaves)$result[$sample['width']]=array_slice($leaves,0,24);
+    }
+    return $result;
+}
 /** Use matching visible text to locate affected regions in both cached images. Fall back to full evidence if matching is ambiguous. */
 function syndamorph_collab_scoped_images(array $reference,array $native,array $texts,?int $primary=null): array {
     $items=array();$full=array();
@@ -1089,7 +1110,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews,'agentPayload'=>$approval,
         'specificationReceipt'=>$specificationReceipt);
     if($on_event)$on_event('handoff',end($handoffs));
-    $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON using the cached compiler contract. Preserve content and visual intent. For classified tabs use the exact interaction ID as the tabs node ID and retain the exact panel IDs, order, labels, headings and copy from design.tabPanelSpecification. Return JSON only. Close the complete root blocks array and document.'.$sourceNote.
+    $nativeReview=$resume['nativeReview']??null;
+    if($nativeReview!==null&&(!is_array($nativeReview['plan']??null)||
+        !is_string($nativeReview['artifactSha256']??null)||$savedDesignApproval===null))
+        return new WP_Error('sm_native_review_identity','A saved native review requires its artifact and approved design.');
+    $developer=$nativeReview!==null?wp_json_encode($nativeReview['plan']):$call('developer','Translate the HTML reference into native Gutenberg JSON using the cached compiler contract. Preserve content and visual intent. For classified tabs use the exact interaction ID as the tabs node ID and retain the exact panel IDs, order, labels, headings and copy from design.tabPanelSpecification. Return JSON only. Close the complete root blocks array and document.'.$sourceNote.
         ($scrollDesignNote!==''?' For a native horizontal-scroll interaction, use the exact interaction ID as the Group ID, scrollStrip:true and style.visibility mobile or compact, matching the approved reference. Keep two to six native Group cards with the approved order and copy.':'') ,
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,
             'imageOrder'=>array_intersect_key($viewports,array_flip($visionViewports)),
@@ -1115,6 +1140,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if($jsonRecovery!==null)$surgery['jsonRecovery']=$jsonRecovery;
     if($on_event)$on_event('working_plan',array('id'=>$workingId,'revision'=>1));
     $compiled=syndamorph_surgery_verify($plan,$plan);
+    if($nativeReview!==null&&(is_wp_error($compiled)||
+        hash('sha256',$compiled['artifact']['content'])!==$nativeReview['artifactSha256']))
+        return new WP_Error('sm_native_review_identity','The retained native plan no longer compiles to its exact archived artifact.',
+            array('stage'=>'implementation_qa','role'=>'compiler'));
     $lessons=array();
     // F11: bound repeated failures of the exact compiler diagnostic and unchanged plan,
     // never the total number of distinct repairs needed for a valid document.
@@ -1305,6 +1334,25 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         'Pinned native source comparison is pending.',$initialSource['visual']['inspection']),$artifact['preview'],
         'implementation_inspection','developer',$capabilityNotes,$artifact,$surgery,$designMemo);
     if($initialSource!==null&&!$initialSource['passed'])$issues[]=syndamorph_source_issue($initialSource,$plan['blocks'][0]['id']);
+    if($nativeReview!==null&&$issues){
+        if($on_event)$on_event('native_review_blocked',array('artifactSha256'=>$nativeReview['artifactSha256'],'issues'=>$issues));
+        return new WP_Error('sm_native_review_deterministic','The retained native artifact still has unresolved deterministic checks. See the exact issues in History.',
+            array('stage'=>'implementation_qa','role'=>'validator'));
+    }
+    $nativeReviewResponsive=null;$nativeReviewHost=null;
+    if($nativeReview!==null){
+        $sha=$nativeReview['artifactSha256'];
+        $nativeReviewResponsive=syndamorph_native_responsive_receipt(
+            $artifact['preview'],$viewports,$inspectNative,$renderer['build'],$sha);
+        if($hostRequirements)$nativeReviewHost=syndamorph_design_host_accessibility(
+            $artifact['preview'],$hostRequirements,$wordpressPage,$viewports)+array('artifactSha256'=>$sha);
+        if($nativeReviewResponsive['status']!=='passed'||($nativeReviewHost!==null&&$nativeReviewHost['status']!=='passed')){
+            if($on_event)$on_event('native_review_blocked',array('artifactSha256'=>$sha,
+                'responsive'=>$nativeReviewResponsive,'hostAccessibility'=>$nativeReviewHost));
+            return new WP_Error('sm_native_review_deterministic','The retained artifact still has required browser checks open.',
+                array('stage'=>'implementation_qa','role'=>'validator'));
+        }
+    }
     $evidenceSummary=static function(array $samples,bool $preserveAll=false)use($viewports,$visionViewports):array {
         $imageWidths=array_intersect_key($viewports,array_flip($visionViewports));
         return array_map(static function($sample)use($imageWidths,$preserveAll){return array('width'=>$sample['width'],'snapshot'=>$sample['snapshot'],
@@ -1323,12 +1371,16 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         }
     }
     $copyCheck=syndamorph_visual_copy($inspectReference,$inspectNative);
-    $review=$call('validator','Assess the frozen design and browser evidence for the implementation. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"measurable defect and suggested correction","kind":"implementation","status":"open","repairStrategy":"optional: style|structure|hybrid"}],"summary":"..."}. Use category content for literal copy disputes and consult copyComparison. Reuse deterministic issue IDs where applicable. Compiler checks are authoritative. Put host responsibilities, unsupported capabilities and pending editor verification in notes. Approve only with no actionable defects.',
+    $paintEvidence=$nativeReview===null?array():array('paintedLeaves'=>array(
+        'reference'=>syndamorph_collab_painted_leaves($inspectReference),'native'=>syndamorph_collab_painted_leaves($inspectNative)),
+        'retainedBrowserObservations'=>$nativeReview['archivedObservations']??array());
+    $review=$call('validator','Assess the frozen design and browser evidence for the implementation. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"measurable defect and suggested correction","kind":"implementation","status":"open","repairStrategy":"optional: style|structure|hybrid"}],"summary":"..."}. Use category content for literal copy disputes and consult copyComparison. Reuse deterministic issue IDs where applicable. Compiler checks are authoritative. Put host responsibilities, unsupported capabilities and pending editor verification in notes. Approve only with no actionable defects.'.
+        ($nativeReview===null?'':' When reporting tile paint or order, compare the browser rectangles and fill colors, sorted by y then x, and cite the exact width and position. Component IDs are stable edit targets and do not encode visual positions. Treat retainedBrowserObservations as archived evidence. Check them against the current rendering and work order. Distinguish preservation of an observed source element from addition of new content or fill.'),
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$modelEvidence($inspectReference),'native'=>$modelEvidence($inspectNative),
             'deterministicIssues'=>$issues,'copyComparison'=>$copyCheck,'pixelComparison'=>$comparison,
             'implementationHandoff'=>$implementationHandoff,'compiledLayout'=>$artifact['layoutFacts'],
             'components'=>syndamorph_surgery_context($plan['blocks'][0],121),'compilerChecks'=>$artifact['checks'],
-            'imageOrder'=>array_merge(...array_map(static fn($index)=>array($viewports[$index].'-reference',$viewports[$index].'-native'),$visionViewports))),
+            'imageOrder'=>array_merge(...array_map(static fn($index)=>array($viewports[$index].'-reference',$viewports[$index].'-native'),$visionViewports)))+$paintEvidence,
         syndamorph_collab_output_cap($provider,$model),$screenshots,'validation',0.0,
         array('reference'=>$reference,'native'=>$artifact['preview'],'plan'=>$plan));
     if (is_wp_error($review)) return $review;$outputs['validator']=$review;
@@ -1388,6 +1440,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         syndamorph_collab_allowance(24000+strlen($prefix)+2000,2,$reviewCap,$in,$out));
     // Keep 20% for final issue reporting. No fixed QA attempt or stagnation cutoff.
     for($round=1;$best['issues'];$round++) {
+        if($nativeReview!==null)break;
         ['plan'=>$plan,'artifact'=>$artifact,'issues'=>$issues,'evidence'=>$inspectNative,'comparison'=>$comparison,
             'metrics'=>$visualMetrics,'styles'=>$visualStyles,'bossFindings'=>$bossFindings]=$best;
         $control=syndamorph_job_control_gate();
@@ -1732,7 +1785,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     // Stalled visual repairs are a coordination problem. Escalate once to Boss
     // with compact evidence, never silently broaden Developer's edit authority.
     $escalation=null;
-    if($best['score']>0 && $terminationReason!=='quality_resolved'){
+    if($nativeReview===null && $best['score']>0 && $terminationReason!=='quality_resolved'){
         $prioritized=syndamorph_repair_prioritize($best['issues']);
         $blocked=array_slice(array_map(static fn($issue)=>array(
             'id'=>(string)($issue['id']??''),'component'=>(string)($issue['component']??''),
@@ -1782,7 +1835,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     // A zero-count heuristic is not proof of visual or Gutenberg editor validity.
     $status=($best['score']===0 && $bossQaApproved) ? 'needs_review' : 'uncompleted';
     if($best['score']===0 && !$bossQaApproved)$terminationReason='boss_approval_pending';
-    $nativeResponsive=syndamorph_native_responsive_receipt($artifact['preview'],$viewports,$best['evidence'],
+    $nativeResponsive=$nativeReviewResponsive??syndamorph_native_responsive_receipt($artifact['preview'],$viewports,$best['evidence'],
         $renderer['build'],$artifact['contentSha256']);
     if($on_event)$on_event('native_responsive',$nativeResponsive);
     if($nativeResponsive['status']!=='passed'){
@@ -1806,8 +1859,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         array('artifactSha256'=>$artifact['contentSha256'])+$functional);
     $hostNative=null;
     if($hostRequirements){
-        $hostNative=syndamorph_design_host_accessibility($artifact['preview'],$hostRequirements,$wordpressPage,$viewports)+
-            array('artifactSha256'=>$artifact['contentSha256']);
+        $hostNative=$nativeReviewHost??(syndamorph_design_host_accessibility($artifact['preview'],$hostRequirements,$wordpressPage,$viewports)+
+            array('artifactSha256'=>$artifact['contentSha256']));
         if($on_event)$on_event('host_accessibility',array('stage'=>'native')+$hostNative);
         if($hostNative['status']!=='passed'){
             $status='uncompleted';

@@ -124,7 +124,8 @@
             if (checkpoint && manifest.costBounded &&
                 Number(manifest.spentUsd) + Number(manifest.unmeteredReserveUsd) < budget() * 0.8) {
                 const label = checkpoint === 'planning' ? 'Resume from saved work order' :
-                    checkpoint === 'developer' ? 'Resume Developer' : 'Resume design review';
+                    checkpoint === 'developer' ? 'Resume Developer' :
+                    checkpoint === 'native_review' ? 'Review recovered implementation' : 'Resume design review';
                 entry.append(button(label, async () => {
                     if (window.confirm('Resume the saved job within its original budget?'))
                         await runRegion(row.id, 'resume_checkpoint');

@@ -245,8 +245,20 @@ GEN-000051 retained native candidate `d4e71d2effed88b7a296e3b7635c3bede408e33761
 
 The exact candidate was opened as a private Gutenberg draft. Both Grid groups and all 34 blocks remained valid after a paragraph edit, save and reload. The append-only recovery record retains the tested artifact and scoped evidence. The existing job still needs an independent implementation decision on this exact artifact. It has no Pattern, and this checkpoint added no AI calls or provider spend.
 
+## v0.12.25 review-only recovery and first BKKGO Pattern
+
+The Section resume action binds a private native recovery checkpoint to its previous artifact and approved Designer reference. It recompiles the retained plan and checks the exact block hash. Required deterministic source, responsive and host evidence run before the Validator call. A held review remains on the original job and retains each decision and the provider ledger. The editor and Pattern gates apply to the newly reviewed artifact.
+
+GEN-000051 used a native Row for the two desktop labels. Chromium measured a 24 px gap and verified that neither label had a destination. The desktop checkerboard stayed in its verified row order. The required minimum-height clamps resolved to 324 px, 362 px, and 165.5 px at the three mandatory widths. Samples of the two-pixel compact rule matched in the pinned earlier captures, the approved design and the native preview at 768 and 375 px. The section root stayed transparent.
+
+The Validator approved `58be9945bcdab349fb9d33ae107c3f51719052d7c0032338bb30854081a77a45` with no open issues. Native source differences measured 0.310%, 0%, and 0% at 1440, 768 and 375 px. The approved Designer-to-native comparison measured 0% at each width. WordPress Page accessibility and all 12 responsive samples passed. The exact artifact opened as a private draft in local Gutenberg and all 35 blocks remained valid after a paragraph edit, save and reload. The original job then passed its editor receipt and saved private, unsynced Pattern 64 in the local WordPress installation with the same content hash.
+
+Three implementation reviews used an estimated $0.016709. GEN-000051 ended with 32 completed calls, $0.150708 in estimated spend and $0.021800 reserved. This checkpoint used its previously approved Designer artifact and retained native plan. No page or release was published.
+
+The current BKKGO archive still inventories 16 regions with three eligible. The Section run accepted Through Our Lens. The Full Page record contains the same pinned Through Our Lens source digest and still has no accepted region attached. GEN-000055 still measures 0.641%, 1.093%, and 1.753%. Its narrow reference uses 21 px browser-default controls, and its retained native controls measure 48.5 px. The native panel typography and spacing also differ. The retained interaction tests and mobile target size remain part of the next repair.
+
 ## Remaining acceptance
 
-The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)
+The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens completed its Section recovery. GEN-000055 remains open at the visual gate, and verified BKKGO Full Page assembly remains open. [Design validation audit](bossy-validation-audit.md#v0128-verification)
 
 No release has been authorized for this development series. Each checkpoint records the version, actual verification and outstanding work in the plugin changelog.

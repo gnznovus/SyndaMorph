@@ -1267,6 +1267,13 @@ $visibleNative['styles']['fontSize']='18px';
 expect(array_column(syndamorph_collab_style_findings($visibleView(array($hiddenReference,$visibleReference)),
     $visibleView(array($visibleNative,$hiddenNative)),$gen015['plan']),'component')===array('compact-label'),
     'Hidden duplicates suppressed a real visible typography finding');
+$paintFixture=static fn(string $node,array $rect)=>array('node'=>$node,'rect'=>$rect,'visible'=>true,
+    'normalizedText'=>'','styles'=>array('backgroundColor'=>'rgb(234, 231, 231)'));
+$paintEvidence=syndamorph_collab_painted_leaves($visibleView(array(
+    $paintFixture('second',array(180,10,100,100)), $paintFixture('first',array(50,10,100,100)),
+    array_replace($paintFixture('hidden',array(0,10,50,50)),array('visible'=>false)))));
+expect(array_column($paintEvidence[375],'component')===array('first','second'),
+    'QA paint evidence used DOM order or a hidden component rather than browser positions');
 $archivedDefects=array_map(static fn($i,$severity)=>array('id'=>'defect-'.$i,'component'=>'root','severity'=>$severity),
     range(1,4),array('high','medium','medium','medium'));
 $archivedDefects[]=array('id'=>'defect-5','component'=>'root','severity'=>'medium');
