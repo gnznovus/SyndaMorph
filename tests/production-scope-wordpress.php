@@ -380,6 +380,51 @@ if($phase==='setup') {
         is_wp_error(syndamorph_source_work_order_amend($proofSpec,$proofSource,$proofSamples,$wrongTarget))&&
         is_wp_error(syndamorph_source_work_order_amend($proofSpec,$incorrect,$misleading,$edits)),
         'Incomplete evidence, a different style target, or an actual captured link permitted a revision.');
+    $staged=scope_ok(syndamorph_scope_configure(scope_ok(syndamorph_scope_open('section',$capture)),$brief,$keys[0]));
+    $stagedPlan=syndamorph_collab_ids($fixtures[$keys[0]]['plan']);
+    $stagedPlan['blocks'][0]['id']='staged-root';
+    $stagedArtifact=scope_ok(syndamorph_compile_block_plan(wp_json_encode($stagedPlan)));
+    $stagedSha=hash('sha256',$stagedArtifact['content']);
+    $stagedEvent=array('region'=>$keys[0],'approved'=>false,'plan'=>$stagedPlan,
+        'checkpoint'=>$staged['regions'][$keys[0]]['checkpoint'],'artifactSha256'=>$stagedSha);
+    $beforeStaged=count($calls);
+    syndamorph_history_append($staged['id'],'scope_native_candidate',array_replace($stagedEvent,
+        array('artifactSha256'=>str_repeat('a',64))));
+    scope_expect(is_wp_error(syndamorph_scope_review_staged($staged,$keys[0],$staged['id'],$engine))&&count($calls)===$beforeStaged,
+        'A staged plan whose exact hash changed reached a provider.');
+    syndamorph_history_append($staged['id'],'scope_native_candidate',$stagedEvent);
+    $interruptReview=true;
+    $staged=scope_ok(syndamorph_scope_review_staged($staged,$keys[0],$staged['id'],$engine));
+    $interruptReview=false;
+    $stagedPrior=$staged['regions'][$keys[0]]['attempts'][0];
+    scope_expect($staged['regions'][$keys[0]]['recoveryStage']==='design_approval'&&
+        $stagedPrior['completedCalls']===1&&is_wp_error(syndamorph_scope_run($staged,$keys[0],true,$engine)),
+        'A staged timeout did not retain the same review checkpoint.');
+    $staged=scope_ok(syndamorph_scope_resume_checkpoint($staged,$keys[0],array(),$engine));
+    $stagedAttempt=$staged['regions'][$keys[0]]['attempts'][0];
+    $stagedFinal=syndamorph_history_latest($stagedAttempt['id'],'job_complete');
+    scope_expect($stagedAttempt['id']===$stagedPrior['id']&&$stagedAttempt['status']==='needs_review'&&
+        $stagedAttempt['unmeteredReserveUsd']===$stagedPrior['unmeteredReserveUsd']&&
+        ($stagedFinal['artifact']['contentSha256']??null)===$stagedSha&&
+        array_slice($calls,$beforeStaged)===array('North:boss','North:final_approval','North:final_approval','North:validation'),
+        'Staged review recovery regenerated the artifact, lost accounting, or skipped a gate: '.
+        wp_json_encode(syndamorph_history_latest($stagedAttempt['id'],'job_error')));
+    $identitySentence='Use native grouped Details for the recorded disclosure interaction.';
+    $scenarioSentence=str_repeat('Verify the observed disclosure state. ',5).'After the final action all panels are closed.';
+    $criteria='Check the initial open panel and every recorded transition.';
+    $rawOrder=array('version'=>1,'title'=>'Disclosures','sections'=>array(array('id'=>'faq','label'=>'FAQ')),
+        'requirements'=>array(array('id'=>'faq-states','target'=>'faq','dimension'=>'functional','basis'=>'source',
+            'requirement'=>$identitySentence.' '.$scenarioSentence,'acceptance'=>$criteria)),
+        'interactions'=>array(array('id'=>'recorded-disclosures','kind'=>'disclosure-group','classification'=>'native',
+            'requirementId'=>'faq-states','behavior'=>'Show the observed states.')));
+    $rawOrderJson=wp_json_encode($rawOrder);
+    $reformatted=syndamorph_scope_staged_work_order($rawOrderJson,'recorded-disclosures');
+    $expected=$rawOrder;
+    $expected['requirements'][0]['requirement']=$scenarioSentence;
+    $expected['requirements'][0]['acceptance']=$identitySentence.' '.$criteria;
+    scope_expect(is_string($reformatted)&&json_decode($reformatted,true)===$expected&&
+        syndamorph_scope_staged_work_order($rawOrderJson,'different-disclosures')===null,
+        'Staged work order formatting lost copy or changed interaction identity.');
     $reusePage=scope_ok(syndamorph_scope_open('page',$capture));
     scope_expect(is_wp_error(syndamorph_scope_reuse_section($reusePage,$section['id'],$keys[0])),
         'Full Page attached a Section before Gutenberg and Pattern acceptance.');

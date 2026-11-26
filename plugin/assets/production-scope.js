@@ -124,6 +124,8 @@
             if (checkpoint && manifest.costBounded &&
                 Number(manifest.spentUsd) + Number(manifest.unmeteredReserveUsd) < budget() * 0.8) {
                 const label = checkpoint === 'planning' ? 'Resume from saved work order' :
+                    checkpoint === 'staged_planning' ? 'Retry saved interaction classification' :
+                    checkpoint === 'staged_format' ? 'Resume formatted work order' :
                     checkpoint === 'developer' ? 'Resume Developer' :
                     checkpoint === 'native_review' ? 'Review recovered implementation' : 'Resume design review';
                 entry.append(button(label, async () => {

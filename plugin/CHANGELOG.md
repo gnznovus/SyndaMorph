@@ -6,6 +6,18 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.29] - 2026-11-26
+
+### Added
+
+- An exact retained native candidate can enter the existing Section review workflow when the source checkpoint, archive and compiled artifact match. Bossy and Validator still own their independent approvals. Planning recovery can retry the recorded disclosure classification once on the same job. A schema-only recovery can move one complete sentence from an oversized requirement to its acceptance field.
+- The isolated Full Page WordPress template emits the active WordPress font-face definitions so saved draft previews can load the registered font presets.
+
+### Verified
+
+- BKKGO FAQ GEN-000057 recovered the exact disclosure ID and reached Bossy design review after three metered calls costing $0.014236. In a renderer trial the source's `text-wrap: pretty` lowered desktop pixel difference from 1.172% to 0.680% at the same 424 px paragraph width. The trial left both compact ratios unchanged. FAQ remains held and Full Page acceptance remains one of 16.
+- Actual local draft 66 loaded both registered Beausite families and retained the 4/2/2 gallery grid at 1440/768/375 px.
+
 ## [0.12.28] - 2026-11-26
 
 ### Added

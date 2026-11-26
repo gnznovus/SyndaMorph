@@ -285,6 +285,16 @@ The retained FAQ candidate `0a158cb0dfbd79aa01c42884558b797422f07e916bd2352dd67c
 
 Full Page coverage is 12 of 16 regions with complete required-width capture, four eligible regions and one accepted placement. Local draft 66 still contains the independently accepted Through Our Lens Pattern; no whole-page pass or additional placement was recorded.
 
+## v0.12.29 exact staged review and planning recovery
+
+A staged native plan can enter the existing Section workflow when the selected region, archive and exact content hash match, and both the retained preview and semantic review reference pass pinned source QA. The original plan, source identity, reference and usage are retained on a single GEN. A rejected disclosure identity permits one bounded planning retry. Work-order formatting can move one complete sentence when that is sufficient to meet the schema without changing the wording. The design and implementation gates still require fresh decisions and browser checks. A design review timeout resumes with the exact staged implementation.
+
+BKKGO FAQ GEN-000057 kept native artifact `0a158cb0dfbd79aa01c42884558b797422f07e916bd2352dd67cd04c789efabc` and reference `d2e5b6481a36d1c75f586ad3883386894519caedc3403242e4994faa5c95a4fc`. Its original work order used the section ID `questions` in place of `disclosure-087281201f063bc13f4f30af`. The bounded retry returned the correct ID with one 294-character requirement. Reformatting the archived response preserved every sentence and passed the 240-character field limits without another planning call.
+
+Bossy requested changes for the desktop introduction wrapping and the execution gate held. The source paragraph measures 424 px and uses `text-wrap: pretty` at 1440 px. Applying that style only to the retained desktop introduction in a renderer trial improved the pinned comparison from 1.172% to 0.680% at 1440 px and retained 0.034% and 0.058% at the compact widths. The trial did not change the saved reference or native content. Three completed calls totaled $0.014236. Validator, an accepted Pattern and a second Full Page placement are pending.
+
+The local WordPress test site registered the four exact archived faces under the Beausite Grand and Classic presets. Actual local draft 66 loaded both families without font HTTP errors at 1440, 768 and 375 px. Its gallery kept four desktop columns and two tablet and mobile columns. The font files remain in the local test site's uploads.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens and GEN-000055 completed their original jobs. Verified BKKGO Full Page assembly and broader region acceptance remain open. [Design validation audit](bossy-validation-audit.md#v0128-verification)
