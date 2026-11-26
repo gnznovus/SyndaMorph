@@ -6,7 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
-## [0.12.37] - 2026-11-28
+## [0.12.38] - 2026-11-27
+
+### Added
+
+- Recorded source replay verifies that a section keeps the same declared same-origin HTTPS link and uses an exact archived PNG at its observed widths. WordPress retains a source-bound image and link receipt and imports the original PNG into the Media Library. Native production QA remains pending until an eligible artifact passes the existing gates.
+
+### Verified
+
+- The original BKKGO Our Story region retained its desktop illustration and exact link at all three required widths. A disposable 15-block trial passed the pinned visual limits and Gutenberg edit, save and reload. The trial used prototype CSS and remains outside production acceptance. The original scope still has five verified placements. The checkpoint used zero paid model calls.
+
+## [0.12.37] - 2026-11-27
 
 ### Added
 

@@ -371,6 +371,14 @@ Local Pattern 89 matched all three required source screenshots at 1440, 768 and 
 
 Original REF-000030 draft 66 now contains five verified placements at positions 8, 10, 12, 14 and 15. Its disposable copy accepted an edit and reloaded with all 225 blocks valid. Whole-page QA remains pending because 11 required regions are missing. This checkpoint used zero paid model calls.
 
+## v0.12.38 archived illustration and link evidence
+
+The existing image verification action can retain evidence for a static text region with one same-origin HTTPS link and one PNG that appears at a subset of required widths. Recorded Touch binds the immutable archive, exact region identity and matching rendered page copy at each width. It observes the link in the DOM without opening its destination. It records image presence, decoded dimensions, alt text, geometry and paint and imports the exact hash-verified original. Source verification leaves the conversion blockers in force until the production output supports the layout, link and image requirements.
+
+Original REF-000030 checkpoint 12138 recorded the Our Story proof in event 23247. Local attachment 93 retained all 132,578 bytes of the 542 by 400 PNG. It was visible at 1440 px and absent at 768 and 375 px. The same declared Brand History destination appeared at all three widths. A separate read-only check observed a successful public response with the Brand History heading. The destination document was outside the pinned homepage archive.
+
+A 15-block offline trial matched the pinned heights of 1452, 1457 and 1225 px. Pixel difference measured 0%, 0.413% and 0.757%. All 11 sampled widths passed the continuous responsive check. A disposable WordPress draft passed edit, save and reload with all 15 blocks valid and kept the image and link. The browser confirmed keyboard navigation to the exact URL with a local intercepted destination. This trial used stylesheet injection for its responsive layout and remains outside production approval. No model calls were needed.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens and GEN-000055 completed their original jobs. Verified BKKGO Full Page assembly and broader region acceptance remain open. [Design validation audit](bossy-validation-audit.md#v0128-verification)

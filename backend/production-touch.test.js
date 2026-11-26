@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const test=require('node:test');
 const { createHash }=require('node:crypto');
 const { chromium }=require('playwright');
-const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef,inspectImageStrip }=require('./production-touch');
+const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef,inspectImageStrip,inspectLinkedImage }=require('./production-touch');
 const { recordedPng }=require('./production-reference');
 const { captureResponsiveViewport }=require('./responsive-capture');
 
@@ -52,6 +52,40 @@ test('recorded image strip preserves alt text and proves actual compact scroll m
         assert.equal((await inspectImageStrip(page,input,()=>[])).reason,'unsupported_image_strip');
         await page.setContent(fixture(image));
         assert.equal((await inspectImageStrip(page,input,()=>[{}])).reason,'source_changed_during_replay');
+    }finally{await browser.close();}
+});
+
+test('recorded linked image keeps the exact link and each viewport’s optional artwork',{
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const browser=await chromium.launch();
+    try{
+        const page=await browser.newPage({viewport:{width:1440,height:900}});
+        const source='https://image-strip.invalid/story.html';
+        const destination='https://image-strip.invalid/history.html';
+        const copySha256=createHash('sha256').update('Story Read the history').digest('hex');
+        let destinationRequests=0;
+        await page.route(destination,route=>{destinationRequests++;return route.abort();});
+        await page.route(fixtureImage,route=>route.fulfill({contentType:'image/png',body:fixturePng}));
+        await page.route(source,route=>route.fulfill({contentType:'text/html',body:'<!doctype html>'+
+            '<style>@media(max-width:1023px){img{display:none}}</style><section id="story"><p>Story</p>'+
+            '<img src="'+fixtureImage+'" alt="Recorded illustration"><a href="'+destination+'">Read the history</a></section>'}));
+        const evidence=width=>inspectLinkedImage(page,{width,sourceRef:'[id="story"]',copySha256},()=>[]);
+        await page.goto(source);
+        const desktop=await evidence(1440);
+        assert.equal(desktop.status,'observed');
+        assert.deepEqual(desktop.link,{href:destination,text:'Read the history'});
+        assert.deepEqual(desktop.image.pixels,[1,1]);
+        assert.equal(desktop.destinationStatus,'declared');
+        await page.setViewportSize({width:375,height:900});
+        const compact=await evidence(375);
+        assert.deepEqual(compact.link,desktop.link);
+        assert.equal(compact.image,null);
+        for(const href of ['https://outside.invalid/history.html',destination+'#section']){
+            await page.locator('a').evaluate((link,url)=>link.href=url,href);
+            assert.equal((await evidence(375)).reason,'unsupported_linked_image_markup');
+        }
+        assert.equal(destinationRequests,0);
     }finally{await browser.close();}
 });
 

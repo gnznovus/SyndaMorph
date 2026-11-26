@@ -129,6 +129,12 @@
                     manifest = await request(url(), {action:'verify_image',region:row.id});
                 }));
             }
+            if (row.status === 'blocked' && row.linkedImageReplayAvailable) {
+                if (row.linkedImageEvidence) entry.append(node('p','Archived image and declared link verified. Native QA pending.'));
+                else entry.append(button('Verify archived image and link', async () => {
+                    manifest = await request(url(), {action:'verify_image',region:row.id});
+                }));
+            }
             if (row.checkpointAvailable) entry.append(button('Recheck browser', () => recheck(row)));
             if (checkpoint && manifest.costBounded &&
                 Number(manifest.spentUsd) + Number(manifest.unmeteredReserveUsd) < budget() * 0.8) {

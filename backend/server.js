@@ -3,7 +3,7 @@ const http = require('node:http');
 const { capture, captureResponsive } = require('./capture');
 const { productionSource } = require('./production-source');
 const { enabled: referenceEnabled,readReference,recordedPng } = require('./production-reference');
-const { validateTouchActions,inspectTouch,disclosureRef,inspectDisclosure,inspectImageStrip } = require('./production-touch');
+const { validateTouchActions,inspectTouch,disclosureRef,inspectDisclosure,inspectImageStrip,inspectLinkedImage } = require('./production-touch');
 const { createAnalyzeHandler } = require('./mvp/endpoint');
 const { runCommunicationPoc } = require('./purr-poc');
 
@@ -40,8 +40,10 @@ http.createServer(async (req, res) => {
             if(responsiveInProgress)return respond(res,429,{ error:'Responsive capture is already running.' });
             const disclosure=input.kind==='disclosure-group';
             const imageStrip=input.kind==='single-image-strip';
-            if((disclosure||imageStrip)&&!disclosureRef(input.sourceRef))return respond(res,400,{error:'Invalid recorded region target.'});
-            const actions=disclosure||imageStrip?[]:validateTouchActions(input.actions);
+            const linkedImage=input.kind==='linked-image';
+            const scoped=disclosure||imageStrip||linkedImage;
+            if(scoped&&!disclosureRef(input.sourceRef))return respond(res,400,{error:'Invalid recorded region target.'});
+            const actions=scoped?[]:validateTouchActions(input.actions);
             responsiveInProgress=true;
             try {
                 const pinned=await readReference(input.archiveId,input.width);
@@ -53,15 +55,17 @@ http.createServer(async (req, res) => {
                     inspect:(page,_regions,_diagnostics,_archive,seal)=>disclosure?
                         inspectDisclosure(page,{width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256},seal):
                         imageStrip?inspectImageStrip(page,{width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256},seal):
+                        linkedImage?inspectLinkedImage(page,{width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256},seal):
                         inspectTouch(page,{width:input.width,actions,copySha256:pinned.copySha256},seal) });
                 let receipt=captured;
-                if(imageStrip&&receipt.status==='observed'){
-                    const image=recordedPng(pinned.runtime,receipt.initial.url);
-                    if(!image||image.pixels.some((value,index)=>value!==receipt.initial.pixels[index]))
+                const artwork=imageStrip?receipt.initial:linkedImage?receipt.image:null;
+                if(artwork&&receipt.status==='observed'){
+                    const image=recordedPng(pinned.runtime,artwork.url);
+                    if(!image||image.pixels.some((value,index)=>value!==artwork.pixels[index]))
                         return respond(res,200,{archiveId:input.archiveId,mode:'recorded',status:'unknown',reason:'archived_image_unverified'});
                     const {body,...metadata}=image;
                     receipt={...receipt,asset:metadata};
-                    if(input.width===1440)receipt.assetBase64=body.toString('base64');
+                    if(linkedImage||input.width===1440)receipt.assetBase64=body.toString('base64');
                 }
                 return respond(res,200,{ archiveId:input.archiveId,mode:'recorded',...receipt });
             } finally { responsiveInProgress=false; }

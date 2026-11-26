@@ -4,6 +4,7 @@ if (!defined('ABSPATH')) { exit; }
 require_once __DIR__.'/production-source.php';
 require_once __DIR__.'/production-scope-source.php';
 require_once __DIR__.'/production-image-strip.php';
+require_once __DIR__.'/production-linked-image.php';
 require_once __DIR__.'/production-tabs.php';
 require_once __DIR__.'/production-responsive.php';
 
@@ -31,7 +32,9 @@ function syndamorph_scope_open(string $mode,array $capture) {
             'kind'=>$source['kind']??'content','sourceRef'=>$source['sourceRef'],'position'=>count($regions)+1,
             'variants'=>array_map(static fn($view)=>$view['sourceRef'],$source['variants']),
             'status'=>$blockers?'blocked':'ready','blockers'=>$blockers,'attempts'=>array(),'patternId'=>null,
-            'imageReplayAvailable'=>!empty($capture['referenceArchive']['runtimeSha256'])&&syndamorph_image_strip_inventory($source)!==null);
+            'imageReplayAvailable'=>!empty($capture['referenceArchive']['runtimeSha256'])&&syndamorph_image_strip_inventory($source)!==null,
+            'linkedImageReplayAvailable'=>!empty($capture['referenceArchive']['runtimeSha256'])&&
+                syndamorph_linked_image_inventory($source,$capture['url'])!==null);
     }
     $record=syndamorph_history_create('REF',($mode==='page'?'Full Page · ':'Section · ').$capture['url'],
         array('workflow'=>SYNDAMORPH_SCOPE_WORKFLOW,'mode'=>$mode,'sourceUrl'=>$capture['url']));
@@ -242,6 +245,16 @@ function syndamorph_scope_status(array $manifest): array {
             $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
             $region['imageReplayAvailable']=$source!==null&&syndamorph_image_strip_inventory($source)!==null;
         }
+        if(!isset($region['linkedImageReplayAvailable'])&&($region['status']??null)==='blocked'&&
+            !empty($manifest['referenceArchive']['runtimeSha256'])&&
+            in_array('1440px link targets require support outside the current local CTA contract.',$region['blockers']??array(),true)){
+            $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
+            $region['linkedImageReplayAvailable']=$source!==null&&syndamorph_linked_image_inventory($source,$manifest['sourceUrl'])!==null;
+        }
+        $linked=$region['linkedImageEvidence']??null;
+        if($linked!==null&&(($linked['checkpoint']??null)!==$region['checkpoint']||
+            !syndamorph_attachment_has_original((int)($linked['attachmentId']??0),(string)($linked['asset']['sha256']??''))))
+            unset($region['linkedImageEvidence']);
         $image=$region['imageEvidence']??null;
         if($image!==null&&(($image['checkpoint']??null)!==$region['checkpoint']||
             !syndamorph_attachment_has_original((int)($image['attachmentId']??0),(string)($image['asset']['sha256']??'')))){
@@ -1144,14 +1157,17 @@ function syndamorph_scope_verify_image(array $manifest,string $key) {
     if(!$source||!is_array($archive)||!function_exists('syndamorph_import_image_bytes'))
         return syndamorph_scope_error('image_source','The recorded source or Media Library importer is unavailable.');
     $sourceHash=hash('sha256',wp_json_encode($source));
-    $previous=$region['imageEvidence']??array();
+    $linked=syndamorph_linked_image_inventory($source,$manifest['sourceUrl'])!==null;
+    $field=$linked?'linkedImageEvidence':'imageEvidence';
+    $eventType=$linked?'source_linked_image':'source_image';
+    $previous=$region[$field]??array();
     if(($previous['checkpoint']??null)===$region['checkpoint']&&($previous['sourceSha256']??null)===$sourceHash&&
         ($previous['archiveId']??null)===($archive['id']??null)&&
         syndamorph_attachment_has_original((int)($previous['attachmentId']??0),(string)($previous['asset']['sha256']??'')))
         return syndamorph_scope_status($manifest);
-    $replay=syndamorph_image_strip_replay($source,$archive);
+    $replay=$linked?syndamorph_linked_image_replay($source,$archive):syndamorph_image_strip_replay($source,$archive);
     if(is_wp_error($replay)){
-        syndamorph_history_append($manifest['id'],'source_image_pending',array('region'=>$key,'checkpoint'=>$region['checkpoint'],
+        syndamorph_history_append($manifest['id'],$eventType.'_pending',array('region'=>$key,'checkpoint'=>$region['checkpoint'],
             'code'=>$replay->get_error_code(),'diagnostic'=>$replay->get_error_data()));
         return $replay;
     }
@@ -1162,14 +1178,15 @@ function syndamorph_scope_verify_image(array $manifest,string $key) {
     if(is_wp_error($attachment))return $attachment;
     $proof=array('region'=>$key,'checkpoint'=>$region['checkpoint'],'sourceSha256'=>$sourceHash,
         'archiveId'=>$archive['id'],'attachmentId'=>$attachment,'asset'=>$replay['asset'],'views'=>$replay['views']);
-    $event=syndamorph_history_append($manifest['id'],'source_image_verified',$proof);
+    if($linked)$proof['link']=$replay['link'];
+    $event=syndamorph_history_append($manifest['id'],$eventType.'_verified',$proof);
     if(isset($region['imageStripQa'])){
         unset($manifest['regions'][$key]['imageStripQa']);
         $manifest['regions'][$key]['status']='blocked';
         $manifest['regions'][$key]['blockers']=array('Native image strip QA is required for the restored attachment.');
     }
-    $manifest['regions'][$key]['imageReplayAvailable']=true;
-    $manifest['regions'][$key]['imageEvidence']=$proof+array('event'=>$event);
+    $manifest['regions'][$key][$linked?'linkedImageReplayAvailable':'imageReplayAvailable']=true;
+    $manifest['regions'][$key][$field]=$proof+array('event'=>$event);
     syndamorph_history_append($manifest['id'],'scope_manifest',$manifest);
     return syndamorph_scope_status($manifest);
 }

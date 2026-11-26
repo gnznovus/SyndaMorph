@@ -71,11 +71,8 @@ function syndamorph_image_strip_replay(array $source,array $archive) {
                 'reason'=>is_string($reason)&&preg_match('/^[a-z_]{1,64}$/D',$reason)?$reason:'receipt_mismatch'));
         }
         if($width===1440){
-            $binary=$view['assetBase64']??null;
-            $raw=is_string($binary)?base64_decode($binary,true):false;
-            $info=is_string($raw)&&strlen($raw)===$metadata['bytes']?@getimagesizefromstring($raw):false;
-            if(!$info||($info['mime']??null)!==$metadata['mime']||
-                array($info[0],$info[1])!==($metadata['pixels']??null)||hash('sha256',$raw)!==$metadata['sha256'])
+            $raw=syndamorph_archived_png_bytes($view);
+            if($raw===null)
                 return $fail('Archived PNG bytes do not match their evidence receipt.',array('width'=>$width));
             $asset=$metadata;
         }
@@ -83,6 +80,17 @@ function syndamorph_image_strip_replay(array $source,array $archive) {
         $views[$width]=$view;
     }
     return array('asset'=>$asset+$expected,'raw'=>$raw,'views'=>$views);
+}
+
+function syndamorph_archived_png_bytes(array $view): ?string {
+    $metadata=$view['asset']??array();
+    $encoded=$view['assetBase64']??null;
+    if(!is_string($encoded)||strlen($encoded)>699052)return null;
+    $raw=base64_decode($encoded,true);
+    if(!is_string($raw)||strlen($raw)>524288||strlen($raw)!==($metadata['bytes']??null)||
+        hash('sha256',$raw)!==($metadata['sha256']??null)||($metadata['mime']??null)!=='image/png')return null;
+    $info=@getimagesizefromstring($raw);
+    return $info&&($info['mime']??null)==='image/png'&&array($info[0],$info[1])===($metadata['pixels']??null)?$raw:null;
 }
 
 /** This layout has one editable image and local, non-snapping compact overflow. */

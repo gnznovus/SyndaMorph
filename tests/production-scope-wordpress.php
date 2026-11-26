@@ -24,6 +24,30 @@ scope_expect($user,'No fixture administrator found.');
 wp_set_current_user($user->ID);
 if(!is_plugin_active('syndamorph/syndamorph.php'))scope_ok(activate_plugin('syndamorph/syndamorph.php'));
 
+$linkedSourceUrl='https://fixture.example/';
+$linkedSource=array('variants'=>array());
+foreach(SYNDAMORPH_SOURCE_WIDTHS as $width){
+    $linkedSource['variants'][$width]=array('sourceRef'=>'[id="story"]','kind'=>'content','inventory'=>array(
+        'text'=>array('Story','Read more'),'controls'=>array(),
+        'links'=>array(array('href'=>$linkedSourceUrl.'history','text'=>'Read more')),
+        'assets'=>$width===1440?array(array('type'=>'image','loaded'=>true,
+            'url'=>$linkedSourceUrl.'illustration.png','alt'=>'Illustration')):array()));
+}
+scope_expect((syndamorph_linked_image_inventory($linkedSource,$linkedSourceUrl)['assetWidths']??null)===array(1440),
+    'The linked image profile lost its exact image visibility.');
+$changedLink=$linkedSource;
+$changedLink['variants'][375]['inventory']['links'][0]['href']=$linkedSourceUrl.'elsewhere';
+scope_expect(syndamorph_linked_image_inventory($changedLink,$linkedSourceUrl)===null,
+    'An altered compact link matched the pinned profile.');
+$externalLink=$linkedSource;
+foreach($externalLink['variants'] as &$view)$view['inventory']['links'][0]['href']='https://external.example/history';
+unset($view);
+scope_expect(syndamorph_linked_image_inventory($externalLink,$linkedSourceUrl)===null,
+    'An external link passed the recorded same-origin profile.');
+unset($linkedSource['variants'][375]);
+scope_expect(syndamorph_linked_image_inventory($linkedSource,$linkedSourceUrl)===null,
+    'A missing viewport passed the recorded image and link profile.');
+
 $stubKey='offline-scope-fixture-key';
 $model='claude-scope-fixture';
 $stubSettings=array('provider'=>'anthropic','model'=>$model,'inputPrice'=>0.1,'outputPrice'=>0.5,'maxJobUsd'=>0.15);

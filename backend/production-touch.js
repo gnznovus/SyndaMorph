@@ -360,4 +360,44 @@ async function inspectImageStrip(page, {width,sourceRef,copySha256}, sealNetwork
         keyboard:'unverified',blockedRequestCount:denied.length};
 }
 
-module.exports={ validateTouchActions,inspectTouch,touchTargetId,disclosureRef,inspectDisclosure,inspectImageStrip };
+/** Observe source markup and decoded image geometry without following its link. */
+async function inspectLinkedImage(page, {width,sourceRef,copySha256}, sealNetwork) {
+    if(!WIDTHS.includes(width)||page.viewportSize()?.width!==width||!disclosureRef(sourceRef))
+        throw new Error('Invalid linked image evidence request.');
+    const denied=sealNetwork();
+    const receipt={version:1,width,sourceRef,status:'unknown'};
+    const sourceCopySha256=digest(await page.evaluate(()=>document.body.innerText.replace(/\s+/gu,' ').trim()));
+    if(sourceCopySha256!==copySha256)return {...receipt,reason:'live_source_changed'};
+    const root=page.locator(sourceRef).filter({visible:true});
+    if(await root.count()!==1)return {...receipt,reason:'region_not_unique'};
+    const state=await root.evaluate(element=>{
+        const visible=node=>node.getBoundingClientRect().width>0&&node.getBoundingClientRect().height>0&&
+            node.checkVisibility({opacityProperty:true,visibilityProperty:true});
+        const links=[...element.querySelectorAll('a[href]')].filter(visible);
+        const images=[...element.querySelectorAll('img')].filter(visible);
+        const interactive=[...element.querySelectorAll('button,input,select,textarea,summary,[role="button"],[role="link"],[contenteditable]')];
+        if(links.length!==1||images.length>1||interactive.some(visible)||element.closest('a,form,[inert]'))return null;
+        const link=links[0],image=images[0];
+        let destination;
+        try{destination=new URL(link.href);}catch{return null;}
+        const text=link.innerText.replace(/\s+/gu,' ').trim();
+        if(destination.origin!==location.origin||destination.protocol!=='https:'||destination.hash||
+            destination.username||destination.password||destination.href===location.href||destination.href.length>2048||
+            !text||text.length>240||link.tabIndex<0||link.hasAttribute('download')||link.hasAttribute('ping')||
+            (link.target&&link.target!=='_self')||link.closest('[inert]'))return null;
+        let artwork=null;
+        if(image){
+            const url=new URL(image.currentSrc||location.href);
+            if(url.protocol!=='https:'||url.username||url.password||url.hash||url.href.length>2048||
+                image.closest('a,[inert]')||!image.complete||!image.naturalWidth||!image.alt.trim()||image.alt.length>240)return null;
+            const origin=element.getBoundingClientRect(),box=image.getBoundingClientRect(),style=getComputedStyle(image);
+            artwork={url:url.href,alt:image.alt,pixels:[image.naturalWidth,image.naturalHeight],
+                box:[box.x-origin.x,box.y-origin.y,box.width,box.height],filter:style.filter,blend:style.mixBlendMode};
+        }
+        return {link:{href:destination.href,text},image:artwork};
+    });
+    if(!state||denied.length)return {...receipt,reason:'unsupported_linked_image_markup'};
+    return {...receipt,status:'observed',sourceCopySha256,...state,destinationStatus:'declared',blockedRequestCount:0};
+}
+
+module.exports={ validateTouchActions,inspectTouch,touchTargetId,disclosureRef,inspectDisclosure,inspectImageStrip,inspectLinkedImage };
