@@ -482,11 +482,14 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $scopeRegion=$source['scopeRegion']??null;
     $sourceLayout=$source['layoutAuthorization']??null;
     $sourceScroll=null;
+    $sourceDisclosure=null;
     if($scopeRegion!==null) {
         require_once __DIR__.'/production-scope-source.php';
         $blockers=syndamorph_source_blockers($scopeRegion,$source['referenceArchive']??null);
         if($blockers)return new WP_Error('sm_source_capability',implode(' ',$blockers));
         $sourceScroll=syndamorph_source_scroll_profile($scopeRegion);
+        if(isset($source['referenceArchive']))
+            $sourceDisclosure=syndamorph_source_disclosure_profile($scopeRegion,$source['referenceArchive']);
     }
     $renderer=syndamorph_inspection_ready($viewports);
     if(is_wp_error($renderer))return syndamorph_inspection_with_stage($renderer,'preflight','',0);
@@ -510,6 +513,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $sourceContext['sourceScroll']=$sourceScroll+array('observed'=>$proof);
         $sourceNote.=' The measured sourceScroll is a required native horizontal-scroll interaction. Use the exact sourceScroll.id as interaction and block ID, the supplied card count and visibility, and the ordered source card content at each width. Use the existing local scroll-strip contract.';
         if($on_event)$on_event('source_scroll_verified',$sourceContext['sourceScroll']);
+    }
+    if($sourceDisclosure!==null){
+        $sourceContext['sourceDisclosure']=$sourceDisclosure;
+        $sourceNote.=' Classify sourceDisclosure.id as a native disclosure-group interaction. Preserve all ordered summaries and answers, including collapsed ones. The first starts open, each click opens only its own answer, and clicking the active summary closes it. Source keyboard behavior is unverified. The native block must support keyboard activation. The source icon is the verified local 20px chevron; use the application indicator.';
+        if($on_event)$on_event('source_disclosure_handoff',$sourceDisclosure);
     }
     $settings=syndamorph_models_settings();
     $provider=$settings['provider']??'';$model=$settings['model']??'';
@@ -676,7 +684,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         array('brief'=>$brief,'viewportWidths'=>$viewports,'interactionClassification'=>array(
             'classes'=>array('native','reusable','new_special','external','unsupported'),
             'supported'=>array('tabs'=>'reusable local Content Tabs block, two to six editable text panels',
-                'horizontal-scroll'=>'native compact or mobile Group strip with two to six editable cards, 80% card basis, 12px gap, 20px end padding and start snapping'),
+                'horizontal-scroll'=>'native compact or mobile Group strip with two to six editable cards, 80% card basis, 12px gap, 20px end padding and start snapping')+
+                (syndamorph_disclosures_supported()?array('disclosure-group'=>'native exclusive Details with ordered plain-text summaries and editable answer paragraphs'):array()),
             'tabsProofChecksByDimension'=>syndamorph_tabs_proof_contract(),
             'tabInteractionExample'=>array('id'=>'stay-tabs','kind'=>'tabs','classification'=>'reusable',
                 'requirementId'=>'initial-tab','behavior'=>'Start on the first tab and switch by click or keyboard.',
@@ -702,6 +711,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 array('stage'=>'planning','role'=>'boss','field'=>'source scroll interaction',
                     'id'=>$sourceScroll['id'],'widths'=>array_keys($sourceScroll['copyByWidth'])));
     }
+    if($sourceDisclosure!==null){
+        $groups=array_values(array_filter($interactions,static fn($item)=>$item['kind']==='disclosure-group'));
+        if(count($groups)!==1||$groups[0]['id']!==$sourceDisclosure['id']||$groups[0]['classification']!=='native')
+            return new WP_Error('sm_source_disclosure_assignment','Bossy must classify the exact recorded disclosure as native grouped Details.',
+                array('stage'=>'planning','role'=>'boss','field'=>'source disclosure interaction','id'=>$sourceDisclosure['id']));
+    }
     $classifiedRequirements=array_column($interactions,'requirementId');
     foreach($interactions as $interaction)
         array_push($classifiedRequirements,...array_column($interaction['proof']??array(),'requirementId'));
@@ -716,6 +731,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $interaction['kind']==='horizontal-scroll'&&$interaction['classification']==='native'),'id');
     $scrollDesignNote=$scrollIds?
         ' For a native horizontal-scroll interaction, use data-sm-scroll-reference equal to the interaction ID, role="group", a descriptive aria-label, tabindex="0", and data-sm-scroll-card on each visible direct card. Use a single local horizontal flex row with no wrap, 80% card basis, 12px gap, 20px inline end padding, mandatory x-axis start snapping and visible keyboard focus. Only show the strip in its approved compact or mobile variant. Its field in native JSON is scrollStrip:true on a nested Group, with style.visibility mobile or compact as its only style, and two to six Group children.': '';
+    $disclosureIds=array_column(array_filter($interactions,static fn($item)=>
+        $item['kind']==='disclosure-group'&&$item['classification']==='native'),'id');
+    $disclosureDesignNote=$disclosureIds?
+        ' For a native disclosure group use data-sm-disclosure-reference equal to the exact interaction ID on its wrapper. Direct children must be details elements sharing a unique name for this wrapper. Each must contain one direct summary followed by one direct paragraph. Set open only on the first. Preserve the exact ordered copy. Add data-sm-disclosure-appearance="bordered" when matching the measured bordered source rows. The application supplies the selected appearance, chevron and focus styling. Use no scripts or SVG.':'';
     $touchScenarios=syndamorph_production_touch_scenarios($GLOBALS['syndamorph_touch_receipts']);
     $touchContext=$touchScenarios?array('touchScenarios'=>$touchScenarios):array();
     $outputs['boss']=wp_json_encode($bossBrief);
@@ -724,11 +743,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         'requirements'=>$bossBrief,'briefSha256'=>$specificationReceipt['briefSha256'],
         'specificationReceipt'=>$specificationReceipt)+$touchContext;
     if($sourceScroll!==null)$assignment['sourceScroll']=$sourceScroll;
+    if($sourceDisclosure!==null)$assignment['sourceDisclosure']=$sourceDisclosure;
     if($on_event&&$archivedAssignment===null)$on_event('handoff',$assignment);
 
     // Designer owns the visual deliverable; Boss reviews real browser evidence
     // before the Developer receives the approved reference.
-    $reference=$resume['referenceHtml']??$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Use the 1440px view for design identity and adapt continuously through 375px. Account for required checkpoints, neighboring breakpoint widths, and intermediate sizes. Use fluid containers and type while preserving content, hierarchy and required states. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.'.$sourceNote.$tabsDesignNote.$scrollDesignNote,
+    $reference=$resume['referenceHtml']??$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Use the 1440px view for design identity and adapt continuously through 375px. Account for required checkpoints, neighboring breakpoint widths, and intermediate sizes. Use fluid containers and type while preserving content, hierarchy and required states. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.'.$sourceNote.$tabsDesignNote.$scrollDesignNote.$disclosureDesignNote,
         array('brief'=>$brief,'requirements'=>$bossBrief)+$sourceContext+$touchContext,
         syndamorph_collab_output_cap($provider,$model),$sourceImages);
     if(is_wp_error($reference))return $reference;
@@ -756,6 +776,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $control=syndamorph_job_control_gate();
         if(is_wp_error($control))return $control;
         $reference=trim($reference);
+        if($disclosureIds){
+            $indicator='<style data-sm-disclosure-indicator>'.syndamorph_disclosures_css().'</style>';
+            if(!str_contains($reference,$indicator))$reference.="\n".$indicator;
+        }
         if(preg_match('/^`{3}(?:html)?\\s*([\\s\\S]*?)\\s*`{3}$/iD',$reference,$fenced))$reference=trim($fenced[1]);
         if(!preg_match('~<section\\b~i',$reference) ||
             preg_match('~<\\s*(?:script|iframe|object|embed|form|link|meta)\\b|\\bon[a-z]+\\s*=|\\b(?:javascript:|https?://|@import)~i',$reference))
@@ -1370,7 +1394,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         'Pinned native source comparison is pending.',$initialSource['visual']['inspection']),$artifact['preview'],
         'implementation_inspection','developer',$capabilityNotes,$artifact,$surgery,$designMemo);
     if($initialSource!==null&&!$initialSource['passed'])$issues[]=syndamorph_source_issue($initialSource,$plan['blocks'][0]['id']);
-    $functionalCheck=static function(array $candidate,array $evidence)use($viewports,$interactions,$designMemo,$specification,$reference):array {
+    $functionalCheck=static function(array $candidate,array $evidence)use($viewports,$interactions,$designMemo,$specification,$reference,$sourceDisclosure):array {
         $nativeChecks=array();$byRequirement=array_column($specification['requirements'],null,'id');
         foreach($interactions as $interaction){
             $check=$byRequirement[$interaction['requirementId']]['check']??null;
@@ -1378,6 +1402,11 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 $nativeChecks[$interaction['id']]=syndamorph_design_run_check($check,$evidence);
         }
         $nativeChecks=syndamorph_scroll_strip_verify($candidate,$viewports,$reference)+$nativeChecks;
+        $disclosures=syndamorph_disclosures_verify($candidate,$viewports,$reference);
+        if($sourceDisclosure!==null&&
+            ($candidate['disclosureGroups'][$sourceDisclosure['id']]??null)!==$sourceDisclosure['panels'])
+            $disclosures[$sourceDisclosure['id']]=array('status'=>'failed','reason'=>'recorded_disclosure_copy_not_preserved');
+        $nativeChecks=$disclosures+$nativeChecks;
         return syndamorph_tabs_verify($candidate,$viewports,$interactions,$designMemo['tabPanelSpecification'],$nativeChecks);
     };
     if($nativeReview!==null&&$issues){

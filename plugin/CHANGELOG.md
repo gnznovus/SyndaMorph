@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.28] - 2026-11-26
+
+### Added
+
+- Source scopes can verify a recorded disclosure group across the pinned viewports. The receipt binds the archive, region, ordered panel copy, first-open state, six-action FAQ trace and repeated local chevron. Unrelated controls, artwork and incomplete replay remain blocked.
+- Native disclosure groups compile to editable Core Details and Paragraphs. Chromium independently checks both the approved reference and native implementation for exact panel copy, exclusive click states, keyboard focus and repeated-pattern isolation.
+
+### Verified
+
+- BKKGO FAQ became eligible on the existing Full Page record, raising eligibility from three to four of 16. Its retained candidate passed pinned source comparisons at 1.172%, 0.034% and 0.058%, all 12 responsive samples and independent disclosure checks. All 21 blocks survived a Gutenberg edit, save and reload. Model approval remains pending. This checkpoint used no AI calls.
+
 ## [0.12.27] - 2026-11-26
 
 ### Added

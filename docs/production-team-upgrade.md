@@ -273,6 +273,18 @@ BKKGO Full Page REF-000030 reused private Through Our Lens Pattern 64 from Secti
 
 The disposable WordPress browser integration rejected a different compact capture, preserved the reused Pattern and zero spend across repeated requests, verified the partial draft, and still completed its independent three-region fixture through first-fold, full-extent and continuous responsive QA.
 
+## v0.12.28 recorded native FAQ disclosures
+
+The existing WordPress Source Scope `verify_disclosure` action requests Touch replay for the exact pinned region at 1440, 768 and 375 px. The capture service reads the recorded responses and seals network requests before actions. It checks the initial page copy hash, the bounded local controls and their repeated 20 px chevron, one initially open panel and the ordered sequence that opens each answer and closes the active answer. WordPress checks the recorded identity against the capture, including each transition's target, width and state fingerprint. The original source checkpoint remains in History. Failed or incomplete replay retains the blocker.
+
+BKKGO Full Page REF-000030 reverified its five existing FAQ controls at all three widths and preserved their ordered summaries and answers. The desktop replay verified a local overlay dismissal prerequisite. The source keyboard behavior remains unverified. Native Chromium checks independently verified Enter and Space, visible focus and isolation between repeated Patterns. Bossy's handoff carries the required disclosure interaction ID, observed actions, ordered copy, initial state and missing source keyboard proof.
+
+The native compiler uses a Group containing five Core Details blocks and editable answer paragraphs. The bordered appearance uses the same local chevron, responsive row padding and text sizing in the reference and the native preview. Pinned source QA inspects all answers, including collapsed copy. The functional gate separately runs the actual open, close and focus behavior and rejects unclassified groups, repeated-group state interference and mismatching reference answers.
+
+The retained FAQ candidate `0a158cb0dfbd79aa01c42884558b797422f07e916bd2352dd67cd04c789efabc` passed pinned visual comparisons at 1.172%, 0.034% and 0.058%. Its twelve responsive samples and all ordered disclosure actions passed, and 21 valid blocks survived edit, save and reload in disposable Gutenberg draft 114. The edited fixture also passed its frontend click and keyboard checks at every required width. No model call was made for the candidate. Bossy and Validator approval and production Pattern acceptance remain pending.
+
+Full Page coverage is 12 of 16 regions with complete required-width capture, four eligible regions and one accepted placement. Local draft 66 still contains the independently accepted Through Our Lens Pattern; no whole-page pass or additional placement was recorded.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens and GEN-000055 completed their original jobs. Verified BKKGO Full Page assembly and broader region acceptance remain open. [Design validation audit](bossy-validation-audit.md#v0128-verification)

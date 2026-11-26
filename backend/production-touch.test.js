@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const test=require('node:test');
 const { createHash }=require('node:crypto');
 const { chromium }=require('playwright');
-const { inspectTouch,validateTouchActions }=require('./production-touch');
+const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef }=require('./production-touch');
 const { captureResponsiveViewport }=require('./responsive-capture');
 
 test('Touch actions are limited to server target identities and bounded gestures',()=>{
@@ -15,6 +15,43 @@ test('Touch actions are limited to server target identities and bounded gestures
     assert.throws(()=>validateTouchActions(Array(6).fill({type:'scroll',dy:20})));
     assert.deepEqual(validateTouchActions([{type:'drag',target:'a'.repeat(24),dx:12}]),
         [{type:'drag',target:'a'.repeat(24),dx:12}]);
+});
+
+test('Disclosure replay binds exact controls, ordered answers and exclusive open states', {
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const browser=await chromium.launch();
+    try{
+        const page=await browser.newPage({viewport:{width:375,height:900}});
+        const indicator='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" '+
+            'stroke-width="1.75" stroke-linecap="square"><path d="M6 9l6 6 6-6"></path></svg>';
+        const fixture=(icon,script='')=>'<section id="faq">'+
+            ['First answer','Second answer','Third answer'].map((answer,index)=>
+                '<article'+(index===0?' class="active"':'')+'><button>Are these ordered?'+icon+
+                '</button><p>'+answer+'</p></article>').join('')+
+            '</section><style>article:not(.active) p{display:none}.active svg{transform:rotate(180deg)}</style>'+
+            '<script>document.querySelectorAll("button").forEach(button=>button.onclick=()=>{'+
+                'const target=button.parentElement,open=target.classList.contains("active");'+
+                'document.querySelectorAll("article").forEach(row=>row.classList.remove("active"));'+
+                'if(!open)target.classList.add("active");'+script+'});</script>';
+        const replay=async(html,lastInput=null,denied=[])=>{
+            await page.setContent(html);
+            const copy=await page.evaluate(()=>document.body.innerText.replace(/\s+/gu,' ').trim());
+            const input={width:375,sourceRef:'[id="faq"]',copySha256:createHash('sha256').update(copy).digest('hex')};
+            return inspectDisclosure(page,lastInput??input,()=>denied);
+        };
+        assert.equal(disclosureRef('[id="faq"]'),true);
+        assert.equal(disclosureRef('body > button'),false);
+        const result=await replay(fixture(indicator));
+        assert.equal(result.status,'observed');
+        assert.deepEqual(result.clicks.map(row=>row.open),[[1],[2],[0],[]]);
+        assert.deepEqual(result.panels.map(row=>row.answer),['First answer','Second answer','Third answer']);
+        assert.equal(new Set(result.panels.map(row=>row.targetId)).size,3);
+        const invalid=await replay(fixture(indicator.replace('M6 9l6 6 6-6','M0 0h10')));
+        assert.equal(invalid.reason,'unsupported_controls_or_artwork');
+        const changed=await replay(fixture(indicator),{width:375,sourceRef:'[id="faq"]',copySha256:'0'.repeat(64)});
+        assert.equal(changed.reason,'live_source_changed');
+    }finally{await browser.close();}
 });
 
 test('anonymous horizontal scrollers require a capability and record actual local movement', {

@@ -591,6 +591,34 @@ function syndamorph_scope_reuse_section(array $page,int $sectionId,string $key) 
     return syndamorph_scope_status($page);
 }
 
+/** Add a replay receipt without replacing the captured browser evidence or any job. */
+function syndamorph_scope_verify_disclosure(array $manifest,string $key) {
+    $region=$manifest['regions'][$key]??null;
+    if(!$region||!empty($region['attempts'])||!empty($region['patternId'])||
+        !in_array($region['status'],array('blocked','ready'),true)||
+        ($manifest['mode']==='section'&&$manifest['selected']!==null&&$manifest['selected']!==$key))
+        return syndamorph_scope_error('disclosure_state','Only an untouched source region can verify a recorded disclosure.');
+    $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
+    $archive=$manifest['referenceArchive']??null;
+    if(!$source||!is_array($archive))return syndamorph_scope_error('disclosure_source','The referenced source archive is unavailable.');
+    if(syndamorph_source_disclosure_profile($source,$archive)!==null)return syndamorph_scope_status($manifest);
+    $verified=syndamorph_source_disclosure_touch($source,$archive);
+    if(is_wp_error($verified)){
+        syndamorph_history_append($manifest['id'],'source_disclosure_pending',array('region'=>$key,'checkpoint'=>$region['checkpoint'],
+            'code'=>$verified->get_error_code(),'diagnostic'=>$verified->get_error_data()));
+        return $verified;
+    }
+    $checkpoint=syndamorph_history_append($manifest['id'],'scope_source',$verified);
+    $blockers=syndamorph_source_blockers($verified,$archive);
+    $manifest['regions'][$key]=array_replace($region,array('checkpoint'=>$checkpoint,
+        'status'=>$blockers?'blocked':'ready','blockers'=>$blockers));
+    syndamorph_history_append($manifest['id'],'source_disclosure_verified',array('region'=>$key,
+        'originalCheckpoint'=>$region['checkpoint'],'checkpoint'=>$checkpoint,
+        'component'=>syndamorph_source_disclosure_profile($verified,$archive)));
+    syndamorph_history_append($manifest['id'],'scope_manifest',$manifest);
+    return syndamorph_scope_status($manifest);
+}
+
 function syndamorph_scope_targets(array $manifest): array {
     return $manifest['mode']==='page'?$manifest['regions']:
         array_intersect_key($manifest['regions'],array_flip(array($manifest['selected']??'')));
@@ -850,7 +878,7 @@ add_action('rest_api_init',static function():void {
         }),
         array('methods'=>'POST','permission_callback'=>$permission,'callback'=>static function(WP_REST_Request $request) {
             $action=$request->get_param('action');
-            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','resume_design_review','resume_checkpoint','save_pattern','reuse_section','assemble','verify_page'),true))
+            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','assemble','verify_page'),true))
                 return syndamorph_scope_error('action','Invalid scope action.',400);
             return syndamorph_scope_locked(static function()use($request,$action){
                 $manifest=syndamorph_history_latest((int)$request['id'],'scope_manifest');
@@ -892,6 +920,7 @@ add_action('rest_api_init',static function():void {
                             }
                             return syndamorph_scope_run(syndamorph_scope_status($manifest),$region,$action==='retry');
                         case 'save_pattern': return syndamorph_scope_save_pattern($manifest,$region);
+                        case 'verify_disclosure': return syndamorph_scope_verify_disclosure($manifest,$region);
                         case 'reuse_section':
                             $sectionId=filter_var($request->get_param('sectionId'),FILTER_VALIDATE_INT,array('options'=>array('min_range'=>1)));
                             if($sectionId===false)return syndamorph_scope_error('reuse_scope','An exact saved Section ID is required.',400);

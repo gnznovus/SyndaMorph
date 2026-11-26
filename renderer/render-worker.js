@@ -139,6 +139,69 @@ async function checkScrollStrips(page,html) {
     return checks;
 }
 
+async function checkDisclosures(page) {
+    const groups=page.locator('.wp-block-group.sm-disclosure-group,[data-sm-disclosure-reference]');
+    const count=await groups.count();
+    if(count>4)throw new RendererError('evidence_limit',507);
+    const checks=[];
+    for(let index=0;index<count;index++){
+        const group=groups.nth(index);
+        const component=await group.evaluate(el=>el.getAttribute('data-sm-disclosure-reference')??
+            el.getAttribute('data-sm-node')??[...el.classList].find(name=>name.startsWith('sm-disclosure-id-'))?.slice(17)??null);
+        const state=()=>group.evaluate(element=>{
+            const normalize=value=>value.replace(/\s+/gu,' ').trim();
+            const rows=[...element.children];
+            const name=rows[0]?.getAttribute('name');
+            const summaries=rows.map(row=>row.querySelector(':scope > summary'));
+            const answers=rows.map(row=>row.querySelector(':scope > p'));
+            const indicator=summaries.map(summary=>summary&&getComputedStyle(summary,'::after'));
+            const focused=summaries.indexOf(document.activeElement);
+            const focusStyle=focused>=0?getComputedStyle(summaries[focused]):null;
+            return { open:rows.flatMap((row,i)=>row.open?[i]:[]),
+                visible:answers.flatMap((answer,i)=>answer?.checkVisibility({contentVisibilityAuto:true})&&
+                    answer.getBoundingClientRect().height>0?[i]:[]),
+                copy:summaries.map((summary,i)=>({summary:normalize(summary?.textContent??''),answer:normalize(answers[i]?.textContent??'')})),
+                structure:!!name&&rows.length>=2&&rows.length<=8&&rows.every((row,i)=>row.matches('details')&&
+                    row.getAttribute('name')===name&&row.firstElementChild===summaries[i]&&row.children.length===2&&
+                    answers[i]&&summaries[i]?.tabIndex>=0)&&
+                    [...document.querySelectorAll('details[name]')].filter(row=>row.getAttribute('name')===name).length===rows.length,
+                indicator:indicator.every((style,i)=>style&&style.width==='20px'&&style.height==='20px'&&
+                    style.clipPath.startsWith('polygon(')&&(style.transform!=='none')===rows[i].open),
+                focusVisible:focused>=0&&summaries[focused].matches(':focus-visible')&&
+                    focusStyle.outlineStyle==='solid'&&parseFloat(focusStyle.outlineWidth)>=2 };
+        });
+        const snapshotOthers=()=>groups.evaluateAll((items,current)=>items.filter((_,i)=>i!==current).map(item=>item.innerHTML),index);
+        const original=await snapshotOthers();
+        const before=await state();
+        const matches=(state,index)=>JSON.stringify(state.open)===JSON.stringify(index===null?[]:[index])&&
+            JSON.stringify(state.visible)===JSON.stringify(state.open)&&state.indicator;
+        let clicks=false,keyboard=false;
+        if(before.structure&&matches(before,0)){
+            const controls=group.locator(':scope > details > summary');
+            try{
+                clicks=true;
+                for(let panel=1;panel<before.copy.length;panel++){
+                    await controls.nth(panel).click({timeout:1500});
+                    clicks=matches(await state(),panel)&&clicks;
+                }
+                await controls.first().click({timeout:1500});
+                clicks=matches(await state(),0)&&clicks;
+                await controls.first().click({timeout:1500});
+                clicks=matches(await state(),null)&&clicks;
+                await controls.nth(1).press('Enter',{timeout:1500});
+                const entered=await state();
+                await controls.nth(1).press('Space',{timeout:1500});
+                const closed=await state();
+                keyboard=matches(entered,1)&&matches(closed,null)&&entered.focusVisible&&closed.focusVisible;
+                await controls.first().press('Enter',{timeout:1500});
+            }catch(_){clicks=false;keyboard=false;}
+        }
+        checks.push({component,copy:before.copy,structure:before.structure,initial:matches(before,0),indicator:before.indicator,
+            clicks,keyboard,isolation:JSON.stringify(original)===JSON.stringify(await snapshotOthers())});
+    }
+    return checks;
+}
+
 const input = [];
 process.stdin.on('data', (chunk) => input.push(chunk));
 process.stdin.on('end', async () => {
@@ -146,7 +209,7 @@ process.stdin.on('end', async () => {
     let crashed = false;
     const evidence = [];
     try {
-        const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
+        const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, disclosures, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
             headless: true, timeout: 10000,
             args: [ '--no-sandbox', '--disable-dev-shm-usage' ],
@@ -163,12 +226,12 @@ process.stdin.on('end', async () => {
         const page = await context.newPage();
         page.on('crash', () => { crashed = true; });
         page.on('popup', (popup) => popup.close().catch(() => {}));
-        if(scrollStrips){
+        if(scrollStrips||disclosures){
             for(const width of viewports){
                 await page.setViewportSize({width,height:HEIGHT});
                 await page.setContent(html,{waitUntil:'domcontentloaded',timeout:5000});
                 await waitForInstalledFonts(page);
-                evidence.push({width,checks:await checkScrollStrips(page,html)});
+                evidence.push({width,checks:disclosures?await checkDisclosures(page):await checkScrollStrips(page,html)});
             }
             process.stdout.write(JSON.stringify({evidence}));
             return;
@@ -317,6 +380,12 @@ process.stdin.on('end', async () => {
                         if (display === 'none') return;
                         const boundary = node.tagName === 'BR' || !/^(?:inline|contents)/.test(display);
                         if (boundary) parts.push(' ');
+                        if(node.localName==='details'&&!node.open){
+                            const summary=node.querySelector(':scope > summary');
+                            if(summary)gatherCopy(summary,parts);
+                            if(boundary)parts.push(' ');
+                            return;
+                        }
                         for (const child of node.childNodes) {
                             if (child.nodeType !== Node.TEXT_NODE || visibility === 'visible') gatherCopy(child,parts);
                         }
@@ -362,7 +431,9 @@ process.stdin.on('end', async () => {
                         const normalize = value => value.replace(/\s+/gu, ' ').trim();
                         const visible = new Set([document.body, ...elements].filter(el => {
                             const rect = el.getBoundingClientRect(), style = getComputedStyle(el);
+                            const closed=el.closest('details:not([open])');
                             return rect.width > 0 && rect.height > 0 && !el.closest('[hidden]') &&
+                                (!closed||closed===el||closed.querySelector(':scope > summary')?.contains(el))&&
                                 !['hidden', 'collapse'].includes(style.visibility) && style.display !== 'none';
                         }));
                         const text = [];
@@ -387,6 +458,19 @@ process.stdin.on('end', async () => {
                             const copy=cards.map(card=>normalize(card.innerText));
                             return copy.some(item=>item.length>4000)?null:{id,copy};
                         });
+                        const disclosures=[...visible].filter(el=>el.matches('.sm-disclosure-group,[data-sm-disclosure-reference]'))
+                            .slice(0,5).map(group=>{
+                                const id=group.getAttribute('data-sm-disclosure-reference')??group.getAttribute('data-sm-node')??
+                                    [...group.classList].find(name=>name.startsWith('sm-disclosure-id-'))?.slice(17);
+                                const rows=[...group.children];
+                                if(!id||id.length>48||rows.length<2||rows.length>8||
+                                    rows.some(row=>!row.matches('details')||row.children.length!==2||
+                                        !row.firstElementChild.matches('summary')||!row.lastElementChild.matches('p')))return null;
+                                const copy=rows.map(row=>({summary:normalize(row.firstElementChild.textContent),
+                                    answer:normalize(row.lastElementChild.textContent)}));
+                                return copy.some(panel=>panel.summary.length>240||panel.answer.length>1600)?null:
+                                    {id,initial:rows.flatMap((row,i)=>row.open?[i]:[]),panels:copy};
+                            });
                         const visibleElements = elements.filter(el => visible.has(el));
                         const paint = [...new Set(visibleElements.map(el => {
                             const css = getComputedStyle(el);
@@ -399,7 +483,7 @@ process.stdin.on('end', async () => {
                         });
                         const layoutIdentity = visibleElements.length <= 200 && textStyles.length <= 20 &&
                             paint.length <= 32 && paint.every(value => value.length <= 240) ? {paint,textStyles} : null;
-                        return { text, links, assets, controls, layoutIdentity, scrollStrips };
+                        return { text, links, assets, controls, layoutIdentity, scrollStrips,...(disclosures.length?{disclosures}:{}) };
                     })() : null;
                     return {
                         copy: copyParts.join('').replace(/\s+/gu, ' ').trim(),

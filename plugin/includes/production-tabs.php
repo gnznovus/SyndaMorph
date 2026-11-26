@@ -141,25 +141,34 @@ function syndamorph_tabs_verify(array $artifact,array $widths,array $interaction
     array $nativeChecks=array()): array {
     $expected=$artifact['tabWidgets']??array();
     $strips=$artifact['scrollStrips']??array();
-    if(!$expected&&!$interactions&&!$strips)
+    $disclosures=$artifact['disclosureGroups']??array();
+    if(!$expected&&!$interactions&&!$strips&&!$disclosures)
         return array('status'=>'not_applicable','viewports'=>array());
     $receipt=array('artifactSha256'=>hash('sha256',$artifact['content']),'viewports'=>array(),
         'requestedWidths'=>$widths,'status'=>'pending','blockers'=>array(),'nativeChecks'=>$nativeChecks);
-    $planned=array();$plannedStrips=array();$scrollFailed=false;
+    $planned=array();$plannedStrips=array();$plannedDisclosures=array();$nativeFailed=false;
     foreach($interactions as $interaction){
         if($interaction['kind']==='tabs' && in_array($interaction['classification'],array('reusable','new_special'),true))
             $planned[$interaction['id']]=true;
         elseif($interaction['kind']==='horizontal-scroll'&&$interaction['classification']==='native'){
             $id=$interaction['id'];$plannedStrips[$id]=true;
-            $scrollFailed=$scrollFailed||(($nativeChecks[$id]['status']??null)==='failed');
+            $nativeFailed=$nativeFailed||(($nativeChecks[$id]['status']??null)==='failed');
             if(!isset($strips[$id])||($nativeChecks[$id]['status']??null)!=='verified')
                 $receipt['blockers'][]=array('id'=>$id,'reason'=>'independent_scroll_proof_missing_or_failed');
+        }
+        elseif($interaction['kind']==='disclosure-group'&&$interaction['classification']==='native'){
+            $id=$interaction['id'];$plannedDisclosures[$id]=true;
+            $nativeFailed=$nativeFailed||(($nativeChecks[$id]['status']??null)==='failed');
+            if(!isset($disclosures[$id])||($nativeChecks[$id]['status']??null)!=='verified')
+                $receipt['blockers'][]=array('id'=>$id,'reason'=>'independent_disclosure_proof_missing_or_failed');
         }
         elseif(($nativeChecks[$interaction['id']]['status']??null)!=='verified')
             $receipt['blockers'][]=array('id'=>$interaction['id'],'reason'=>'independent_functional_test_unavailable');
     }
     foreach(array_diff_key($strips,$plannedStrips) as $id=>$_)
         $receipt['blockers'][]=array('id'=>$id,'reason'=>'scroll_strip_not_in_specification');
+    foreach(array_diff_key($disclosures,$plannedDisclosures) as $id=>$_)
+        $receipt['blockers'][]=array('id'=>$id,'reason'=>'disclosure_group_not_in_specification');
     foreach(array_diff_key($planned,$expected) as $id=>$_)
         $receipt['blockers'][]=array('id'=>$id,'reason'=>'implementation_missing');
     foreach(array_diff_key($expected,$planned) as $id=>$_)
@@ -169,7 +178,7 @@ function syndamorph_tabs_verify(array $artifact,array $widths,array $interaction
             $receipt['blockers'][]=array('id'=>$id,'reason'=>'approved_panel_copy_mismatched_or_unavailable');
     }
     if(!$expected){
-        if($scrollFailed)$receipt['status']='failed';
+        if($nativeFailed)$receipt['status']='failed';
         elseif(!$receipt['blockers'])$receipt['status']='passed';
         return $receipt;
     }
@@ -185,7 +194,7 @@ function syndamorph_tabs_verify(array $artifact,array $widths,array $interaction
         return $receipt;
     }
     $receipt['runtimeSha256']=hash('sha256',$script);
-    $passed=!$scrollFailed;
+    $passed=!$nativeFailed;
     foreach(array_chunk($widths,5) as $batch){
         $payload=wp_json_encode(array('html'=>$frame['html'],'runtime'=>$script,'viewports'=>$batch),JSON_UNESCAPED_SLASHES);
         $response=wp_remote_post('http://renderer:3000/check-tabs',array('timeout'=>65,'redirection'=>0,
@@ -228,6 +237,7 @@ function syndamorph_functional_acceptance(array $final,string $checksum): bool {
     if($receipt===null||($receipt['status']??null)==='not_applicable'){
         return !str_contains($final['artifact']['content']??'','<!-- wp:syndamorph/tabs ')&&
             !str_contains($final['artifact']['content']??'',' sm-scroll-strip')&&
+            !str_contains($final['artifact']['content']??'','"className":"sm-disclosure-group ')&&
             empty($final['designApproval']['productionSpecification']['interactions']);
     }
     return ($receipt['status']??null)==='passed'&&($receipt['artifactSha256']??null)===$checksum;

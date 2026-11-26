@@ -9,6 +9,8 @@ const digest = value => createHash('sha256').update(value).digest('hex');
 const touchTargetId = ({ selector, tag, role, name }) => digest(JSON.stringify([selector,tag,role,name])).slice(0,24);
 const actionNames = new Set(['click','hover','scroll','scroll-x','drag','resize']);
 const targetId = value => typeof value==='string' && /^[a-f0-9]{24}$/.test(value);
+const disclosureRef = value => typeof value==='string' &&
+    /^(?:[a-z][a-z0-9-]{0,20})?\[(?:data-dc-tpl|id)="[a-zA-Z0-9_-]{1,64}"\]$/.test(value);
 
 function validateTouchActions(actions) {
     if(!Array.isArray(actions) || actions.length>MAX_ACTIONS)throw new Error('Invalid Touch action count.');
@@ -214,4 +216,94 @@ async function inspectTouch(page, input, sealNetwork) {
     return { version:1,status:'observed',initial,scenarios,final:current };
 }
 
-module.exports={ validateTouchActions,inspectTouch,touchTargetId };
+/** Identify one exact repeated disclosure from the archived runtime, with no arbitrary selectors or actions. */
+async function inspectDisclosure(page, input, sealNetwork) {
+    const { width,sourceRef,copySha256 }=input;
+    if(!WIDTHS.includes(width)||page.viewportSize()?.width!==width||!disclosureRef(sourceRef)||typeof sealNetwork!=='function')
+        throw new Error('Invalid disclosure evidence request.');
+    const initialCopySha256=digest(await page.evaluate(()=>document.body.innerText.replace(/\s+/gu,' ').trim()));
+    const denied=sealNetwork();
+    const receipt={version:1,width,sourceRef,sourceCopySha256:initialCopySha256,status:'unknown'};
+    if(initialCopySha256!==copySha256)return {...receipt,reason:'live_source_changed'};
+    const root=page.locator(sourceRef).filter({visible:true});
+    if(await root.count()!==1)return {...receipt,reason:'region_not_unique'};
+    const controls=root.locator('button,[role="button"]');
+    const total=await controls.count();
+    if(total<2||total>8)return {...receipt,reason:'incorrect_control_count'};
+    const shape=await root.evaluate(region=>{
+        const buttons=[...region.querySelectorAll('button,[role="button"]')];
+        const icons=[...region.querySelectorAll('svg')];
+        if(icons.length!==buttons.length||
+            region.querySelector('a[href],form,input,textarea,select,video,canvas,iframe,img,object,embed,[role="tab"],[role="combobox"],[draggable="true"]'))return false;
+        return buttons.every(button=>{
+            const box=button.getBoundingClientRect();
+            const icon=button.querySelector('svg');
+            return box.width>0&&box.height>0&&!button.closest('[inert],[aria-disabled="true"]')&&!button.disabled&&
+                !button.hasAttribute('formaction')&&button.parentElement.querySelectorAll('button,[role="button"]').length===1&&
+                icon&&button.querySelectorAll('svg').length===1&&icon.children.length===1&&icon.firstElementChild.localName==='path'&&
+                icon.getAttribute('viewBox')==='0 0 24 24'&&icon.getAttribute('width')==='20'&&icon.getAttribute('height')==='20'&&
+                icon.getAttribute('fill')==='none'&&icon.getAttribute('stroke')==='currentColor'&&
+                icon.getAttribute('stroke-width')==='1.75'&&icon.getAttribute('stroke-linecap')==='square'&&
+                icon.firstElementChild.getAttribute('d')==='M6 9l6 6 6-6';
+        });
+    });
+    if(!shape)return {...receipt,reason:'unsupported_controls_or_artwork'};
+    const read=()=>controls.evaluateAll(buttons=>buttons.map(button=>{
+        const clean=value=>value.replace(/\s+/gu,' ').trim();
+        const summary=clean(button.innerText);
+        const parent=clean(button.parentElement.innerText);
+        return {summary,answer:parent.startsWith(summary)?parent.slice(summary.length).trim():null,
+            indicator:getComputedStyle(button.querySelector('svg')).transform};
+    }));
+    const initial=await read();
+    const safeQuestion=value=>value.endsWith('?')&&value.length<=240&&
+        !/\b(book|pay|buy|submit|sign[ -]?in|log[ -]?in|logout|checkout|reset password|delete|upload|download|purchase)\b/i.test(value);
+    const initialOpen=initial.flatMap((row,index)=>row.answer?[index]:[]);
+    if(initialOpen.length!==1||initialOpen[0]!==0||initial.some(row=>!safeQuestion(row.summary)||row.answer===null||
+        (row.indicator!=='none')!==Boolean(row.answer)))return {...receipt,reason:'unexpected_initial_disclosure'};
+    const panels=initial.map((row,index)=>({targetId:digest(JSON.stringify([sourceRef,index,row.summary])).slice(0,24),
+        summary:row.summary,answer:row.answer||null}));
+    const clicks=[];
+    const sequence=[...panels.keys()].slice(1).concat([0,0]);
+    let before=initial;
+    const blockedBefore=denied.length;
+    let prerequisite=null;
+    try{
+        if(width===1440){
+            const dismiss=page.getByRole('button',{name:/^Continue to website(?: →)?$/});
+            if(await dismiss.count()===1&&await dismiss.isVisible()&&await dismiss.evaluate(element=>{
+                if(element.closest('a[href],form,[inert]')||element.hasAttribute('formaction'))return false;
+                for(let parent=element.parentElement;parent;parent=parent.parentElement){
+                    if(['fixed','absolute'].includes(getComputedStyle(parent).position))return true;
+                }
+                return false;
+            })){
+                await dismiss.click({timeout:2000});
+                await page.waitForTimeout(300);
+                if(await dismiss.isVisible()||JSON.stringify(initial)!==JSON.stringify(await read())||denied.length!==blockedBefore)
+                    return {...receipt,reason:'blocking_overlay_not_dismissed'};
+                prerequisite='dismissed-local-overlay';
+            }
+        }
+        for(const [position,index] of sequence.entries()){
+            await controls.nth(index).click({timeout:2000});
+            await page.waitForTimeout(300);
+            const after=await read();
+            const opened=after.flatMap((row,key)=>row.answer?[key]:[]);
+            const expected=position===sequence.length-1?[]:[index];
+            if(denied.length!==blockedBefore||JSON.stringify(opened)!==JSON.stringify(expected)||
+                after.some((row,key)=>row.summary!==panels[key].summary||row.answer===null||
+                    (row.indicator!=='none')!==Boolean(row.answer)))
+                return {...receipt,reason:'disclosure_replay_did_not_match'};
+            if(opened.length)panels[index].answer=after[index].answer;
+            clicks.push({targetId:panels[index].targetId,index,open:opened,
+                fromSha256:digest(JSON.stringify(before)),toSha256:digest(JSON.stringify(after))});
+            before=after;
+        }
+    }catch{return {...receipt,reason:'disclosure_action_did_not_complete'};}
+    if(panels.some(panel=>!panel.answer||panel.answer.length>1600))return {...receipt,reason:'panel_copy_missing'};
+    return {...receipt,status:'observed',initial:initialOpen,panels,clicks,indicator:'chevron-20',prerequisite,
+        keyboard:'unverified',externalEffects:'unverified',blockedRequestCount:denied.length-blockedBefore};
+}
+
+module.exports={ validateTouchActions,inspectTouch,touchTargetId,disclosureRef,inspectDisclosure };

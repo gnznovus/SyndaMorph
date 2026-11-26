@@ -3,7 +3,7 @@ const http = require('node:http');
 const { capture, captureResponsive } = require('./capture');
 const { productionSource } = require('./production-source');
 const { enabled: referenceEnabled,readReference } = require('./production-reference');
-const { validateTouchActions,inspectTouch } = require('./production-touch');
+const { validateTouchActions,inspectTouch,disclosureRef,inspectDisclosure } = require('./production-touch');
 const { createAnalyzeHandler } = require('./mvp/endpoint');
 const { runCommunicationPoc } = require('./purr-poc');
 
@@ -38,16 +38,20 @@ http.createServer(async (req, res) => {
         if(req.url==='/production-touch'){
             if(!referenceEnabled())return respond(res,503,{ error:'Touch requires a verified source archive.' });
             if(responsiveInProgress)return respond(res,429,{ error:'Responsive capture is already running.' });
-            const actions=validateTouchActions(input.actions);
+            const disclosure=input.kind==='disclosure-group';
+            if(disclosure&&!disclosureRef(input.sourceRef))return respond(res,400,{error:'Invalid recorded disclosure target.'});
+            const actions=disclosure?[]:validateTouchActions(input.actions);
             responsiveInProgress=true;
             try {
                 const pinned=await readReference(input.archiveId,input.width);
                 if(!pinned.runtime.size)return respond(res,200,{ version:1,archiveId:input.archiveId,status:'unknown',
+                    ...(disclosure?{width:input.width,sourceRef:input.sourceRef}:{}),
                     reason:'runtime_not_recorded',initial:{ width:input.width,targets:[] },scenarios:[] });
                 const receipt=await capture(pinned.sourceUrl,'browser',{ width:input.width,touch:true,
                     recordedResponses:pinned.runtime,
-                    inspect:(page,_regions,_diagnostics,_archive,seal)=>inspectTouch(page,
-                        { width:input.width,actions,copySha256:pinned.copySha256 },seal) });
+                    inspect:(page,_regions,_diagnostics,_archive,seal)=>disclosure?
+                        inspectDisclosure(page,{width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256},seal):
+                        inspectTouch(page,{width:input.width,actions,copySha256:pinned.copySha256},seal) });
                 return respond(res,200,{ archiveId:input.archiveId,mode:'recorded',...receipt });
             } finally { responsiveInProgress=false; }
         }

@@ -39,10 +39,100 @@ function syndamorph_source_scroll_profile(array $region): ?array {
         'visibility'=>$widths===array(375)?'mobile':'compact','copyByWidth'=>$active,'cardCopyByWidth'=>$cardCopy);
 }
 
+/** Verify one source-bound Details group, including every recorded transition. */
+function syndamorph_source_disclosure_profile(array $source,?array $archive=null): ?array {
+    $receipt=$source['disclosureEvidence']??null;
+    $id=$source['id']??null;
+    if(!is_string($id)||!preg_match('/^[a-f0-9]{24}$/D',$id)||!is_array($receipt)||
+        !is_array($receipt['views']??null)||array_keys($receipt['views'])!==SYNDAMORPH_SOURCE_WIDTHS||
+        !is_string($receipt['archiveId']??null)||!preg_match('/^[a-f0-9]{64}$/D',$receipt['archiveId']))return null;
+    if($archive!==null&&(!syndamorph_production_reference_valid($archive,$archive['sourceUrl']??'')||
+        empty($archive['runtimeSha256'])||$archive['id']!==$receipt['archiveId']))return null;
+    $pinned=$source;
+    unset($pinned['disclosureEvidence']);
+    if(($receipt['sourceSha256']??null)!==hash('sha256',wp_json_encode($pinned)))return null;
+    $ordered=null;$targets=array();$observed=array();
+    $archiveCopies=array_column($archive['views']??array(),'copySha256','width');
+    foreach(SYNDAMORPH_SOURCE_WIDTHS as $width){
+        $view=$receipt['views'][$width];$variant=$source['variants'][$width]??array();
+        $panels=$view['panels']??null;$clicks=$view['clicks']??null;
+        $inventory=$variant['inventory']??array();
+        $ref=$variant['sourceRef']??'';
+        if(($view['archiveId']??null)!==$receipt['archiveId']||($view['mode']??null)!=='recorded'||
+            ($view['width']??null)!==$width||($view['sourceRef']??null)!==$ref||
+            ($view['status']??null)!=='observed'||($view['blockedRequestCount']??null)!==0||
+            ($view['initial']??null)!==array(0)||($view['indicator']??null)!=='chevron-20'||
+            ($view['keyboard']??null)!=='unverified'||($view['externalEffects']??null)!=='unverified'||
+            !preg_match('/^[a-f0-9]{64}$/D',$view['sourceCopySha256']??'')||
+            ($archive!==null&&($archiveCopies[$width]??null)!==$view['sourceCopySha256'])||
+            !is_array($panels)||!array_is_list($panels)||count($panels)<2||count($panels)>8||
+            !is_array($clicks)||!array_is_list($clicks)||count($clicks)!==count($panels)+1||
+            array_column($inventory['controls']??array(),'type')!==array_fill(0,count($panels),'button')||
+            array_column($inventory['assets']??array(),'type')!==array_fill(0,count($panels),'svg')||
+            !empty($inventory['links']))return null;
+        $copy=array();
+        foreach($panels as $index=>$panel){
+            $summary=$panel['summary']??null;$answer=$panel['answer']??null;
+            if(!is_string($summary)||$summary===''||mb_strlen($summary)>240||
+                !is_string($answer)||$answer===''||mb_strlen($answer)>1600||
+                substr(hash('sha256',wp_json_encode(array($ref,$index,$summary),JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)),0,24)!==($panel['targetId']??null))
+                return null;
+            $copy[]=array('summary'=>$summary,'answer'=>$answer);
+        }
+        $sequence=array_merge(range(1,count($panels)-1),array(0,0));$after=null;
+        foreach($sequence as $position=>$index){
+            $click=$clicks[$position];$from=$click['fromSha256']??'';$to=$click['toSha256']??'';
+            if(($click['index']??null)!==$index||($click['targetId']??null)!==$panels[$index]['targetId']||
+                ($click['open']??null)!==($position===count($sequence)-1?array():array($index))||
+                !preg_match('/^[a-f0-9]{64}$/D',$from)||!preg_match('/^[a-f0-9]{64}$/D',$to)||
+                $from===$to||($after!==null&&$after!==$from))return null;
+            $after=$to;
+        }
+        if($ordered!==null&&$ordered!==$copy)return null;
+        $ordered=$copy;
+        $targets[$width]=array_column($panels,'targetId');
+        $observed[$width]=array_column($clicks,'open');
+    }
+    return array('id'=>'disclosure-'.$id,'panels'=>$ordered,'targetIds'=>$targets,'observedOpenStates'=>$observed,
+        'initial'=>array(0),'indicator'=>'chevron-20','classification'=>'native','externalDependencies'=>array(),
+        'sourceKeyboard'=>'unverified','nativeKeyboardRequired'=>true,'archiveId'=>$receipt['archiveId']);
+}
+
+function syndamorph_source_disclosure_touch(array $source,array $archive) {
+    if(!syndamorph_disclosures_supported()||!syndamorph_production_reference_valid($archive,$archive['sourceUrl']??'')||
+        empty($archive['runtimeSha256']))
+        return new WP_Error('sm_disclosure_source','Details on this host requires the verified recorded source runtime.');
+    $token=getenv('SYNDAMORPH_BACKEND_TOKEN');
+    if(getenv('SYNDAMORPH_BACKEND_URL')!=='http://backend:3100/capture'||!is_string($token)||$token==='')
+        return new WP_Error('sm_disclosure_source','Recorded source replay is unavailable.');
+    $receipt=array('archiveId'=>$archive['id'],'sourceSha256'=>hash('sha256',wp_json_encode($source)),'views'=>array());
+    foreach(SYNDAMORPH_SOURCE_WIDTHS as $width){
+        $ref=$source['variants'][$width]['sourceRef']??'';
+        if(!preg_match('/^(?:[a-z][a-z0-9-]{0,20})?\[(?:data-dc-tpl|id)="[a-zA-Z0-9_-]{1,64}"\]$/D',$ref))
+            return new WP_Error('sm_disclosure_source','The exact disclosure region identity is unsupported.',array('width'=>$width));
+        $response=wp_remote_post('http://backend:3100/production-touch',array('timeout'=>45,'redirection'=>0,
+            'limit_response_size'=>64000,'headers'=>array('Content-Type'=>'application/json','X-SyndaMorph-Token'=>$token),
+            'body'=>wp_json_encode(array('archiveId'=>$archive['id'],'width'=>$width,'sourceRef'=>$ref,'kind'=>'disclosure-group'))));
+        $view=is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200?null:
+            json_decode(wp_remote_retrieve_body($response),true);
+        if(($view['status']??null)!=='observed'){
+            $reason=$view['reason']??null;
+            return new WP_Error('sm_disclosure_source','Recorded disclosure proof is incomplete.',
+                array('width'=>$width,'reason'=>is_string($reason)&&preg_match('/^[a-z_]{1,60}$/D',$reason)?$reason:'replay_unavailable'));
+        }
+        $receipt['views'][$width]=$view;
+    }
+    $proved=$source+array('disclosureEvidence'=>$receipt);
+    if(syndamorph_source_disclosure_profile($proved,$archive)===null)
+        return new WP_Error('sm_disclosure_source','Recorded copy or action sequences do not bind to the pinned region.');
+    return $proved;
+}
+
 function syndamorph_source_blockers(array $region,?array $archive=null): array {
     $blockers=array();
     $strip=!empty($archive['runtimeSha256'])&&is_string($archive['sourceUrl']??null)&&
         syndamorph_production_reference_valid($archive,$archive['sourceUrl'])?syndamorph_source_scroll_profile($region):null;
+    $disclosure=$archive!==null&&syndamorph_disclosures_supported()?syndamorph_source_disclosure_profile($region,$archive):null;
     foreach(SYNDAMORPH_SOURCE_WIDTHS as $width) {
         $view=$region['variants'][$width]??null;
         if(!is_array($view) || empty($view['html']) || !is_array($view['inventory']??null) ||
@@ -51,11 +141,11 @@ function syndamorph_source_blockers(array $region,?array $archive=null): array {
             continue;
         }
         $inventory=$view['inventory'];
-        if(!empty($inventory['controls'])&&!isset($strip['copyByWidth'][$width])) {
+        if(!empty($inventory['controls'])&&!isset($strip['copyByWidth'][$width])&&$disclosure===null) {
             $types=array_values(array_unique(array_column($inventory['controls'],'type')));
             $blockers[]="{$width}px source actions need a native implementation and functional tests (".implode(', ',$types).').';
         }
-        if(!empty($inventory['assets'])) {
+        if(!empty($inventory['assets'])&&$disclosure===null) {
             $types=array_values(array_unique(array_column($inventory['assets'],'type')));
             $blockers[]="{$width}px visual assets are outside the current AI block contract (".implode(', ',$types).').';
         }
@@ -240,6 +330,7 @@ function syndamorph_source_visual(array $reference,array $native,bool $extent=tr
 function syndamorph_source_verify_markup(array $source,array $evidence): array {
     $verdict=array();
     $profile=syndamorph_source_scroll_profile($source);
+    $disclosure=syndamorph_source_disclosure_profile($source);
     foreach(SYNDAMORPH_SOURCE_WIDTHS as $index=>$width) {
         $inventory=$source['variants'][$width]['inventory'];
         $literal=$evidence[$index]['snapshot']['literal']??array();
@@ -251,13 +342,17 @@ function syndamorph_source_verify_markup(array $source,array $evidence): array {
         $expectedStrips=array();
         if(isset($profile['copyByWidth'][$width]))$expectedStrips[]=array('id'=>$profile['id'],
             'cards'=>$profile['cards'],'copySha256'=>$profile['copyByWidth'][$width]);
-        $controlsSupported=empty($inventory['controls'])||!empty($expectedStrips);
+        $expectedDisclosures=$disclosure===null?array():array(array('id'=>$disclosure['id'],
+            'initial'=>$disclosure['initial'],'panels'=>$disclosure['panels']));
+        $controlCount=$disclosure===null?0:count($disclosure['panels']);
+        $controlsSupported=empty($inventory['controls'])||!empty($expectedStrips)||$disclosure!==null;
         $view=array('width'=>$width,'literalContent'=>$actualText===$expectedText,
             'links'=>$observedLinks===$expectedLinks,
-            'assets'=>empty($inventory['assets'])&&($literal['assets']??null)===0,
-            'functions'=>$controlsSupported&&($literal['controls']??null)===0&&
-                (!$expectedStrips||($evidence[$index]['width']??null)===$width)&&
-                ($literal['scrollStrips']??array())===$expectedStrips);
+            'assets'=>(empty($inventory['assets'])||$disclosure!==null)&&($literal['assets']??null)===0,
+            'functions'=>$controlsSupported&&($literal['controls']??null)===$controlCount&&
+                ((!$expectedStrips&&!$expectedDisclosures)||($evidence[$index]['width']??null)===$width)&&
+                ($literal['scrollStrips']??array())===$expectedStrips&&
+                ($literal['disclosures']??array())===$expectedDisclosures);
         if(!$view['functions']&&$profile!==null)$view['scrollDifference']=array('expected'=>$expectedStrips,
             'observed'=>$literal['scrollStrips']??null);
         if(!$view['links']){
