@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.12] - 2026-11-26
+
+### Fixed
+- Section and Full Page preserve a recoverable Bossy design review on the existing GEN after a transport failure. Recovery verifies the pinned assignment, source, design hash and prior costs, including conservative reservations for unmetered requests.
+- Touch distinguishes detected control changes from the browser's automatic scroll. Agent handoffs carry the source archive, target identity, action, state, and limits of each observation.
+
+### Verified
+- A live continuation of GEN-000051 reached Bossy and Designer surgery without rerunning classification or initial design. The saved candidate passed the individual 768 px source check. Desktop, mobile and aggregate source approval remain open.
+- A pinned BKKGO replay verified a local FAQ visible-copy change at all three widths. A 16-region inventory tracks source capture, conversion eligibility and acceptance separately.
+
 ## [0.12.11] - 2026-11-26
 
 ### Fixed

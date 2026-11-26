@@ -1923,6 +1923,8 @@ expect($GLOBALS['touch_inputs'][1]===array('archiveId'=>$archive['id'],'width'=>
     'actions'=>array(array('type'=>'click','target'=>str_repeat('f',24)))),
     'Touch request used an unpinned identifier or unsupported browser input');
 expect(($touched['designApproval']['touchScenarios'][0]['status']??null)==='observed' &&
+    ($touched['designApproval']['touchScenarios'][0]['archiveId']??null)===$archive['id'] &&
+    ($touched['designApproval']['touchScenarios'][0]['action']['target']??null)===str_repeat('f',24) &&
     ($touched['designApproval']['touchScenarios'][0]['remoteEffects']??null)==='unverified' &&
     str_contains(wp_json_encode($touchEvents[1]),'private-before') &&
     !str_contains(wp_json_encode($GLOBALS['generations'][2]),'private-before'),

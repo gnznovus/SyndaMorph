@@ -52,3 +52,30 @@ The reference constrains paragraph width at desktop while letting it span the ta
 ## Reproduce without model calls
 
 Select Native Gutenberg in Production Setup and use **Discover sections**, then choose the same content at 1440, 768 and 375 px. Discovery is free and uses only the guarded browser backend. An administrator can also call POST /syndamorph/v1/production-source with a URL and optional sectionId or the three variants keyed by viewport. A selected descriptor returns an opaque capture handle for the existing team stream. Standalone Playwright/WordPress tests cover inventory boundaries, manifest canonicalization, evidence ownership, source copy and visual gating. Keep the recorded GEN as proof of live behavior.
+
+## Production reliability region inventory
+
+The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593da07` contains 16 canonical regions. Its verified SingleFile receipt is `5d804f9fb95df28cd4367931611790fc3821a0de1822c945531eb2d002327523`.
+
+| Region | Captured widths | Conversion blocker or capability |
+| --- | --- | --- |
+| Site header | 1440, 768, 375 | Sticky navigation, compact menu and desktop language controls need reusable navigation behavior. The logo, SVGs and declared destinations need asset and link resolution. The booking destination is external. |
+| Hotel Indigo Bangkok Thonglor | 1440, 768, 375 | The desktop variant includes date, guest and rate controls, icons and `#rooms`. A booking handoff and the exact fragment destination must be proven. Compact and desktop contain different content. |
+| Overlay · SPECIAL OFFER | 1440 | Desktop overlay and dismiss behavior were observed. Compact has no standalone captured variant. Visibility, overlay and dismissal need a reusable contract. |
+| Live Thonglor’s rhythm from sunrise to skyline. | 1440 | No standalone compact variant. The title moves into the compact hero and the longer desktop introduction has no verified compact equivalent. Preserve the responsive transformation explicitly. |
+| Best Rate Guarantee | 768, 375 | No standalone desktop variant. Compact badges require the three captured SVGs and a verified mapping for their visibility. |
+| 12–14 DEC · 2 GUESTS | 768, 375 | No standalone desktop variant. Compact sticky placement needs a responsive behavior contract. Booking effects remain external or unverified. |
+| OUR STORY | 1440, 768, 375 | Desktop illustration requires a verified native image import. The story URL is declared at all widths and needs a pinned destination contract. |
+| EXCLUSIVE OFFERS | 1440, 768, 375 | Current preflight permits conversion. The capture lists no actionable controls or destinations. No interaction is accepted from the numbered artwork alone. |
+| Rooms | 1440, 768, 375 | Desktop photo navigation and room selection have separate behaviors. Reusable carousel and disclosure capabilities need proof. Booking effects remain unverified. |
+| SIP & DINE | 1440, 768, 375 | Current preflight permits conversion. The capture lists no links or controls. Reservation labels do not verify an entitlement to add destinations. |
+| THE NEIGHBORHOOD | 1440, 768, 375 | Desktop custom cards need Touch evidence for their states and actions before any static or reusable mapping can qualify. |
+| THROUGH OUR LENS | 1440, 768, 375 | Current preflight permits conversion. Recorded source labels have no links or controls. GEN-000051 source visual QA remains held. |
+| Newsletter signup | 1440, 768, 375 | Country selection and SVG require component and asset support. Submission and consent need a verified external integration. |
+| FAQs | 1440, 768, 375 | Five disclosure triggers and their chevrons are captured. Touch observed local visible copy changes at every width. Core Details is a candidate capability pending exact state, ordered answers, appearance and independent replay. |
+| IHG Hotels & Resorts brands and IHG One Rewards | 1440, 768, 375 | The region is artwork with an exact alt attribute. Image import and an asset-only native contract are required. |
+| Site footer | 1440, 768, 375 | Image and declared navigation destinations need asset and link resolution. Placeholder hash links and cookie preferences provide no verified integration contract. |
+
+- **Discovery** has browser screenshots and visible inventories for 12 of 16 regions at every required width. Four regions have a variant gap. Separate runtime observations are needed before claiming complete behavioral understanding of each interactive region.
+- **Conversion eligibility** remains 3 of 16 under the current source and native contracts.
+- **Acceptance** is 0 of 16 for this pinned capture. Source inspection, discovery, and partial repairs do not grant a native Pattern or Full Page acceptance.

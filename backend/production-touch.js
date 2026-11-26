@@ -56,6 +56,7 @@ function inspectTouchPage(maximum) {
         const attributes=Object.fromEntries(['aria-controls','aria-expanded','aria-selected','aria-checked','aria-pressed','aria-valuenow']
             .filter(attr=>element.hasAttribute(attr)).map(attr=>[attr,element.getAttribute(attr).slice(0,240)]));
         const tag=element.localName;
+        if(tag==='summary'&&element.parentElement?.localName==='details')attributes.open=element.parentElement.open;
         const style=getComputedStyle(element);
         const box=element.getBoundingClientRect();
         const href=tag==='a'?element.getAttribute('href'):null;
@@ -81,10 +82,10 @@ function inspectTouchPage(maximum) {
         return { selector:selector(element),tag,role,name,attributes,destination,permitsClick,permitsDrag,
             bounds:[box.x,box.y,box.width,box.height].map(value=>Math.round(value*10)/10),
             styles:{ display:style.display,position:style.position,visibility:style.visibility,cursor:style.cursor,
-                transform:style.transform } };
+                transform:style.transform,opacity:style.opacity,color:style.color,backgroundColor:style.backgroundColor } };
     });
     return { width:innerWidth,scroll:Math.round(scrollY),height:document.documentElement.scrollHeight,
-        text:normalize(document.body.innerText),elements,truncated:visibleCandidates.length>maximum };
+        fragment:location.hash,text:normalize(document.body.innerText),elements,truncated:visibleCandidates.length>maximum };
 }
 
 async function touchState(page) {
@@ -93,11 +94,25 @@ async function touchState(page) {
         element.selector,element.tag,element.role,element.name,
     ])).slice(0,24) }));
     const copySha256=digest(data.text);
-    const signature=digest(JSON.stringify([data.width,data.scroll,data.height,copySha256,targets.map(item=>[
+    const signature=digest(JSON.stringify([data.width,data.scroll,data.height,copySha256,data.fragment,targets.map(item=>[
         item.id,item.attributes,item.bounds,item.styles.transform,
     ])]));
-    return { width:data.width,scroll:data.scroll,height:data.height,copySha256,targets,
+    return { width:data.width,scroll:data.scroll,height:data.height,fragment:data.fragment,copySha256,targets,
         truncated:data.truncated,signature };
+}
+
+function transitionFacts(action, before, after, target, nextTarget) {
+    if(action.type==='resize')return before.width!==after.width?['viewport']:[];
+    if(action.type==='scroll')return before.scroll!==after.scroll?['scroll']:[];
+    const changes=[];
+    if(before.copySha256!==after.copySha256)changes.push('visible-copy');
+    if(before.fragment!==after.fragment)changes.push('local-fragment');
+    if(nextTarget){
+        if(JSON.stringify(target.attributes)!==JSON.stringify(nextTarget.attributes))changes.push('target-state');
+        if(JSON.stringify(target.styles)!==JSON.stringify(nextTarget.styles)||
+            target.bounds[2]!==nextTarget.bounds[2]||target.bounds[3]!==nextTarget.bounds[3])changes.push('target-appearance');
+    }else if(!after.truncated)changes.push('target-hidden');
+    return changes;
 }
 
 // The source capture supplies a guard that denies all page-initiated network
@@ -159,15 +174,18 @@ async function inspectTouch(page, input, sealNetwork) {
         await page.waitForTimeout(350);
         const afterState=await touchState(page);
         const after=await snapshot();
-        const transition=current.signature!==afterState.signature;
+        const afterTarget=afterState.targets.find(entry=>entry.id===action.target);
+        // Playwright may scroll a target into view before acting. That alone
+        // does not prove a widget changed state after a click, hover or drag.
+        const changes=transitionFacts(action,current,afterState,target,afterTarget);
         const blockedRequests=denied.slice(attemptStart);
-        const observed=!reason && transition;
+        const observed=!reason && changes.length>0;
         scenarios.push({ action,target,status:observed?'observed':'unknown',
-            reason:reason??(transition?null:'state_unchanged'),before,after,blockedRequests,
+            reason:reason??(observed?null:'state_unchanged'),before,after,blockedRequests,changes,
             remoteEffects:'unverified',
-            from:{ signature:current.signature,width:current.width,scroll:current.scroll,target },
+            from:{ signature:current.signature,width:current.width,scroll:current.scroll,copySha256:current.copySha256,target },
             to:{ signature:afterState.signature,width:afterState.width,scroll:afterState.scroll,
-                target:afterState.targets.find(entry=>entry.id===action.target) } });
+                copySha256:afterState.copySha256,target:afterTarget } });
         current=afterState;
     }
     return { version:1,status:'observed',initial,scenarios,final:current };

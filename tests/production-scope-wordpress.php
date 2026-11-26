@@ -48,8 +48,8 @@ foreach(array('North','Centre','South') as $i=>$label) {
     scope_expect(str_contains($designer,'<section '),'Designer reference root substitution failed.');
     $fixtures[$id]=array('label'=>$label,'plan'=>$plan,'artifact'=>$artifact,'designer'=>$designer);
 }
-$active=null;$calls=array();
-add_filter('pre_http_request',static function($pre,$args,$url)use($model,$stubKey,&$calls,&$active){
+$active=null;$calls=array();$interruptReview=false;
+add_filter('pre_http_request',static function($pre,$args,$url)use($model,$stubKey,&$calls,&$active,&$interruptReview){
     if(!str_starts_with($url,'https://api.anthropic.com/'))return $pre;
     scope_expect(($args['headers']['x-api-key']??'')===$stubKey,'Offline provider harness received an unexpected credential.');
     if(str_contains($url,'/models?'))$response=array('data'=>array(array('id'=>$model,'display_name'=>$model)),'has_more'=>false);
@@ -60,6 +60,7 @@ add_filter('pre_http_request',static function($pre,$args,$url)use($model,$stubKe
         preg_match('/Task: ([a-z_]+)\./',$system,$match);
         $task=$match[1]??'';
         $calls[]=$active['label'].':'.$task;
+        if($task==='final_approval'&&$interruptReview)return new WP_Error('http_request_failed','Fixture review timeout.');
         $input=json_decode($request['messages'][0]['content'][0]['text'],true);
         if($task==='designer'||$task==='developer') {
             scope_expect(count($input['capturedSource']['views']??array())===3,'AI engine lost responsive source variants.');
@@ -78,9 +79,9 @@ add_filter('pre_http_request',static function($pre,$args,$url)use($model,$stubKe
     return array('headers'=>array(),'response'=>array('code'=>200),'body'=>wp_json_encode($response));
 },10,3);
 
-$engine=static function($brief,$stream,$emit,$learning,$source,$remaining,$remainingWork)use(&$active,$fixtures){
+$engine=static function($brief,$stream,$emit,$learning,$source,$remaining,$remainingWork,$resume=null)use(&$active,$fixtures){
     $active=$fixtures[$source['section']['id']];
-    return syndamorph_collab_run($brief,false,$emit,false,$source,$remaining,$remainingWork);
+    return syndamorph_collab_run($brief,false,$emit,false,$source,$remaining,$remainingWork,$resume);
 };
 $keys=array_keys($fixtures);
 $phase=getenv('SM_SCOPE_TEST_PHASE')?:'setup';
@@ -184,8 +185,30 @@ if($phase==='setup') {
         syndamorph_history_latest($candidate['id'],'job_complete')===$archived&&
         !empty(syndamorph_scope_candidate($authorizedJob,$keys[0])['eligible']),
         'Independent DOM reinspection failed to recover the exact archived artifact: '.wp_json_encode($rechecked));
+    $recover=scope_ok(syndamorph_scope_configure(scope_ok(syndamorph_scope_open('section',$capture)),$brief,$keys[0]));
+    $interruptReview=true;
+    $recover=scope_ok(syndamorph_scope_run($recover,$keys[0],false,$engine));
+    $interruptReview=false;
+    $prior=$recover['regions'][$keys[0]]['attempts'][0];
+    $priorCalls=count($calls);
+    scope_expect($recover['regions'][$keys[0]]['designReviewRecovery']&&$recover['costBounded']&&!$recover['meteringComplete']&&
+        $prior['completedCalls']===2&&$prior['unmeteredReserveUsd']>0&&
+        is_wp_error(syndamorph_scope_run($recover,$keys[0],true,$engine)),
+        'Timed-out review did not retain the current GEN and its conservative reservation.');
+    $badEdit=array(array('find'=>'</section>','replace'=>'<a href="#">An invented link</a></section>'));
+    $blocked=syndamorph_scope_resume_design($recover,$keys[0],$badEdit,$engine);
+    scope_expect(is_wp_error($blocked)&&$blocked->get_error_code()==='sm_scope_review_regression'&&count($calls)===$priorCalls,
+        'A recovery patch that changes source copy or links must hold before paid review.');
+    $recover=scope_ok(syndamorph_scope_resume_design($recover,$keys[0],array(),$engine));
+    $attempts=$recover['regions'][$keys[0]]['attempts'];
+    $savedRecovery=syndamorph_history_latest($prior['id'],'job_resumed');
+    scope_expect(count($attempts)===1&&$attempts[0]['id']===$prior['id']&&$attempts[0]['status']==='needs_review'&&
+        $attempts[0]['completedCalls']===5&&$attempts[0]['estimatedCostUsd']>$prior['estimatedCostUsd']&&
+        $attempts[0]['unmeteredReserveUsd']===$prior['unmeteredReserveUsd']&&$savedRecovery['priorCompletedCalls']===2&&
+        array_slice($calls,$priorCalls)===array('North:final_approval','North:developer','North:validation'),
+        'Design review recovery repeated completed work, created a GEN, or lost the original accounting.');
     echo wp_json_encode(array('section'=>$section['id'],'page'=>$page['id'],'keys'=>$keys,'mockCalls'=>count($calls),
-        'authorizedMobileLayout'=>true)).PHP_EOL;
+        'authorizedMobileLayout'=>true,'sameGenReviewRecovery'=>true)).PHP_EOL;
 } elseif($phase==='retry') {
     $page=syndamorph_scope_status(syndamorph_history_latest((int)getenv('SM_SCOPE_JOB'),'scope_manifest'));
     scope_expect($page['page']['editorVerified']&&!$page['page']['allRegions'],'Expected an independently verified partial WordPress draft.');

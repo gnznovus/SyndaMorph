@@ -90,3 +90,28 @@ test('Touch records hover, drag and scroll using discovered controls and bounded
         assert.equal(result.scenarios[2].to.scroll,210);
     }finally{await browser.close();}
 });
+
+test('Touch distinguishes locator scrolling from a native disclosure action', {
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const browser=await chromium.launch();
+    try {
+        const page=await browser.newPage({viewport:{width:375,height:900}});
+        await page.setContent('<div style="height:1400px"></div><button>Decorative control</button>'+
+            '<details><summary>Room details</summary><p>Two twin beds</p></details>');
+        const copy=await page.evaluate(()=>document.body.innerText.replace(/\s+/gu,' ').trim());
+        const args={width:375,copySha256:createHash('sha256').update(copy).digest('hex')};
+        const initial=await inspectTouch(page,{...args,actions:[]},()=>[]);
+        const id=name=>initial.initial.targets.find(target=>target.name===name).id;
+        const result=await inspectTouch(page,{...args,actions:[
+            {type:'click',target:id('Decorative control')},{type:'click',target:id('Room details')},
+        ]},()=>[]);
+        assert.notEqual(result.scenarios[0].from.scroll,result.scenarios[0].to.scroll);
+        assert.equal(result.scenarios[0].status,'unknown');
+        assert.equal(result.scenarios[0].reason,'state_unchanged');
+        assert.equal(result.scenarios[1].status,'observed');
+        assert.deepEqual(result.scenarios[1].changes,['visible-copy','target-state']);
+        assert.equal(result.scenarios[1].from.target.attributes.open,false);
+        assert.equal(result.scenarios[1].to.target.attributes.open,true);
+    }finally{await browser.close();}
+});

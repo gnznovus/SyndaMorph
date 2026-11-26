@@ -123,6 +123,16 @@ GEN-000051's archived reference used placeholder anchors for source labels that 
 
 GEN-000055's native Stack allocated its constrained Group at the start edge and introduced extra nested padding. The measured repair changed only the Stack's `justifyContent` and the column's padding. Candidate SHA-256 `06d8d11cda916c7991cd8a6857cebe9424253e5ca22d6f61c32b25ead01131ac` was tested from isolated WordPress draft 41. The frozen sketch renders shorter browser-default tab controls than the verified native controls. Visual acceptance remains open. These archived replays used zero new model calls and created no publication.
 
+## v0.12.12 transport recovery and Touch evidence
+
+When an existing scoped Bossy design review ends in a transport failure, the scope can resume that review from the same GEN. It checks the exact assignment receipt, original source and capture checkpoint, design hash, model and rates. Recorded usage and conservative reservations carry forward under the original job and parent scope limits. A resume neither reclassifies the source nor repeats initial Designer generation. Normal approval and independent QA still determine whether Developer can start.
+
+The live Through Our Lens continuation kept GEN-000051 under REF-000028. The first resumed Bossy review requested a browser check. Designer surgery improved the retained candidate to 1.797%, 1.451%, and 4.239% at 1440, 768, and 375 px. A subsequent height-only change measured no improvement and rolled back. A later Designer response failed the bounded patch contract. Candidate `7dc8bf6f33e88157bfb94cc05009a6ff54b065f6026c47e140c7ce5e273e1bdd` stays in History. Developer did not start because the required source gate remains closed. The continuation added 10 metered calls at an estimated USD 0.042555. The job has 21 completed calls, USD 0.083855 in metered estimates and a separate USD 0.011048 reservation for the original timeout.
+
+Touch now requires a measured result from the requested action. Scrolling into view as a side effect of a click is insufficient. A recorded action can identify a target state, appearance, local fragment, hidden target or visible copy change. Scroll and resize retain their own explicit checks. The downstream receipt carries the exact source archive, target ID, action status, state and evidence fingerprints. External side effects remain unverified. [BKKGO region inventory](production-pilot-bkkgo.md#production-reliability-region-inventory)
+
+The isolated WordPress regression recovered a timed-out design review on the existing GEN and rejected an invented-link patch before a provider call. A separate Section and Full Page fixture saved three editable Patterns, recovered its partial draft, and passed editor verification and first-fold, full-extent, and continuous responsive QA. The fixture used 34 mocked model responses and zero paid requests. Its local success is independent of the live BKKGO job outcomes.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)

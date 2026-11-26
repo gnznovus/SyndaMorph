@@ -67,22 +67,34 @@ function syndamorph_scope_locked(callable $operation) {
     finally { $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)',$key)); }
 }
 
-function syndamorph_scope_account(int $id): array {
+function syndamorph_scope_account(int $id,bool $includeMetrics=false): array {
     global $wpdb;
     list(,$events)=syndamorph_history_tables();
     $rows=$wpdb->get_results($wpdb->prepare("SELECT event_type,payload FROM $events WHERE job_id=%d AND event_type IN ('agent_complete','agent_failure') ORDER BY id",$id),ARRAY_A);
-    $total=0.0;
+    $total=0.0;$reserve=0.0;$metrics=array();
     $completed=0;
     $usage=array_fill_keys(array('inputTokens','outputTokens','cacheReadTokens','cacheWriteTokens'),0);
-    $known=is_array($rows);
+    $bounded=$known=is_array($rows);
     foreach($rows??array() as $row) {
         if($row['event_type']==='agent_complete')$completed++;
         $metric=json_decode($row['payload'],true)['metric']??array();
         $total+=(float)($metric['estimatedCostUsd']??0);
+        if($includeMetrics)$metrics[]=$metric;
         foreach($usage as $key=>$_)$usage[$key]+=(int)($metric[$key]??0);
-        $known=$known&&($metric['metering']??'')==='provider_reported';
+        $reported=($metric['metering']??'')==='provider_reported';
+        $known=$known&&$reported;
+        $estimate=$metric['estimatedCostUsd']??null;$allowance=$metric['reservedCostUsd']??null;
+        $bounded=$bounded&&is_numeric($estimate)&&$estimate>=0&&($reported||(is_numeric($allowance)&&$allowance>0));
+        if(!$reported&&is_numeric($allowance)&&is_numeric($estimate))
+            $reserve+=max(0,(float)($metric['unmeteredReserveUsd']??0),$allowance-$estimate);
     }
-    return array('estimatedCostUsd'=>round($total,6),'meteringComplete'=>$known,'usage'=>$usage,'completedCalls'=>$completed);
+    return array('estimatedCostUsd'=>round($total,6),'meteringComplete'=>$known,'usage'=>$usage,'completedCalls'=>$completed,
+        'unmeteredReserveUsd'=>$reserve,'costBounded'=>$bounded)+($includeMetrics?array('metrics'=>$metrics):array());
+}
+
+function syndamorph_scope_review_transport_failure(?array $failure): bool {
+    return ($failure['code']??null)==='sm_generation_transport'&&($failure['role']??null)==='boss'&&
+        ($failure['task']??null)==='final_approval';
 }
 
 function syndamorph_scope_status(array $manifest): array {
@@ -90,6 +102,8 @@ function syndamorph_scope_status(array $manifest): array {
     list($jobs)=syndamorph_history_tables();
     $manifest['spentUsd']=0.0;
     $manifest['meteringComplete']=true;
+    $manifest['costBounded']=true;
+    $manifest['unmeteredReserveUsd']=0.0;
     $manifest['outputTokens']=0;
     foreach($manifest['regions'] as &$region) {
         foreach($region['attempts'] as &$attempt) {
@@ -97,17 +111,19 @@ function syndamorph_scope_status(array $manifest): array {
             $status=$row['status']??'interrupted';
             if($status==='running'&&strtotime($row['updated_at'].' UTC')<time()-1500)$status='interrupted';
             $account=syndamorph_scope_account($attempt['id']);
-            if(in_array($status,array('running','interrupted'),true))$account['meteringComplete']=false;
+            if(in_array($status,array('running','interrupted'),true))$account['costBounded']=$account['meteringComplete']=false;
             $attempt=array_merge($attempt,$account,array('status'=>$status));
             $manifest['spentUsd']+=$attempt['estimatedCostUsd'];
             $manifest['outputTokens']+=$attempt['usage']['outputTokens'];
             $manifest['meteringComplete']=$manifest['meteringComplete']&&$attempt['meteringComplete'];
+            $manifest['costBounded']=$manifest['costBounded']&&$attempt['costBounded'];
+            $manifest['unmeteredReserveUsd']+=$attempt['unmeteredReserveUsd'];
         }
         unset($attempt);
         if($region['attempts']) {
             $last=end($region['attempts']);
             $region['status']=$region['patternId']?'pattern_saved':$last['status'];
-            unset($region['checkpointAvailable'],$region['issue']);
+            unset($region['checkpointAvailable'],$region['designReviewRecovery'],$region['issue']);
             if(in_array($last['status'],array('failed','uncompleted','needs_review'),true)) {
                 $failure=syndamorph_history_latest($last['id'],'job_error');
                 $final=syndamorph_history_latest($last['id'],'job_complete');
@@ -119,6 +135,7 @@ function syndamorph_scope_status(array $manifest): array {
                 $responsive=$final['quality']['continuousResponsive']['status']??null;
                 $region['checkpointAvailable']=!empty($failure['referenceCheckpoint'])||!empty($final['referenceCheckpoint'])||
                     $responsive==='pending';
+                $region['designReviewRecovery']=$last['status']==='failed'&&syndamorph_scope_review_transport_failure($failure);
                 $region['issue']=$failure['message']??$final['quality']['issues'][0]['detail']??
                     (in_array($functional,array('pending','failed'),true)?'Functional QA '.$functional.'. See the artifact receipt in History.':null)??
                     (in_array($responsive,array('pending','failed'),true)?'Responsive QA '.$responsive.'. See the artifact receipt in History.':null);
@@ -135,7 +152,7 @@ function syndamorph_scope_run(array $manifest,string $key,bool $retry,?callable 
     if(!$region||($manifest['mode']==='section'&&$manifest['selected']!==$key))
         return syndamorph_scope_error('selection','This region does not belong to the active scope.');
     $eligible=$retry?array('failed','uncompleted'):array('ready');
-    if(!in_array($region['status'],$eligible,true)||!empty($region['checkpointAvailable']))
+    if(!in_array($region['status'],$eligible,true)||!empty($region['checkpointAvailable'])||!empty($region['designReviewRecovery']))
         return syndamorph_scope_error('region_state','Use the existing artifact or browser checkpoint for this region.');
     if(empty($manifest['budgetUsd'])||empty($manifest['meteringComplete'])||$manifest['spentUsd']>=$manifest['budgetUsd']*0.8)
         return syndamorph_scope_error('budget','No verified remaining budget for another section.');
@@ -180,6 +197,138 @@ function syndamorph_scope_run(array $manifest,string $key,bool $retry,?callable 
         $emit('job_error',array('code'=>'sm_scope_internal','message'=>'Production stopped before the section result could be archived.'));
         $emit('agent_failure',array('metric'=>array('metering'=>'unavailable')));
     } finally {
+        unset($GLOBALS['syndamorph_active_job_id']);
+        delete_transient('syndamorph_ai_real_job_lock');
+    }
+    $manifest=syndamorph_scope_status($manifest);
+    if($manifest['status']!=='completed')$manifest['status']='uncompleted';
+    syndamorph_history_append($manifest['id'],'scope_manifest',$manifest);
+    return $manifest;
+}
+
+/** Resume the existing GEN at its first unresolved review, with its own historical budget and evidence. */
+function syndamorph_scope_resume_design(array $manifest,string $key,array $edits=array(),?callable $engine=null) {
+    global $wpdb;
+    $manifest=syndamorph_scope_status($manifest);
+    $region=$manifest['regions'][$key]??null;
+    if(empty($region['designReviewRecovery'])||($manifest['mode']==='section'&&$manifest['selected']!==$key))
+        return syndamorph_scope_error('review_checkpoint','This region has no recoverable design review.');
+    if(get_transient('syndamorph_ai_real_job_lock'))return syndamorph_scope_error('busy','Another AI production job is running.',429);
+    $id=end($region['attempts'])['id'];
+    list($jobs,$events)=syndamorph_history_tables();
+    $row=$wpdb->get_row($wpdb->prepare("SELECT status,context FROM $jobs WHERE id=%d AND category='GEN'",$id),ARRAY_A);
+    $context=json_decode($row['context']??'',true);
+    $saved=$context['scope']??array();
+    $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
+    if(($row['status']??null)!=='failed'||($context['outputType']??null)!=='gutenberg'||
+        ($context['brief']??null)!==$manifest['brief']||($saved['id']??null)!==$manifest['id']||
+        ($saved['region']??null)!==$key||($saved['checkpoint']??null)!==$region['checkpoint']||
+        ($saved['sourceUrl']??null)!==$manifest['sourceUrl']||($source['id']??null)!==$key)
+        return syndamorph_scope_error('review_checkpoint','The archived job and pinned scope disagree.');
+    $evidence=syndamorph_scope_engine_source($source,$manifest['sourceUrl']);
+    if(isset($manifest['layoutAuthorization'])){
+        $authorization=syndamorph_scope_layout_authorization($manifest,$key);
+        if($authorization===null)return syndamorph_scope_error('layout_authorization','The arrangement authorization does not match the saved source.');
+        $evidence['layoutAuthorization']=$authorization;
+    }
+    if(isset($manifest['referenceArchive'])){
+        if(!syndamorph_production_reference_valid($manifest['referenceArchive'],$manifest['sourceUrl']))
+            return syndamorph_scope_error('reference','The archived rendered reference is unavailable.');
+        $evidence['referenceArchive']=$manifest['referenceArchive'];
+    }
+    if($evidence!==($context['sourceEvidence']??null))
+        return syndamorph_scope_error('review_checkpoint','The archived source evidence changed.');
+    $candidate=syndamorph_history_latest($id,'design_candidate');
+    $assignment=json_decode((string)$wpdb->get_var($wpdb->prepare(
+        "SELECT payload FROM $events WHERE job_id=%d AND event_type='handoff' ORDER BY id LIMIT 1",$id)),true);
+    $reference=$candidate['referenceHtml']??null;
+    $sha=$candidate['referenceSha256']??null;
+    $widths=syndamorph_collab_viewports($manifest['brief']);
+    if(is_wp_error($widths))return $widths;
+    $widths=array_values(array_unique(array_merge($widths,SYNDAMORPH_SOURCE_WIDTHS)));
+    rsort($widths,SORT_NUMERIC);
+    $specification=$assignment['requirements']['specification']??null;
+    if(!is_string($reference)||!is_string($sha)||!hash_equals($sha,hash('sha256',$reference))||
+        !is_int($candidate['round']??null)||($assignment['type']??null)!=='assignment'||
+        ($assignment['from']??null)!=='boss'||($assignment['to']??null)!=='designer'||!is_array($specification)||
+        ($assignment['specificationReceipt']??null)!==
+        syndamorph_production_specification_receipt($specification,$manifest['brief'],$widths,$evidence))
+        return syndamorph_scope_error('review_checkpoint','The saved design or assignment cannot be verified for review recovery.');
+    $touch=array();
+    foreach(array_unique(array_column($assignment['touchScenarios']??array(),'receipt')) as $keySha){
+        if(!is_string($keySha)||!preg_match('/^[a-f0-9]{64}$/D',$keySha))
+            return syndamorph_scope_error('review_checkpoint','The saved Touch scenario identity is invalid.');
+        $receipt=syndamorph_history_touch_receipt($id,$keySha);
+        $input=$receipt['input']??null;
+        if(!is_array($input)||!isset($evidence['referenceArchive']['id'])||($input['archiveId']??null)!==$evidence['referenceArchive']['id']||
+            !hash_equals($keySha,hash('sha256',wp_json_encode($input)))||($receipt['result']['archiveId']??null)!==$input['archiveId'])
+            return syndamorph_scope_error('review_checkpoint','The saved Touch scenario is unavailable or its source differs.');
+        $touch[$keySha]=$receipt;
+    }
+    $scenarios=syndamorph_production_touch_scenarios($touch);
+    foreach($assignment['touchScenarios']??array() as $index=>$scenario){
+        if(!isset($scenarios[$index])||array_intersect_key($scenarios[$index],$scenario)!==$scenario)
+            return syndamorph_scope_error('review_checkpoint','The saved Touch evidence changed.');
+    }
+    $account=syndamorph_scope_account($id,true);
+    $settings=syndamorph_models_settings();
+    foreach(array('provider','model','inputPrice','outputPrice') as $field){
+        if(($settings[$field]??null)!==($context['settings'][$field]??null))
+            return syndamorph_scope_error('review_settings','Model or token rates differ from the archived job.');
+    }
+    $spent=$manifest['spentUsd']+$manifest['unmeteredReserveUsd'];
+    $used=$account['estimatedCostUsd']+$account['unmeteredReserveUsd'];
+    $other=max(0,$spent-$used);
+    $max=min((float)($saved['budgetUsd']??0),$settings['maxJobUsd'],($manifest['budgetUsd']??0)-$other);
+    $work=min((float)($saved['workingBudgetUsd']??0),$max*0.8,($manifest['budgetUsd']??0)*0.8-$other);
+    if(!$manifest['costBounded']||!$account['costBounded']||$work<=$used)
+        return syndamorph_scope_error('budget','The original budget cannot cover the recorded charges, reservations and another review.');
+    $surgery=null;
+    if($edits){
+        $patch=syndamorph_design_surgery($reference,array('edits'=>$edits));
+        if(is_wp_error($patch))return $patch;
+        $before=syndamorph_collab_inspect($reference,$widths,$beforeBuild);
+        if(is_wp_error($before))return $before;
+        $after=syndamorph_collab_inspect($patch['reference'],$widths,$afterBuild);
+        if(is_wp_error($after))return $after;
+        if($beforeBuild!==$afterBuild)return syndamorph_scope_error('review_checkpoint','The renderer changed during bounded design recovery.');
+        $beforeResponsive=syndamorph_design_responsive_measure($reference,$widths,$before,$beforeBuild);
+        if(is_wp_error($beforeResponsive))return $beforeResponsive;
+        $afterResponsive=syndamorph_design_responsive_measure($patch['reference'],$widths,$after,$afterBuild);
+        if(is_wp_error($afterResponsive))return $afterResponsive;
+        $delta=syndamorph_source_surgery_comparison(syndamorph_source_review($source,$reference,$authorization??null),
+            syndamorph_source_review($source,$patch['reference'],$authorization??null));
+        if($delta['regressions']||syndamorph_design_responsive_regressions($beforeResponsive,$afterResponsive)||
+            array_diff(syndamorph_design_element_ids($before),syndamorph_design_element_ids($after)))
+            return syndamorph_scope_error('review_regression','The recovery patch failed to preserve verified design evidence.');
+        $reference=$patch['reference'];
+        $surgery=array('status'=>'responsive_checked','priorSha256'=>$sha,'candidateSha256'=>hash('sha256',$reference),
+            'changes'=>$patch['changes'],'sourceMeasurements'=>$delta['views']);
+    }
+    if(get_transient('syndamorph_ai_real_job_lock'))return syndamorph_scope_error('busy','Another AI production job is running.',429);
+    $started=$wpdb->query($wpdb->prepare("UPDATE $jobs SET status='running',updated_at=%s WHERE id=%d AND status='failed'",
+        gmdate('Y-m-d H:i:s'),$id));
+    if($started!==1)return syndamorph_scope_error('busy','The saved design review has already been claimed.',429);
+    $emit=static function(string $type,array $data)use($id):void{syndamorph_history_append($id,$type,$data);};
+    set_transient('syndamorph_ai_real_job_lock',1,20*MINUTE_IN_SECONDS);
+    $GLOBALS['syndamorph_active_job_id']=$id;
+    try{
+        $emit('job_resumed',array('stage'=>'design_approval','referenceSha256'=>$sha,'priorCompletedCalls'=>$account['completedCalls'],
+            'priorEstimatedCostUsd'=>$account['estimatedCostUsd'],'priorUnmeteredReserveUsd'=>$account['unmeteredReserveUsd']));
+        $resume=array('assignment'=>$assignment,'account'=>$account,'referenceHtml'=>$reference,'archivedSha256'=>$sha,'touch'=>$touch,
+            'surgery'=>$surgery,'round'=>$candidate['round']+($surgery===null?0:1));
+        if($surgery!==null)$emit('design_surgery',array('round'=>$resume['round'])+$surgery);
+        $result=($engine??'syndamorph_collab_run')($manifest['brief'],true,$emit,true,$evidence,$max,$work,$resume);
+        if(is_wp_error($result)){
+            $failure=syndamorph_team_failure_payload($result);
+            $failure['completedCalls']=syndamorph_scope_account($id)['completedCalls'];
+            $emit('job_error',$failure);
+        }
+        else $emit('job_complete',$result);
+    }catch(Throwable $error){
+        $emit('job_error',array('code'=>'sm_scope_internal','message'=>'Review recovery stopped before it could be archived.'));
+        $emit('agent_failure',array('metric'=>array('metering'=>'unavailable')));
+    }finally{
         unset($GLOBALS['syndamorph_active_job_id']);
         delete_transient('syndamorph_ai_real_job_lock');
     }
@@ -492,7 +641,7 @@ add_action('rest_api_init',static function():void {
         }),
         array('methods'=>'POST','permission_callback'=>$permission,'callback'=>static function(WP_REST_Request $request) {
             $action=$request->get_param('action');
-            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','save_pattern','assemble','verify_page'),true))
+            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','resume_design_review','save_pattern','assemble','verify_page'),true))
                 return syndamorph_scope_error('action','Invalid scope action.',400);
             return syndamorph_scope_locked(static function()use($request,$action){
                 $manifest=syndamorph_history_latest((int)$request['id'],'scope_manifest');
@@ -514,14 +663,17 @@ add_action('rest_api_init',static function():void {
                             $manifest=syndamorph_scope_status($manifest);
                             if(isset($manifest['layoutAuthorization']))
                                 return syndamorph_scope_error('layout_authorization','Start a fresh source scope to authorize a layout change against a new capture.');
-                            if($manifest['mode']!=='section'||($manifest['regions'][$manifest['selected']??'']['status']??'')!=='failed')
+                            if($manifest['mode']!=='section'||($manifest['regions'][$manifest['selected']??'']['status']??'')!=='failed'||
+                                !empty($manifest['regions'][$manifest['selected']??'']['designReviewRecovery']))
                                 return syndamorph_scope_error('repin','Only a failed Section can recapture its source.');
                             $capture=syndamorph_capture_page($manifest['sourceUrl'],'browser',true);
                             return is_wp_error($capture)?$capture:syndamorph_scope_repin_section($manifest,$capture);
                         case 'run':
                         case 'retry':
+                        case 'resume_design_review':
                             if(true!==$request->get_param('confirmed'))return syndamorph_scope_error('approval','Explicit paid production confirmation is required.',400);
                             ignore_user_abort(true);
+                            if($action==='resume_design_review')return syndamorph_scope_resume_design($manifest,$region);
                             return syndamorph_scope_run(syndamorph_scope_status($manifest),$region,$action==='retry');
                         case 'save_pattern': return syndamorph_scope_save_pattern($manifest,$region);
                         case 'assemble': return syndamorph_scope_assemble($manifest);

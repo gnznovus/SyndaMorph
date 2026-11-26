@@ -103,7 +103,7 @@
                 manifest = await request(url(), {action:'increase_budget',limitUsd:Number(budgetField.value)});
             }));
         }
-        if (!manifest.meteringComplete) panel.append(node('p', 'Metering is incomplete. Paid work is paused.'));
+        if (!manifest.meteringComplete) panel.append(node('p', 'Metering is incomplete. New paid attempts are paused.'));
         const list = node('ol');
         for (const row of targets()) {
             const entry = node('li');
@@ -119,10 +119,17 @@
             }
             if (!row.patternId && ['needs_review','completed'].includes(row.status)) entry.append(button('Validate and save pattern', () => finishRegion(row.id)));
             if (row.checkpointAvailable) entry.append(button('Recheck browser', () => recheck(row)));
-            if (manifest.mode === 'section' && row.status === 'failed' && !row.checkpointAvailable && !manifest.layoutAuthorization) entry.append(button('Recapture section evidence', async () => {
+            if (row.designReviewRecovery && manifest.costBounded &&
+                Number(manifest.spentUsd) + Number(manifest.unmeteredReserveUsd) < budget() * 0.8) {
+                entry.append(button('Resume design review', async () => {
+                    if (window.confirm('Resume paid design review on the saved job within its original budget?'))
+                        await runRegion(row.id, 'resume_design_review');
+                }));
+            }
+            if (manifest.mode === 'section' && row.status === 'failed' && !row.checkpointAvailable && !row.designReviewRecovery && !manifest.layoutAuthorization) entry.append(button('Recapture section evidence', async () => {
                 manifest = await request(url(), {action:'recapture'});
             }));
-            if (canSpend() && ['failed','uncompleted'].includes(row.status) && !row.checkpointAvailable) {
+            if (canSpend() && ['failed','uncompleted'].includes(row.status) && !row.checkpointAvailable && !row.designReviewRecovery) {
                 entry.append(button('Retry section', async () => {
                     if (window.confirm('Start one new paid attempt for this section within the remaining scope budget?')) await runRegion(row.id, 'retry');
                 }));

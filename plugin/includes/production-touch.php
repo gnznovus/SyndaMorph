@@ -70,7 +70,7 @@ function syndamorph_production_touch(array $request,array $archive,?callable $on
     $compact=array('status'=>$data['status'],'reason'=>$data['reason']??null,'width'=>$width,
         'targets'=>array_map($target,array_slice($data['initial']['targets'],0,32)),'scenarios'=>array());
     foreach($data['scenarios'] as $scenario){
-        $compact['scenarios'][]=array_intersect_key($scenario,array_flip(array('action','status','reason','blockedRequests','remoteEffects')))+
+        $compact['scenarios'][]=array_intersect_key($scenario,array_flip(array('action','status','reason','blockedRequests','remoteEffects','changes')))+
             array('target'=>$target($scenario['target']??null),'beforeSha256'=>$scenario['before']['sha256']??null,
                 'afterSha256'=>$scenario['after']['sha256']??null,'from'=>$target($scenario['from']['target']??null),
                 'to'=>$target($scenario['to']['target']??null));
@@ -79,4 +79,22 @@ function syndamorph_production_touch(array $request,array $archive,?callable $on
         'scenarioSha256'=>$key,'cache'=>$cacheStatus,'viewports'=>array($width));
     if($on_event)$on_event('tool_invocation',$receipt);
     return array('receipt'=>$receipt,'evidence'=>$compact);
+}
+
+/** Retain target identity and measured state across agent handoffs. */
+function syndamorph_production_touch_scenarios(array $receipts): array {
+    $scenarios=array();
+    foreach($receipts as $touch)foreach($touch['result']['scenarios'] as $scenario){
+        $state=static fn(array $value):array=>array_intersect_key($value,array_flip(array('width','scroll','signature','copySha256')))+
+            array('targetState'=>$value['target']['attributes']??null);
+        $scenarios[]=array('receipt'=>$touch['key'],'archiveId'=>$touch['input']['archiveId'],'width'=>$touch['input']['width'],
+            'action'=>$scenario['action'],'status'=>$scenario['status'],'reason'=>$scenario['reason']??null,
+            'changes'=>$scenario['changes']??null,'remoteEffects'=>$scenario['remoteEffects']??'unverified',
+            'blockedRequestCount'=>count((array)($scenario['blockedRequests']??array())),
+            'targetId'=>$scenario['target']['id']??null,'component'=>$scenario['target']['name']??null,
+            'destination'=>$scenario['target']['destination']??null,
+            'before'=>$state($scenario['from']??array()),'after'=>$state($scenario['to']??array()),
+            'beforeSha256'=>$scenario['before']['sha256']??null,'afterSha256'=>$scenario['after']['sha256']??null);
+    }
+    return $scenarios;
 }
