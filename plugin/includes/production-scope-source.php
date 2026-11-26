@@ -327,7 +327,7 @@ function syndamorph_source_visual(array $reference,array $native,bool $extent=tr
     return array('passed'=>$passed&&syndamorph_visual_pixels_within_limits($strictRatios),'views'=>$comparison);
 }
 
-function syndamorph_source_verify_markup(array $source,array $evidence): array {
+function syndamorph_source_verify_markup(array $source,array $evidence,?array $originalImages=null): array {
     $verdict=array();
     $profile=syndamorph_source_scroll_profile($source);
     $disclosure=syndamorph_source_disclosure_profile($source);
@@ -346,15 +346,27 @@ function syndamorph_source_verify_markup(array $source,array $evidence): array {
             'initial'=>$disclosure['initial'],'panels'=>$disclosure['panels']));
         $controlCount=$disclosure===null?0:count($disclosure['panels']);
         $controlsSupported=empty($inventory['controls'])||!empty($expectedStrips)||$disclosure!==null;
+        $assets=(empty($inventory['assets'])||$disclosure!==null)&&($literal['assets']??null)===0;
+        if($originalImages!==null){
+            $expected=$originalImages[$width]??null;
+            $sourceImage=$inventory['assets'][0]??null;
+            $sourceMatches=$expected===null?empty($inventory['assets']):
+                count($inventory['assets'])===1&&($sourceImage['type']??null)==='image'&&
+                ($sourceImage['alt']??null)===($expected['alt']??null);
+            $assets=($evidence[$index]['width']??null)===$width&&array_key_exists($width,$originalImages)&&
+                $sourceMatches&&($literal['assets']??null)===($expected===null?0:1)&&($literal['originalImage']??null)===$expected;
+        }
         $view=array('width'=>$width,'literalContent'=>$actualText===$expectedText,
             'links'=>$observedLinks===$expectedLinks,
-            'assets'=>(empty($inventory['assets'])||$disclosure!==null)&&($literal['assets']??null)===0,
+            'assets'=>$assets,
             'functions'=>$controlsSupported&&($literal['controls']??null)===$controlCount&&
                 ((!$expectedStrips&&!$expectedDisclosures)||($evidence[$index]['width']??null)===$width)&&
                 ($literal['scrollStrips']??array())===$expectedStrips&&
                 ($literal['disclosures']??array())===$expectedDisclosures);
         if(!$view['literalContent'])
             $view['copyDifference']=syndamorph_source_copy_difference($expectedText,is_string($actualText)?$actualText:null);
+        if($originalImages!==null&&!$assets)$view['imageDifference']=array('expected'=>$expected,
+            'observed'=>$literal['originalImage']??null,'observedAssetCount'=>$literal['assets']??null);
         if(!$view['functions']&&$profile!==null)$view['scrollDifference']=array('expected'=>$expectedStrips,
             'observed'=>$literal['scrollStrips']??null);
         if(!$view['links']){

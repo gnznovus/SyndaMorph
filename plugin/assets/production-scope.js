@@ -129,8 +129,12 @@
                     manifest = await request(url(), {action:'verify_image',region:row.id});
                 }));
             }
-            if (row.status === 'blocked' && row.linkedImageReplayAvailable) {
-                if (row.linkedImageEvidence) entry.append(node('p','Archived image and declared link verified. Native QA pending.'));
+            if (row.linkedImageReplayAvailable && (row.status === 'blocked' ||
+                (row.status === 'uncompleted' && row.patternId && row.linkedImageEvidence))) {
+                if (row.linkedImageEvidence) entry.append(button('Verify native editorial section', async () => {
+                    manifest = await request(url(), {action:'stage_linked_editorial',region:row.id});
+                    if (!row.patternId) await finishRegion(row.id);
+                }));
                 else entry.append(button('Verify archived image and link', async () => {
                     manifest = await request(url(), {action:'verify_image',region:row.id});
                 }));
@@ -186,7 +190,7 @@
     async function finishRegion(id) {
         const candidate = await request(url(), null, {region: id});
         if (!candidate.eligible) throw new Error('This section is still pending source or production QA.');
-        if (candidate.imageStrip) {
+        if (candidate.assetKind) {
             const count = window.SyndaMorphAIExport.validateNative(candidate.content);
             manifest = await request(url(), {action:'save_pattern',region:id,checksum:candidate.checksum,blockCount:count,valid:true});
             return;

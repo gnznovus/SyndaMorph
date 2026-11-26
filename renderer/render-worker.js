@@ -405,7 +405,7 @@ process.stdin.on('end', async () => {
             for (const width of viewports) {
                 await page.setViewportSize({ width, height: HEIGHT });
                 await waitForInstalledFonts(page);
-                const snapshot = await page.evaluate(includeLiteral => {
+                const snapshot = await page.evaluate(async includeLiteral => {
                     const elements = [...document.body.querySelectorAll('*')].filter(el => !['STYLE','SCRIPT'].includes(el.tagName));
                     const positions = new Map(elements.map((el, index) => [el, index]));
                     const rect = r => [r.x, r.y, r.width, r.height].map(value => Math.round(value * 10) / 10);
@@ -475,7 +475,7 @@ process.stdin.on('end', async () => {
                             (el.matches('.wp-block-group.sm-scroll-strip')?el.getAttribute('data-sm-node'):null);
                         return id&&id.length<=48?id:null;
                     };
-                    const literal = includeLiteral ? (() => {
+                    const literal = includeLiteral ? await (async () => {
                         const normalize = value => value.replace(/\s+/gu, ' ').trim();
                         const visible = new Set([document.body, ...elements].filter(el => {
                             const rect = el.getBoundingClientRect(), style = getComputedStyle(el);
@@ -494,6 +494,18 @@ process.stdin.on('end', async () => {
                             ({ href: el.getAttribute('href'), text: normalize(el.innerText || el.getAttribute('aria-label') || '') }));
                         const assets = Array.from(visible).filter(el => el.matches('img,svg,video,audio,iframe,object,embed,canvas') ||
                             getComputedStyle(el).backgroundImage.includes('url(')).length;
+                        const originals = [...visible].filter(el => el.matches('img[data-sm-source-image]') &&
+                            el.checkVisibility({opacityProperty:true,visibilityProperty:true}));
+                        let originalImage = null;
+                        if (originals.length === 1) {
+                            const [image] = originals;
+                            const match = /^data:image\/png;base64,([A-Za-z0-9+/=]{1,699052})$/.exec(image.currentSrc);
+                            if (match && await image.decode().then(() => true, () => false)) {
+                                const style = getComputedStyle(image);
+                                originalImage = {base64:match[1],alt:image.alt.slice(0,241),
+                                    pixels:[image.naturalWidth,image.naturalHeight],filter:style.filter,blend:style.mixBlendMode};
+                            }
+                        }
                         const controls = Array.from(visible).filter(el => el.matches('form,input,select,textarea,button,details,dialog,[role=tab],[role=button]')).length;
                         const scrollAreas = [...visible].filter(el=>['auto','scroll'].includes(getComputedStyle(el).overflowX)&&
                             el.clientWidth>0&&el.scrollWidth-el.clientWidth>4);
@@ -530,7 +542,8 @@ process.stdin.on('end', async () => {
                         });
                         const layoutIdentity = visibleElements.length <= 200 && textStyles.length <= 20 &&
                             paint.length <= 32 && paint.every(value => value.length <= 240) ? {paint,textStyles} : null;
-                        return { text, links, assets, controls, layoutIdentity, scrollStrips,...(disclosures.length?{disclosures}:{}) };
+                        return { text, links, assets, controls, layoutIdentity, scrollStrips,
+                            ...(originalImage ? {originalImage} : {}),...(disclosures.length?{disclosures}:{}) };
                     })() : null;
                     return {
                         copy: copyParts.join('').replace(/\s+/gu, ' ').trim(),
@@ -641,6 +654,10 @@ process.stdin.on('end', async () => {
                 if(snapshot.literal) snapshot.literal.scrollStrips=snapshot.literal.scrollStrips.map(strip=>strip===null?null:{
                     id:strip.id,cards:strip.copy.length,copySha256:createHash('sha256').update(JSON.stringify(strip.copy)).digest('hex'),
                 });
+                if (snapshot.literal?.originalImage) {
+                    const {base64, ...facts} = snapshot.literal.originalImage;
+                    snapshot.literal.originalImage = {...facts,sha256:createHash('sha256').update(Buffer.from(base64,'base64')).digest('hex')};
+                }
                 const a11y = await a11yPage.evaluate(async () => {
                     const report=await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa']}});
                     return report.violations.map(v=>({id:v.id,impact:v.impact,description:v.description,

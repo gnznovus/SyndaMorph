@@ -210,6 +210,7 @@ function syndamorph_native_core_preview(array $blocks,?array $ids=null): string 
     $css.=WP_Style_Engine::compile_stylesheet_from_css_rules($rules);
     if(isset($classes['sm-scroll-strip']))$css.=syndamorph_scroll_strip_css();
     if(isset($classes['sm-source-image-strip']))$css.=syndamorph_image_strip_css();
+    if(isset($classes['sm-linked-editorial']))$css.=syndamorph_linked_editorial_css();
     if(isset($classes['sm-square-grid']))$css.=syndamorph_native_square_grid_css();
     if(isset($classes['sm-disclosure-group']))$css.=syndamorph_disclosures_css();
     if(isset($classes['sm-text-wrap-pretty']))$css.=syndamorph_native_paragraph_wrap_css();

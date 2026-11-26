@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.39] - 2026-11-27
+
+### Added
+
+- Production Setup can verify and save a measured editorial layout as an editable Core Pattern. It binds the declared link and the original PNG receipt to the source checkpoint. The rendered asset must match its bytes, alt text, dimensions, paint and viewport visibility. Stylesheet changes require fresh browser QA on the saved Pattern.
+
+### Verified
+
+- BKKGO Our Story passed source visual, content, link, and asset checks at all three required widths and passed 14 responsive samples. Private unsynced Pattern 100 became the sixth verified placement in the original unpublished draft. Gutenberg edit, save and reload preserved all 240 blocks. Whole-page QA remains pending. The checkpoint used zero paid model calls.
+
 ## [0.12.38] - 2026-11-27
 
 ### Added

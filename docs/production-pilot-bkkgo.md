@@ -12,7 +12,7 @@ Playwright Chromium waited for rendered visible content and document fonts at 14
 | Hero and booking | Hotel hero with an overlapping booking bar | Hero with booking controls, a Best Rate Guarantee panel and a sticky booking bar | Discovery only. Booking needs action, state and responsive-placement verification. |
 | Offer overlay | Separate SPECIAL OFFER overlay | Absent in captured initial state | Dismissal verified in Chromium. It needs its own lifecycle and accessibility checks. |
 | Introductory story | Live Thonglor's rhythm ? | Headline moves into the hero and the separate prose is absent | Discovery only. Responsive copy varies by template. |
-| Our story | OUR STORY | OUR STORY | Discovery only. Preserve imagery and source destinations. |
+| Our story | OUR STORY | OUR STORY | Verified Core Pattern with the original desktop illustration and exact link. |
 | Offers | EXCLUSIVE OFFERS | EXCLUSIVE OFFERS | Discovery only. Visible content differs by template. |
 | Stay | Rooms and carousel controls | STAY | Discovery only. Preserve selector and carousel behavior when present. |
 | Dining | SIP & DINE | SIP & DINE | Discovery only. |
@@ -65,7 +65,7 @@ The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593
 | Live Thonglor’s rhythm from sunrise to skyline. | 1440 | No standalone compact variant. The title moves into the compact hero and the longer desktop introduction has no verified compact equivalent. Preserve the responsive transformation explicitly. |
 | Best Rate Guarantee | 768, 375 | No standalone desktop variant. Compact badges require the three captured SVGs and a verified mapping for their visibility. |
 | 12–14 DEC · 2 GUESTS | 768, 375 | No standalone desktop variant. Compact sticky placement needs a responsive behavior contract. Booking effects remain external or unverified. |
-| OUR STORY | 1440, 768, 375 | The archive verified the original desktop illustration and declared Brand History link across all widths. The Media Library retains the PNG. Production integration of the native responsive layout, image and link remains pending. |
+| OUR STORY | 1440, 768, 375 | Private unsynced Pattern 100 retains the original PNG at desktop and the exact Brand History link at all widths. It passed independent native QA and occupies source position 7. |
 | EXCLUSIVE OFFERS | 1440, 768, 375 | GEN-000058 passed and saved private unsynced Pattern 73 with the original empty second card. The original Full Page scope revalidated and placed it at source position 8. The actual draft reproduced the source's 213 px scroll range at 375 px. |
 | Rooms | 1440, 768, 375 | Desktop photo navigation and room selection have separate behaviors. Reusable carousel and disclosure capabilities need proof. Booking effects remain unverified. |
 | SIP & DINE | 1440, 768, 375 | The corrected-capture GEN-000059 passed and saved private unsynced Pattern 79. REF-000030 revalidated it at source position 10. The actual draft reproduced 594 px of scroll at 768 px and 280 px at 375 px. The original GEN-000056 remains on its earlier capture. |
@@ -78,8 +78,8 @@ The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593
 
 - **Discovery** has browser screenshots and visible inventories for 12 of 16 regions at every required width. Four regions have a variant gap. Separate runtime observations are needed before claiming complete behavioral understanding of each interactive region.
 - **Conversion eligibility** is 3 of 16 with v0.12.18. The original preflight overlooked two scroll strips and the corrected v0.12.15 replay held both, leaving 1 of 16. The exact archived controls now qualify under the native scroll-strip contract. A run still requires recorded movement at every active width before Bossy planning.
-- **Current conversion eligibility** is 5 of 16 with v0.12.37. Verified FAQ records cover all three widths and bind five native disclosures and their repeated indicator. The source brand image now qualifies through the verified native single-image scroll path.
-- **Acceptance** is 5 of 16 as of v0.12.37. REF-000030 has verified Exclusive Offers, SIP & DINE, Through Our Lens, FAQ and brand strip placements at source positions 8, 10, 12, 14 and 15. The unpublished partial draft has 225 editor-verified blocks. Whole-page acceptance remains pending.
+- **Current conversion eligibility** is 6 of 16 with v0.12.39. Our Story qualifies through the archived image and link path with measured native editorial layout.
+- **Acceptance** is 6 of 16 as of v0.12.39. REF-000030 has verified Our Story, Exclusive Offers, SIP & DINE, Through Our Lens, FAQ and brand strip at source positions 7, 8, 10, 12, 14 and 15. The unpublished partial draft has 240 editor-verified blocks. Whole-page acceptance remains pending.
 
 The five native FAQ blocks and their ordered answer text survived edit, save and reload in isolated draft 59. The source's second click could close the active panel, leaving all questions closed. Native grouped Details reproduced this behavior at 1440, 768 and 375 px. The source's Enter test opened no panel, while native Details opened the selected item. This capability proof did not use the production compiler or grant source visual approval.
 
@@ -96,3 +96,5 @@ v0.12.36 recorded the brand asset and per-width Touch evidence in the original s
 v0.12.37 saved private unsynced Pattern 89 after independent visual, overflow, image identity, wheel, keyboard and focus checks. Pinned visual difference measured 0% at 1440, 768 and 375 px. Real WordPress reached both compact source scroll endpoints and served the original PNG at all six tested widths. At 1200 and 1024 px, the native region fits the viewport, while the captured source overflows to 1280 px. A disposable Gutenberg copy of the five-region draft retained 225 valid blocks after edit, save and reload. This checkpoint used zero paid model calls.
 
 v0.12.38 recorded the Our Story desktop illustration and exact link on the original Full Page scope. The initial 15-block native trial passed the three pinned visual comparisons, 11 responsive samples and real Gutenberg edit, save and reload. It used a temporary stylesheet. Conversion eligibility and acceptance remain five of 16 pending production integration.
+
+v0.12.39 moved Our Story through the production save route. Pinned source difference measured 0%, 0.413% and 0.757%, and all 14 responsive samples passed. Gutenberg preserved the image, its alt text and the link through edit, save and reload. On the original six-region draft, the browser verified the exact desktop artwork, the declared link at all widths, and the existing scroll and disclosure controls. No paid model calls were used.

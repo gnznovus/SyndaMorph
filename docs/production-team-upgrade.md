@@ -379,6 +379,14 @@ Original REF-000030 checkpoint 12138 recorded the Our Story proof in event 23247
 
 A 15-block offline trial matched the pinned heights of 1452, 1457 and 1225 px. Pixel difference measured 0%, 0.413% and 0.757%. All 11 sampled widths passed the continuous responsive check. A disposable WordPress draft passed edit, save and reload with all 15 blocks valid and kept the image and link. The browser confirmed keyboard navigation to the exact URL with a local intercepted destination. This trial used stylesheet injection for its responsive layout and remains outside production approval. No model calls were needed.
 
+## v0.12.39 editable linked editorial Pattern
+
+Production Setup can compile the recorded two-column editorial layout and compact stack into editable Core blocks. Eligibility requires the exact archived structure, text order, column spans, dimensions, declared link and source image receipt. Chromium independently hashes the decoded visible PNG and measures its alt text, paint and visibility. The link must match the source at every required width and be keyboard reachable. Save verifies the Gutenberg block count and artifact digest, then repeats browser QA. The stylesheet digest binds the browser verdict and a change puts that verdict back into Pending. Rechecking a saved Pattern preserves its exact blocks and editor evidence.
+
+BKKGO Our Story passed its pinned source comparisons at 0%, 0.413% and 0.757%, with matching heights of 1452, 1457 and 1225 px. Continuous QA passed 14 samples including 1024, 1023 and 1022 px. At 1200 and 1024 px the source region overflows to 1280 px. The native section fits those widths. An actual keyboard Tab and Enter reached the exact declared URL under test interception. The original PNG and text were verified separately, and altered alt text or a substituted receipt held the asset gate.
+
+Local private unsynced Pattern 100 retained all 15 editable blocks. Original draft 66 now has six verified placements at source positions 7, 8, 10, 12, 14 and 15. Its exact Gutenberg copy passed an edit, save and reload with all 240 blocks valid, and the original draft retains its editor verification. Whole-page visual QA remains pending with 10 required regions outstanding. No model calls were used.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens and GEN-000055 completed their original jobs. Verified BKKGO Full Page assembly and broader region acceptance remain open. [Design validation audit](bossy-validation-audit.md#v0128-verification)

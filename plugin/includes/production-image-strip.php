@@ -121,7 +121,7 @@ if(function_exists('add_action')){
         return $tags->get_updated_html();
     },10,2);
     add_filter('render_block_core/image',static function(string $html,array $block):string {
-        if(($block['attrs']['className']??null)!=='sm-source-strip-image')return $html;
+        if(!in_array($block['attrs']['className']??null,array('sm-source-strip-image','sm-source-linked-image'),true))return $html;
         $id=$block['attrs']['id']??null;
         $hash=is_int($id)?get_post_meta($id,'_syndamorph_source_strip_sha256',true):null;
         $tags=new WP_HTML_Tag_Processor($html);
@@ -203,11 +203,16 @@ function syndamorph_image_strip_content(array $source,array $receipt): ?string {
             ($state['imagePaddingRight']??null)!==($desktop?'0px':'20px')||
             ($desktop?($state['maximum']!==0):((float)$state['imageBox'][3]!==180.0)))return null;
     }
-    $image=array('id'=>$id,'sizeSlug'=>'full','linkDestination'=>'none','className'=>'sm-source-strip-image');
     return "<!-- wp:group {\"className\":\"sm-source-image-strip\",\"layout\":{\"type\":\"default\"}} -->\n".
-        '<div class="wp-block-group sm-source-image-strip"><!-- wp:image '.wp_json_encode($image)." -->\n".
-        '<figure class="wp-block-image size-full sm-source-strip-image"><img src="'.esc_url($url).'" alt="'.
-        esc_attr($asset['alt']).'" class="wp-image-'.$id.'"/></figure>'."\n<!-- /wp:image --></div>\n<!-- /wp:group -->";
+        '<div class="wp-block-group sm-source-image-strip">'.syndamorph_source_image_block($id,$url,$asset['alt'],'sm-source-strip-image').
+        "</div>\n<!-- /wp:group -->";
+}
+
+function syndamorph_source_image_block(int $id,string $url,string $alt,string $class): string {
+    $image=array('id'=>$id,'sizeSlug'=>'full','linkDestination'=>'none','className'=>$class);
+    return '<!-- wp:image '.wp_json_encode($image)." -->\n".
+        '<figure class="wp-block-image size-full '.esc_attr($class).'"><img src="'.esc_url($url).'" alt="'.
+        esc_attr($alt).'" class="wp-image-'.$id.'"/></figure>'."\n<!-- /wp:image -->";
 }
 
 function syndamorph_image_strip_quality(array $source,array $receipt,string $content) {

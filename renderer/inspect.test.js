@@ -4,11 +4,11 @@ const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const url = process.env.SYNDA_RENDER_TEST_URL || 'http://127.0.0.1:3999';
 
-async function request(route, html, viewports) {
+async function request(route, html, viewports, options = {}) {
     const response = await fetch(url + route, {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body:JSON.stringify({html,viewports}),
+        body:JSON.stringify({html,viewports,...options}),
         signal:AbortSignal.timeout(40000),
     });
     const payload=await response.json();
@@ -56,6 +56,22 @@ test('literal copy retains long inline-formatted text independently of rendered 
         assert.ok(snapshot.copy.length>250);
         assert.equal(snapshot.elements.find(el=>el.tag==='H2').styles.textTransform,'uppercase');
     }
+});
+
+test('section inspection hashes only the visible, decoded original image',async()=>{
+    const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ioAAAAASUVORK5CYII=';
+    const src='data:image/png;base64,'+png;
+    const html='<style>img{width:40px;height:40px;filter:grayscale(1) contrast(1.15);mix-blend-mode:multiply}'+
+        '@media(max-width:1023px){img{display:none}}</style><section><p>Original image</p>'+
+        '<img data-sm-source-image="marker-is-not-a-hash" alt="Illustration" src="'+src+'"></section>';
+    const {evidence}=await request('/inspect',html,[1440,1024,1023,375],{extent:'section'});
+    const expected={alt:'Illustration',pixels:[1,1],filter:'grayscale(1) contrast(1.15)',blend:'multiply',
+        sha256:createHash('sha256').update(Buffer.from(png,'base64')).digest('hex')};
+    assert.deepEqual(evidence.map(v=>v.snapshot.literal.assets),[1,1,0,0]);
+    assert.deepEqual(evidence.map(v=>v.snapshot.literal.originalImage),[expected,expected,undefined,undefined]);
+    const unmarked=await request('/inspect',html.replace(' data-sm-source-image="marker-is-not-a-hash"',''),[1440],{extent:'section'});
+    assert.equal(unmarked.evidence[0].snapshot.literal.assets,1);
+    assert.equal(unmarked.evidence[0].snapshot.literal.originalImage,undefined);
 });
 
 test('inspection shares a fragment origin and measures effective unsupported styles',async()=>{
