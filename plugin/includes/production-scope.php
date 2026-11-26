@@ -187,7 +187,7 @@ function syndamorph_scope_status(array $manifest): array {
             unset($region['checkpointAvailable'],$region['designReviewRecovery'],$region['recoveryStage'],$region['designDecisionRequired'],
                 $region['issue'],$region['sourceScroll']);
             if(in_array($last['status'],array('failed','uncompleted','needs_review'),true)) {
-                $failure=syndamorph_history_latest($last['id'],'job_error');
+                $failure=$last['status']==='failed'?syndamorph_history_latest($last['id'],'job_error'):null;
                 $final=syndamorph_history_latest($last['id'],'job_complete');
                 if($final){
                     $final=syndamorph_history_responsive_result($last['id'],$final);
@@ -209,6 +209,10 @@ function syndamorph_scope_status(array $manifest): array {
                     ($failure['field']??null)==='requirements'&&$last['completedCalls']===2&&
                     (syndamorph_history_latest($last['id'],'job_resumed')['stage']??null)==='staged_planning')
                     $region['recoveryStage']='staged_format';
+                if($last['status']==='failed'&&($failure['code']??null)==='sm_design_requirements'&&
+                    syndamorph_history_latest($last['id'],'staged_native_surgery')!==null&&
+                    (syndamorph_history_latest($last['id'],'job_resumed')['stage']??null)!=='staged_disclosure_qa')
+                    $region['recoveryStage']='staged_disclosure_qa';
                 if($region['status']!=='needs_review'&&syndamorph_scope_native_review_checkpoint($last['id'],$final)!==null)
                     $region['recoveryStage']='native_review';
                 $region['designReviewRecovery']=$region['recoveryStage']==='design_approval';
@@ -324,15 +328,8 @@ function syndamorph_scope_review_staged(array $manifest,string $key,int $originI
     $sha=hash('sha256',$artifact['content']);
     if($sha!==($saved['artifactSha256']??null))
         return syndamorph_scope_error('candidate','The retained block plan no longer compiles to its exact artifact.');
-    $root=$plan['blocks'][0]['id']??'';
-    if(!is_string($root)||!preg_match('/^[a-z][a-z0-9_.-]{0,79}$/iD',$root))
-        return syndamorph_scope_error('candidate','The retained artifact lacks a stable semantic review root.');
-    $reference=preg_replace('~<div(?=[^>]*\bdata-sm-node="'.preg_quote($root,'~').'")~','<section',$artifact['preview'],1,$opened);
-    $reference=preg_replace('~</div>\s*$~','</section>',trim($reference??''),1,$closed);
-    if($artifact['disclosureGroups']??array())$reference.="\n".'<style data-sm-disclosure-indicator>'.syndamorph_disclosures_css().'</style>';
-    if($opened!==1||$closed!==1||!is_string($reference)||strlen($reference)>120000||
-        preg_match('~<\s*(?:script|iframe|object|embed|form|link|meta)\b|\bon[a-z]+\s*=|\b(?:javascript:|https?://|@import)~i',$reference))
-        return syndamorph_scope_error('candidate','The native preview could not be represented as a safe semantic review reference.');
+    $reference=syndamorph_scope_staged_reference($plan,$artifact);
+    if(is_wp_error($reference))return $reference;
     $native=syndamorph_source_review($source,$artifact['preview']);
     $design=syndamorph_source_review($source,$reference);
     if(!$native['passed']||!$design['passed'])
@@ -344,13 +341,88 @@ function syndamorph_scope_review_staged(array $manifest,string $key,int $originI
             'sourceWidths'=>SYNDAMORPH_SOURCE_WIDTHS))));
 }
 
+function syndamorph_scope_staged_reference(array $plan,array $artifact) {
+    $root=$plan['blocks'][0]['id']??'';
+    if(!is_string($root)||!preg_match('/^[a-z][a-z0-9_.-]{0,79}$/iD',$root))
+        return syndamorph_scope_error('candidate','The retained artifact lacks a stable semantic review root.');
+    $reference=preg_replace('~<div(?=[^>]*\bdata-sm-node="'.preg_quote($root,'~').'")~','<section',$artifact['preview'],1,$opened);
+    $reference=preg_replace('~</div>\s*$~','</section>',trim($reference??''),1,$closed);
+    if($artifact['disclosureGroups']??array())$reference.="\n".'<style data-sm-disclosure-indicator>'.syndamorph_disclosures_css().'</style>';
+    if($opened!==1||$closed!==1||!is_string($reference)||strlen($reference)>120000||
+        preg_match('~<\s*(?:script|iframe|object|embed|form|link|meta)\b|\bon[a-z]+\s*=|\b(?:javascript:|https?://|@import)~i',$reference))
+        return syndamorph_scope_error('candidate','The native preview could not be represented as a safe semantic review reference.');
+    return $reference;
+}
+
+/** Replay one existing paragraph's captured wrapping while keeping the original plan and review in History. */
+function syndamorph_scope_staged_wrap(array $source,array $staged,array $artifact,string $id) {
+    $native=$staged['nativeReview'];
+    $plan=$native['plan'];
+    $node=syndamorph_collab_find($plan['blocks'],$id);
+    if(($node['type']??null)!=='paragraph'||isset($node['style']['textWrap']))
+        return syndamorph_scope_error('review_surgery','Select the original Paragraph that needs wrapping repair.');
+    $captured=array();
+    foreach(SYNDAMORPH_SOURCE_WIDTHS as $width){
+        $view=$source['variants'][$width]??array();
+        $matches=array_values(array_filter($view['facts']['typography']??array(),static fn($row)=>
+            ($row['tag']??'')==='p'&&($row['text']??null)===$node['text']));
+        $sourceWidth=$matches[0]['bounds'][2]??null;
+        if(count($matches)!==1||!is_numeric($sourceWidth)||$sourceWidth<=0)continue;
+        if(!preg_match_all('~<p\b[^>]*\bstyle="([^"]*)"[^>]*>([^<]*)</p>~iu',$view['html']??'',$paragraphs,PREG_SET_ORDER))continue;
+        foreach($paragraphs as $sample){
+            if(html_entity_decode(trim($sample[2]),ENT_QUOTES|ENT_HTML5,'UTF-8')!==$node['text']||
+                !preg_match('/(?:^|;)\s*text-wrap\s*:\s*pretty\s*(?:;|$)/i',$sample[1]))continue;
+            $captured[$width]=$sourceWidth;
+        }
+    }
+    if(!$captured)return syndamorph_scope_error('review_surgery','The pinned source does not verify pretty wrapping for that Paragraph.');
+    $patch=syndamorph_surgery_apply($plan,array('id'=>$id,'changes'=>array(array('path'=>'style.textWrap','value'=>'pretty'))),array($id));
+    if(is_wp_error($patch))return $patch;
+    if(!$patch['artifact'])return $patch['error'];
+    $new=$patch['artifact'];
+    $reference=syndamorph_scope_staged_reference($patch['plan'],$new);
+    if(is_wp_error($reference))return $reference;
+    $nativeQa=syndamorph_source_review($source,$new['preview']);
+    $designQa=syndamorph_source_review($source,$reference);
+    $nativeDelta=syndamorph_source_surgery_comparison(syndamorph_source_review($source,$artifact['preview']),$nativeQa);
+    $designDelta=syndamorph_source_surgery_comparison(syndamorph_source_review($source,$staged['referenceHtml']),$designQa);
+    foreach(array($nativeDelta,$designDelta) as $delta){
+        if(!$nativeQa['passed']||!$designQa['passed']||$delta['regressions']||!$delta['improved'])
+            return syndamorph_scope_error('review_surgery','The edited paragraph must measurably improve both source comparisons.');
+        foreach($delta['views'] as $view){
+            if($view['pixelAfter']>$view['pixelBefore']||$view['heightAfter']!==$view['heightBefore']||
+                (!isset($captured[$view['width']])&&$view['pixelAfter']!==$view['pixelBefore']))
+                return syndamorph_scope_error('review_surgery','The wrapping change regressed a view or affected an unverified width.');
+        }
+    }
+    $receipt=array('status'=>'source_verified','target'=>$id,'operation'=>'paragraph_pretty',
+        'sourceWidthPx'=>$captured,'priorSha256'=>$native['referenceSha256'],'candidateSha256'=>hash('sha256',$reference),
+        'priorArtifactSha256'=>$native['artifactSha256'],'artifactSha256'=>hash('sha256',$new['content']),
+        'sourceMeasurements'=>$designDelta['views'],'nativeSourceMeasurements'=>$nativeDelta['views']);
+    $native['referenceSha256']=$receipt['candidateSha256'];
+    $native['artifactSha256']=$receipt['artifactSha256'];
+    $native['plan']=$patch['plan'];
+    $native['archivedObservations']['wrapRepair']=$receipt;
+    return array('staged'=>array('referenceHtml'=>$reference,'nativeReview'=>$native),'receipt'=>$receipt);
+}
+
 /** Resume an exact archived assignment or planning response on its original GEN. */
 function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $edits=array(),?callable $engine=null,
-    array $workOrderEdits=array()) {
+    array $workOrderEdits=array(),?string $wrapId=null) {
     global $wpdb;
     $manifest=syndamorph_scope_status($manifest);
     $region=$manifest['regions'][$key]??null;
     $stage=$region['recoveryStage']??null;
+    if($wrapId!==null){
+        $last=!empty($region['attempts'])?end($region['attempts']):null;
+        $failure=$last?syndamorph_history_latest($last['id'],'job_error'):null;
+        if($stage!==null||$edits||$workOrderEdits||($region['status']??null)!=='failed'||
+            ($failure['code']??null)!=='sm_design_unapproved'||!preg_match('/^[a-z][a-z0-9-]{0,47}$/D',$wrapId)||
+            syndamorph_history_latest($last['id'],'staged_implementation_review')===null||
+            syndamorph_history_latest($last['id'],'staged_native_surgery')!==null)
+            return syndamorph_scope_error('review_surgery','This job has no eligible staged wrapping correction.');
+        $stage='design_approval';
+    }
     // A reviewer can repair a rejected surgical operation on its original
     // checkpoint. Existing identity and browser regression checks still apply.
     if($stage===null&&($edits||$workOrderEdits)&&($region['status']??null)==='failed'&&!empty($region['attempts'])){
@@ -459,6 +531,23 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
             ($assignment['specificationReceipt']??null)!==
             syndamorph_production_specification_receipt($specification,$manifest['brief'],$widths,$evidence))
             return syndamorph_scope_error('review_checkpoint','The saved design or assignment cannot be verified for review recovery.');
+        if($stage==='staged_disclosure_qa'){
+            $profile=syndamorph_source_disclosure_profile($source,$evidence['referenceArchive']??array());
+            $keyboard=$profile===null?array():syndamorph_disclosures_keyboard_requirements($specification,$profile);
+            $decision=syndamorph_history_latest($id,'agent_decision');
+            $recordedGate=syndamorph_history_latest($id,'execution_gate');
+            $checked=syndamorph_history_latest($id,'design_requirements');
+            if($staged===null||$edits||$workOrderEdits||!$keyboard||
+                ($checked['referenceSha256']??null)!==$sha||($checked['blocking']??null)!==$keyboard||
+                ($decision['owner']??null)!=='boss'||($decision['stage']??null)!=='design_approval'||
+                ($decision['decision']??null)!=='approved'||($decision['payload']['issues']??null)!==array()||
+                ($recordedGate['stage']??null)!=='design_approval'||($recordedGate['agentDecision']??null)!=='approved'||
+                ($recordedGate['executionStatus']??null)!=='blocked')
+                return syndamorph_scope_error('review_checkpoint','The exact design approval has required checks outside the native disclosure contract.');
+            $savedApproval=array('referenceSha256'=>$sha,'specificationReceipt'=>$assignment['specificationReceipt'],
+                'agentPayload'=>$decision['payload'],'requirementReceipt'=>array('checks'=>$checked['checks'],'blocking'=>$checked['blocking']),
+                'deferredDisclosureKeyboard'=>$keyboard);
+        }
         if($retainedRevision!==null){
             $operations=$retainedRevision['operations']??null;
             if(!is_array($operations)||!$operations||($retainedRevision['referenceSha256']??null)!==$sha||
@@ -552,6 +641,18 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
     if(!$manifest['costBounded']||!$account['costBounded']||$work<=$used)
         return syndamorph_scope_error('budget','The original budget cannot cover the recorded charges, reservations and continuation.');
     $surgery=null;
+    $stagedRepair=null;
+    if($wrapId!==null){
+        $decision=syndamorph_history_latest($id,'handoff');
+        if(($decision['type']??null)!=='design_review'||($decision['decision']??null)!=='changes_requested'||
+            ($decision['referenceSha256']??null)!==$sha)
+            return syndamorph_scope_error('review_surgery','The current staged reference must have a recorded design rejection.');
+        $stagedRepair=syndamorph_scope_staged_wrap($source,$staged,$compiled['artifact'],$wrapId);
+        if(is_wp_error($stagedRepair))return $stagedRepair;
+        $resume=$stagedRepair['staged'];
+        $reference=$resume['referenceHtml'];
+        $surgery=$stagedRepair['receipt'];
+    }
     if($edits){
         $patch=syndamorph_design_surgery($reference,array('edits'=>$edits));
         if(is_wp_error($patch))return $patch;
@@ -592,6 +693,10 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
         if(!$planningStage)$resume+=array('assignment'=>$assignment,'referenceHtml'=>$reference,'archivedSha256'=>$sha,
             'touch'=>$touch,'surgery'=>$surgery,'round'=>$candidate['round']+($surgery===null?0:1));
         if($savedApproval!==null)$resume['savedDesignApproval']=$savedApproval;
+        if($stagedRepair!==null){
+            $emit('staged_implementation_review',$stagedRepair['staged']);
+            $emit('staged_native_surgery',$stagedRepair['receipt']);
+        }
         if($surgery!==null)$emit('design_surgery',array('round'=>$resume['round'])+$surgery);
         $result=($engine??'syndamorph_collab_run')($manifest['brief'],true,$emit,true,$evidence,$max,$work,$resume);
         if(is_wp_error($result)){
@@ -1048,8 +1153,10 @@ add_action('rest_api_init',static function():void {
                             }
                             if(in_array($action,array('resume_design_review','resume_checkpoint'),true)){
                                 $workOrderEdits=$request->get_param('workOrderEdits')??array();
+                                $wrapId=$request->get_param('stagedParagraphId');
                                 if(!is_array($workOrderEdits))return syndamorph_scope_error('work_order_evidence','Invalid work-order corrections.',400);
-                                return syndamorph_scope_resume_checkpoint($manifest,$region,array(),null,$workOrderEdits);
+                                if($wrapId!==null&&!is_string($wrapId))return syndamorph_scope_error('review_surgery','Invalid staged Paragraph identity.',400);
+                                return syndamorph_scope_resume_checkpoint($manifest,$region,array(),null,$workOrderEdits,$wrapId);
                             }
                             return syndamorph_scope_run(syndamorph_scope_status($manifest),$region,$action==='retry');
                         case 'save_pattern': return syndamorph_scope_save_pattern($manifest,$region);

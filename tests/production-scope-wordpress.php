@@ -425,6 +425,28 @@ if($phase==='setup') {
     scope_expect(is_string($reformatted)&&json_decode($reformatted,true)===$expected&&
         syndamorph_scope_staged_work_order($rawOrderJson,'different-disclosures')===null,
         'Staged work order formatting lost copy or changed interaction identity.');
+    $keyboardOrder=scope_ok(syndamorph_production_specification(array_replace($expected,array('requirements'=>array_merge(
+        $expected['requirements'],array(array('id'=>'faq-keyboard','target'=>'faq','dimension'=>'accessibility','basis'=>'standard',
+            'requirement'=>'Each summary is a native disclosure control that toggles with Enter and Space and shows a visible focus indicator. Source keyboard behavior is unverified; the native block must support keyboard activation.',
+            'acceptance'=>'Enter and Space toggle the focused summary and focus is visible; verified only on the compiled artifact.')))))));
+    $ids=syndamorph_disclosures_keyboard_requirements($keyboardOrder,array('id'=>'recorded-disclosures',
+        'sourceKeyboard'=>'unverified','nativeKeyboardRequired'=>true));
+    $check=array('id'=>'faq-keyboard','dimension'=>'accessibility','owner'=>'boss','status'=>'uncertain','evidence'=>array());
+    $other=array_replace($check,array('id'=>'unrelated-check','status'=>'failed'));
+    $nativeOnly=syndamorph_disclosures_defer_keyboard(array('checks'=>array($check,$other),
+        'blocking'=>array('faq-keyboard','unrelated-check')),$ids);
+    scope_expect($ids===array('faq-keyboard')&&$nativeOnly['blocking']===array('unrelated-check')&&
+        $nativeOnly['checks'][0]['owner']==='implementation_qa'&&$nativeOnly['checks'][0]['status']==='uncertain'&&
+        $nativeOnly['checks'][1]===$other,'The matched keyboard criterion was not deferred independently of unrelated QA.');
+    $sectionNode=$stagedPlan['blocks'][0]['children'][1]['id'];
+    $wrapped=scope_ok(syndamorph_surgery_apply($stagedPlan,array('id'=>$sectionNode,
+        'changes'=>array(array('path'=>'style.textWrap','value'=>'pretty'))),array($sectionNode)));
+    scope_expect($wrapped['artifact']&&str_contains($wrapped['artifact']['content'],'"className":"sm-text-wrap-pretty"')&&
+        str_contains($wrapped['artifact']['preview'],syndamorph_native_paragraph_wrap_css())&&$wrapped['impact']['changed']===array($sectionNode),
+        'The wrapping surgery did not preserve the exact target and save the approved Paragraph class.');
+    $unsupported=scope_ok(syndamorph_surgery_apply($stagedPlan,array('id'=>$sectionNode,
+        'changes'=>array(array('path'=>'style.textWrap','value'=>'balance'))),array($sectionNode)));
+    scope_expect(is_wp_error($unsupported['error']), 'Unsupported paragraph wrap unexpectedly compiled.');
     $reusePage=scope_ok(syndamorph_scope_open('page',$capture));
     scope_expect(is_wp_error(syndamorph_scope_reuse_section($reusePage,$section['id'],$keys[0])),
         'Full Page attached a Section before Gutenberg and Pattern acceptance.');

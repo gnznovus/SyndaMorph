@@ -887,7 +887,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'priorApproval'=>false,'artifactSha256'=>$nativeReview['artifactSha256']);
         if(isset($resume['archivedSha256'])&&$designReviews===0)$reviewContext['checkpointRecovery']=array(
             'previousTask'=>'final_approval',
-            'previousOutcome'=>$nativeReview!==null&&!$stagedReview&&$savedDesignApproval===null?'bounded_reference_correction':'transport_failure',
+            'previousOutcome'=>$nativeReview!==null&&$savedDesignApproval===null&&
+                (!$stagedReview||($priorDesignDiff['operation']??null)==='paragraph_pretty')?
+                'bounded_reference_correction':'transport_failure',
             'archivedSha256'=>$resume['archivedSha256'],'surgery'=>$resume['surgery']);
         $browserFacts=syndamorph_design_browser_facts($inspectReference,$specification);
         $reviewContext['browserFacts']=$browserFacts;
@@ -899,6 +901,20 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         if($browserChecks)$reviewContext['applicationChecks']=$browserChecks;
         $extraEvidence=array('responsive');
         if($source!==null)$extraEvidence[]='pinned-source';
+        if($stagedReview&&$sourceDisclosure!==null){
+            $disclosureId=$sourceDisclosure['id'];
+            $expected=array($disclosureId=>$sourceDisclosure['panels']);
+            $receipt=syndamorph_disclosures_measure($reference,$viewports,$expected)[$disclosureId];
+            $reviewContext['referenceDisclosureChecks']=array('component'=>$disclosureId,'status'=>$receipt['status'],
+                'sourceKeyboard'=>$sourceDisclosure['sourceKeyboard'],'viewports'=>array_map(static fn($view)=>
+                    array('width'=>$view['width'])+array_intersect_key($view['proof'],
+                        array_flip(array('structure','initial','clicks','keyboard','indicator','isolation'))),
+                    $receipt['viewports']));
+            if($receipt['status']==='verified')$extraEvidence[]='reference-disclosure-checks';
+        }
+        $nativeKeyboard=$stagedReview&&$sourceDisclosure!==null?
+            syndamorph_disclosures_keyboard_requirements($specification,$sourceDisclosure):array();
+        if($nativeKeyboard)$reviewContext['implementationOnlyRequirementIds']=$nativeKeyboard;
         $wordpressPage=$scopeRegion===null?null:syndamorph_design_wordpress_page_context();
         if($wordpressPage!==null){
             $reviewContext['wordpressPageContext']=$wordpressPage;
@@ -1054,8 +1070,16 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         }
         $requirementResults=syndamorph_design_requirements($specification,$inspectReference,$browserFacts,$approval,$extraEvidence,
             $hostDesign['checks']??array());
-        if($savedDesignApproval!==null&&$requirementResults!==($savedDesignApproval['requirementReceipt']??null))
-            return new WP_Error('sm_resume_design_receipt','The saved design checklist no longer matches fresh browser evidence.');
+        if($savedDesignApproval!==null){
+            $savedChecks=$savedDesignApproval['requirementReceipt']??null;
+            if(!empty($savedDesignApproval['deferredDisclosureKeyboard'])){
+                if(!in_array('reference-disclosure-checks',$extraEvidence,true)||($savedChecks['blocking']??null)!==$nativeKeyboard||
+                    $savedDesignApproval['deferredDisclosureKeyboard']!==$nativeKeyboard||$savedChecks!==$requirementResults)
+                    return new WP_Error('sm_resume_design_receipt','The staged design or its disclosure checklist no longer matches fresh evidence.');
+            }elseif($savedChecks!==syndamorph_disclosures_defer_keyboard($requirementResults,$nativeKeyboard))
+                return new WP_Error('sm_resume_design_receipt','The saved design checklist no longer matches fresh browser evidence.');
+        }
+        $requirementResults=syndamorph_disclosures_defer_keyboard($requirementResults,$nativeKeyboard);
         if($on_event)$on_event('design_requirements',array('referenceSha256'=>$referenceHash)+$requirementResults);
         if($decision==='approved' && $requirementResults['blocking']){
             syndamorph_authority_gate($record,'blocked','Required design verifications are failed or uncertain.',$on_event);

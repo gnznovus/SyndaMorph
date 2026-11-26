@@ -92,3 +92,31 @@ function syndamorph_disclosures_verify(array $artifact,array $widths,?string $re
     unset($receipt);
     return $native;
 }
+
+/** The source contract defers an explicitly native-only keyboard requirement to executable QA. */
+function syndamorph_disclosures_keyboard_requirements(array $specification,array $profile): array {
+    if(($profile['sourceKeyboard']??null)!=='unverified'||($profile['nativeKeyboardRequired']??null)!==true)return array();
+    $group=array_values(array_filter($specification['interactions']??array(),static fn($item)=>
+        $item['kind']==='disclosure-group'&&$item['classification']==='native'&&$item['id']===$profile['id']));
+    if(count($group)!==1)return array();
+    $requirements=array_filter($specification['requirements']??array(),static function($item)use($group){
+        if($item['target']!==$group[0]['target']||$item['dimension']!=='accessibility'||
+            $item['basis']!=='standard'||isset($item['check']))return false;
+        return preg_match('/^Enter and Space toggle the focused summary and focus is visible;\s*verified only on the compiled artifact\.?$/iD',
+            $item['acceptance'])===1&&preg_match('/^Each summary is a native disclosure control that toggles with Enter and Space and shows a visible focus indicator\.\s*Source keyboard behavior is unverified;\s*the native block must support keyboard activation\.?$/iD',
+            $item['requirement'])===1;
+    });
+    return array_column($requirements,'id');
+}
+
+function syndamorph_disclosures_defer_keyboard(array $result,array $ids): array {
+    foreach($result['checks'] as &$check){
+        if(!in_array($check['id'],$ids,true)||$check['status']!=='uncertain')continue;
+        $check['owner']='implementation_qa';
+        $check['check']='disclosure-keyboard';
+        $check['reason']='Requires native Enter, Space and visible focus proof.';
+        $result['blocking']=array_values(array_diff($result['blocking'],array($check['id'])));
+    }
+    unset($check);
+    return $result;
+}

@@ -295,6 +295,16 @@ Bossy requested changes for the desktop introduction wrapping and the execution 
 
 The local WordPress test site registered the four exact archived faces under the Beausite Grand and Classic presets. Actual local draft 66 loaded both families without font HTTP errors at 1440, 768 and 375 px. Its gallery kept four desktop columns and two tablet and mobile columns. The font files remain in the local test site's uploads.
 
+## v0.12.30 source-bound FAQ wrapping repair and private placement
+
+The original FAQ job restored the pinned desktop introduction's `text-wrap: pretty` on one editable Core Paragraph. The saved class appears in the editor, the native preview and the WordPress frontend. The recorded 424 px paragraph width, mandatory section heights, five disclosures, literal copy and original block identities were preserved. The saved reference and native artifact independently measured 0.680%, 0.034% and 0.058% source difference at 1440, 768 and 375 px. The bounded repair rejected a paragraph whose source evidence did not support the requested style.
+
+Bossy approved reference `42da3ceab8370b5cdc0c5fb26c1cb2632d6b0ebf1cfb5773f109210076f7badf`. The first gate pass held the job because the archived work order scopes Enter, Space and visible focus exclusively to the compiled artifact. The retry replayed the exact Bossy decision and checked the unchanged reference and other checklist results. The native keyboard requirement remained open until independent Chromium verified it on artifact `5ac2e86ba085ce97fd5a4e75c639c75f1e144c6cfde19f1cf086859bcfd46b19`. Validator approved the same artifact. Source keyboard behavior remains unverified.
+
+All 21 native blocks survived a real Gutenberg edit, save and reload in disposable draft 133. The authenticated editor receipt enabled private unsynced Pattern 68. GEN-000057 used five completed model calls totaling $0.024752. No new Designer or Developer artifact was generated. The second design gate pass used the recorded approval.
+
+Full Page REF-000030 reused Pattern 68 against the same archive without additional model calls. Draft 66 now holds both approved placements in source order at positions 12 and 14. The actual draft verified gallery columns, both archived font families, the FAQ's click sequence and native keyboard focus at all three required widths. A disposable copy of the exact draft passed Gutenberg edit, save and reload with 56 blocks. The original draft retains its editor receipt for SHA-256 `9f3d2cf6d694a8a81a52604498328b27f510492730c5c95b6374d4efade11d03`. Required regions are still missing, so the Full Page job and whole-page QA remain open.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens and GEN-000055 completed their original jobs. Verified BKKGO Full Page assembly and broader region acceptance remain open. [Design validation audit](bossy-validation-audit.md#v0128-verification)

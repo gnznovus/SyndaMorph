@@ -6,6 +6,18 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.30] - 2026-11-26
+
+### Added
+
+- An editable Core Paragraph can preserve observed `text-wrap: pretty` through a registered class. The original staged review can recover through a single source-bound wrapping edit after a design rejection. Both the native artifact and the semantic reference must improve under pinned browser comparison without losing copy, links, height or any requested width.
+- Staged disclosure review can replay an exact Bossy decision when its only remaining design checklist item is explicitly native-only keyboard verification. The compiled artifact still has to pass Enter, Space and visible focus independently before Validator.
+
+### Verified
+
+- BKKGO FAQ GEN-000057 completed on the original job. One Paragraph edit improved the desktop source difference from 1.172% to 0.680%. The 768 px and 375 px comparisons remained 0.034% and 0.058%. All 12 responsive samples, disclosure interactions and 21 Gutenberg blocks passed. Five completed model calls cost $0.024752 in total.
+- Private FAQ Pattern 68 was placed after Through Our Lens in local draft 66. The actual draft passed both placements' viewport and interaction checks at 1440, 768 and 375 px. An exact copy passed Gutenberg edit, save and reload with 56 valid blocks. Full Page acceptance is two of 16 regions and whole-page QA is pending.
+
 ## [0.12.29] - 2026-11-26
 
 ### Added

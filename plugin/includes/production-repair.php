@@ -235,8 +235,8 @@ function syndamorph_reference_capability_notes(string $html): array {
     $notes=array();
     if(preg_match('/(?<![\w-])max-width\s*:\s*[^;{}]+/i',$html))$notes[]='Leaf max-width requires a constrained group layout; verify wrapping.';
     if(preg_match('/(?<![\w-])(?:grid-template-areas\s*:|position\s*:\s*(?:absolute|fixed|sticky)|transform\s*:|clip-path\s*:)/i',$html))$notes[]='Reference contains layout effects outside current native block capabilities.';
-    if(preg_match('/(?<![\w-])text-wrap\s*:\s*(?:balance|pretty)\b/i',$html))
-        $notes[]='Reference uses text wrapping effects outside the native style contract.';
+    if(preg_match('/(?<![\w-])text-wrap(?:-style)?\s*:\s*(?:balance|pretty)\b/i',$html))
+        $notes[]='Paragraph text-wrap: pretty can use the registered native paragraph style. Check other wrapping effects for native feasibility.';
     if(preg_match('/(?<![\w-])(?:row-gap|column-gap|gap)\s*:\s*clamp\(/i',$html))
         $notes[]='Core WordPress discards fluid blockGap. Evaluate supported child spacing or request a design decision.';
     if(preg_match('/<\\s*(?:img|video|svg|canvas|table|ul|ol)\\b/i',$html))$notes[]='Reference contains elements outside current native block schema.';
@@ -266,7 +266,8 @@ function syndamorph_reference_unrealizable(array $samples,array $approvedScrollI
                 $features[$key]['views'][$width]='Horizontal scroll area needs an approved native interaction.';
             }
             $wrap=$element['styles']['textWrapStyle']??null;
-            if(in_array($wrap,array('balance','pretty'),true) && ($element['wrapChangesGeometry']??false)===true) {
+            if(in_array($wrap,array('balance','pretty'),true) && ($element['wrapChangesGeometry']??false)===true&&
+                !($wrap==='pretty'&&$tag==='P')) {
                 $key='text-wrap|'.$index;
                 $features[$key]['capability']='text-wrap';
                 $features[$key]['target']=$target;
