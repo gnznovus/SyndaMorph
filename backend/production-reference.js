@@ -271,4 +271,17 @@ async function readReference(id,width) {
     } catch(error) { throw archiveError(error); }
 }
 
-module.exports={ enabled,prepareReferencePage,captureReference,storeReferences,readReference };
+/** Resolve only an image already verified as part of the recorded archive. */
+function recordedPng(runtime,url) {
+    const entry=runtime.get('GET '+url);
+    const body=entry?.body;
+    if(entry?.status!==200||entry.headers?.['content-type']?.split(';')[0].trim()!=='image/png'||
+        !Buffer.isBuffer(body)||body.length<33||body.length>512*1024||
+        body.subarray(0,8).toString('hex')!=='89504e470d0a1a0a'||body.readUInt32BE(8)!==13||
+        body.toString('ascii',12,16)!=='IHDR')return null;
+    const pixels=[body.readUInt32BE(16),body.readUInt32BE(20)];
+    if(pixels.some(value=>value<1||value>8192)||pixels[0]*pixels[1]>16000000)return null;
+    return {sha256:hash(body),bytes:body.length,mime:'image/png',pixels,body};
+}
+
+module.exports={ enabled,prepareReferencePage,captureReference,storeReferences,readReference,recordedPng };

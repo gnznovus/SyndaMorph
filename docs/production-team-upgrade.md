@@ -353,6 +353,16 @@ The original GEN-000056 remains on its earlier capture and work order. Corrected
 
 Local private unsynced Pattern 79 passed fresh source QA before REF-000030 reused it at source position 10. The original draft 66 now holds verified positions 8, 10, 12 and 14, with SHA-256 `8e1850fabf7b279265335f097aef8144d84bddf77fc1cfb18a2afc9ed80e1a37`. The actual preview reproduced Dining wheel movement of 594 px at 768 and 280 px at 375, then reached the last card by keyboard at 1043 px and 493 px with visible focus. Offers still reached 213 px on mobile, and gallery and FAQ checks passed. A disposable copy survived Gutenberg edit, save and reload with 223 valid blocks. All four currently eligible regions are accepted. Whole-page QA remains pending while the other 12 regions are blocked.
 
+## v0.12.36 archived image provenance and Media Library import
+
+The original Full Page scope can replay a single image-only PNG region through the authenticated recorded Touch service. Each response is bound to the original archive and source selector, its pinned page copy checksum, the exact image URL and alt text, and its own measured geometry and scroll range. An image behind a link, a changed archive response, an incomplete gesture, or unavailable source evidence stays held.
+
+REF-000030 verified the brand image at all required widths and retained checkpoint 12146. Its local attachment 83 preserves all 208,268 bytes and SHA-256 `db40cc8d796b00278361b5cfb993a9658f1eb3778c468e9e68ad1f3552c3b3b5`. The import uses the existing Media Library path and disables large-image scaling during the verified import. A repeated action returns the same receipt. A local Gutenberg draft loaded the exact URL and kept the original alt text after a caption edit, save and reload.
+
+An offline fragment built from the same attachment matched the pinned source screenshots at 1440, 768 and 375 px. All three comparisons measured zero pixel difference, with matching rounded heights of 414, 268 and 268 px. Compact source wheel movement reached 80 px and 473 px. Source keyboard behavior remains unverified. This evidence keeps the native scroll and independent acceptance gates open. The checkpoint used zero paid model calls.
+
+The recorded browser changes from the desktop region to the compact region between 1024 and 1023 px. The source page holds the desktop region at 1280 px when the viewport is 1200 or 1024 px, creating page-level overflow. At 1023 and 900 px, the compact image fits and the scroll range is zero. Its range grows to 248 px at 600 and 249 px at 599. These intermediate observations are separate from the three required source comparisons and must inform the native responsive check.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens and GEN-000055 completed their original jobs. Verified BKKGO Full Page assembly and broader region acceptance remain open. [Design validation audit](bossy-validation-audit.md#v0128-verification)

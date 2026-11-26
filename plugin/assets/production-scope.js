@@ -120,6 +120,12 @@
                 entry.append(details);
             }
             if (!row.patternId && ['needs_review','completed'].includes(row.status)) entry.append(button('Validate and save pattern', () => finishRegion(row.id)));
+            if (row.status === 'blocked' && row.imageReplayAvailable) {
+                if (row.imageEvidence) entry.append(node('span', ' · Archived image verified'));
+                else entry.append(button('Verify and import archived image', async () => {
+                    manifest = await request(url(), {action:'verify_image',region:row.id});
+                }));
+            }
             if (row.checkpointAvailable) entry.append(button('Recheck browser', () => recheck(row)));
             if (checkpoint && manifest.costBounded &&
                 Number(manifest.spentUsd) + Number(manifest.unmeteredReserveUsd) < budget() * 0.8) {

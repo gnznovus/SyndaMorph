@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.36] - 2026-11-27
+
+### Added
+
+- An authenticated source action replays a single archived PNG at the three required widths, verifies its alt text and observed scroll endpoints, and imports the exact original bytes through the existing Media Library path. A repeated successful action reuses the verified attachment.
+
+### Verified
+
+- The BKKGO brand strip retained its 2650 × 590 PNG and exact alt text. Compact source replays reached 80 px and 473 px. The local Core Image block retained its asset and alt text through edit, save, and reload. An isolated framing trial measured zero pixel difference at all three widths. Conversion stays blocked pending native single-image scroll QA.
+
 ## [0.12.35] - 2026-11-27
 
 ### Changed

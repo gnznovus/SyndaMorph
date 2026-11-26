@@ -4,7 +4,8 @@ const assert=require('node:assert/strict');
 const test=require('node:test');
 const { createHash }=require('node:crypto');
 const { chromium }=require('playwright');
-const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef }=require('./production-touch');
+const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef,inspectImageStrip }=require('./production-touch');
+const { recordedPng }=require('./production-reference');
 const { captureResponsiveViewport }=require('./responsive-capture');
 
 test('Touch actions are limited to server target identities and bounded gestures',()=>{
@@ -15,6 +16,43 @@ test('Touch actions are limited to server target identities and bounded gestures
     assert.throws(()=>validateTouchActions(Array(6).fill({type:'scroll',dy:20})));
     assert.deepEqual(validateTouchActions([{type:'drag',target:'a'.repeat(24),dx:12}]),
         [{type:'drag',target:'a'.repeat(24),dx:12}]);
+});
+
+const fixturePng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ioAAAAASUVORK5CYII=','base64');
+const fixtureImage='https://image-strip.invalid/brand.png';
+test('recorded image lookup binds one PNG to its exact archive request',()=>{
+    const response={status:200,headers:{'content-type':'image/png'},body:fixturePng};
+    const responses=new Map([['GET '+fixtureImage,response]]);
+    assert.deepEqual(recordedPng(responses,fixtureImage).pixels,[1,1]);
+    assert.equal(recordedPng(responses,fixtureImage+'?different'),null);
+    responses.set('GET '+fixtureImage,{...response,body:fixturePng.subarray(8)});
+    assert.equal(recordedPng(responses,fixtureImage),null);
+    responses.set('GET '+fixtureImage,{...response,headers:{'content-type':'image/svg+xml'}});
+    assert.equal(recordedPng(responses,fixtureImage),null);
+});
+
+test('recorded image strip preserves alt text and proves actual compact scroll movement',{
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const browser=await chromium.launch();
+    try{
+        const page=await browser.newPage({viewport:{width:375,height:900}});
+        await page.route(fixtureImage,route=>route.fulfill({contentType:'image/png',body:fixturePng}));
+        const image='<img src="'+fixtureImage+'" alt="Archived artwork" style="display:block;width:500px;height:120px">';
+        const fixture=markup=>'<style>body{margin:0}</style><section id="artwork" style="overflow-x:auto">'+markup+'</section>';
+        const input={width:375,sourceRef:'[id="artwork"]',copySha256:createHash('sha256').update('').digest('hex')};
+        await page.setContent(fixture(image));
+        const observed=await inspectImageStrip(page,input,()=>[]);
+        assert.equal(observed.status,'observed');
+        assert.equal(observed.initial.alt,'Archived artwork');
+        assert.equal(observed.initial.maximum,125);
+        assert.equal(observed.finalOffset,125);
+        assert.equal(observed.keyboard,'unverified');
+        await page.setContent(fixture('<a href="#destination">'+image+'</a>'));
+        assert.equal((await inspectImageStrip(page,input,()=>[])).reason,'unsupported_image_strip');
+        await page.setContent(fixture(image));
+        assert.equal((await inspectImageStrip(page,input,()=>[{}])).reason,'source_changed_during_replay');
+    }finally{await browser.close();}
 });
 
 test('Disclosure replay binds exact controls, ordered answers and exclusive open states', {

@@ -3,6 +3,7 @@
 if (!defined('ABSPATH')) { exit; }
 require_once __DIR__.'/production-source.php';
 require_once __DIR__.'/production-scope-source.php';
+require_once __DIR__.'/production-image-strip.php';
 require_once __DIR__.'/production-tabs.php';
 require_once __DIR__.'/production-responsive.php';
 
@@ -29,7 +30,8 @@ function syndamorph_scope_open(string $mode,array $capture) {
         $regions[$key]=array('id'=>$key,'label'=>sanitize_text_field($source['label']??'Section'),
             'kind'=>$source['kind']??'content','sourceRef'=>$source['sourceRef'],'position'=>count($regions)+1,
             'variants'=>array_map(static fn($view)=>$view['sourceRef'],$source['variants']),
-            'status'=>$blockers?'blocked':'ready','blockers'=>$blockers,'attempts'=>array(),'patternId'=>null);
+            'status'=>$blockers?'blocked':'ready','blockers'=>$blockers,'attempts'=>array(),'patternId'=>null,
+            'imageReplayAvailable'=>!empty($capture['referenceArchive']['runtimeSha256'])&&syndamorph_image_strip_inventory($source)!==null);
     }
     $record=syndamorph_history_create('REF',($mode==='page'?'Full Page · ':'Section · ').$capture['url'],
         array('workflow'=>SYNDAMORPH_SCOPE_WORKFLOW,'mode'=>$mode,'sourceUrl'=>$capture['url']));
@@ -234,6 +236,16 @@ function syndamorph_scope_status(array $manifest): array {
     $manifest['unmeteredReserveUsd']=0.0;
     $manifest['outputTokens']=0;
     foreach($manifest['regions'] as &$region) {
+        if(!isset($region['imageReplayAvailable'])&&($region['status']??null)==='blocked'&&
+            !empty($manifest['referenceArchive']['runtimeSha256'])&&
+            in_array('No editable literal text captured at 1440px.',$region['blockers']??array(),true)){
+            $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
+            $region['imageReplayAvailable']=$source!==null&&syndamorph_image_strip_inventory($source)!==null;
+        }
+        $image=$region['imageEvidence']??null;
+        if($image!==null&&(($image['checkpoint']??null)!==$region['checkpoint']||
+            !syndamorph_attachment_has_original((int)($image['attachmentId']??0),(string)($image['asset']['sha256']??''))))
+            unset($region['imageEvidence']);
         foreach($region['attempts'] as &$attempt) {
             $row=$wpdb->get_row($wpdb->prepare("SELECT status,updated_at FROM $jobs WHERE id=%d",$attempt['id']),ARRAY_A);
             $status=$row['status']??'interrupted';
@@ -1080,6 +1092,43 @@ function syndamorph_scope_verify_disclosure(array $manifest,string $key) {
     return syndamorph_scope_status($manifest);
 }
 
+/** Stage the exact original image without changing an unsupported native gate. */
+function syndamorph_scope_verify_image(array $manifest,string $key) {
+    $region=$manifest['regions'][$key]??null;
+    if(!$region||($region['status']??null)!=='blocked'||!empty($region['attempts'])||!empty($region['patternId'])||
+        ($manifest['mode']==='section'&&$manifest['selected']!==null&&$manifest['selected']!==$key))
+        return syndamorph_scope_error('image_state','Only an untouched blocked source region can verify its image.');
+    if(!current_user_can('upload_files'))return syndamorph_scope_error('image_permission','Media upload permission is required.',403);
+    $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
+    $archive=$manifest['referenceArchive']??null;
+    if(!$source||!is_array($archive)||!function_exists('syndamorph_import_image_bytes'))
+        return syndamorph_scope_error('image_source','The recorded source or Media Library importer is unavailable.');
+    $sourceHash=hash('sha256',wp_json_encode($source));
+    $previous=$region['imageEvidence']??array();
+    if(($previous['checkpoint']??null)===$region['checkpoint']&&($previous['sourceSha256']??null)===$sourceHash&&
+        ($previous['archiveId']??null)===($archive['id']??null)&&
+        syndamorph_attachment_has_original((int)($previous['attachmentId']??0),(string)($previous['asset']['sha256']??'')))
+        return syndamorph_scope_status($manifest);
+    $replay=syndamorph_image_strip_replay($source,$archive);
+    if(is_wp_error($replay)){
+        syndamorph_history_append($manifest['id'],'source_image_pending',array('region'=>$key,'checkpoint'=>$region['checkpoint'],
+            'code'=>$replay->get_error_code(),'diagnostic'=>$replay->get_error_data()));
+        return $replay;
+    }
+    $created=array();
+    $name=basename((string)wp_parse_url($replay['asset']['url'],PHP_URL_PATH));
+    if(strtolower(pathinfo($name,PATHINFO_EXTENSION))!=='png')$name='source-image.png';
+    $attachment=syndamorph_import_image_bytes($replay['raw'],$name,$created,true);
+    if(is_wp_error($attachment))return $attachment;
+    $proof=array('region'=>$key,'checkpoint'=>$region['checkpoint'],'sourceSha256'=>$sourceHash,
+        'archiveId'=>$archive['id'],'attachmentId'=>$attachment,'asset'=>$replay['asset'],'views'=>$replay['views']);
+    $event=syndamorph_history_append($manifest['id'],'source_image_verified',$proof);
+    $manifest['regions'][$key]['imageReplayAvailable']=true;
+    $manifest['regions'][$key]['imageEvidence']=$proof+array('event'=>$event);
+    syndamorph_history_append($manifest['id'],'scope_manifest',$manifest);
+    return syndamorph_scope_status($manifest);
+}
+
 function syndamorph_scope_targets(array $manifest): array {
     return $manifest['mode']==='page'?$manifest['regions']:
         array_intersect_key($manifest['regions'],array_flip(array($manifest['selected']??'')));
@@ -1339,7 +1388,7 @@ add_action('rest_api_init',static function():void {
         }),
         array('methods'=>'POST','permission_callback'=>$permission,'callback'=>static function(WP_REST_Request $request) {
             $action=$request->get_param('action');
-            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','assemble','verify_page'),true))
+            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_image','assemble','verify_page'),true))
                 return syndamorph_scope_error('action','Invalid scope action.',400);
             return syndamorph_scope_locked(static function()use($request,$action){
                 $manifest=syndamorph_history_latest((int)$request['id'],'scope_manifest');
@@ -1390,6 +1439,7 @@ add_action('rest_api_init',static function():void {
                             return syndamorph_scope_run(syndamorph_scope_status($manifest),$region,$action==='retry');
                         case 'save_pattern': return syndamorph_scope_save_pattern($manifest,$region);
                         case 'verify_disclosure': return syndamorph_scope_verify_disclosure($manifest,$region);
+                        case 'verify_image': return syndamorph_scope_verify_image($manifest,$region);
                         case 'reuse_section':
                             $sectionId=filter_var($request->get_param('sectionId'),FILTER_VALIDATE_INT,array('options'=>array('min_range'=>1)));
                             if($sectionId===false)return syndamorph_scope_error('reuse_scope','An exact saved Section ID is required.',400);

@@ -306,4 +306,58 @@ async function inspectDisclosure(page, input, sealNetwork) {
         keyboard:'unverified',externalEffects:'unverified',blockedRequestCount:denied.length-blockedBefore};
 }
 
-module.exports={ validateTouchActions,inspectTouch,touchTargetId,disclosureRef,inspectDisclosure };
+/** Measure a single, non-linked image and its actual horizontal scroll range. */
+async function inspectImageStrip(page, {width,sourceRef,copySha256}, sealNetwork) {
+    if(!WIDTHS.includes(width)||page.viewportSize()?.width!==width||!disclosureRef(sourceRef))
+        throw new Error('Invalid image strip evidence request.');
+    const denied=sealNetwork();
+    const receipt={version:1,width,sourceRef,status:'unknown'};
+    const sourceCopySha256=digest(await page.evaluate(()=>document.body.innerText.replace(/\s+/gu,' ').trim()));
+    if(sourceCopySha256!==copySha256)return {...receipt,reason:'live_source_changed'};
+    const root=page.locator(sourceRef).filter({visible:true});
+    if(await root.count()!==1)return {...receipt,reason:'region_not_unique'};
+    const state=()=>root.evaluate(element=>{
+        const image=element.firstElementChild;
+        if(element.children.length!==1||image?.tagName!=='IMG'||element.innerText.trim()||
+            element.closest('a,form,[inert]')||!image.complete||!image.naturalWidth||!image.alt.trim()||
+            !image.currentSrc.startsWith('https://'))return null;
+        const box=element.getBoundingClientRect(),paint=image.getBoundingClientRect();
+        const style=getComputedStyle(element),imageStyle=getComputedStyle(image);
+        return {url:image.currentSrc,alt:image.alt,pixels:[image.naturalWidth,image.naturalHeight],
+            width:box.width,height:box.height,imageBox:[paint.x-box.x,paint.y-box.y,paint.width,paint.height],
+            padding:[style.paddingTop,style.paddingRight,style.paddingBottom,style.paddingLeft],
+            imagePaddingRight:imageStyle.paddingRight,background:style.backgroundColor,overflow:style.overflowX,
+            maximum:element.scrollWidth-element.clientWidth,offset:element.scrollLeft};
+    });
+    const initial=await state();
+    if(!initial||initial.width!==width||initial.offset!==0||initial.height<=0||initial.imageBox[2]<=0)
+        return {...receipt,reason:'unsupported_image_strip'};
+    let after=initial;
+    if(initial.maximum>0){
+        if(!['auto','scroll'].includes(initial.overflow)||initial.maximum>1900)
+            return {...receipt,reason:'unsupported_scroll_range'};
+        try{
+            await root.scrollIntoViewIfNeeded({timeout:2000});
+            const box=await root.boundingBox();
+            const point={x:box.x+box.width/2,y:Math.min(895,Math.max(4,box.y+box.height/2))};
+            if(!await root.evaluate((element,{x,y})=>element.contains(document.elementFromPoint(x,y)),point))
+                return {...receipt,reason:'scroll_target_occluded'};
+            await page.mouse.move(point.x,point.y);
+            await page.mouse.wheel(initial.maximum+100,0);
+            const deadline=Date.now()+2000;
+            do{
+                await page.waitForTimeout(70);
+                after=await state();
+            }while(after&&after.offset!==initial.maximum&&Date.now()<deadline);
+            if(!after||after.offset!==initial.maximum)
+                return {...receipt,reason:'scroll_endpoint_unverified'};
+        }catch{return {...receipt,reason:'scroll_action_failed'};}
+    }
+    if(denied.length||after.url!==initial.url||after.alt!==initial.alt||
+        digest(await page.evaluate(()=>document.body.innerText.replace(/\s+/gu,' ').trim()))!==sourceCopySha256)
+        return {...receipt,reason:'source_changed_during_replay'};
+    return {...receipt,status:'observed',sourceCopySha256,initial,finalOffset:after.offset,
+        keyboard:'unverified',blockedRequestCount:denied.length};
+}
+
+module.exports={ validateTouchActions,inspectTouch,touchTargetId,disclosureRef,inspectDisclosure,inspectImageStrip };
