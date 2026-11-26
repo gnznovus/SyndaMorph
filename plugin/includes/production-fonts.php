@@ -65,7 +65,11 @@ function syndamorph_production_font_families(): array {
 
 function syndamorph_production_font_frame(string $html) {
     $css='';$bytes=0;
-    preg_match_all('/(?<![\w-])font(?:-family)?\s*:\s*([^;}<]+)/i',$html,$declared);
+    // Capture serializes CSS in HTML attributes, where a quoted family uses
+    // entities whose semicolons are not CSS declaration separators.
+    $declarationHtml=str_ireplace(array('&quot;','&#34;','&#x22;','&apos;','&#39;','&#x27;'),
+        array('"','"','"',"'","'","'"),$html);
+    preg_match_all('/(?<![\w-])font(?:-family)?\s*:\s*([^;}<]+)/i',$declarationHtml,$declared);
     preg_match_all('/\bclass\s*=\s*(["\'])([^"\']*)\1/i',$html,$classAttributes);
     $classes=array_fill_keys(preg_split('/\s+/',implode(' ',$classAttributes[2])),true);
     $declarations=implode(',',$declared[1]);
@@ -77,7 +81,7 @@ function syndamorph_production_font_frame(string $html) {
         foreach($missing as $name){
             $seen[]=$name;
             if(str_starts_with($name,'--wp--preset--'))continue;
-            preg_match_all('/(?<![\w-])'.preg_quote($name,'/').'\s*:\s*([^;}<]+)/',$html,$values);
+            preg_match_all('/(?<![\w-])'.preg_quote($name,'/').'\s*:\s*([^;}<]+)/',$declarationHtml,$values);
             $declarations.=','.implode(',',$values[1]);
         }
     }

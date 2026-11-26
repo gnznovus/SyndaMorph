@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.34] - 2026-11-27
+
+### Fixed
+
+- Isolated inspection recognizes quoted local font names in captured inline CSS, including HTML-escaped quotes. The source fragment stays byte-identical, and the existing installed-font allowlist still determines which files can be loaded.
+
+### Verified
+
+- Offline SIP & DINE design surgery restored the three-card compact strip and exact rounded section heights. The local trial passed the pinned source comparison at 0.139%, 0.117%, and 0.340% and all 11 responsive widths. GEN-000056 retains its original design hold while its work order still predates the verified scroll evidence. No model calls were used for this trial.
+
 ## [0.12.33] - 2026-11-27
 
 ### Changed

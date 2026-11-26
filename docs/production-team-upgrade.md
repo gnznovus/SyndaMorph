@@ -337,6 +337,14 @@ All 99 blocks survived an edit, save, and reload in Gutenberg. GEN-000058 comple
 
 REF-000030 revalidated and placed the Pattern at source position 8. The local draft now places Offers, Through Our Lens and FAQs at positions 8, 12 and 14. Its SHA-256 is `a7cd21678acb9cb3dc0b637b7a35a78bed20aebf222de6e5d120e135e7c1a9e1`. Actual draft 66 loaded the three archived Beausite families and preserved the Offers card counts, gallery columns and FAQ disclosure at all required widths. On the 375 px draft, the two-card Offers strip began at zero and reached 213 px by wheel and keyboard, with visible focus. A disposable copy of the unchanged original draft passed Gutenberg edit, save and reload with 155 valid blocks. Acceptance is 3 of 16 regions, four are eligible, and 12 have complete required-width capture. Whole-page QA remains pending.
 
+## v0.12.34 Dining source evidence replay
+
+The original Dining capture and the later Full Page evidence share the same archive, exact screenshot and HTML at each required width. The only data change is the addition of the observed horizontal scroll control to the two compact inventories. The archived work order predates this capture correction and still describes the control and installed fonts as unsupported. The original decision and model usage remain in History.
+
+Browser diagnosis found that captured inline CSS encodes quoted font names as HTML entities. The font scan had treated the entity terminator as a CSS semicolon and skipped those family names. After decoding quote entities for discovery, the pinned source and trial loaded the same three installed Beausite families from the same font-frame checksum. The renderer still receives the original fragment bytes with its existing, allowlisted font stylesheet.
+
+An offline repair of the retained Designer reference restored the desktop card dividers and measured reservation text minimum height, the exact typography and the three-card compact strip with preserved ordered copy. Trial `af23af680ce5509f5956c63ee04974b66428beabbf58e559521276348ee3b776` passed pinned source at 0.139%, 0.117%, and 0.340%, with exact rounded heights of 1340, 1227 and 918 px. It passed all 11 responsive samples and independent wheel, keyboard, focus and end-reachability checks at both compact widths. This is a separate trial on GEN-000056. The original generation remains held until the verified source inventory and corrected work order can resume together. Its metered cost remains $0.018427.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens and GEN-000055 completed their original jobs. Verified BKKGO Full Page assembly and broader region acceptance remain open. [Design validation audit](bossy-validation-audit.md#v0128-verification)
