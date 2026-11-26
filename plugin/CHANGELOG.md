@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.23] - 2026-11-26
+
+### Added
+
+- Decorative square tiles can compile to native Gutenberg Grid groups with two to four columns. Structural repair converts an explicitly authorized, rectangular Columns matrix of empty painted groups into a Grid while preserving tile identities, paint and visual row order.
+- Native Paragraphs support the standard underline setting for literal source labels.
+
+### Verified
+
+- The retained GEN-000051 candidate improved source pixel differences from 31.278%, 41.897% and 33.896% to 9.364%, 1.032% and 3.100% at 1440, 768 and 375 px. Source copy, responsive checks and WordPress Page accessibility checks passed. All 34 native blocks survived editing, saving and reloading in a private Gutenberg draft. The original job retains the candidate and remains uncompleted pending source visual fidelity. Recovery made zero AI calls.
+
 ## [0.12.22] - 2026-11-26
 
 ### Added

@@ -223,6 +223,20 @@ GEN-000051 reached Developer on the original record after the corrected Bossy ch
 
 This checkpoint logged five new metered calls estimated at $0.030929 and one timed-out Developer request with a $0.010752 reservation. The original job estimate is $0.133999 plus $0.021800 in total reservations, under the $1 cap.
 
+## v0.12.23 native decorative Grid recovery
+
+The native compiler supports two to four equal Grid columns for empty, painted decorative Groups. The existing Developer repair operation can convert a rectangular Columns matrix after a structural assignment explicitly authorizes the matrix and every affected child. It retains each tile ID and paint and preserves the visual row order. WordPress and Playwright use the same square sizing rule. The responsive fixture verifies four desktop columns, two compact columns, and the placement of the paragraph after the final tile row. Style-only authority, incomplete child authority and content-bearing tiles are rejected.
+
+GEN-000051 has an append-only private recovery event with candidate `b8011dda65d59b6b74bbd11dd8d2a1b952e14c1bc6500f7ae4d616660c92db03`. The improvement used the approved Designer reference and the original pinned source. The independent source comparison recorded zero regressions, source copy and links passed, and all 12 responsive samples and the WordPress Page accessibility checks passed. A private Gutenberg draft preserved both native Grid groups and all 34 valid blocks after editing a paragraph, saving and reloading.
+
+| Width | Prior pixel difference | Grid pixel difference | Archived height | Grid height |
+| --- | ---: | ---: | ---: | ---: |
+| 1440 px | 31.278% | 9.364% | 1031 px | 1035 px |
+| 768 px | 41.897% | 1.032% | 1713 px | 1713 px |
+| 375 px | 33.896% | 3.100% | 1010 px | 1010 px |
+
+The source visual gate still holds the job and no Pattern was saved. The final production record and the approved Designer checkpoint are preserved. The zero-call recovery left the ledger at $0.133999 estimated spend and $0.021800 reserved.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)

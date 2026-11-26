@@ -9,9 +9,19 @@ function syndamorph_block_plan_decorative_group_rule(): string {
     return 'A nested decorative Group may have no children when it has a minHeight and a background color or gradient. Keep it empty to preserve literal copy.';
 }
 
+function syndamorph_native_square_grid_css(): string {
+    return '.wp-block-group.sm-square-grid{width:100%}.wp-block-group.sm-square-grid>.wp-block-group{aspect-ratio:1;min-width:0;margin:0}';
+}
+
+if(function_exists('add_action'))add_action('enqueue_block_assets',static function():void {
+    wp_register_style('syndamorph-square-grid',false);
+    wp_enqueue_style('syndamorph-square-grid');
+    wp_add_inline_style('syndamorph-square-grid',syndamorph_native_square_grid_css());
+});
+
 function syndamorph_block_plan_contract(): string {
     $buttonWidth=syndamorph_native_full_button_width()?' Button style.width accepts 100% across all viewports, using current core dimensions support.':'';
-    return 'Return a JSON object {"version":1,"blocks":[...]} with exactly one root group. Each node has type, a stable unique id and optional style. Supported nodes: group (children), columns (children of type column, 2–4), column (children), heading (text, level 1–6), paragraph (text), buttons (children of type button), button (text, href: #fragment or /local-path), tabs (panels; no inline style). Only group/column may contain ordinary content blocks. The tabs node is the registered local Content Tabs block. Use it only for an approved tabbed-content capability. It accepts two to six ordered panels, each with unique lowercase id, plain label, heading and body. Tabs use local state and have no external integration. '.syndamorph_block_plan_decorative_group_rule().' Styles: color, background (six-digit hex), fontSize, fontWeight (100–900, integer or numeric string), lineHeight (1–2.5, number or numeric string), letterSpacing (px/rem/em), padding (single length or object with top/right/bottom/left lengths on ordinary nodes), margin (single length or sides on heading/paragraph; top and bottom sides only on group/columns/buttons), textTransform (heading/paragraph/button: none, uppercase, lowercase, capitalize), gap (group/columns/buttons: simple length with theme block-gap support), borderRadius (button), gradient (group/column/button, safe two-color linear-gradient), minHeight (group), align (heading/paragraph left/center/right). Lengths: nonnegative px/rem/em/vw/vh/svh/dvh or clamp(length,length,length), including a bounded additive or subtractive middle expression such as 1.2rem + 3.5vw. Negative letterSpacing is supported. Group contentWidth (px/rem/em/ch) uses native constrained layout and applies the width to its children. contentAlignment (left/center/right) controls horizontal positioning within that constrained group. For a sole constrained Group inside a vertical flex Group, the outer justifyContent stretch lets the inner Group center its bounded children. Theme default horizontal padding may be overridden with explicit native padding matching the approved design. Group justifyContent (left/center/right/stretch) and verticalAlignment (top/center/bottom) use native vertical flex layout, incompatible with contentWidth on the same node. Buttons justifyContent (left/center/right) uses native flex layout. For a vertically centered section with bounded content, use separate flex and constrained groups. The element being constrained must be a child of the constrained group. Keep alignment, minHeight and width on the appropriate separate groups. Do not propose fluid blockGap: WordPress core discards clamp() for blockGap. Use responsive spacing on supported children if it matches the design. Mobile-only full-width CTA and breakpoint-specific per-block spacing are outside this contract.'.$buttonWidth.' Do not substitute an always-full-width CTA or arbitrary leaf max-width. Font family is inherited unless style.fontFamily selects a local installed preset slug on a group, heading or paragraph. Use only a slug listed in installedFontPresets. Native hover/focus styling is host-owned. Use a heading and meaningful CTA. No HTML, arbitrary CSS, remote URLs, unregistered blocks or invented attributes. When the approved design uses responsive Columns, match the native default: stack through 781 CSS pixels and use the side-by-side layout from 782 CSS pixels. Verify the 768 px layout. Do not force fixed widths. Example {"version":1,"blocks":[{"type":"group","style":{"background":"#18283a","padding":"clamp(2rem,5vw,5rem)"},"children":[{"type":"heading","level":2,"text":"Welcome","style":{"color":"#ffffff","fontSize":"clamp(2rem,5vw,4rem)"}},{"type":"paragraph","text":"Discover our hotel","style":{"color":"#ffffff"}},{"type":"buttons","children":[{"type":"button","text":"Explore","href":"#explore"}]}]}]}.';
+    return 'Return a JSON object {"version":1,"blocks":[...]} with exactly one root group. Each node has type, a stable unique id and optional style. Supported nodes: group (children), columns (children of type column, 2–4), column (children), heading (text, level 1–6), paragraph (text), buttons (children of type button), button (text, href: #fragment or /local-path), tabs (panels; no inline style). Only group/column may contain ordinary content blocks. The tabs node is the registered local Content Tabs block. Use it only for an approved tabbed-content capability. It accepts two to six ordered panels, each with unique lowercase id, plain label, heading and body. Tabs use local state and have no external integration. '.syndamorph_block_plan_decorative_group_rule().' For evenly sized square decorative tiles, use a nested group with squareGrid set to an integer column count 2 to 4. Provide 2 to 12 direct empty Groups in row order, each styled only with a background color or gradient. Set the gap on the grid, and use the existing visibility variants for different column counts. Styles: color, background (six-digit hex), fontSize, fontWeight (100–900, integer or numeric string), lineHeight (1–2.5, number or numeric string), letterSpacing (px/rem/em), padding (single length or object with top/right/bottom/left lengths on ordinary nodes), margin (single length or sides on heading/paragraph; top and bottom sides only on group/columns/buttons), textTransform (heading/paragraph/button: none, uppercase, lowercase, capitalize), gap (group/columns/buttons: simple length with theme block-gap support), borderRadius (button), gradient (group/column/button, safe two-color linear-gradient), minHeight (group), align (heading/paragraph left/center/right). Lengths: nonnegative px/rem/em/vw/vh/svh/dvh or clamp(length,length,length), including a bounded additive or subtractive middle expression such as 1.2rem + 3.5vw. Negative letterSpacing is supported. Group contentWidth (px/rem/em/ch) uses native constrained layout and applies the width to its children. contentAlignment (left/center/right) controls horizontal positioning within that constrained group. For a sole constrained Group inside a vertical flex Group, the outer justifyContent stretch lets the inner Group center its bounded children. Theme default horizontal padding may be overridden with explicit native padding matching the approved design. Group justifyContent (left/center/right/stretch) and verticalAlignment (top/center/bottom) use native vertical flex layout, incompatible with contentWidth on the same node. Buttons justifyContent (left/center/right) uses native flex layout. For a vertically centered section with bounded content, use separate flex and constrained groups. The element being constrained must be a child of the constrained group. Keep alignment, minHeight and width on the appropriate separate groups. Do not propose fluid blockGap: WordPress core discards clamp() for blockGap. Use responsive spacing on supported children if it matches the design. Mobile-only full-width CTA and breakpoint-specific per-block spacing are outside this contract.'.$buttonWidth.' Do not substitute an always-full-width CTA or arbitrary leaf max-width. On Paragraphs, textDecoration may be none or underline. If the host fluid font rules alter a source-mandated fixed size, an explicit native clamp with equal bounds preserves it. Font family is inherited unless style.fontFamily selects a local installed preset slug on a group, heading or paragraph. Use only a slug listed in installedFontPresets. Native hover/focus styling is host-owned. Use a heading and meaningful CTA. No HTML, arbitrary CSS, remote URLs, unregistered blocks or invented attributes. When the approved design uses responsive Columns, match the native default: stack through 781 CSS pixels and use the side-by-side layout from 782 CSS pixels. Verify the 768 px layout. Do not force fixed widths. Example {"version":1,"blocks":[{"type":"group","style":{"background":"#18283a","padding":"clamp(2rem,5vw,5rem)"},"children":[{"type":"heading","level":2,"text":"Welcome","style":{"color":"#ffffff","fontSize":"clamp(2rem,5vw,4rem)"}},{"type":"paragraph","text":"Discover our hotel","style":{"color":"#ffffff"}},{"type":"buttons","children":[{"type":"button","text":"Explore","href":"#explore"}]}]}]}.';
 }
 
 function syndamorph_native_full_button_width(): bool {
@@ -177,6 +187,7 @@ function syndamorph_native_core_preview(array $blocks,?array $ids=null): string 
     }
     $css.=WP_Style_Engine::compile_stylesheet_from_css_rules($rules);
     if(isset($classes['sm-scroll-strip']))$css.=syndamorph_scroll_strip_css();
+    if(isset($classes['sm-square-grid']))$css.=syndamorph_native_square_grid_css();
     $css.='*,*::before,*::after{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;line-height:1.5}';
     return '<style>'.$css.'</style>'.$html;
 }
@@ -210,12 +221,12 @@ function syndamorph_compile_block_plan( string $raw ) {
             $field = $path;$block='';
             if ( ! is_array( $node ) || ++$count > 120 || $depth > 12 ) { throw new InvalidArgumentException( 'Invalid node or plan limit exceeded.' ); }
             $type = $node['type'] ?? '';
-            $allowed = array( 'root'=>array('group'), 'group'=>array('group','columns','heading','paragraph','buttons','tabs'), 'column'=>array('group','columns','heading','paragraph','buttons','tabs'), 'columns'=>array('column'), 'buttons'=>array('button') );
+            $allowed = array( 'root'=>array('group'), 'group'=>array('group','columns','heading','paragraph','buttons','tabs'), 'column'=>array('group','columns','heading','paragraph','buttons','tabs'), 'columns'=>array('column'), 'buttons'=>array('button'),'squareGrid'=>array('group') );
             if ( ! is_string( $type ) || ! in_array( $type, $allowed[$parent] ?? array(), true ) ) { throw new InvalidArgumentException( 'Unsupported block or nesting.' ); }
             $block=$type;
             $container = in_array( $type, array('group','columns','column','buttons'), true );
             $keys = array_merge(array('type','style','id'),$container?array('children'):($type==='tabs'?array('panels'):array('text')),
-                $type==='heading'?array('level'):array(),$type==='button'?array('href'):array(),$type==='group'?array('scrollStrip'):array());
+                $type==='heading'?array('level'):array(),$type==='button'?array('href'):array(),$type==='group'?array('scrollStrip','squareGrid'):array());
             if ( $unknown = array_diff( array_keys($node), $keys ) ) {
                 $key = (string) reset($unknown);
                 $field = $path . '.' . preg_replace('/[^a-zA-Z0-9_-]/', '?', substr($key,0,64));
@@ -302,6 +313,9 @@ function syndamorph_compile_block_plan( string $raw ) {
                 } elseif ( $key==='textTransform' && in_array($type,array('heading','paragraph','button'),true) ) {
                     if(!in_array($value,array('none','uppercase','lowercase','capitalize'),true))throw new InvalidArgumentException('Invalid text transform.');
                     $attrs['style']['typography']['textTransform']=$css['text-transform']=$value;
+                } elseif ( $key==='textDecoration' && $type==='paragraph' ) {
+                    if(!in_array($value,array('none','underline'),true))throw new InvalidArgumentException('Invalid text decoration.');
+                    $attrs['style']['typography']['textDecoration']=$css['text-decoration']=$value;
                 } elseif ( $key==='width' && $type==='button' && syndamorph_native_full_button_width() ) {
                     if($value!=='100%')throw new InvalidArgumentException('Invalid button width.');
                     $attrs['style']['dimensions']['width']=$value;
@@ -316,6 +330,22 @@ function syndamorph_compile_block_plan( string $raw ) {
                 } else { throw new InvalidArgumentException('Unsupported style for block.'); }
             }
             if(isset($style['contentAlignment']))$attrs['layout']['justifyContent']=$style['contentAlignment'];
+            if(array_key_exists('squareGrid',$node)){
+                $field=$path.'.squareGrid';
+                $columns=$node['squareGrid'];$tiles=$node['children']??null;
+                if($parent==='root'||$parent==='squareGrid'||isset($node['scrollStrip'])||!is_int($columns)||$columns<2||$columns>4||
+                    !is_array($tiles)||!array_is_list($tiles)||count($tiles)<$columns||count($tiles)>12||
+                    array_diff(array_keys($style),array('gap','margin','visibility'))||array_filter($tiles,static fn($tile)=>
+                        !is_array($tile)||($tile['type']??null)!=='group'||!empty($tile['children'])||
+                        array_diff(array_keys($tile),array('id','type','style','children'))||!is_array($tile['style']??null)||
+                        count($tile['style'])!==1||!array_intersect_key($tile['style'],array('background'=>true,'gradient'=>true))))
+                    throw new InvalidArgumentException('Square grid needs two to four columns and direct painted decorative Groups.');
+                $attrs['layout']=array('type'=>'grid','columnCount'=>$columns);
+                $attrs['className']=trim(($attrs['className']??'').' sm-square-grid');
+                $classes=array_values(array_diff($classes,array('is-layout-flex')));
+                $classes[]='is-layout-grid';
+                $schemaFacts['square-grid']=true;
+            }
             if(array_key_exists('scrollStrip',$node)){
                 $field=$path.'.scrollStrip';
                 $id=$node['id']??'';
@@ -338,7 +368,8 @@ function syndamorph_compile_block_plan( string $raw ) {
             }
             // Keep core support classes in the order emitted by Gutenberg.
             $classes = array_values(array_unique($classes));
-            $base = array_values(array_filter($classes,static fn($c)=>strpos($c,'wp-block-')===0 || strpos($c,'has-text-align-')===0 || in_array($c,array('is-layout-flex','is-layout-constrained'),true)));
+            $base = array_values(array_filter($classes,static fn($c)=>strpos($c,'wp-block-')===0 || strpos($c,'has-text-align-')===0 ||
+                in_array($c,array('is-layout-flex','is-layout-constrained','is-layout-grid'),true)));
             foreach(array('has-text-color','has-background') as $c) { if(in_array($c,$classes,true))$base[]=$c; }
             if(isset($attrs['fontFamily']))$base[]='has-'.$attrs['fontFamily'].'-font-family';
             if(isset($attrs['className']))$base[]=$attrs['className'];
@@ -351,7 +382,7 @@ function syndamorph_compile_block_plan( string $raw ) {
                 $children=$node['children']??null;
                 $emptyDecoration=$type==='group' && $parent!=='root' &&
                     (!array_key_exists('children',$node)||$children===array()) &&
-                    isset($style['minHeight']) && (isset($style['background'])||isset($style['gradient']));
+                    ($parent==='squareGrid'||isset($style['minHeight'])) && (isset($style['background'])||isset($style['gradient']));
                 if($emptyDecoration) {
                     $children=array();
                     $schemaFacts['decorative_group']=true;
@@ -359,7 +390,8 @@ function syndamorph_compile_block_plan( string $raw ) {
                     ($type==='columns'&&(count($children)<2||count($children)>4))) {
                     throw new InvalidArgumentException('Invalid children.');
                 }
-                $inner='';foreach($children as $i=>$child)$inner.=$build($child,$type,$depth+1,$path.'.children['.$i.']');
+                $childParent=isset($node['squareGrid'])?'squareGrid':$type;
+                $inner='';foreach($children as $i=>$child)$inner.=$build($child,$childParent,$depth+1,$path.'.children['.$i.']');
                 $markup='<div'.$appearance($classes,$style_parts).'>'.$inner.'</div>';
             } else {
                 $field = $path . '.text';
@@ -426,6 +458,7 @@ function syndamorph_compile_block_plan( string $raw ) {
             $horizontal=array('left'=>'flex-start','center'=>'center','right'=>'flex-end','stretch'=>'stretch');
             $vertical=array('top'=>'flex-start','center'=>'center','bottom'=>'flex-end');
             if(!$childRules && isset($horizontal[$layout['justifyContent']??'']))$rules.=($m[1]==='group'?'align-items:':'justify-content:').$horizontal[$layout['justifyContent']].';';
+            if(($layout['type']??null)==='grid')$rules.='display:grid;grid-template-columns:repeat('.$layout['columnCount'].',minmax(0,1fr));';
             if(isset($vertical[$layout['verticalAlignment']??''])&&$m[1]==='group')$rules.='justify-content:'.$vertical[$layout['verticalAlignment']].';';
             if(!$rules&&!$childRules)return $m[0];
             $class='sm-layout-'.substr(hash('sha256',json_encode(array($layout,$gap,$rules))),0,12);
@@ -458,6 +491,7 @@ function syndamorph_compile_block_plan( string $raw ) {
         $preview=$corePreview?syndamorph_native_core_preview($parsedBlocks,$previewIds):'<style>'.$layoutCss.'</style>'.$preview;
         if(!$corePreview&&$tabs)$preview='<style>'.syndamorph_tabs_asset('production-tabs.css').'</style>'.$preview;
         if(!$corePreview&&$scrollStrips)$preview='<style>'.syndamorph_scroll_strip_css().'</style>'.$preview;
+        if(!$corePreview&&isset($schemaFacts['square-grid']))$preview='<style>'.syndamorph_native_square_grid_css().'</style>'.$preview;
         if(str_contains($content,'"className":"sm-view-'))$preview='<style>'.syndamorph_native_visibility_css().'</style>'.$preview;
         return array('schemaVersion'=>1,'content'=>$content,'preview'=>$preview,'blockCount'=>$count,
             'previewRendering'=>$corePreview?'wordpress-core':'standalone','layoutFacts'=>$layoutFacts,

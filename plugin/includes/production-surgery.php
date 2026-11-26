@@ -84,7 +84,7 @@ function syndamorph_surgery_apply(array $plan,array $proposal,?array $authorized
     $scope=syndamorph_collab_find($plan['blocks'],$owner);
     if($scope===null)return new WP_Error('sm_surgery_target','Assigned repair component not found.');
     $allowed=array('color','background','gradient','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing',
-        'textTransform','padding','margin','gap','minHeight','contentWidth','contentAlignment','justifyContent','verticalAlignment','align','borderRadius','width');
+        'textTransform','textDecoration','padding','margin','gap','minHeight','contentWidth','contentAlignment','justifyContent','verticalAlignment','align','borderRadius','width');
     $touches=array();
     foreach($changes as $change){
         if(!is_array($change)||!is_string($change['path']??null)||
@@ -162,7 +162,9 @@ function syndamorph_surgery_operation_identity(array $patch,array $assignment): 
     }
     unset($change);
     $wraps=$patch['wraps']??array();
+    $squareGrid=$patch['squareGrid']??null;
     $targets=array($assignment['id']);
+    if(is_string($squareGrid))$targets[]=$squareGrid;
     if(is_array($changes))array_push($targets,...array_column($changes,'target'));
     if(is_array($wraps))foreach($wraps as $wrap) {
         $targets[]=$wrap['parent']??null;
@@ -170,8 +172,9 @@ function syndamorph_surgery_operation_identity(array $patch,array $assignment): 
     }
     $targets=array_values(array_unique(array_filter($targets,static fn($target)=>is_string($target)&&strlen($target)<=100)));
     sort($targets);
-    return array('targets'=>$targets,'signature'=>SyndaMorph_Job_Memory::fingerprint(array(
-        'targets'=>$targets,'changes'=>$changes,'wraps'=>$wraps)));
+    $intent=array('targets'=>$targets,'changes'=>$changes,'wraps'=>$wraps);
+    if(array_key_exists('squareGrid',$patch))$intent['squareGrid']=$squareGrid;
+    return array('targets'=>$targets,'signature'=>SyndaMorph_Job_Memory::fingerprint($intent));
 }
 
 function syndamorph_surgery_baseline_identity(array $candidate,string $referenceHash,int $version,int $round): array {
@@ -186,6 +189,46 @@ function syndamorph_surgery_baseline_identity(array $candidate,string $reference
         'score'=>$candidate['score']);
 }
 
+/** Replace a decorative column matrix, preserving existing tile identities and visual order. */
+function syndamorph_surgery_columns_to_square_grid(array $plan,string $id,array $authority) {
+    $reject=static fn(): WP_Error=>new WP_Error('sm_surgery_grid','Grid repair requires an authorized rectangular matrix of empty painted Groups.');
+    $authorized=$authority['nodes']??array();
+    if(!in_array($authority['mode']??null,array('adaptive','structure'),true)||
+        !in_array($id,$authorized,true))return $reject();
+    $candidate=$plan;
+    $target=&syndamorph_collab_find($candidate['blocks'],$id);
+    if(($target['type']??null)!=='columns'||
+        array_diff(array_keys($target['style']??array()),array('gap','margin')))return $reject();
+    $columns=$target['children']??array();
+    $count=count($columns);$rows=count($columns[0]['children']??array());
+    if($count<2||$count>4||$rows<1||$rows*$count>12)return $reject();
+    $tiles=array();$ids=array();$touched=array($id);
+    foreach($columns as $column){
+        if(($column['type']??null)!=='column'||!in_array($column['id']??null,$authorized,true)||
+            array_diff(array_keys($column),array('type','id','style','children'))||
+            !empty($column['style'])||count($column['children']??array())!==$rows)
+            return $reject();
+        $touched[]=$column['id'];
+        foreach($column['children'] as $row=>$tile){
+            $paint=array_intersect_key($tile['style']??array(),array('background'=>true,'gradient'=>true));
+            $tileId=$tile['id']??null;
+            if(($tile['type']??null)!=='group'||!is_string($tileId)||!in_array($tileId,$authorized,true)||
+                isset($ids[$tileId])||!empty($tile['children'])||
+                array_diff(array_keys($tile),array('id','type','style','children'))||count($paint)!==1||
+                array_diff(array_keys($tile['style']??array()),array('background','gradient','minHeight','margin')))return $reject();
+            $ids[$tileId]=true;$touched[]=$tileId;
+            $tile['style']=$paint;
+            $tiles[$row][]=$tile;
+        }
+    }
+    $target['type']='group';
+    $target['squareGrid']=$count;
+    $target['children']=array_merge(...$tiles);
+    unset($target);
+    $verified=syndamorph_surgery_verify($plan,$candidate);
+    return is_wp_error($verified)?$verified:array_merge($verified,array('error'=>null,'touched'=>$touched));
+}
+
 /** Apply one authorized style or layout operation to an isolated copy. */
 function syndamorph_surgery_operation(array $plan,array $proposal,array $authority) {
     $error=syndamorph_surgery_check_response($proposal,$authority);
@@ -194,6 +237,11 @@ function syndamorph_surgery_operation(array $plan,array $proposal,array $authori
     $authorized=$authority['nodes'];
     $changes=$proposal['changes']??array();
     $wraps=$proposal['wraps']??array();
+    if(array_key_exists('squareGrid',$proposal)){
+        if(!is_string($proposal['squareGrid'])||$changes!==array()||$wraps!==array())
+            return new WP_Error('sm_surgery_grid','A grid repair must name one authorized matrix as its sole operation.');
+        return syndamorph_surgery_columns_to_square_grid($plan,$proposal['squareGrid'],$authority);
+    }
     if(!is_array($changes)||!array_is_list($changes) ||
         !is_array($wraps)||!array_is_list($wraps) || count($wraps)>2 ||
         count($changes)+count($wraps)<1 || count($changes)+count($wraps)>8) {

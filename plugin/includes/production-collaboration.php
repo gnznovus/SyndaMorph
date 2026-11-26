@@ -1469,6 +1469,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $instruction='Use the Boss instructions, prior attempts and measured geometry to select the smallest supported operation. Include a concise strategyDeviation when an explicit Boss strategy differs from your operation. Use a materially different correction or state new evidence; if neither is available, report a blocker. Return only JSON {"diagnosis":"cause with evidence","changes":[{"target":"authorized id","path":"style.margin.bottom","value":"1rem"}]}. Apply up to eight combined edits only to the explicit authorized nodes. Omit unused changes. Preserve text, links, block types, existing IDs and unrelated siblings. Never return a full node or plan. If a supported repair is impossible, use {"blocked":"capability|design_constraint|missing_evidence","diagnosis":"why"}.';
             if($assignment['strategy']==='contract_correction')$instruction.=' Correct the specific contract failure in previousAttempts before trying new style values.';
             if($assignment['wrapParents'])$instruction.=' For structure, include wraps:[{"parent":"authorized parent","children":["consecutive direct child id"],"id":"new-group-id","style":{"contentWidth":"40rem"}}]. Preserve existing IDs and order. Include both wraps and changes for a hybrid operation. Core discards fluid blockGap; use supported child spacing if needed.';
+            if($assignment['wrapParents']&&in_array('columns',array_column($editableNodes,'type'),true))
+                $instruction.=' If the reference measures as square decorative tiles, a structural repair may instead return {"squareGrid":"authorized Columns id","diagnosis":"measured tile layout"}. Use it alone, and only if all Columns, Column wrappers and direct empty painted Groups in that matrix are authorized. The engine preserves tile paint and row order.';
             $repair=$call('developer',$instruction,$repairContext,syndamorph_collab_output_cap($provider,$model),
                 $repairScope['images'],'repair',$reviewReserve,array('reference'=>$reference,'native'=>$artifact['preview'],'plan'=>$plan));
             if(is_wp_error($repair)) {
@@ -1479,9 +1481,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         if($on_event)$on_event('repair_route',array('round'=>$round,'id'=>$id,'route'=>$route,'mode'=>$assignment['mode']));
         $proposedChanges=is_array($patch['changes']??null)?array_slice($patch['changes'],0,8):array();
         $wraps=is_array($patch['wraps']??null)?array_slice($patch['wraps'],0,2):array();
+        $structural=$wraps||is_string($patch['squareGrid']??null);
         $attempt=array('round'=>$round,'id'=>$id,'route'=>$route,'issueGroup'=>$assignment['group'],'affectedComponents'=>array($id),
             'strategy'=>$assignment['strategy'],'mode'=>$assignment['strategy']==='structure'?'structure':'style',
-            'operationMode'=>$wraps?($proposedChanges?'hybrid':'structure'):'style',
+            'operationMode'=>$structural?($proposedChanges?'hybrid':'structure'):'style',
             'strategyDeviation'=>is_string($patch['strategyDeviation']??null)?mb_substr($patch['strategyDeviation'],0,500):null,
             'baselineFingerprint'=>$assignment['baselineFingerprint'],'strategyFingerprint'=>$assignment['strategyFingerprint'],
             'baselineBefore'=>$best['identity'],'baselineAfter'=>$best['identity'],

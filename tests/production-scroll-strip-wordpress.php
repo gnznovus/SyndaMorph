@@ -15,6 +15,77 @@ $strip=array('type'=>'group','id'=>'dining-cards','scrollStrip'=>true,
     'style'=>array('visibility'=>'compact'),'children'=>$cards);
 $make=static fn($node)=>array('version'=>1,'blocks'=>array(array('type'=>'group',
     'style'=>array('justifyContent'=>'stretch'),'children'=>array(array('type'=>'heading','text'=>'Dining'),$node))));
+$matrix=static function(string $name,int $count):array {
+    $columns=array();
+    for($column=0;$column<$count;$column++){
+        $tiles=array();
+        for($row=0;$row<2;$row++)$tiles[]=array('type'=>'group','id'=>"$name-$row-$column",
+            'style'=>array('background'=>($row+$column)%2?'#d7d3d3':'#eae7e7','minHeight'=>'100px'));
+        $columns[]=array('type'=>'column','id'=>"$name-column-$column",'children'=>$tiles);
+    }
+    return array('type'=>'columns','id'=>$name,'style'=>array('gap'=>'8px'),'children'=>$columns);
+};
+$gridPlan=$make($matrix('desktop-grid',4));
+$gridPlan['blocks'][0]['id']='grid-section';
+$gridPlan['blocks'][0]['children'][0]['id']='grid-heading';
+$gridPlan['blocks'][0]['children'][]=$matrix('compact-grid',2);
+$gridPlan['blocks'][0]['children'][]=array('type'=>'paragraph','id'=>'below-grid','text'=>'After the tiles',
+    'style'=>array('textDecoration'=>'underline'));
+foreach(array('desktop-grid'=>4,'compact-grid'=>2) as $id=>$count){
+    $original=syndamorph_collab_find($gridPlan['blocks'],$id);
+    $authority=array('id'=>$id,'mode'=>'structure','nodes'=>array_column(syndamorph_surgery_context($original,121),'id'));
+    $proposal=array('squareGrid'=>$id);
+    $expect(is_wp_error(syndamorph_surgery_operation($gridPlan,$proposal,array_replace($authority,array('mode'=>'style')))),
+        'Style authority allowed structure changes.');
+    $partial=$authority;
+    array_pop($partial['nodes']);
+    $expect(is_wp_error(syndamorph_surgery_operation($gridPlan,$proposal,$partial)),'Grid repair moved an unauthorized tile.');
+    $mixed=$proposal+array('changes'=>array(array('target'=>$id,'path'=>'style.gap','value'=>'0px')));
+    $expect(is_wp_error(syndamorph_surgery_operation($gridPlan,$mixed,$authority)),'Grid repair accepted a second operation.');
+    $nonDecorative=$gridPlan;
+    $node=&syndamorph_collab_find($nonDecorative['blocks'],$id);
+    $node['children'][0]['children'][0]['children']=array(array('type'=>'paragraph','text'=>'Required original copy'));
+    unset($node);
+    $expect(is_wp_error(syndamorph_surgery_operation($nonDecorative,$proposal,$authority)),'Grid repair accepted content.');
+    $result=syndamorph_surgery_operation($gridPlan,$proposal,$authority);
+    $expect(!is_wp_error($result),'Authorized grid repair failed: '.(is_wp_error($result)?$result->get_error_message():''));
+    $gridPlan=$result['plan'];
+    $node=&syndamorph_collab_find($gridPlan['blocks'],$id);
+    $expectedOrder=array();
+    for($row=0;$row<2;$row++)for($column=0;$column<$count;$column++)$expectedOrder[]="$id-$row-$column";
+    $expect($node['squareGrid']===$count&&array_column($node['children'],'id')===$expectedOrder,
+        'Grid repair changed tile identities or visual order.');
+    $node['style']['visibility']=$count===4?'desktop':'compact';
+    unset($node);
+}
+$badGrid=$gridPlan;
+$badGrid['blocks'][0]['children'][1]['squareGrid']='4';
+$expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($badGrid))),'Grid accepted an invalid column count type.');
+$badGrid=$gridPlan;
+$badGrid['blocks'][0]['children'][1]['children'][0]['style']['width']='100%';
+$expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($badGrid))),'Grid accepted unsupported tile styles.');
+$grid=syndamorph_compile_block_plan(wp_json_encode($gridPlan));
+$expect(!is_wp_error($grid)&&$grid['previewRendering']==='wordpress-core','Square Grid did not use the WordPress renderer.');
+$expect(str_contains($grid['content'],'"textDecoration":"underline"')&&
+    str_contains(do_blocks($grid['content']),'text-decoration:underline'),'Native underline was lost.');
+$gridViews=syndamorph_collab_inspect($grid['preview'],array(1440,768,375));
+$expect(!is_wp_error($gridViews),'Square Grid could not be inspected at the required widths.');
+foreach($gridViews as $view){
+    $nodes=array_column($view['snapshot']['elements'],null,'node');
+    $desktop=$view['width']===1440;
+    $id=$desktop?'desktop-grid':'compact-grid';
+    $count=$desktop?4:2;
+    $inactive=$desktop?'compact-grid':'desktop-grid';
+    $expect($nodes[$id]['visible']&&!$nodes[$inactive]['visible'],'Wrong native Grid variant at '.$view['width'].' px.');
+    [$x,$y,$width,$height]=$nodes[$id]['rect'];
+    [,$firstY,$firstWidth,$firstHeight]=$nodes["$id-0-0"]['rect'];
+    [$lastX,$lastY,$lastWidth,$lastHeight]=$nodes["$id-1-".($count-1)]['rect'];
+    $expect($width>$view['width']*0.7&&abs($firstWidth-$firstHeight)<1&&
+        abs($lastWidth-$lastHeight)<1&&abs($lastY-$firstY-$firstHeight-8)<1&&
+        abs($lastX+$lastWidth-$x-$width)<1&&abs($lastY+$lastHeight-$y-$height)<1&&
+        $nodes['below-grid']['rect'][1]>=$y+$height-0.1,
+        'Square Grid failed to contain its rows and keep following content below at '.$view['width'].' px.');
+}
 $artifact=syndamorph_compile_block_plan(wp_json_encode($make($strip)));
 $expect(!is_wp_error($artifact),'Native scroll plan did not compile.');
 $expect($artifact['previewRendering']==='wordpress-core'&&$artifact['scrollStrips']['dining-cards']['cards']===3,
