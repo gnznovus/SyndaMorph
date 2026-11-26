@@ -61,8 +61,8 @@ function syndamorph_production_tool_catalog(string $role,array $artifacts=array(
     if(is_string($artifacts['sourceArchive']['runtimeSha256']??null)){
         $catalog['playwright.touch']=array('purpose'=>'Use a verified source snapshot identity to investigate local UI with external requests blocked.',
             'readOnly'=>true,'targets'=>array('source'),'widths'=>array(1440,768,375),
-            'actions'=>array('click','hover','scroll','drag','resize'),
-            'input'=>'Provide width and actions. Use an empty list to inventory controls. Click/hover/drag use a returned target ID. Drag adds dx, scroll adds dy, resize adds width.');
+            'actions'=>array('click','hover','scroll','scroll-x','drag','resize'),
+            'input'=>'Provide width and actions. Use an empty list to inventory controls. Click, hover, drag and scroll-x use a returned target ID. Use scroll-x only when permitsScrollX is true. Drag and scroll-x add dx, scroll adds dy, and resize adds width.');
     }
     // Only advertise executable on-demand adapters. Other shared tools are
     // still invoked directly by the orchestrator during their owning phases.

@@ -5,14 +5,42 @@ const test=require('node:test');
 const { createHash }=require('node:crypto');
 const { chromium }=require('playwright');
 const { inspectTouch,validateTouchActions }=require('./production-touch');
+const { captureResponsiveViewport }=require('./responsive-capture');
 
 test('Touch actions are limited to server target identities and bounded gestures',()=>{
     assert.throws(()=>validateTouchActions([{type:'click',target:'#submit'}]));
     assert.throws(()=>validateTouchActions([{type:'resize',width:1441}]));
     assert.throws(()=>validateTouchActions([{type:'scroll',dy:950}]));
+    assert.throws(()=>validateTouchActions([{type:'scroll-x',target:'a'.repeat(24),dx:901}]));
     assert.throws(()=>validateTouchActions(Array(6).fill({type:'scroll',dy:20})));
     assert.deepEqual(validateTouchActions([{type:'drag',target:'a'.repeat(24),dx:12}]),
         [{type:'drag',target:'a'.repeat(24),dx:12}]);
+});
+
+test('anonymous horizontal scrollers require a capability and record actual local movement', {
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const browser=await chromium.launch();
+    try{
+        const page=await browser.newPage({viewport:{width:375,height:900}});
+        await page.setContent('<section id="fixtures" style="height:250px">'+
+            '<div style="width:270px;overflow-x:auto"><div style="width:780px;height:70px">Scrollable source cards</div></div>'+
+            '<div style="width:270px;overflow-x:hidden"><div style="width:780px;height:70px">Clipped decoration</div></div></section>');
+        const capture=await captureResponsiveViewport(page,[{sourceRef:'#fixtures',kind:'content',geometryAvailable:true,
+            bounds:{y:0,height:250}}],375,{contentReady:true});
+        assert.deepEqual(capture.sections[0].inventory.controls,[{type:'horizontal-scroll',name:''}]);
+        const copy=await page.evaluate(()=>document.body.innerText.replace(/\s+/gu,' ').trim());
+        const args={width:375,copySha256:createHash('sha256').update(copy).digest('hex')};
+        const initial=await inspectTouch(page,{...args,actions:[]},()=>[]);
+        const scrollable=initial.initial.targets.filter(target=>target.permitsScrollX);
+        assert.equal(scrollable.length,1);
+        const result=await inspectTouch(page,{...args,actions:[{type:'scroll-x',target:scrollable[0].id,dx:240}]},()=>[]);
+        const scenario=result.scenarios[0];
+        assert.equal(scenario.status,'observed');
+        assert.deepEqual(scenario.changes,['horizontal-scroll']);
+        assert.equal(scenario.from.target.attributes.scrollLeft,0);
+        assert.ok(scenario.to.target.attributes.scrollLeft>0);
+    }finally{await browser.close();}
 });
 
 test('Touch records local changes while blocking read and mutation requests', {

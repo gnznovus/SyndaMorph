@@ -6,6 +6,14 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.15] - 2026-11-26
+
+### Fixed
+- Capture recognizes anonymous horizontal scroll containers as interaction requirements. Touch can replay bounded horizontal wheel movement against a discovered target and preserve the measured local state.
+
+### Verified
+- Recorded BKKGO replay proved horizontal scrolling in SIP & DINE at 768 and 375 px and Exclusive Offers at 375 px. Both need a native interaction contract before conversion. Through Our Lens remains the only one of the original three candidates without this blocker.
+
 ## [0.12.14] - 2026-11-26
 
 ### Fixed

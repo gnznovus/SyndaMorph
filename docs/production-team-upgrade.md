@@ -159,6 +159,14 @@ The actual BKKGO Full Page adapter read all 16 pinned regions in REF-000030. Onl
 
 The isolated Section and Full Page regression verified both original-GEN recovery paths with 38 mocked model responses and zero paid requests. The fixture's full and first-fold screenshots matched at all three mandatory widths. All eight responsive samples passed, and the same draft persisted through partial assembly, section recovery, and full Gutenberg verification.
 
+## v0.12.15 horizontal source interactions
+
+Source capture now recognizes horizontal scrolling without depending on a button, role or ARIA label. A visible element qualifies for inspection when it has `overflow-x: auto` or `scroll` and measured content wider than its scroll area. A passive CSS clip does not qualify on that evidence alone. Scoped conversion still requires a supported implementation and independent functional tests.
+
+Touch binds the gesture to a discovered target at the pinned viewport and records its starting and ending `scrollLeft`. Vertical scroll from locating the element does not prove horizontal behavior. The browser remains network-isolated during the gesture.
+
+In the BKKGO archive, SIP & DINE moved from 0 to 594 px at 768 px and from 0 to 280 px at 375 px with the same compact target ID. Exclusive Offers moved from 0 to 213 px at 375 px. Through Our Lens had no discovered horizontal control at any required width. The archived 3/16 preflight remains preserved. With the additional measured requirements, only one of those three is eligible for the current compiler contract. No BKKGO region has full native acceptance.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)

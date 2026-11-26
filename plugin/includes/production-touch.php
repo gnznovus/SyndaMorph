@@ -7,23 +7,24 @@ function syndamorph_production_touch(array $request,array $archive,?callable $on
     $actions=$request['actions']??null;
     if(!in_array($width,array(1440,768,375),true) || !is_array($actions) || !array_is_list($actions) || count($actions)>5)
         return new WP_Error('sm_touch_input','Touch requires a pinned width and up to five bounded actions.');
-    $validType=array('click','hover','scroll','drag','resize');
+    $validType=array('click','hover','scroll','scroll-x','drag','resize');
     $normalized=array();
     foreach($actions as $action){
         $type=$action['type']??null;
         if(!is_array($action)||!in_array($type,$validType,true))
             return new WP_Error('sm_touch_input','Touch received an unsupported action.');
         $row=array('type'=>$type);
-        if(in_array($type,array('click','hover','drag'),true)){
+        if(in_array($type,array('click','hover','drag','scroll-x'),true)){
             if(!is_string($action['target']??null)||!preg_match('/^[a-f0-9]{24}$/D',$action['target']))
                 return new WP_Error('sm_touch_input','Touch requires a discovered target identity.');
             $row['target']=$action['target'];
         }
-        foreach(array('resize'=>'width','scroll'=>'dy','drag'=>'dx') as $actionType=>$key){
+        foreach(array('resize'=>'width','scroll'=>'dy','drag'=>'dx','scroll-x'=>'dx') as $actionType=>$key){
             if($type!==$actionType)continue;
             $value=$action[$key]??null;
             if(!is_int($value) || ($key==='width' && ($value<375||$value>1440)) ||
-                ($key==='dy' && ($value===0||abs($value)>900)) || ($key==='dx' && ($value===0||abs($value)>300)))
+                ($key==='dy' && ($value===0||abs($value)>900)) ||
+                ($key==='dx' && ($value===0||abs($value)>($type==='drag'?300:900))))
                 return new WP_Error('sm_touch_input','Touch requires integral gesture bounds.');
             $row[$key]=$value;
         }
@@ -66,7 +67,7 @@ function syndamorph_production_touch(array $request,array $archive,?callable $on
     $GLOBALS['syndamorph_touch_receipts'][$key]=$cached;
     $data=$cached['result'];
     $target=static fn($target): array => array_intersect_key((array)$target,array_flip(
-        array('id','tag','role','name','attributes','destination','permitsClick','permitsDrag','bounds')));
+        array('id','tag','role','name','attributes','destination','permitsClick','permitsDrag','permitsScrollX','bounds')));
     $compact=array('status'=>$data['status'],'reason'=>$data['reason']??null,'width'=>$width,
         'targets'=>array_map($target,array_slice($data['initial']['targets'],0,32)),'scenarios'=>array());
     foreach($data['scenarios'] as $scenario){

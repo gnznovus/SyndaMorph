@@ -6,7 +6,7 @@ const MAX_ACTIONS = 5;
 const MAX_TARGETS = 60;
 const WIDTHS = [1440, 768, 375];
 const digest = value => createHash('sha256').update(value).digest('hex');
-const actionNames = new Set(['click','hover','scroll','drag','resize']);
+const actionNames = new Set(['click','hover','scroll','scroll-x','drag','resize']);
 const targetId = value => typeof value==='string' && /^[a-f0-9]{24}$/.test(value);
 
 function validateTouchActions(actions) {
@@ -23,8 +23,9 @@ function validateTouchActions(actions) {
             return { type,dy };
         }
         if(!targetId(target))throw new Error('Touch requires a discovered target identity.');
-        if(type==='drag'){
-            if(!Number.isInteger(dx) || dx===0 || Math.abs(dx)>300)throw new Error('Touch drag is outside the supported range.');
+        if(type==='drag'||type==='scroll-x'){
+            if(!Number.isInteger(dx) || dx===0 || Math.abs(dx)>(type==='drag'?300:900))
+                throw new Error('Touch horizontal gesture is outside the supported range.');
             return { type,target,dx };
         }
         return { type,target };
@@ -45,7 +46,11 @@ function inspectTouchPage(maximum) {
         const box=element.getBoundingClientRect();
         return box.width>0 && box.height>0 && element.checkVisibility({opacityProperty:true,visibilityProperty:true});
     };
-    const candidates=[...document.querySelectorAll('a[href],button,summary,[role="button"],[role="tab"],[role="slider"],input,select,textarea,[aria-expanded],[draggable="true"]')];
+    const isScrollArea = element => element.clientWidth>0&&element.scrollWidth-element.clientWidth>4&&
+        ['auto','scroll'].includes(getComputedStyle(element).overflowX);
+    const candidates=[...document.querySelectorAll('body *')].filter(element=>element.matches(
+        'a[href],button,summary,[role="button"],[role="tab"],[role="slider"],input,select,textarea,[aria-expanded],[draggable="true"]')||
+        isScrollArea(element));
     const visibleCandidates=candidates.filter(visible);
     const withinViewport=element=>{
         const box=element.getBoundingClientRect();
@@ -79,7 +84,9 @@ function inspectTouchPage(maximum) {
         const widget=tag==='summary' || ['button','tab'].includes(role) || element.hasAttribute('aria-expanded');
         const permitsClick=!unsafe && (tag==='a'?localLink:(regularButton||widget));
         const permitsDrag=!unsafe && (role==='slider' || (tag==='input' && element.type==='range') || element.draggable===true);
-        return { selector:selector(element),tag,role,name,attributes,destination,permitsClick,permitsDrag,
+        const permitsScrollX=!insideForm&&!element.closest('[inert],[aria-disabled="true"]')&&isScrollArea(element);
+        if(permitsScrollX)attributes.scrollLeft=Math.round(element.scrollLeft);
+        return { selector:selector(element),tag,role,name,attributes,destination,permitsClick,permitsDrag,permitsScrollX,
             bounds:[box.x,box.y,box.width,box.height].map(value=>Math.round(value*10)/10),
             styles:{ display:style.display,position:style.position,visibility:style.visibility,cursor:style.cursor,
                 transform:style.transform,opacity:style.opacity,color:style.color,backgroundColor:style.backgroundColor } };
@@ -104,6 +111,8 @@ async function touchState(page) {
 function transitionFacts(action, before, after, target, nextTarget) {
     if(action.type==='resize')return before.width!==after.width?['viewport']:[];
     if(action.type==='scroll')return before.scroll!==after.scroll?['scroll']:[];
+    if(action.type==='scroll-x')return nextTarget?.permitsScrollX&&
+        target.attributes.scrollLeft!==nextTarget.attributes.scrollLeft?['horizontal-scroll']:[];
     const changes=[];
     if(before.copySha256!==after.copySha256)changes.push('visible-copy');
     if(before.fragment!==after.fragment)changes.push('local-fragment');
@@ -137,7 +146,9 @@ async function inspectTouch(page, input, sealNetwork) {
         const target=current.targets.find(entry=>entry.id===action.target);
         const button=action.type==='click';
         const drag=action.type==='drag';
-        const unsupported=action.target && (!target || (button && !target.permitsClick) || (drag && !target.permitsDrag));
+        const scrollX=action.type==='scroll-x';
+        const unsupported=action.target && (!target || (button && !target.permitsClick) ||
+            (drag && !target.permitsDrag) || (scrollX && !target.permitsScrollX));
         if(unsupported){
             scenarios.push({ action,target,status:target?.destination?'inferred':'unknown',reason:'unsafe_or_unavailable' });
             continue;
@@ -157,6 +168,16 @@ async function inspectTouch(page, input, sealNetwork) {
                 const locator=page.locator(target.selector);
                 if(button)await locator.click({ timeout:2000 });
                 else if(action.type==='hover')await locator.hover({ timeout:2000 });
+                else if(scrollX){
+                    await locator.scrollIntoViewIfNeeded({timeout:2000});
+                    const box=await locator.boundingBox({timeout:2000});
+                    if(!box)throw new Error('Scroll target is unavailable.');
+                    const viewport=page.viewportSize();
+                    const x=(Math.max(0,box.x)+Math.min(viewport.width,box.x+box.width))/2;
+                    const y=(Math.max(0,box.y)+Math.min(viewport.height,box.y+box.height))/2;
+                    await page.mouse.move(x,y);
+                    await page.mouse.wheel(action.dx,0);
+                }
                 else {
                     await locator.scrollIntoViewIfNeeded({ timeout:2000 });
                     const box=await locator.boundingBox({ timeout:2000 });
@@ -171,7 +192,7 @@ async function inspectTouch(page, input, sealNetwork) {
                 }
             }
         } catch { reason='action_did_not_complete'; }
-        await page.waitForTimeout(350);
+        await page.waitForTimeout(scrollX?500:350);
         const afterState=await touchState(page);
         const after=await snapshot();
         const afterTarget=afterState.targets.find(entry=>entry.id===action.target);

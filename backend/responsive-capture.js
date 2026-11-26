@@ -38,10 +38,15 @@ function sourceInventory({ selectors }) {
                 loaded: element.complete && element.naturalWidth > 0,
             });
             if (element.matches('svg,iframe,video,audio,canvas,object,embed')) assets.push({ type: element.localName });
-            const background = getComputedStyle(element).backgroundImage;
+            const style = getComputedStyle(element);
+            const background = style.backgroundImage;
             for (const match of background.matchAll(/url\("?([^"\)]+)"?\)/g)) assets.push({ type: 'background', url: match[1] });
+            if (['auto','scroll'].includes(style.overflowX) && element.clientWidth > 0 &&
+                element.scrollWidth - element.clientWidth > 4) {
+                controls.push({type:'horizontal-scroll',name:normalize(element.getAttribute('aria-label') || '').slice(0,180)});
+            }
             const customAction = !element.closest('a[href],button') && (typeof element.onclick === 'function' ||
-                getComputedStyle(element).cursor === 'pointer' && (!element.parentElement || getComputedStyle(element.parentElement).cursor !== 'pointer'));
+                style.cursor === 'pointer' && (!element.parentElement || getComputedStyle(element.parentElement).cursor !== 'pointer'));
             if (customAction || element.matches('form,input,select,textarea,button,details,summary,dialog,[role=button],[role=tab],[role=dialog],[role=application],[aria-expanded],[aria-roledescription=carousel],a:not([href]),a[href="#"]')) {
                 controls.push({ type: element.getAttribute('role') || element.localName,
                     name: normalize(element.getAttribute('aria-label') || element.innerText || element.getAttribute('placeholder') || '').slice(0, 180) });

@@ -66,9 +66,9 @@ The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593
 | Best Rate Guarantee | 768, 375 | No standalone desktop variant. Compact badges require the three captured SVGs and a verified mapping for their visibility. |
 | 12–14 DEC · 2 GUESTS | 768, 375 | No standalone desktop variant. Compact sticky placement needs a responsive behavior contract. Booking effects remain external or unverified. |
 | OUR STORY | 1440, 768, 375 | Desktop illustration requires a verified native image import. The story URL is declared at all widths and needs a pinned destination contract. |
-| EXCLUSIVE OFFERS | 1440, 768, 375 | Current preflight permits conversion. The capture lists no actionable controls or destinations. No interaction is accepted from the numbered artwork alone. |
+| EXCLUSIVE OFFERS | 1440, 768, 375 | Recorded replay moved an anonymous horizontal strip from 0 to 213 px at 375 px. A native scroll-strip contract and independent replay are required. |
 | Rooms | 1440, 768, 375 | Desktop photo navigation and room selection have separate behaviors. Reusable carousel and disclosure capabilities need proof. Booking effects remain unverified. |
-| SIP & DINE | 1440, 768, 375 | The original preflight missed an anonymous compact scroll-snap strip. Recorded replay moved the strip by 280 px at 375 px. The live Section held the design for compact behavior and visual fidelity before Developer. Reservation labels remain source copy. |
+| SIP & DINE | 1440, 768, 375 | The original preflight missed an anonymous compact scroll-snap strip. Recorded replay moved it by 594 px at 768 px and 280 px at 375 px. The live Section held the design for compact behavior and visual fidelity before Developer. Reservation labels remain source copy. |
 | THE NEIGHBORHOOD | 1440, 768, 375 | Desktop custom cards need Touch evidence for their states and actions before any static or reusable mapping can qualify. |
 | THROUGH OUR LENS | 1440, 768, 375 | Current preflight permits conversion. Recorded source labels have no links or controls. GEN-000051 source visual QA remains held. |
 | Newsletter signup | 1440, 768, 375 | Country selection and SVG require component and asset support. Submission and consent need a verified external integration. |
@@ -77,7 +77,7 @@ The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593
 | Site footer | 1440, 768, 375 | Image and declared navigation destinations need asset and link resolution. Placeholder hash links and cookie preferences provide no verified integration contract. |
 
 - **Discovery** has browser screenshots and visible inventories for 12 of 16 regions at every required width. Four regions have a variant gap. Separate runtime observations are needed before claiming complete behavioral understanding of each interactive region.
-- **Conversion eligibility** in the pinned manifest is 3 of 16. Subsequent SIP & DINE replay found a working mobile scroll strip the original preflight missed. The region needs a matching native capability and its independent replay before it can advance.
+- **Conversion eligibility** in the pinned manifest is 3 of 16. The corrected replay found source behavior the original preflight missed in two of those regions, leaving 1 of 16 eligible under the current native contract.
 - **Acceptance** is 0 of 16 for this pinned capture. Source inspection, discovery, and partial repairs do not grant a native Pattern or Full Page acceptance.
 
 The five native FAQ blocks and their ordered answer text survived edit, save and reload in isolated draft 59. The source's second click could close the active panel, leaving all questions closed. Native grouped Details reproduced this behavior at 1440, 768 and 375 px. The source's Enter test opened no panel, while native Details opened the selected item. This capability proof did not use the production compiler or grant source visual approval.

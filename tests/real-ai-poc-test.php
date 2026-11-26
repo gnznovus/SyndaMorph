@@ -1932,6 +1932,13 @@ expect(($touched['designApproval']['touchScenarios'][0]['status']??null)==='obse
 expect(!isset(syndamorph_production_tool_catalog('designer',array('sourceArchive'=>$archive))['playwright.touch']) &&
     !isset(syndamorph_production_tool_catalog('boss')['playwright.touch']),
     'Touch was exposed without Boss ownership and a pinned source');
+$gesture=array('type'=>'scroll-x','target'=>str_repeat('f',24),'dx'=>640);
+$horizontal=syndamorph_production_touch(array('width'=>375,'actions'=>array($gesture)),$archive);
+expect(!is_wp_error($horizontal)&&end($GLOBALS['touch_inputs'])['actions']===array($gesture),
+    'The WordPress adapter changed the authorized horizontal target or delta.');
+$gesture['dx']=901;
+expect(is_wp_error(syndamorph_production_touch(array('width'=>375,'actions'=>array($gesture)),$archive))&&
+    count($GLOBALS['touch_inputs'])===3,'Unbounded local scroll reached the browser.');
 unset($GLOBALS['source_fixture_copy'],$GLOBALS['source_fixture_ratio'],$GLOBALS['team_touch_fixture'],$GLOBALS['touch_inputs']);
 echo "PASS: pinned Boss Touch receipts, safe registry grants and downstream scenario handoff\n";
 
