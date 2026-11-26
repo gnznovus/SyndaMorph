@@ -6,6 +6,14 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.18] - 2026-11-26
+
+### Added
+- Responsive source capture can qualify a bounded mobile or compact scroll strip against exact card geometry, ordered text and a stable Touch target. The existing source adapters require observed movement on the pinned recording before any provider call. Source QA checks the exact component and card copy at each required width.
+
+### Verified
+- Offline replay found three eligible BKKGO regions out of 16 with the new source binding. The two strips passed their exact recorded gestures. A missing gesture held production before any provider call. No BKKGO region had passed full source and native QA at this checkpoint.
+
 ## [0.12.17] - 2026-11-26
 
 ### Added

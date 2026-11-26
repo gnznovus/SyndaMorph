@@ -1,5 +1,7 @@
 'use strict';
 
+const { createHash } = require('node:crypto');
+const { touchTargetId } = require('./production-touch');
 const VIEWPORTS = [1440, 768, 375];
 const HEIGHT = 900;
 
@@ -12,6 +14,29 @@ function sourceInventory({ selectors }) {
         const style = getComputedStyle(element);
         return bounds.width > 0 && bounds.height > 0 && !element.closest('[hidden]') &&
             !['hidden', 'collapse'].includes(style.visibility) && style.display !== 'none';
+    };
+    const stripProfile = (element, style) => {
+        const box = element.getBoundingClientRect();
+        const cards = [...element.children];
+        if (innerWidth >= 1024 || element === document.body || element === document.documentElement ||
+            document.documentElement.scrollWidth > innerWidth || style.overflowX !== 'auto' || style.direction !== 'ltr' ||
+            style.scrollSnapType !== 'x mandatory' || style.columnGap !== '12px' || style.paddingInlineEnd !== '20px' ||
+            box.left < -2 || box.right > innerWidth + 2 || element.scrollLeft !== 0 || cards.length < 2 || cards.length > 6 ||
+            element.closest('form,[inert],[aria-disabled="true"]') || !element.checkVisibility({opacityProperty:true,visibilityProperty:true}) ||
+            !cards.every(card => visible(card) && getComputedStyle(card).scrollSnapAlign === 'start')) return null;
+        const cardBounds = cards.map(card => card.getBoundingClientRect());
+        if (!cardBounds.every((rect, index) => Math.abs(rect.width - (element.clientWidth - 20) * .8) <= 2 &&
+            Math.abs(rect.left - (index ? cardBounds[index - 1].right + 12 : box.left)) <= 2)) return null;
+        const cardCopy = cards.map(card => normalize(card.innerText));
+        if (!cardCopy.some(Boolean) || cardCopy.some(copy => copy.length > 4000)) return null;
+        const chain = [];
+        for (let node = element; node !== document.body; node = node.parentElement) {
+            const index = Array.prototype.indexOf.call(node.parentElement.children, node);
+            chain.unshift(`:nth-child(${index + 1})`);
+        }
+        return { identity: { selector: ['body', ...chain].join(' > '), tag: element.localName,
+            role: element.getAttribute('role') ?? '', name: normalize(element.getAttribute('aria-label') ||
+                element.innerText || element.title || element.getAttribute('placeholder') || '').slice(0,120) }, cardCopy };
     };
     return selectors.map(selector => {
         const root = document.querySelector(selector);
@@ -43,7 +68,9 @@ function sourceInventory({ selectors }) {
             for (const match of background.matchAll(/url\("?([^"\)]+)"?\)/g)) assets.push({ type: 'background', url: match[1] });
             if (['auto','scroll'].includes(style.overflowX) && element.clientWidth > 0 &&
                 element.scrollWidth - element.clientWidth > 4) {
-                controls.push({type:'horizontal-scroll',name:normalize(element.getAttribute('aria-label') || '').slice(0,180)});
+                const strip = stripProfile(element, style);
+                controls.push({type:'horizontal-scroll',name:normalize(element.getAttribute('aria-label') || '').slice(0,180),
+                    ...(strip ? { strip } : {})});
             }
             const customAction = !element.closest('a[href],button') && (typeof element.onclick === 'function' ||
                 style.cursor === 'pointer' && (!element.parentElement || getComputedStyle(element.parentElement).cursor !== 'pointer'));
@@ -114,6 +141,12 @@ async function captureResponsiveViewport(page, sections, width, diagnostics, des
         const whole = height <= 36000 ? await captureImage(session, width, 0, height) : null;
         const fold = await captureImage(session, width, 0, HEIGHT);
         const inventories = await page.evaluate(sourceInventory, { selectors: sections.map(section => section.sourceRef) });
+        for (const inventory of inventories) for (const control of inventory?.controls ?? []) {
+            if (!control.strip) continue;
+            const { identity, cardCopy } = control.strip;
+            control.strip = { version: 1, targetId: touchTargetId(identity), cards: cardCopy.length,
+                copySha256: createHash('sha256').update(JSON.stringify(cardCopy)).digest('hex'), cardCopy };
+        }
         const facts = describeSource ? await page.evaluate(describeSource, sections.map(section => section.sourceRef)) : [];
         const captureSection = async (section, index, hiddenLayers = 0) => {
             const top = Math.max(0, Math.round(section.bounds.y ?? 0));
@@ -160,7 +193,6 @@ function correspondence(left, right, frequency) {
 }
 
 function reconcileResponsive(url, views) {
-    const { createHash } = require('node:crypto');
     const regions = [];
     const append = (section, width, index) => {
         const id = createHash('sha256').update(url + '\n' + section.sourceRef).digest('hex').slice(0, 24);

@@ -19,6 +19,9 @@ function syndamorph_team_failure_payload( WP_Error $error ): array {
     );
     if($error->get_error_code()==='sm_design_surgery_blocked')
         $payload+=array_intersect_key($details,array_flip(array('cause','referenceSha256')));
+    if($error->get_error_code()==='sm_source_scroll_pending')
+        $payload['sourceScroll']=array('status'=>'pending')+
+            array_intersect_key($details,array_flip(array('width','targetId','archiveId','reason')));
     if(str_starts_with($error->get_error_code(),'sm_inspect_')) {
         $payload['inspection']=syndamorph_inspection_diagnostic($error);
         $checkpoint=$details['referenceCheckpoint']??null;

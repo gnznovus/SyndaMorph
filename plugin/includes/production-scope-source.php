@@ -12,8 +12,37 @@ function syndamorph_source_screenshot_valid($data,int $width,int $height): bool 
         abs($image[0]-$width*min(1,900/$height))<=2&&abs($image[1]-min(900,$height))<=2;
 }
 
-function syndamorph_source_blockers(array $region): array {
+/** One measured strip with a stable target across its supported responsive variants. */
+function syndamorph_source_scroll_profile(array $region): ?array {
+    $active=array();$cardCopy=array();$target=null;$cards=null;
+    foreach(SYNDAMORPH_SOURCE_WIDTHS as $width){
+        $controls=$region['variants'][$width]['inventory']['controls']??null;
+        if(!is_array($controls)||!array_is_list($controls))return null;
+        if(!$controls)continue;
+        $strip=$controls[0]['strip']??null;
+        if(count($controls)!==1||($controls[0]['type']??null)!=='horizontal-scroll'||($strip['version']??null)!==1||
+            !is_string($strip['targetId']??null)||!preg_match('/^[a-f0-9]{24}$/D',$strip['targetId'])||
+            !is_int($strip['cards']??null)||$strip['cards']<2||$strip['cards']>6||
+            !is_string($strip['copySha256']??null)||!preg_match('/^[a-f0-9]{64}$/D',$strip['copySha256'])||
+            ($target!==null&&$target!==$strip['targetId'])||($cards!==null&&$cards!==$strip['cards']))return null;
+        $target=$strip['targetId'];$cards=$strip['cards'];
+        $copy=$strip['cardCopy']??null;
+        if(!is_array($copy)||!array_is_list($copy)||count($copy)!==$cards||
+            array_filter($copy,static fn($text)=>!is_string($text)||mb_strlen($text)>4000)||
+            hash('sha256',wp_json_encode($copy,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE))!==$strip['copySha256'])return null;
+        $active[$width]=$strip['copySha256'];
+        $cardCopy[$width]=$copy;
+    }
+    $widths=array_keys($active);
+    if($widths!==array(768,375)&&$widths!==array(375))return null;
+    return array('id'=>'scroll-'.$target,'targetId'=>$target,'cards'=>$cards,
+        'visibility'=>$widths===array(375)?'mobile':'compact','copyByWidth'=>$active,'cardCopyByWidth'=>$cardCopy);
+}
+
+function syndamorph_source_blockers(array $region,?array $archive=null): array {
     $blockers=array();
+    $strip=!empty($archive['runtimeSha256'])&&is_string($archive['sourceUrl']??null)&&
+        syndamorph_production_reference_valid($archive,$archive['sourceUrl'])?syndamorph_source_scroll_profile($region):null;
     foreach(SYNDAMORPH_SOURCE_WIDTHS as $width) {
         $view=$region['variants'][$width]??null;
         if(!is_array($view) || empty($view['html']) || !is_array($view['inventory']??null) ||
@@ -22,7 +51,7 @@ function syndamorph_source_blockers(array $region): array {
             continue;
         }
         $inventory=$view['inventory'];
-        if(!empty($inventory['controls'])) {
+        if(!empty($inventory['controls'])&&!isset($strip['copyByWidth'][$width])) {
             $types=array_values(array_unique(array_column($inventory['controls'],'type')));
             $blockers[]="{$width}px source actions need a native implementation and functional tests (".implode(', ',$types).').';
         }
@@ -41,6 +70,48 @@ function syndamorph_source_blockers(array $region): array {
             $blockers[]="{$width}px overlay or sticky placement requires native behavior support.";
     }
     return $blockers;
+}
+
+/** Require an exact archived local gesture before any provider generation. */
+function syndamorph_source_scroll_touch(array $profile,array $archive,?callable $on_event=null) {
+    $proof=array();
+    $copies=array_column($archive['views'],'copySha256','width');
+    foreach($profile['copyByWidth'] as $width=>$_){
+        $action=array('type'=>'scroll-x','target'=>$profile['targetId'],'dx'=>$width===768?650:360);
+        $key=hash('sha256',wp_json_encode(array('archiveId'=>$archive['id'],'width'=>$width,'actions'=>array($action))));
+        $receipts=$GLOBALS['syndamorph_touch_receipts']??array();
+        if(!isset($receipts[$key])){
+            $touch=syndamorph_production_touch(array('width'=>$width,'actions'=>array($action)),$archive,$on_event);
+            if(is_wp_error($touch))return new WP_Error('sm_source_scroll_pending',
+                "Archived scroll replay is pending at {$width}px.",array('width'=>$width,'targetId'=>$profile['targetId'],
+                    'archiveId'=>$archive['id'],'reason'=>$touch->get_error_code()));
+            $receipts=$GLOBALS['syndamorph_touch_receipts']??array();
+        }
+        $receipt=$receipts[$key]??array();
+        $rows=syndamorph_production_touch_scenarios(array($receipt));
+        $scenario=$rows[0]??array();
+        $raw=$receipt['result']['scenarios'][0]??array();
+        $settled=$scenario['after']['targetState']['scrollLeft']??null;
+        if(($receipt['result']['mode']??null)!=='recorded'||($receipt['result']['status']??null)!=='observed'||
+            ($receipt['result']['initial']['width']??null)!==$width||
+            ($receipt['result']['initial']['copySha256']??null)!==$copies[$width]||
+            count($rows)!==1||($scenario['width']??null)!==$width||($scenario['archiveId']??null)!==$archive['id']||
+            ($scenario['action']??null)!==$action||($scenario['targetId']??null)!==$profile['targetId']||
+            ($raw['from']['target']['id']??null)!==$profile['targetId']||($raw['to']['target']['id']??null)!==$profile['targetId']||
+            ($scenario['status']??null)!=='observed'||($scenario['changes']??null)!==array('horizontal-scroll')||
+            ($scenario['blockedRequestCount']??null)!==0||($scenario['before']['width']??null)!==$width||
+            ($scenario['after']['width']??null)!==$width||($scenario['before']['copySha256']??null)!==$copies[$width]||
+            ($scenario['after']['copySha256']??null)!==$copies[$width]||
+            ($scenario['before']['targetState']['scrollLeft']??null)!==0||!is_int($settled)||$settled<=0||
+            !preg_match('/^[a-f0-9]{64}$/D',(string)($scenario['beforeSha256']??''))||
+            !preg_match('/^[a-f0-9]{64}$/D',(string)($scenario['afterSha256']??''))||
+            $scenario['beforeSha256']===$scenario['afterSha256'])
+            return new WP_Error('sm_source_scroll_pending',"Archived scroll movement is unverified at {$width}px.",
+                array('width'=>$width,'targetId'=>$profile['targetId'],'archiveId'=>$archive['id'],
+                    'reason'=>$scenario['reason']??'invalid_scroll_evidence'));
+        $proof[]=$scenario;
+    }
+    return $proof;
 }
 
 function syndamorph_source_text(string $text): string {
@@ -100,6 +171,7 @@ function syndamorph_source_visual(array $reference,array $native,bool $extent=tr
 
 function syndamorph_source_verify_markup(array $source,array $evidence): array {
     $verdict=array();
+    $profile=syndamorph_source_scroll_profile($source);
     foreach(SYNDAMORPH_SOURCE_WIDTHS as $index=>$width) {
         $inventory=$source['variants'][$width]['inventory'];
         $literal=$evidence[$index]['snapshot']['literal']??array();
@@ -108,10 +180,18 @@ function syndamorph_source_verify_markup(array $source,array $evidence): array {
         $actualText=$precise!==null?($evidence[$index]['snapshot']['copy']??null):syndamorph_source_text(implode(' ',$literal['text']??array()));
         $expectedLinks=$inventory['links'];
         $observedLinks=$literal['links']??null;
+        $expectedStrips=array();
+        if(isset($profile['copyByWidth'][$width]))$expectedStrips[]=array('id'=>$profile['id'],
+            'cards'=>$profile['cards'],'copySha256'=>$profile['copyByWidth'][$width]);
+        $controlsSupported=empty($inventory['controls'])||!empty($expectedStrips);
         $view=array('width'=>$width,'literalContent'=>$actualText===$expectedText,
             'links'=>$observedLinks===$expectedLinks,
             'assets'=>empty($inventory['assets'])&&($literal['assets']??null)===0,
-            'functions'=>empty($inventory['controls'])&&($literal['controls']??null)===0);
+            'functions'=>$controlsSupported&&($literal['controls']??null)===0&&
+                (!$expectedStrips||($evidence[$index]['width']??null)===$width)&&
+                ($literal['scrollStrips']??array())===$expectedStrips);
+        if(!$view['functions']&&$profile!==null)$view['scrollDifference']=array('expected'=>$expectedStrips,
+            'observed'=>$literal['scrollStrips']??null);
         if(!$view['links']){
             $bounded=static fn(array $links): array => array_map(static fn($link)=>array(
                 'href'=>mb_substr((string)($link['href']??''),0,180),'text'=>mb_substr((string)($link['text']??''),0,100)

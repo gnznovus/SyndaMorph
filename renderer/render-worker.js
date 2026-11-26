@@ -299,6 +299,17 @@ process.stdin.on('end', async () => {
                         const assets = Array.from(visible).filter(el => el.matches('img,svg,video,audio,iframe,object,embed,canvas') ||
                             getComputedStyle(el).backgroundImage.includes('url(')).length;
                         const controls = Array.from(visible).filter(el => el.matches('form,input,select,textarea,button,details,dialog,[role=tab],[role=button]')).length;
+                        const scrollAreas = [...visible].filter(el=>['auto','scroll'].includes(getComputedStyle(el).overflowX)&&
+                            el.clientWidth>0&&el.scrollWidth-el.clientWidth>4);
+                        const scrollStrips = scrollAreas.slice(0,5).map(el=>{
+                            const id=el.getAttribute('data-sm-scroll-reference')??
+                                (el.classList.contains('sm-scroll-strip')?el.getAttribute('data-sm-node'):null);
+                            const cards=[...el.children];
+                            if(!id||id.length>48||cards.length<2||cards.length>6||
+                                !cards.every(card=>visible.has(card)&&card.matches('.wp-block-group,[data-sm-scroll-card]')))return null;
+                            const copy=cards.map(card=>normalize(card.innerText));
+                            return copy.some(item=>item.length>4000)?null:{id,copy};
+                        });
                         const visibleElements = elements.filter(el => visible.has(el));
                         const paint = [...new Set(visibleElements.map(el => {
                             const css = getComputedStyle(el);
@@ -311,7 +322,7 @@ process.stdin.on('end', async () => {
                         });
                         const layoutIdentity = visibleElements.length <= 200 && textStyles.length <= 20 &&
                             paint.length <= 32 && paint.every(value => value.length <= 240) ? {paint,textStyles} : null;
-                        return { text, links, assets, controls, layoutIdentity };
+                        return { text, links, assets, controls, layoutIdentity, scrollStrips };
                     })() : null;
                     return {
                         copy: copyParts.join('').replace(/\s+/gu, ' ').trim(),
@@ -404,6 +415,9 @@ process.stdin.on('end', async () => {
                     };
                 }, extent === 'section');
                 await a11yPage.setViewportSize({width,height:HEIGHT});
+                if(snapshot.literal) snapshot.literal.scrollStrips=snapshot.literal.scrollStrips.map(strip=>strip===null?null:{
+                    id:strip.id,cards:strip.copy.length,copySha256:createHash('sha256').update(JSON.stringify(strip.copy)).digest('hex'),
+                });
                 const a11y = await a11yPage.evaluate(async () => {
                     const report=await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa']}});
                     return report.violations.map(v=>({id:v.id,impact:v.impact,description:v.description,

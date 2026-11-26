@@ -93,8 +93,11 @@ function syndamorph_production_source_context(array $source): array {
             $view[$list]=array_slice($view[$list],0,12);
             $view[$list]=array_map(static function($item){
                 if(is_string($item))return substr($item,0,350);
-                if(is_array($item))foreach(array('url','text','alt','label') as $key)if(is_string($item[$key]??null))
-                    $item[$key]=mb_substr($item[$key],0,350);
+                if(is_array($item)){
+                    if(isset($item['strip']['cardCopy']))unset($item['strip']['cardCopy']);
+                    foreach(array('url','text','alt','label') as $key)if(is_string($item[$key]??null))
+                        $item[$key]=mb_substr($item[$key],0,350);
+                }
                 return $item;
             },$view[$list]);
         }

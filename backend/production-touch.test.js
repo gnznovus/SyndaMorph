@@ -43,6 +43,36 @@ test('anonymous horizontal scrollers require a capability and record actual loca
     }finally{await browser.close();}
 });
 
+test('a supported strip binds ordered card copy to an exact off-screen Touch target', {
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const browser=await chromium.launch();
+    try {
+        const page=await browser.newPage({viewport:{width:375,height:900}});
+        await page.setContent('<div style="height:1000px">'+ '<button>Other target</button>'.repeat(65)+'</div>'+
+            '<section id="strip" style="display:flex;box-sizing:border-box;width:340px;overflow-x:auto;'+
+            'scroll-snap-type:x mandatory;gap:12px;padding-inline-end:20px">'+
+            ['First / Ελληνικά','', 'Third'].map(copy=>`<article style="height:180px;flex:0 0 80%;scroll-snap-align:start">${copy}</article>`).join('')+
+            '</section>');
+        const capture=await captureResponsiveViewport(page,[{sourceRef:'#strip',kind:'content',geometryAvailable:true,
+            bounds:{y:1008,height:180}}],375,{contentReady:true});
+        const [control]=capture.sections[0].inventory.controls;
+        assert.equal(control.type,'horizontal-scroll');
+        assert.deepEqual(control.strip.cardCopy,['First / Ελληνικά','','Third']);
+        const digest=text=>createHash('sha256').update(text).digest('hex');
+        assert.equal(control.strip.copySha256,digest(JSON.stringify(control.strip.cardCopy)));
+        const copy=await page.evaluate(()=>document.body.innerText.replace(/\s+/gu,' ').trim());
+        const input={width:375,copySha256:digest(copy)};
+        const regular=await inspectTouch(page,{...input,actions:[]},()=>[]);
+        assert.equal(regular.initial.targets.some(target=>target.id===control.strip.targetId),false);
+        const action={type:'scroll-x',target:control.strip.targetId,dx:360};
+        const result=await inspectTouch(page,{...input,actions:[action]},()=>[]);
+        assert.equal(result.scenarios[0].target.id,control.strip.targetId);
+        assert.equal(result.scenarios[0].status,'observed');
+        assert.deepEqual(result.scenarios[0].changes,['horizontal-scroll']);
+    }finally{await browser.close();}
+});
+
 test('Touch records local changes while blocking read and mutation requests', {
     skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
 },async()=>{

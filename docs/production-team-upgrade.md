@@ -183,6 +183,14 @@ The isolated renderer uses native wheel and arrow-key actions from separate init
 
 The pinned BKKGO capture supplied three SIP & DINE cards and two Exclusive Offers cards, including the empty second offer card. Both compiled into an isolated WordPress draft and passed native behavior and exact ordered card copy at 1440, 1024, 1023, 768, 600, 599 and 375 px. The draft rendered zero, one and two active strips at the three mandatory widths respectively. A card edit survived Gutenberg save and reload with all 13 blocks valid. The draft establishes the reusable block capability. Source admission still needs an exact captured-control and Touch binding before either region can enter live source acceptance.
 
+## v0.12.18 source-bound scroll strips
+
+Responsive capture records a scroll profile only for a local, left-to-right row of two to six ordered cards matching the proved native geometry. It pins the target ID, card count and ordered card copy at the original widths. Unmatched, desktop-only or mixed controls remain blocked. Section and Full Page use the same admission rule and require a verified SingleFile archive with recorded runtime.
+
+The engine replays each active strip before Bossy planning. The exact archived target must move from its initial position with matching viewport, source copy, and before and after evidence. A missing or uncertain replay records a Pending diagnostic, including the width, target, archive and reason. No provider request starts for that region. Bossy must classify the captured ID as a native horizontal scroll interaction. Designer and Developer receive the measured visibility, card copy and replay evidence. Independent source checks compare the active component and ordered card fingerprint at each mandatory width, alongside the existing visual and functional gates.
+
+Offline replay of all 16 pinned BKKGO regions restored eligibility for SIP & DINE and Exclusive Offers. SIP & DINE moved 594 px at 768 px and 280 px at 375 px. Exclusive Offers moved 213 px at 375 px. The total is three eligible regions out of 16, with 12 complete sets of mandatory-width evidence and zero accepted regions. This checkpoint used no paid calls. [BKKGO region inventory](production-pilot-bkkgo.md#production-reliability-region-inventory)
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)

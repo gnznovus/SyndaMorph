@@ -6,6 +6,7 @@ const MAX_ACTIONS = 5;
 const MAX_TARGETS = 60;
 const WIDTHS = [1440, 768, 375];
 const digest = value => createHash('sha256').update(value).digest('hex');
+const touchTargetId = ({ selector, tag, role, name }) => digest(JSON.stringify([selector,tag,role,name])).slice(0,24);
 const actionNames = new Set(['click','hover','scroll','scroll-x','drag','resize']);
 const targetId = value => typeof value==='string' && /^[a-f0-9]{24}$/.test(value);
 
@@ -32,7 +33,7 @@ function validateTouchActions(actions) {
     });
 }
 
-function inspectTouchPage(maximum) {
+function inspectTouchPage({ maximum, preferHorizontal }) {
     const normalize = value => String(value??'').replace(/\s+/gu,' ').trim();
     const selector = element => {
         const chain=[];
@@ -56,7 +57,9 @@ function inspectTouchPage(maximum) {
         const box=element.getBoundingClientRect();
         return box.bottom>0 && box.right>0 && box.top<innerHeight && box.left<innerWidth;
     };
-    visibleCandidates.sort((a,b)=>Number(withinViewport(b))-Number(withinViewport(a)));
+    const horizontal = new Set(preferHorizontal ? visibleCandidates.filter(isScrollArea) : []);
+    visibleCandidates.sort((a,b)=>Number(horizontal.has(b))-Number(horizontal.has(a))||
+        Number(withinViewport(b))-Number(withinViewport(a)));
     const elements=visibleCandidates.slice(0,maximum).map(element=>{
         const attributes=Object.fromEntries(['aria-controls','aria-expanded','aria-selected','aria-checked','aria-pressed','aria-valuenow']
             .filter(attr=>element.hasAttribute(attr)).map(attr=>[attr,element.getAttribute(attr).slice(0,240)]));
@@ -95,11 +98,9 @@ function inspectTouchPage(maximum) {
         fragment:location.hash,text:normalize(document.body.innerText),elements,truncated:visibleCandidates.length>maximum };
 }
 
-async function touchState(page) {
-    const data=await page.evaluate(inspectTouchPage,MAX_TARGETS);
-    const targets=data.elements.map(element=>({ ...element,id:digest(JSON.stringify([
-        element.selector,element.tag,element.role,element.name,
-    ])).slice(0,24) }));
+async function touchState(page,preferHorizontal) {
+    const data=await page.evaluate(inspectTouchPage,{maximum:MAX_TARGETS,preferHorizontal});
+    const targets=data.elements.map(element=>({ ...element,id:touchTargetId(element) }));
     const copySha256=digest(data.text);
     const signature=digest(JSON.stringify([data.width,data.scroll,data.height,copySha256,data.fragment,targets.map(item=>[
         item.id,item.attributes,item.bounds,item.styles.transform,
@@ -132,7 +133,8 @@ async function inspectTouch(page, input, sealNetwork) {
     const actions=validateTouchActions(input.actions);
     if(typeof sealNetwork!=='function')throw new Error('Touch network guard is missing.');
     const denied=sealNetwork();
-    const initial=await touchState(page);
+    const preferHorizontal=actions.some(action=>action.type==='scroll-x');
+    const initial=await touchState(page,preferHorizontal);
     if(typeof input.copySha256!=='string' || initial.copySha256!==input.copySha256)
         return { version:1,status:'unknown',reason:'live_source_changed',initial,scenarios:[] };
     const scenarios=[];
@@ -193,7 +195,7 @@ async function inspectTouch(page, input, sealNetwork) {
             }
         } catch { reason='action_did_not_complete'; }
         await page.waitForTimeout(scrollX?500:350);
-        const afterState=await touchState(page);
+        const afterState=await touchState(page,preferHorizontal);
         const after=await snapshot();
         const afterTarget=afterState.targets.find(entry=>entry.id===action.target);
         // Playwright may scroll a target into view before acting. That alone
@@ -212,4 +214,4 @@ async function inspectTouch(page, input, sealNetwork) {
     return { version:1,status:'observed',initial,scenarios,final:current };
 }
 
-module.exports={ validateTouchActions,inspectTouch };
+module.exports={ validateTouchActions,inspectTouch,touchTargetId };

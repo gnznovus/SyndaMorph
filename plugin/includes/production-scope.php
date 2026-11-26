@@ -25,7 +25,7 @@ function syndamorph_scope_open(string $mode,array $capture) {
         $key=$source['id']??'';
         if(!is_string($key)||!preg_match('/^[a-f0-9]{24}$/D',$key)||isset($regions[$key])||!is_string($source['sourceRef']??null))
             return syndamorph_scope_error('identity','Discovery returned an invalid or duplicate region identity.',422);
-        $blockers=syndamorph_source_blockers($source);
+        $blockers=syndamorph_source_blockers($source,$capture['referenceArchive']??null);
         $regions[$key]=array('id'=>$key,'label'=>sanitize_text_field($source['label']??'Section'),
             'kind'=>$source['kind']??'content','sourceRef'=>$source['sourceRef'],'position'=>count($regions)+1,
             'variants'=>array_map(static fn($view)=>$view['sourceRef'],$source['variants']),
@@ -104,8 +104,11 @@ function syndamorph_scope_planning_checkpoint(int $id): ?string {
     $calls=syndamorph_job_resume_calls($id);
     if(!is_array($calls)||count($calls)!==1)return null;
     $planning=$calls[0];
+    $lastTouch=syndamorph_history_latest($id,'touch_inspection');
+    $sourceScroll=syndamorph_history_latest($id,'source_scroll_verified');
     if(($planning['role']??null)!=='boss'||($planning['task']??null)!=='boss'||!is_string($planning['text']??null)||
-        syndamorph_history_latest($id,'touch_inspection')!==null||is_wp_error(syndamorph_collab_requirements($planning['text'])))
+        ($lastTouch!==null&&!in_array($lastTouch['key']??null,array_column($sourceScroll['observed']??array(),'receipt'),true))||
+        is_wp_error(syndamorph_collab_requirements($planning['text'])))
         return null;
     return $planning['text'];
 }
@@ -136,7 +139,8 @@ function syndamorph_scope_status(array $manifest): array {
         if($region['attempts']) {
             $last=end($region['attempts']);
             $region['status']=$region['patternId']?'pattern_saved':$last['status'];
-            unset($region['checkpointAvailable'],$region['designReviewRecovery'],$region['recoveryStage'],$region['designDecisionRequired'],$region['issue']);
+            unset($region['checkpointAvailable'],$region['designReviewRecovery'],$region['recoveryStage'],$region['designDecisionRequired'],
+                $region['issue'],$region['sourceScroll']);
             if(in_array($last['status'],array('failed','uncompleted','needs_review'),true)) {
                 $failure=syndamorph_history_latest($last['id'],'job_error');
                 $final=syndamorph_history_latest($last['id'],'job_complete');
@@ -153,6 +157,7 @@ function syndamorph_scope_status(array $manifest): array {
                     $region['recoveryStage']=null;
                 $region['designReviewRecovery']=$region['recoveryStage']==='design_approval';
                 $region['designDecisionRequired']=$last['status']==='failed'&&($failure['code']??null)==='sm_design_review_required';
+                if(isset($failure['sourceScroll']))$region['sourceScroll']=$failure['sourceScroll'];
                 $region['issue']=$failure['message']??$final['quality']['issues'][0]['detail']??
                     (in_array($functional,array('pending','failed'),true)?'Functional QA '.$functional.'. See the artifact receipt in History.':null)??
                     (in_array($responsive,array('pending','failed'),true)?'Responsive QA '.$responsive.'. See the artifact receipt in History.':null);
@@ -289,7 +294,9 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
             return syndamorph_scope_error('review_checkpoint','The saved design or assignment cannot be verified for review recovery.');
     }
     $touch=array();
-    foreach(array_unique(array_column($assignment['touchScenarios']??array(),'receipt')) as $keySha){
+    $storedScenarios=$stage==='planning'?(syndamorph_history_latest($id,'source_scroll_verified')['observed']??array()):
+        ($assignment['touchScenarios']??array());
+    foreach(array_unique(array_column($storedScenarios,'receipt')) as $keySha){
         if(!is_string($keySha)||!preg_match('/^[a-f0-9]{64}$/D',$keySha))
             return syndamorph_scope_error('review_checkpoint','The saved Touch scenario identity is invalid.');
         $receipt=syndamorph_history_touch_receipt($id,$keySha);
@@ -300,7 +307,7 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
         $touch[$keySha]=$receipt;
     }
     $scenarios=syndamorph_production_touch_scenarios($touch);
-    foreach($assignment['touchScenarios']??array() as $index=>$scenario){
+    foreach($storedScenarios as $index=>$scenario){
         if(!isset($scenarios[$index])||array_intersect_key($scenarios[$index],$scenario)!==$scenario)
             return syndamorph_scope_error('review_checkpoint','The saved Touch evidence changed.');
     }
@@ -494,7 +501,10 @@ function syndamorph_scope_repin_section(array $manifest,array $capture) {
         return syndamorph_scope_error('repin','Only a failed Section on the same source URL can replace its evidence.');
     $rows=array_column($capture['sections']??array(),null,'id');
     $source=$rows[$key]??null;
-    if(!$source||$source['sourceRef']!==$previous['sourceRef']||syndamorph_source_blockers($source))
+    // A retained scope may only verify an interaction against its own archive.
+    $archive=$manifest['referenceArchive']??null;
+    $sameArchive=($capture['referenceArchive']['id']??null)===($archive['id']??null);
+    if(!$source||$source['sourceRef']!==$previous['sourceRef']||syndamorph_source_blockers($source,$sameArchive?$archive:null))
         return syndamorph_scope_error('repin_evidence','The new capture cannot verify the same Section at all required widths.');
     $manifest['regions'][$key]['checkpoint']=syndamorph_history_append($manifest['id'],'scope_source',$source);
     $manifest['regions'][$key]['variants']=array_map(static fn($view)=>$view['sourceRef'],$source['variants']);

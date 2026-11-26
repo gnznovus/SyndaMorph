@@ -457,10 +457,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     rsort($viewports,SORT_NUMERIC);
     $scopeRegion=$source['scopeRegion']??null;
     $sourceLayout=$source['layoutAuthorization']??null;
+    $sourceScroll=null;
     if($scopeRegion!==null) {
         require_once __DIR__.'/production-scope-source.php';
-        $blockers=syndamorph_source_blockers($scopeRegion);
+        $blockers=syndamorph_source_blockers($scopeRegion,$source['referenceArchive']??null);
         if($blockers)return new WP_Error('sm_source_capability',implode(' ',$blockers));
+        $sourceScroll=syndamorph_source_scroll_profile($scopeRegion);
     }
     $renderer=syndamorph_inspection_ready($viewports);
     if(is_wp_error($renderer))return syndamorph_inspection_with_stage($renderer,'preflight','',0);
@@ -474,6 +476,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if($scopeRegion!==null)$sourceNote.=' Preserve each responsive variant. Use 1024px and up for desktop, 600–1023px for tablet, and below 600px for mobile. The native plan can use nested group style.visibility with desktop, tablet, mobile or compact (all widths below 1024px); the root group stays visible.';
     if($sourceLayout!==null)$sourceNote.=' Use the administrator-approved reason only for layout at its exact listed widths. Preserve literal content, controls, links, assets, paint, font family, weight and color. Desktop source fidelity and browser quality remain required.';
     if($source!==null&&$on_event)$on_event('source_acquired',syndamorph_production_source_identity($source));
+    if($sourceScroll!==null){
+        $proof=syndamorph_source_scroll_touch($sourceScroll,$source['referenceArchive'],$on_event);
+        if(is_wp_error($proof))return $proof;
+        $sourceContext['sourceScroll']=$sourceScroll+array('observed'=>$proof);
+        $sourceNote.=' The measured sourceScroll is a required native horizontal-scroll interaction. Use the exact sourceScroll.id as interaction and block ID, the supplied card count and visibility, and the ordered source card content at each width. Use the existing local scroll-strip contract.';
+        if($on_event)$on_event('source_scroll_verified',$sourceContext['sourceScroll']);
+    }
     $settings=syndamorph_models_settings();
     $provider=$settings['provider']??'';$model=$settings['model']??'';
     $catalog=syndamorph_models_catalog($provider);
@@ -657,6 +666,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if($archivedAssignment!==null&&$specificationReceipt!==$archivedAssignment['specificationReceipt'])
         return new WP_Error('sm_resume_design_receipt','The archived assignment does not match the brief, source and required widths.');
     $interactions=$specification['interactions']??array();
+    if($sourceScroll!==null){
+        $scrolls=array_values(array_filter($interactions,static fn($item)=>$item['kind']==='horizontal-scroll'));
+        if(count($scrolls)!==1||$scrolls[0]['id']!==$sourceScroll['id']||$scrolls[0]['classification']!=='native')
+            return new WP_Error('sm_source_scroll_assignment','Bossy must classify the exact measured source strip as a native horizontal-scroll interaction.',
+                array('stage'=>'planning','role'=>'boss','field'=>'source scroll interaction',
+                    'id'=>$sourceScroll['id'],'widths'=>array_keys($sourceScroll['copyByWidth'])));
+    }
     $classifiedRequirements=array_column($interactions,'requirementId');
     foreach($interactions as $interaction)
         array_push($classifiedRequirements,...array_column($interaction['proof']??array(),'requirementId'));
@@ -678,6 +694,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $assignment=array('from'=>'boss','to'=>'designer','type'=>'assignment',
         'requirements'=>$bossBrief,'briefSha256'=>$specificationReceipt['briefSha256'],
         'specificationReceipt'=>$specificationReceipt)+$touchContext;
+    if($sourceScroll!==null)$assignment['sourceScroll']=$sourceScroll;
     if($on_event&&$archivedAssignment===null)$on_event('handoff',$assignment);
 
     // Designer owns the visual deliverable; Boss reviews real browser evidence
