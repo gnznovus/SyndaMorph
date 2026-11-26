@@ -32,7 +32,8 @@ function syndamorph_tabs_render(array $attributes): string {
     $component=$attributes['component']??'';
     static $fallback=0;
     $prefix=function_exists('wp_unique_id')?wp_unique_id('sm-tabs-'):'sm-tabs-'.(++$fallback);
-    $markup='<div class="wp-block-syndamorph-tabs" data-sm-tabs'.
+    $appearance=($attributes['appearance']??null)==='standard'?' sm-tabs-standard':'';
+    $markup='<div class="wp-block-syndamorph-tabs'.$appearance.'" data-sm-tabs'.
         (is_string($component)&&$component!==''?' data-sm-node="'.$escape($component).'"':'').'>';
     $markup.='<div class="sm-tabs-list" role="tablist" aria-label="Content tabs">';
     foreach($panels as $index=>$panel){
@@ -62,6 +63,42 @@ function syndamorph_tabs_asset(string $name): string {
     $path=dirname(__DIR__).'/assets/'.$name;
     $content=is_readable($path)?file_get_contents($path):false;
     return is_string($content)?$content:'';
+}
+
+/** Apply the same built-in CSS to one already identified design component. */
+function syndamorph_tabs_standard_reference(string $reference,string $id) {
+    if(!preg_match('/^[a-z][a-z0-9-]{0,39}$/D',$id)||!class_exists('DOMDocument'))
+        return new WP_Error('sm_tabs_reference','An identified Tabs reference is required.');
+    $source=array(array('id'=>$id,'kind'=>'tabs'));
+    $copy=syndamorph_tabs_design_copy($reference,$source)[$id]??null;
+    $document=new DOMDocument();
+    if($copy===null||!@$document->loadHTML('<meta charset="utf-8">'.$reference,LIBXML_NONET|LIBXML_NOERROR|LIBXML_NOWARNING))
+        return new WP_Error('sm_tabs_reference','The identified Tabs design copy is unavailable.');
+    $xpath=new DOMXPath($document);
+    $widget='//*[@data-sm-tabs-reference="'.$id.'"]';
+    $tabs=$xpath->query($widget.'/*[@role="tablist"]/button[@role="tab"]');
+    $panels=$xpath->query($widget.'/*[@data-sm-tab-panel and @role="tabpanel"]');
+    if($tabs->length!==count($copy)||$panels->length!==count($copy))
+        return new WP_Error('sm_tabs_reference','The Tabs reference needs direct tab controls and panels.');
+    foreach($copy as $index=>$content){
+        $tab=$tabs->item($index);$panel=$panels->item($index);
+        $selected=$index===0;
+        if($tab->getAttribute('aria-controls')!==$content['id']||$panel->getAttribute('id')!==$content['id']||
+            $tab->getAttribute('id')===''||$panel->getAttribute('aria-labelledby')!==$tab->getAttribute('id')||
+            trim($tab->textContent)!==$content['label']||$panel->hasAttribute('hidden')===$selected||
+            $tab->getAttribute('aria-selected')!==($selected?'true':'false'))
+            return new WP_Error('sm_tabs_reference','The Tabs reference controls or default panel do not match the identified design copy.');
+    }
+    $asset=syndamorph_tabs_asset('production-tabs.css');
+    if($asset==='')return new WP_Error('sm_tabs_reference','Built-in Tabs styling is unavailable.');
+    $selector='[data-sm-tabs-reference="'.$id.'"]';
+    $css=str_replace(array('.wp-block-syndamorph-tabs.sm-tabs-standard','.wp-block-syndamorph-tabs','.sm-tabs-list','.sm-tabs-panel'),
+        array($selector,$selector,'[role="tablist"]','[data-sm-tab-panel]'),$asset);
+    $style='<style data-sm-tabs-style="'.$id.'">'.PHP_EOL.$css.'</style>';
+    if(substr_count($reference,$style)===1)return $reference;
+    if(str_contains($reference,'data-sm-tabs-style="'.$id.'"')||strlen($reference)+strlen($style)+1>120000)
+        return new WP_Error('sm_tabs_reference','The Tabs style change exceeds the identified design scope.');
+    return $reference.PHP_EOL.$style;
 }
 
 function syndamorph_tabs_design_copy(string $html,array $interactions): array {
@@ -206,7 +243,8 @@ function syndamorph_tabs_register(): void {
     wp_register_style('syndamorph-tabs',$url('production-tabs.css'),array(),$version('production-tabs.css'));
     register_block_type('syndamorph/tabs',array(
         'api_version'=>3,'title'=>'Content Tabs','category'=>'design','supports'=>array('html'=>false),
-        'attributes'=>array('panelData'=>array('type'=>'string','default'=>''),'component'=>array('type'=>'string')),
+        'attributes'=>array('panelData'=>array('type'=>'string','default'=>''),'component'=>array('type'=>'string'),
+            'appearance'=>array('type'=>'string','enum'=>array('standard'))),
         'editor_script'=>'syndamorph-tabs-editor','view_script'=>'syndamorph-tabs-view','style'=>'syndamorph-tabs',
         'render_callback'=>'syndamorph_tabs_render',
     ));

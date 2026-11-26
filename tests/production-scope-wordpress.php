@@ -271,6 +271,27 @@ if($phase==='setup') {
         'Native review changed the archived artifact, repeated a production stage or lost the original accounting: '.
         wp_json_encode(array($nativeRecovered['regions'][$keys[0]]['status'],$nativeResult['quality']['issues']??array(),
             syndamorph_history_latest($nativeId,'job_error'))));
+    $priorReference=$nativeResult['referenceHtml'];
+    $revisedReference=preg_replace('/<section\b/','<section data-recovered-fixture',$priorReference,1);
+    $priorSha=hash('sha256',$priorReference);
+    $revisedSha=hash('sha256',$revisedReference);
+    $revision=array('account'=>syndamorph_scope_account($nativeId,true),'assignment'=>$nativeResult['handoffs'][0],
+        'referenceHtml'=>$revisedReference,'archivedSha256'=>$priorSha,'round'=>2,
+        'surgery'=>array('priorSha256'=>$priorSha,'candidateSha256'=>$revisedSha,'status'=>'responsive_checked'),
+        'nativeReview'=>array('referenceSha256'=>$revisedSha,'artifactSha256'=>$nativeSha,'plan'=>$nativePlan));
+    $sourceRegion=syndamorph_scope_checkpoint($continued['id'],$continued['regions'][$keys[0]]['checkpoint']);
+    $reviewSource=syndamorph_scope_engine_source($sourceRegion,$continued['sourceUrl']);
+    $beforeRevisedReview=count($calls);
+    $unbound=$revision;
+    $unbound['nativeReview']['referenceSha256']=$priorSha;
+    $result=$engine($brief,false,static function(){},false,$reviewSource,0.15,0.12,$unbound);
+    scope_expect(is_wp_error($result)&&$result->get_error_code()==='sm_native_review_identity'&&count($calls)===$beforeRevisedReview,
+        'An unbound revised reference entered paid review.');
+    $result=scope_ok($engine($brief,false,static function(){},false,$reviewSource,0.15,0.12,$revision));
+    scope_expect($result['status']==='needs_review'&&$result['artifact']['contentSha256']===$nativeSha&&
+        $result['designApproval']['referenceSha256']===$revisedSha&&
+        array_slice($calls,$beforeRevisedReview)===array('North:final_approval','North:validation'),
+        'A bound reference correction did not receive fresh design and native reviews without regeneration.');
     $planning=scope_ok(syndamorph_scope_configure(scope_ok(syndamorph_scope_open('section',$capture)),$brief,$keys[0]));
     $order=wp_json_encode(array('version'=>1,'title'=>'North','sections'=>array(array('id'=>'north','label'=>'North')),
         'requirements'=>array(array('id'=>'north-paragraph','target'=>'north','dimension'=>'content','basis'=>'source',

@@ -711,7 +711,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'kind'=>'unclassified','classification'=>'unsupported');
     }
     $tabsDesignNote=in_array('tabs',array_column($interactions,'kind'),true)?
-        ' For each classified tabs interaction include a wrapper with data-sm-tabs-reference equal to the exact interaction ID. Inside the wrapper place each panel in an ordered direct child with a unique data-sm-tab-panel ID. Mark its heading and body with data-sm-tab-heading and data-sm-tab-body. Give its label via data-sm-tab-label or a directly owned tablist button with matching aria-labelledby and aria-controls. Show the first panel and hide inactive panel content. Do not add script or runtime behavior.':'';
+        ' For each classified tabs interaction include a wrapper with data-sm-tabs-reference equal to the exact interaction ID. Inside the wrapper place each panel in an ordered direct child with a unique data-sm-tab-panel ID. Mark its heading and body with data-sm-tab-heading and data-sm-tab-body. Give its label via data-sm-tab-label or a directly owned tablist button with matching aria-labelledby and aria-controls. Show the first panel and hide inactive panel content. For the built-in standard appearance use direct tablist buttons and linked tabpanel elements, and add data-sm-tabs-appearance="standard" to the wrapper. The application attaches the registered block stylesheet before review. Do not author styles for its controls or add any script or runtime behavior.':'';
     $scrollIds=array_column(array_filter($interactions,static fn($interaction)=>
         $interaction['kind']==='horizontal-scroll'&&$interaction['classification']==='native'),'id');
     $scrollDesignNote=$scrollIds?
@@ -734,6 +734,18 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if(is_wp_error($reference))return $reference;
     $approval=array('decision'=>'rejected','issues'=>array());
     $savedDesignApproval=$resume['savedDesignApproval']??null;
+    $nativeReview=$resume['nativeReview']??null;
+    if($nativeReview!==null){
+        $referenceSha=hash('sha256',trim($reference));
+        $surgeryReceipt=$resume['surgery']??array();
+        if(!is_array($nativeReview['plan']??null)||!is_string($nativeReview['artifactSha256']??null)||
+            ($savedDesignApproval===null&&($archivedAssignment===null||
+                ($nativeReview['referenceSha256']??null)!==$referenceSha||
+                ($surgeryReceipt['candidateSha256']??null)!==$referenceSha||
+                !is_string($resume['archivedSha256']??null)||$resume['archivedSha256']===$referenceSha||
+                ($surgeryReceipt['priorSha256']??null)!==$resume['archivedSha256'])))
+            return new WP_Error('sm_native_review_identity','A saved native review requires its artifact and a bound archived or revised design.');
+    }
     $approvedReference=false;$designReviews=0;$handoffs=array($assignment);
     $priorDesignMeasurements=null;$priorDesignReview=null;$priorDesignDiff=$resume['surgery']??null;
     $priorDesignImageHashes=null;$designSeenStates=array();
@@ -749,6 +761,23 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             preg_match('~<\\s*(?:script|iframe|object|embed|form|link|meta)\\b|\\bon[a-z]+\\s*=|\\b(?:javascript:|https?://|@import)~i',$reference))
             return new WP_Error('sm_reference_unsafe','Designer reference failed HTML safety checks.',
                 array('stage'=>'design','designRound'=>$designRound));
+        $standardTabs=array();
+        foreach($interactions as $interaction){
+            if($interaction['kind']!=='tabs')continue;
+            $id=$interaction['id'];
+            if(preg_match('~<[^<>]+(?=[^<>]*\bdata-sm-tabs-reference=(["\'])'.preg_quote($id,'~').'\1)'.
+                '[^<>]*\bdata-sm-tabs-appearance=(["\'])standard\2[^<>]*>~i',$reference)){
+                $reference=syndamorph_tabs_standard_reference($reference,$id);
+                if(is_wp_error($reference))return $reference;
+                $standardTabs[]=$id;
+            }elseif(str_contains($reference,'<style data-sm-tabs-style="'.$id.'">')){
+                // A recovered reference already contains the exact registered stylesheet.
+                $verified=syndamorph_tabs_standard_reference($reference,$id);
+                if(is_wp_error($verified)||$verified!==$reference)
+                    return new WP_Error('sm_tabs_reference','The saved Tabs design stylesheet differs from its native appearance.');
+                $standardTabs[]=$id;
+            }
+        }
         $GLOBALS['syndamorph_current_reference']=$reference;
         $capabilityNotes=syndamorph_reference_capability_notes($scopeRegion===null?$reference:preg_replace('/@media\b[^{}]*(?=\{)/i','',$reference));
         $inspectReference=syndamorph_production_tool_cached_inspection($reference,$viewports);
@@ -813,7 +842,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $reviewContext+=$touchContext;
         $reviewContext['continuousResponsive']=$responsive;
         if(isset($resume['archivedSha256'])&&$designReviews===0)$reviewContext['checkpointRecovery']=array(
-            'previousTask'=>'final_approval','previousOutcome'=>'transport_failure',
+            'previousTask'=>'final_approval',
+            'previousOutcome'=>$nativeReview!==null&&$savedDesignApproval===null?'bounded_reference_correction':'transport_failure',
             'archivedSha256'=>$resume['archivedSha256'],'surgery'=>$resume['surgery']);
         $browserFacts=syndamorph_design_browser_facts($inspectReference,$specification);
         $reviewContext['browserFacts']=$browserFacts;
@@ -1020,6 +1050,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'issues'=>$handoff['issues']);
         if($on_event)$on_event('handoff',$handoff);
         if($decision==='approved'){$approvedReference=true;break;}
+        if($nativeReview!==null)
+            return new WP_Error('sm_design_unapproved','The revised reference needs another bounded design correction before reviewing the native artifact.',
+                array('stage'=>'design_approval'));
         // Track the underlying defect family rather than model wording or
         // artifact hashes, which change across harmless full-reference rewrites.
         $issueFamilies=array_map(static function($issue){
@@ -1106,15 +1139,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         'bossApproval'=>$approval,'productionSpecification'=>$specification,'specificationReceipt'=>$specificationReceipt,
         'continuousResponsive'=>$responsive,'requirementResults'=>$requirementResults,
         'tabPanelSpecification'=>syndamorph_tabs_design_copy($reference,$interactions))+$touchContext;
+    if($standardTabs)$designMemo['standardTabs']=$standardTabs;
     $handoffs[]=array('from'=>'boss','to'=>'developer','type'=>'approved_design',
         'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews,'agentPayload'=>$approval,
         'specificationReceipt'=>$specificationReceipt);
     if($on_event)$on_event('handoff',end($handoffs));
-    $nativeReview=$resume['nativeReview']??null;
-    if($nativeReview!==null&&(!is_array($nativeReview['plan']??null)||
-        !is_string($nativeReview['artifactSha256']??null)||$savedDesignApproval===null))
-        return new WP_Error('sm_native_review_identity','A saved native review requires its artifact and approved design.');
-    $developer=$nativeReview!==null?wp_json_encode($nativeReview['plan']):$call('developer','Translate the HTML reference into native Gutenberg JSON using the cached compiler contract. Preserve content and visual intent. For classified tabs use the exact interaction ID as the tabs node ID and retain the exact panel IDs, order, labels, headings and copy from design.tabPanelSpecification. Return JSON only. Close the complete root blocks array and document.'.$sourceNote.
+    $developer=$nativeReview!==null?wp_json_encode($nativeReview['plan']):$call('developer','Translate the HTML reference into native Gutenberg JSON using the cached compiler contract. Preserve content and visual intent. For classified tabs use the exact interaction ID as the tabs node ID and retain the exact panel IDs, order, labels, headings and copy from design.tabPanelSpecification. Set appearance to standard on Tabs IDs listed in design.standardTabs. Return JSON only. Close the complete root blocks array and document.'.$sourceNote.
         ($scrollDesignNote!==''?' For a native horizontal-scroll interaction, use the exact interaction ID as the Group ID, scrollStrip:true and style.visibility mobile or compact, matching the approved reference. Keep two to six native Group cards with the approved order and copy.':'') ,
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,
             'imageOrder'=>array_intersect_key($viewports,array_flip($visionViewports)),
@@ -1133,6 +1163,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         return new WP_Error('sm_block_plan_invalid','Developer did not return a native JSON plan.');
     if($jsonRecovery!==null&&$on_event)$on_event('schema_json_recovery',$jsonRecovery);
     $plan=syndamorph_collab_ids($plan);
+    foreach($standardTabs as $id){
+        $tabs=syndamorph_collab_find($plan['blocks'],$id);
+        if(($tabs['type']??null)!=='tabs'||($tabs['appearance']??null)!=='standard')
+            return new WP_Error('sm_tabs_appearance','The native Tabs appearance does not match the exact identified design.',
+                array('stage'=>'compilation','role'=>'developer'));
+    }
     $workingId=syndamorph_surgery_save($plan);
     if($workingId==='')return new WP_Error('sm_surgery_persist','Working plan exceeds safe size.');
     $originalPlan=$plan;
@@ -1334,20 +1370,36 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         'Pinned native source comparison is pending.',$initialSource['visual']['inspection']),$artifact['preview'],
         'implementation_inspection','developer',$capabilityNotes,$artifact,$surgery,$designMemo);
     if($initialSource!==null&&!$initialSource['passed'])$issues[]=syndamorph_source_issue($initialSource,$plan['blocks'][0]['id']);
+    $functionalCheck=static function(array $candidate,array $evidence)use($viewports,$interactions,$designMemo,$specification,$reference):array {
+        $nativeChecks=array();$byRequirement=array_column($specification['requirements'],null,'id');
+        foreach($interactions as $interaction){
+            $check=$byRequirement[$interaction['requirementId']]['check']??null;
+            if($interaction['classification']==='native'&&$interaction['kind']==='link'&&($check['kind']??'')==='link')
+                $nativeChecks[$interaction['id']]=syndamorph_design_run_check($check,$evidence);
+        }
+        $nativeChecks=syndamorph_scroll_strip_verify($candidate,$viewports,$reference)+$nativeChecks;
+        return syndamorph_tabs_verify($candidate,$viewports,$interactions,$designMemo['tabPanelSpecification'],$nativeChecks);
+    };
     if($nativeReview!==null&&$issues){
         if($on_event)$on_event('native_review_blocked',array('artifactSha256'=>$nativeReview['artifactSha256'],'issues'=>$issues));
         return new WP_Error('sm_native_review_deterministic','The retained native artifact still has unresolved deterministic checks. See the exact issues in History.',
             array('stage'=>'implementation_qa','role'=>'validator'));
     }
-    $nativeReviewResponsive=null;$nativeReviewHost=null;
+    $nativeReviewResponsive=null;$nativeReviewHost=null;$nativeReviewFunctional=null;
     if($nativeReview!==null){
         $sha=$nativeReview['artifactSha256'];
         $nativeReviewResponsive=syndamorph_native_responsive_receipt(
             $artifact['preview'],$viewports,$inspectNative,$renderer['build'],$sha);
         if($hostRequirements)$nativeReviewHost=syndamorph_design_host_accessibility(
             $artifact['preview'],$hostRequirements,$wordpressPage,$viewports)+array('artifactSha256'=>$sha);
-        if($nativeReviewResponsive['status']!=='passed'||($nativeReviewHost!==null&&$nativeReviewHost['status']!=='passed')){
+        $nativeReviewFunctional=$functionalCheck($artifact,$inspectNative);
+        $deltas=array_column($comparison,'pixelDifferenceRatio');
+        $visual=array_column($comparison,'width')===$viewports&&count($deltas)===count($viewports)&&
+            syndamorph_visual_pixels_within_limits($deltas);
+        if(!$visual||!in_array($nativeReviewFunctional['status'],array('not_applicable','passed'),true)||
+            $nativeReviewResponsive['status']!=='passed'||($nativeReviewHost!==null&&$nativeReviewHost['status']!=='passed')){
             if($on_event)$on_event('native_review_blocked',array('artifactSha256'=>$sha,
+                'pixelComparison'=>$comparison,'functional'=>$nativeReviewFunctional,
                 'responsive'=>$nativeReviewResponsive,'hostAccessibility'=>$nativeReviewHost));
             return new WP_Error('sm_native_review_deterministic','The retained artifact still has required browser checks open.',
                 array('stage'=>'implementation_qa','role'=>'validator'));
@@ -1842,15 +1894,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $status='uncompleted';
         if($terminationReason==='quality_resolved')$terminationReason='native_responsive_'.$nativeResponsive['status'];
     }
-    $nativeChecks=array();
-    $byRequirement=array_column($specification['requirements'],null,'id');
-    foreach($interactions as $interaction){
-        $check=$byRequirement[$interaction['requirementId']]['check']??null;
-        if($interaction['classification']==='native'&&$interaction['kind']==='link'&&($check['kind']??'')==='link')
-            $nativeChecks[$interaction['id']]=syndamorph_design_run_check($check,$best['evidence']);
-    }
-    $nativeChecks=syndamorph_scroll_strip_verify($artifact,$viewports,$reference)+$nativeChecks;
-    $functional=syndamorph_tabs_verify($artifact,$viewports,$interactions,$designMemo['tabPanelSpecification'],$nativeChecks);
+    $functional=$nativeReviewFunctional??$functionalCheck($artifact,$best['evidence']);
     if(!in_array($functional['status'],array('not_applicable','passed'),true)){
         $status='uncompleted';
         if($terminationReason==='quality_resolved')$terminationReason='functional_validation_'.$functional['status'];

@@ -58,11 +58,45 @@ $expect(syndamorph_tabs_design_copy($aria,$interactions)===array('details'=>$fir
 $badAria=str_replace('aria-controls="overview"','aria-controls="rooms"',$aria);
 $expect(syndamorph_tabs_design_copy($badAria,$interactions)===array(),
     'An unrelated tab control supplied an approved panel label.');
+$accessible='<section><h2>Fixture</h2><div data-sm-tabs-reference="details"><div role="tablist">';
+foreach($first['panels'] as $i=>$panel){
+    $accessible.='<button type="button" role="tab" id="label-'.$panel['id'].'" aria-selected="'.($i?'false':'true').
+        '" aria-controls="'.$panel['id'].'">'.esc_html($panel['label']).'</button>';
+}
+$accessible.='</div>';
+foreach($first['panels'] as $i=>$panel){
+    $accessible.='<div role="tabpanel" data-sm-tab-panel="'.$panel['id'].'" id="'.$panel['id'].'" aria-labelledby="label-'.
+        $panel['id'].'"'.($i?' hidden':'').'><h3 data-sm-tab-heading>'.esc_html($panel['heading']).
+        '</h3><p data-sm-tab-body>'.esc_html($panel['body']).'</p></div>';
+}
+$accessible.='</div></section>';
+$standardReference=syndamorph_tabs_standard_reference($accessible,'details');
+$expect(is_string($standardReference)&&str_starts_with($standardReference,$accessible)&&
+    syndamorph_tabs_standard_reference($standardReference,'details')===$standardReference&&
+    syndamorph_tabs_design_copy($standardReference,$interactions)===array('details'=>$first['panels']),
+    'Registered Tabs design styling was not scoped, byte-preserving, repeatable and copy preserving.');
+$expect(is_wp_error(syndamorph_tabs_standard_reference(str_replace('aria-selected="true"','aria-selected="false"',$accessible),'details'))&&
+    is_wp_error(syndamorph_tabs_standard_reference($accessible,'neighborhood')),
+    'A missing or inconsistently selected design widget accepted a style change.');
+$standard=$first+array('appearance'=>'standard');
+$styled=syndamorph_compile_block_plan(wp_json_encode($make(array($standard,$second))));
+$expect(!is_wp_error($styled)&&substr_count(do_blocks($styled['content']),'sm-tabs-standard')===1&&
+    $styled['tabWidgets']===$artifact['tabWidgets'],'The native Tabs appearance changed saved panels or spilled to another widget.');
+$bad=$first+array('appearance'=>'custom-css');
+$expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($make(array($bad))))),'An unsupported Tabs appearance compiled.');
 $widths=array(1440,768,375);
 $receipt=syndamorph_tabs_verify($artifact,$widths,$interactions,$design);
 $expect($receipt['status']==='passed'&&array_column($receipt['viewports'],'width')===$widths,
     'Chromium functional receipt failed: '.wp_json_encode($receipt));
 $expect($receipt['verifiedRequirements']===array('about-click','about-a11y','about-style'),'Tab QA did not record each linked requirement.');
+$styledReceipt=syndamorph_tabs_verify($styled,$widths,$interactions,$design);
+$referenceViews=syndamorph_collab_inspect($standardReference,$widths);
+$expect($styledReceipt['status']==='passed'&&!is_wp_error($referenceViews),'Standard Tabs did not retain their exact-width proof.');
+foreach($referenceViews as $view){
+    $targets=array_filter($view['snapshot']['elements'],static fn($node)=>$node['role']==='tab'&&$node['visible']);
+    $expect(count($targets)===3&&min(array_map(static fn($node)=>$node['rect'][3],$targets))>=44,
+        'A standard Tabs reference displayed small native-control targets.');
+}
 $final=array('artifact'=>$artifact,'quality'=>array('functionalChecks'=>$receipt));
 $expect(syndamorph_functional_acceptance($final,hash('sha256',$artifact['content'])),'Verified exact artifact was rejected.');
 $expect(!syndamorph_functional_acceptance($final,str_repeat('a',64)),'Changed artifact reused old QA.');

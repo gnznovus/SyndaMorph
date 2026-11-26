@@ -23,7 +23,11 @@
         category: 'design',
         apiVersion: 3,
         icon: 'index-card',
-        attributes: { panelData: { type: 'string', default: '' }, component: { type: 'string' } },
+        attributes: {
+            panelData: { type: 'string', default: '' },
+            component: { type: 'string' },
+            appearance: { type: 'string', enum: ['standard'] },
+        },
         supports: { html: false },
         edit({ attributes, setAttributes }) {
             const blockProps = useBlockProps();

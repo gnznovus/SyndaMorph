@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.26] - 2026-11-26
+
+### Added
+
+- Content Tabs can use the registered standard appearance in the Designer reference and native block. The same stylesheet supplies control sizes, states and panel typography, scoped to each identified widget.
+- A retained native plan can receive fresh design and implementation decisions after a hash-bound correction to its saved reference. Recovered implementation review requires the exact visual, functional, responsive and host evidence before it calls the Validator.
+
+### Verified
+
+- GEN-000055 completed on the original job with an unpublished WordPress draft. The patched native block matched the newly approved reference at 1440, 768 and 375 px. It passed six functional requirements and eight responsive samples. Four valid blocks and the edited panel text survived Gutenberg save and reload. The two authorized reviews added $0.006613, for $0.023836 total estimated spend.
+
 ## [0.12.25] - 2026-11-26
 
 ### Added
