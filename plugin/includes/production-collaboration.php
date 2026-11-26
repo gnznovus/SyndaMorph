@@ -469,6 +469,35 @@ function syndamorph_design_surgery(string $reference,array $response) {
     return array('reference'=>$candidate,'changes'=>$changed);
 }
 
+/** Retain complete HTML and complete CSS rules from a token-limited Designer reply. */
+function syndamorph_design_css_checkpoint(string $raw): ?array {
+    if(strlen($raw)>120000)return null;
+    $plain=preg_replace('/^\s*\x60{3}(?:html)?\s*/i','',trim($raw));
+    if(!preg_match('~^(<section\b[\s\S]+</section>\s*)<style>\s*([\s\S]+)$~iD',$plain,$parts)||
+        substr_count(strtolower($plain),'<style')!==1||stripos($plain,'</style')!==false||
+        preg_match('~<\s*(?:script|iframe|object|embed|form|link|meta)\b|\bon[a-z]+\s*=|\b(?:javascript:|https?://|@import)~i',$plain))return null;
+    $last=strrpos($parts[2],'}');
+    if($last===false)return null;
+    $css=substr($parts[2],0,$last+1);
+    $tail=trim(substr($parts[2],$last+1));
+    if(substr_count($css,'{')!==substr_count($css,'}')||substr_count($css,'/*')!==substr_count($css,'*/')||
+        strlen($tail)>240||!preg_match('/^[a-zA-Z0-9_.#:\s-]*$/D',$tail))return null;
+    return array('rawSha256'=>hash('sha256',$raw),'htmlSha256'=>hash('sha256',$parts[1]),
+        'html'=>$parts[1],'css'=>$css,'discardedSelectorTail'=>$tail);
+}
+
+function syndamorph_design_css_finish(array $checkpoint,string $reply) {
+    $decoded=json_decode(syndamorph_native_json_text($reply),true);
+    $tail=$decoded['suffixCss']??null;
+    if(!is_string($tail)||trim($tail)===''||strlen($tail)>12000||
+        substr_count($tail,'{')!==substr_count($tail,'}')||!str_contains($tail,'{')||
+        substr_count($tail,'/*')!==substr_count($tail,'*/')||str_contains($tail,'<')||
+        preg_match('~\b(?:url\s*\(|javascript:|https?://|@import)~i',$tail)||
+        ($checkpoint['htmlSha256']??null)!==hash('sha256',$checkpoint['html']))
+        return new WP_Error('sm_design_css_suffix','The retained Designer draft needs a valid, bounded CSS-only continuation.');
+    return $checkpoint['html']."<style>\n".$checkpoint['css']."\n".trim($tail)."\n</style>";
+}
+
 function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bool $useLearning=true,?array $source=null,
     ?float $budgetLimit=null,?float $workingLimit=null,?array $resume=null) {
     $GLOBALS['syndamorph_production_tool_cache']=array();
@@ -766,9 +795,24 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     if($on_event&&$archivedAssignment===null)$on_event('handoff',$assignment);
 
     // Boss checks the reference against real browser evidence before implementation QA.
-    $reference=$resume['referenceHtml']??$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Use the 1440px view for design identity and adapt continuously through 375px. Account for required checkpoints, neighboring breakpoint widths, and intermediate sizes. Use fluid containers and type while preserving content, hierarchy and required states. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.'.$sourceNote.$tabsDesignNote.$scrollDesignNote.$disclosureDesignNote,
-        array('brief'=>$brief,'requirements'=>$bossBrief)+$sourceContext+$touchContext,
-        syndamorph_collab_output_cap($provider,$model),$sourceImages);
+    $cssCheckpoint=$resume['designCssCheckpoint']??null;
+    if($cssCheckpoint!==null){
+        if($archivedAssignment===null||$scopeRegion===null||$nativeReview!==null)
+            return new WP_Error('sm_design_css_checkpoint','A CSS continuation requires the original source and assignment.');
+        $answer=$call('designer','Finish the missing CSS of this exact retained HTML draft. Return only JSON {"suffixCss":"additional CSS rules"} with CSS that follows the completed prefix. Do not regenerate HTML or copy any completed CSS. Complete the per-width visibility, typography, paint, card layout and interaction affordances. Select only elements in the retained section and preserve the original evidence. No URLs, markup or new assets.'.$sourceNote.$scrollDesignNote,
+            array('brief'=>$brief,'requirements'=>$bossBrief,'retainedHtml'=>$cssCheckpoint['html'],
+                'completedCss'=>$cssCheckpoint['css'])+$sourceContext+$touchContext,
+            syndamorph_collab_output_cap($provider,$model),$sourceImages,'design_correction');
+        if(is_wp_error($answer))return $answer;
+        $reference=syndamorph_design_css_finish($cssCheckpoint,$answer);
+        if(!is_wp_error($reference)&&$on_event)$on_event('design_css_continuation',array(
+            'retainedHtmlSha256'=>$cssCheckpoint['htmlSha256'],'rawSha256'=>$cssCheckpoint['rawSha256'],
+            'referenceSha256'=>hash('sha256',trim($reference))));
+    }else{
+        $reference=$resume['referenceHtml']??$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Use the 1440px view for design identity and adapt continuously through 375px. Account for required checkpoints, neighboring breakpoint widths, and intermediate sizes. Use fluid containers and type while preserving content, hierarchy and required states. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.'.$sourceNote.$tabsDesignNote.$scrollDesignNote.$disclosureDesignNote,
+            array('brief'=>$brief,'requirements'=>$bossBrief)+$sourceContext+$touchContext,
+            syndamorph_collab_output_cap($provider,$model),$sourceImages);
+    }
     if(is_wp_error($reference))return $reference;
     $approval=array('decision'=>'rejected','issues'=>array());
     $savedDesignApproval=$resume['savedDesignApproval']??null;

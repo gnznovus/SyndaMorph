@@ -127,6 +127,7 @@
                     checkpoint === 'staged_planning' ? 'Retry saved interaction classification' :
                     checkpoint === 'staged_format' ? 'Resume formatted work order' :
                     checkpoint === 'staged_disclosure_qa' ? 'Resume disclosure implementation QA' :
+                    checkpoint === 'designer_css' ? 'Continue retained Designer CSS' :
                     checkpoint === 'developer' ? 'Resume Developer' :
                     checkpoint === 'native_review' ? 'Review recovered implementation' : 'Resume design review';
                 entry.append(button(label, async () => {

@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.31] - 2026-11-26
+
+### Added
+
+- A retained Designer response that reaches its output limit can resume on the original job when its complete HTML and completed CSS rules are recoverable. The continuation supplies only CSS, retains the work order and metering, and still requires fresh source and design gates. Missing markup, a cut declaration and unsafe continuation are held.
+
+### Verified
+
+- Exclusive Offers GEN-000058 continued after hitting the 16,384-token Designer cap. Review retained the design and held its source visual requirements. A zero-call copy repair passed exact visible copy and local scroll checks at all mandatory widths. A separate wide-viewport typography trial measured 3.940%, 3.687% and 5.863% source difference. Neither trial passed visual QA. The job used 10 completed calls plus the metered capped response, totaling $0.070055.
+- Exact archived scroll evidence was bound to Exclusive Offers and Sip & Dine on the original BKKGO Full Page scope. A fresh network-isolated replay reproduced 213 px for Exclusive Offers and 594 px and 280 px for Sip & Dine at their active widths. Full Page acceptance remains two of 16.
+
 ## [0.12.30] - 2026-11-26
 
 ### Added

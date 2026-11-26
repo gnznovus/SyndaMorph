@@ -98,8 +98,32 @@ function syndamorph_scope_recovery_stage(?array $failure): ?string {
         return 'design_approval';
     if($code==='sm_generation_transport'&&($failure['role']??null)==='developer'&&($failure['task']??null)==='developer')
         return 'developer';
+    if($code==='sm_generation_token_limit'&&($failure['role']??null)==='designer'&&($failure['task']??null)==='designer'&&
+        ($failure['stopReason']??null)==='max_tokens')return 'designer_css';
     if($code==='sm_boss_contract'&&($failure['field']??null)==='requirement check')return 'planning';
     return null;
+}
+
+function syndamorph_scope_designer_css_checkpoint(int $id): ?array {
+    global $wpdb;
+    list(,$events)=syndamorph_history_tables();
+    $rows=$wpdb->get_results($wpdb->prepare(
+        "SELECT event_type,payload FROM $events WHERE job_id=%d AND event_type IN ('agent_start','agent_delta','agent_complete','agent_failure') ORDER BY id",$id),ARRAY_A);
+    $raw=null;$saved=null;
+    foreach($rows??array() as $row){
+        $data=json_decode($row['payload'],true);
+        $original=($data['role']??null)==='designer'&&($data['task']??null)==='designer';
+        if($row['event_type']==='agent_start')$raw=$original?'':null;
+        elseif($raw!==null&&$original&&$row['event_type']==='agent_delta'){
+            $raw.=$data['text']??'';
+            if(strlen($raw)>120000)return null;
+        }elseif($raw!==null&&$original&&$row['event_type']==='agent_failure'){
+            $saved=($data['metric']['metering']??null)==='provider_reported'?
+                syndamorph_design_css_checkpoint($raw):null;
+            $raw=null;
+        }elseif($row['event_type']==='agent_complete')$raw=null;
+    }
+    return $saved;
 }
 
 function syndamorph_scope_planning_checkpoint(int $id): ?string {
@@ -200,6 +224,9 @@ function syndamorph_scope_status(array $manifest): array {
                 $region['recoveryStage']=$last['status']==='failed'?syndamorph_scope_recovery_stage($failure):null;
                 if($region['recoveryStage']==='planning'&&syndamorph_scope_planning_checkpoint($last['id'])===null)
                     $region['recoveryStage']=null;
+                if($region['recoveryStage']==='designer_css'&&
+                    (syndamorph_history_latest($last['id'],'job_resumed')!==null||
+                    syndamorph_scope_designer_css_checkpoint($last['id'])===null))$region['recoveryStage']=null;
                 if($last['status']==='failed'&&($failure['code']??null)==='sm_source_disclosure_assignment'&&
                     $last['completedCalls']===1&&syndamorph_history_latest($last['id'],'staged_implementation_review')!==null&&
                     syndamorph_history_latest($last['id'],'job_resumed')===null&&
@@ -219,6 +246,9 @@ function syndamorph_scope_status(array $manifest): array {
                 $region['designDecisionRequired']=$last['status']==='failed'&&($failure['code']??null)==='sm_design_review_required';
                 if($last['status']==='failed'&&$region['recoveryStage']===null&&
                     syndamorph_history_latest($last['id'],'staged_implementation_review')!==null)
+                    $region['designDecisionRequired']=true;
+                if($last['status']==='failed'&&$region['recoveryStage']===null&&
+                    (syndamorph_history_latest($last['id'],'job_resumed')['stage']??null)==='designer_css')
                     $region['designDecisionRequired']=true;
                 if(isset($failure['sourceScroll']))$region['sourceScroll']=$failure['sourceScroll'];
                 $region['issue']=$failure['message']??$final['quality']['issues'][0]['detail']??
@@ -245,7 +275,8 @@ function syndamorph_scope_run(array $manifest,string $key,bool $retry,?callable 
         return syndamorph_scope_error('selection','This region does not belong to the active scope.');
     $last=end($region['attempts']);
     if($retry&&$last&&((syndamorph_history_latest($last['id'],'job_error')['code']??null)==='sm_design_review_required'||
-        syndamorph_history_latest($last['id'],'staged_implementation_review')!==null))
+        syndamorph_history_latest($last['id'],'staged_implementation_review')!==null||
+        (syndamorph_history_latest($last['id'],'job_resumed')['stage']??null)==='designer_css'))
         return syndamorph_scope_error('design_decision','The saved design requires a decision before another paid attempt.');
     $eligible=$retry?array('failed','uncompleted'):array('ready');
     if(!in_array($region['status'],$eligible,true)||!empty($region['checkpointAvailable'])||!empty($region['recoveryStage']))
@@ -490,6 +521,7 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
     $extendWorkOrder=false;
     $savedApproval=null;
     $planningStage=in_array($stage,array('planning','staged_planning','staged_format'),true);
+    $cssCheckpoint=$stage==='designer_css'?syndamorph_scope_designer_css_checkpoint($id):null;
     if($planningStage){
         if($edits||$workOrderEdits||$candidate!==null||$assignment!==null)
             return syndamorph_scope_error('review_checkpoint','The exact archived planning response still lacks a verifiable work order.');
@@ -524,9 +556,10 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
         }
     }else{
         $specification=$assignment['requirements']['specification']??null;
-        if(!is_string($reference)||!is_string($sha)||!hash_equals($sha,hash('sha256',$reference))||
-            ($staged!==null&&$reference!==$stagedReference)||
-            !is_int($candidate['round']??null)||($assignment['type']??null)!=='assignment'||
+        $candidateValid=is_string($reference)&&is_string($sha)&&hash_equals($sha,hash('sha256',$reference))&&
+            ($staged===null||$reference===$stagedReference)&&is_int($candidate['round']??null);
+        if(($stage==='designer_css'?($cssCheckpoint===null||$candidate!==null||$staged!==null||$edits||$workOrderEdits):!$candidateValid)||
+            ($assignment['type']??null)!=='assignment'||
             ($assignment['from']??null)!=='boss'||($assignment['to']??null)!=='designer'||!is_array($specification)||
             ($assignment['specificationReceipt']??null)!==
             syndamorph_production_specification_receipt($specification,$manifest['brief'],$widths,$evidence))
@@ -683,6 +716,8 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
     $GLOBALS['syndamorph_active_job_id']=$id;
     try{
         $identity=$planningStage?array('planningSha256'=>hash('sha256',$planning)):array('referenceSha256'=>$sha);
+        if($cssCheckpoint!==null)$identity=array('partialDesignerSha256'=>$cssCheckpoint['rawSha256'],
+            'retainedHtmlSha256'=>$cssCheckpoint['htmlSha256']);
         if($staged!==null)$identity['nativeArtifactSha256']=$resume['nativeReview']['artifactSha256'];
         if($stage==='staged_format')$identity['formattedPlanningSha256']=hash('sha256',$resume['planningText']);
         if($nativeReview!==null)$identity['nativeArtifactSha256']=$nativeReview['artifactSha256'];
@@ -690,7 +725,8 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
             'priorEstimatedCostUsd'=>$account['estimatedCostUsd'],'priorUnmeteredReserveUsd'=>$account['unmeteredReserveUsd'])+$identity);
         $resume['account']=$account;
         if($workOrderRevision!==null&&($retainedRevision===null||$extendWorkOrder))$emit('work_order_revision',$workOrderRevision);
-        if(!$planningStage)$resume+=array('assignment'=>$assignment,'referenceHtml'=>$reference,'archivedSha256'=>$sha,
+        if($cssCheckpoint!==null)$resume+=array('assignment'=>$assignment,'touch'=>$touch,'designCssCheckpoint'=>$cssCheckpoint);
+        elseif(!$planningStage)$resume+=array('assignment'=>$assignment,'referenceHtml'=>$reference,'archivedSha256'=>$sha,
             'touch'=>$touch,'surgery'=>$surgery,'round'=>$candidate['round']+($surgery===null?0:1));
         if($savedApproval!==null)$resume['savedDesignApproval']=$savedApproval;
         if($stagedRepair!==null){

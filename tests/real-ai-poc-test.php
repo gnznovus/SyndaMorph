@@ -444,6 +444,21 @@ $truncated=syndamorph_models_generate('anthropic','claude-dynamic-test-1','test'
 expect(is_wp_error($truncated) && $truncated->code==='sm_generation_token_limit' &&
     $truncated->args['stopReason']==='max_tokens' && $truncated->args['outputTokens']===1200,
     'Token exhaustion diagnostic missing or mislabeled');
+$markup='<section class="offers"><h2>Offers</h2><p>Keep this copy.</p></section>';
+$prefix='.offers h2{font-size:2rem}';
+$raw=str_repeat(chr(96),3)."html\n".$markup."\n<style>\n".$prefix."\n.off";
+$cssCheckpoint=syndamorph_design_css_checkpoint($raw);
+$suffix='@media(max-width:600px){.offers h2{font-size:1.5rem}}';
+$finished=syndamorph_design_css_finish($cssCheckpoint,wp_json_encode(array('suffixCss'=>$suffix)));
+expect(($cssCheckpoint['rawSha256']??null)===hash('sha256',$raw)&&$cssCheckpoint['html']===$markup."\n"&&
+    $cssCheckpoint['css']===$prefix&&$cssCheckpoint['discardedSelectorTail']==='.off'&&
+    $finished===$markup."\n<style>\n".$prefix."\n".$suffix."\n</style>",
+    'Designer CSS recovery did not preserve the exact markup and fully received CSS rules.');
+expect(syndamorph_design_css_checkpoint(str_replace('</section>','',$raw))===null&&
+    syndamorph_design_css_checkpoint($raw.'ers{color:red')===null&&
+    is_wp_error(syndamorph_design_css_finish($cssCheckpoint,'{"suffixCss":"</style><script></script>"}'))&&
+    is_wp_error(syndamorph_design_css_finish($cssCheckpoint,wp_json_encode(array('suffixCss'=>'.offers{color:red')))),
+    'Designer CSS recovery accepted incomplete markup, a cut CSS declaration, or unsafe/unfinished continuation.');
 $GLOBALS['stop_reason_test']='refusal';
 $refused=syndamorph_models_generate('anthropic','claude-dynamic-test-1','test','test',2400);
 expect(is_wp_error($refused) && $refused->code==='sm_generation_incomplete' &&
