@@ -37,4 +37,10 @@ $evidence=array(
 $findings=syndamorph_design_responsive_findings($evidence);
 expect(array_column($findings,'code')===array('horizontal-overflow','text-clipping','text-collision') &&
     array_column($findings,'width')===array(600,600,600),'Intermediate responsive defects escaped or clean views were flagged');
+$contained=$element('Scrollable card',array(410,30,100,20),0)+array('scrollContained'=>true);
+$clipped=$element('Clipped leaf',array(410,70,100,20),1)+array('scrollContained'=>true,'clipped'=>true);
+$findings=syndamorph_design_responsive_findings(array(array('width'=>375,'snapshot'=>array(
+    'overflow'=>true,'elements'=>array($contained,$clipped)))));
+expect(array_column($findings,'code')===array('horizontal-overflow','text-clipping')&&$findings[1]['target']==='Clipped leaf',
+    'A reachable offscreen card caused a false clip or bypassed page and leaf overflow checks.');
 echo "PASS: deterministic breakpoint planning, preserved explicit widths and intermediate browser findings\n";

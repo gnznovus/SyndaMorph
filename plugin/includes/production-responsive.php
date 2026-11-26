@@ -47,7 +47,7 @@ function syndamorph_design_responsive_findings(array $samples): array {
             $rect=$element['textRect']??null;
             if($text===''||!is_array($rect)||count($rect)!==4||$rect[2]<=0||$rect[3]<=0)continue;
             $target=mb_substr($text,0,80);
-            if($rect[0]<-2||$rect[0]+$rect[2]>$width+2||!empty($element['clipped']))
+            if((($rect[0]<-2||$rect[0]+$rect[2]>$width+2)&&($element['scrollContained']??null)!==true)||!empty($element['clipped']))
                 $findings[]=array('width'=>$width,'code'=>'text-clipping','target'=>$target);
             $leaves[]=array('target'=>$target,'parent'=>$element['parent']??null,'lines'=>$element['lineRects']??array());
         }

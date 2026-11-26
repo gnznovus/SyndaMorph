@@ -87,7 +87,8 @@ function runBrowserWorker(html, viewports, signal, options = {}) {
             return resolve(result.html);
         });
         child.stdin.on('error', () => {});
-        child.stdin.end(JSON.stringify({ html, inspect, viewports, extent:options.extent,tabsRuntime:options.tabsRuntime }));
+        child.stdin.end(JSON.stringify({ html, inspect, viewports, extent:options.extent,
+            tabsRuntime:options.tabsRuntime,scrollStrips:options.scrollStrips }));
     });
 }
 
@@ -127,7 +128,7 @@ function createRendererServer(render = runBrowserWorker) {
             res.end(bytes);
         }
         if (req.method === 'GET' && req.url === '/healthz') return reply(200, diagnostic);
-        if (req.method !== 'POST' || !['/render','/inspect','/compare','/crop','/check-tabs'].includes(req.url))
+        if (req.method !== 'POST' || !['/render','/inspect','/compare','/crop','/check-tabs','/check-scroll-strips'].includes(req.url))
             return reply(404, { error: 'not_found' });
         if (busy) {
             req.resume();
@@ -156,6 +157,8 @@ function createRendererServer(render = runBrowserWorker) {
                     throw new RendererError('invalid_html',400);
                 return reply(200,{evidence:await render(body.html,viewports,controller.signal,{tabsRuntime:body.runtime})});
             }
+            if(req.url==='/check-scroll-strips')
+                return reply(200,{evidence:await render(body.html,viewports,controller.signal,{scrollStrips:true})});
             if (body.extent !== undefined && !['section', 'page', 'page-fold'].includes(body.extent)) throw new RendererError('invalid_html', 400);
             reply(200, { evidence: await render(body.html, viewports, controller.signal, { extent: body.extent }) });
         } catch (error) {

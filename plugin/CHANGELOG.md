@@ -6,6 +6,14 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.17] - 2026-11-26
+
+### Added
+- The native production compiler supports a compact or mobile scroll strip built from editable Gutenberg Groups. Independent Chromium QA checks exact-width visibility, wheel and keyboard reachability, focus, and ordered card copy against the approved design.
+
+### Verified
+- Both archived BKKGO card sets passed the native capability check at mandatory and breakpoint-adjacent widths. Gutenberg preserved 13 valid blocks and the edited card through save and reload. Source admission and end-to-end acceptance remain open.
+
 ## [0.12.16] - 2026-11-26
 
 ### Fixed

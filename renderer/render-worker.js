@@ -1,6 +1,7 @@
 'use strict';
 
 const { chromium } = require('playwright');
+const { createHash } = require('node:crypto');
 const axe = require('axe-core');
 const { HEIGHT, MAX_JPEG, MAX_METADATA, DEFAULT_VIEWPORTS, RendererError } = require('./inspection-contract');
 
@@ -23,6 +24,82 @@ async function boundedScreenshot(page, width, extent) {
     }
 }
 
+async function checkScrollStrips(page,html) {
+    const strips=page.locator('.wp-block-group.sm-scroll-strip,[data-sm-scroll-reference]');
+    const count=await strips.count();
+    if(count>4)throw new RendererError('evidence_limit',507);
+    const checks=[];
+    for(let index=0;index<count;index++){
+        const strip=strips.nth(index);
+        const component=await strip.getAttribute('data-sm-node')??await strip.getAttribute('data-sm-scroll-reference');
+        if(!await strip.isVisible()){
+            checks.push({component,visible:false});
+            continue;
+        }
+        const state=()=>strip.evaluate(element=>{
+            const box=element.getBoundingClientRect(),style=getComputedStyle(element);
+            const cards=[...element.children].filter(card=>card.matches('.wp-block-group,[data-sm-scroll-card]'));
+            const fit=(rect)=>rect.left>=box.left-2&&rect.right<=box.right+2;
+            return {scroll:element.scrollLeft,max:element.scrollWidth-element.clientWidth,
+                cards:cards.map(card=>card.innerText.replace(/\s+/gu,' ').trim()),
+                visible:cards.flatMap((card,i)=>fit(card.getBoundingClientRect())?[i]:[]),
+                layout:element.tabIndex===0&&element.getAttribute('role')==='group'&&!!element.getAttribute('aria-label')?.trim()&&
+                    style.direction==='ltr'&&style.overflowX==='auto'&&
+                    style.scrollSnapType==='x mandatory'&&style.columnGap==='12px'&&style.paddingInlineEnd==='20px'&&
+                    box.left>=-2&&box.right<=innerWidth+2&&document.documentElement.scrollWidth<=innerWidth&&
+                    cards.length===element.children.length&&cards.every(card=>getComputedStyle(card).scrollSnapAlign==='start'&&
+                        Math.abs(card.getBoundingClientRect().width-(element.clientWidth-20)*.8)<=2),
+                focusVisible:document.activeElement===element&&element.matches(':focus-visible')&&
+                    style.outlineStyle!=='none'&&parseFloat(style.outlineWidth)>=2};
+        });
+        const before=await state();
+        const cards=before.cards.length;
+        const initial=before.scroll===0&&before.visible.includes(0);
+        const gesture=async action=>{
+            const offset=()=>strip.evaluate(element=>element.scrollLeft);
+            const start=await offset();
+            await action();
+            let last=start,stable=0;
+            const deadline=Date.now()+1200;
+            // Poll in the trusted worker so the document keeps script execution disabled.
+            while(Date.now()<deadline&&stable<3){
+                await page.waitForTimeout(60);
+                const current=await offset();
+                stable=current===last&&current!==start?stable+1:0;
+                last=current;
+            }
+            return state();
+        };
+        let wheel=false,keyboard=false,end=false,focusVisible=false;
+        const keyboardOffsets=[];
+        if(before.layout&&cards>=2&&cards<=6&&before.max>4){
+            try{
+                await strip.scrollIntoViewIfNeeded({timeout:1500});
+                const box=await strip.boundingBox();
+                await page.mouse.move(box.x+box.width/2,Math.max(4,Math.min(HEIGHT-4,box.y+box.height/2)));
+                const afterWheel=await gesture(()=>page.mouse.wheel(Math.ceil(box.width*.82),0));
+                wheel=afterWheel.scroll>0&&afterWheel.visible.includes(1);
+                // Keyboard reachability starts from a fresh initial state,
+                // separate from Chromium's still-settling wheel scroll.
+                await page.setContent(html,{waitUntil:'domcontentloaded',timeout:5000});
+                const atStart=await state();
+                const reached=new Set(atStart.visible);
+                for(let key=0;key<cards&&reached.size<cards;key++){
+                    const after=await gesture(()=>strip.press('ArrowRight',{timeout:1500}));
+                    keyboardOffsets.push(after.scroll);
+                    after.visible.forEach(card=>reached.add(card));
+                    focusVisible=after.focusVisible;
+                    end=after.visible.includes(cards-1)&&Math.abs(after.scroll-after.max)<=2;
+                }
+                keyboard=atStart.scroll===0&&reached.size===cards&&end;
+            }catch(_){keyboard=false;}
+        }
+        const copySha256=createHash('sha256').update(JSON.stringify(before.cards)).digest('hex');
+        checks.push({component,visible:true,cards,copySha256,layout:before.layout,initial,wheel,keyboard,end,focusVisible,keyboardOffsets});
+    }
+    return checks;
+}
+
 const input = [];
 process.stdin.on('data', (chunk) => input.push(chunk));
 process.stdin.on('end', async () => {
@@ -30,7 +107,7 @@ process.stdin.on('end', async () => {
     let crashed = false;
     const evidence = [];
     try {
-        const { html, inspect, extent, tabsRuntime, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
+        const { html, inspect, extent, tabsRuntime, scrollStrips, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
             headless: true, timeout: 10000,
             args: [ '--no-sandbox', '--disable-dev-shm-usage' ],
@@ -47,6 +124,15 @@ process.stdin.on('end', async () => {
         const page = await context.newPage();
         page.on('crash', () => { crashed = true; });
         page.on('popup', (popup) => popup.close().catch(() => {}));
+        if(scrollStrips){
+            for(const width of viewports){
+                await page.setViewportSize({width,height:HEIGHT});
+                await page.setContent(html,{waitUntil:'domcontentloaded',timeout:5000});
+                evidence.push({width,checks:await checkScrollStrips(page,html)});
+            }
+            process.stdout.write(JSON.stringify({evidence}));
+            return;
+        }
         if(tabsRuntime){
             const fixture = 'https://functional.invalid/';
             await page.route(fixture+'document',route=>route.fulfill({contentType:'text/html;charset=utf-8',
@@ -265,7 +351,28 @@ process.stdin.on('end', async () => {
                                 try { fragmentTarget=document.getElementById(decodeURIComponent(href.slice(1)))!==null; }
                                 catch { fragmentTarget=false; }
                             }
+                            const textBox=text?range.getBoundingClientRect():null;
+                            const strip=textBox?el.closest('.wp-block-group.sm-scroll-strip,[data-sm-scroll-reference]'):null;
+                            let scrollContained=false;
+                            if(strip&&strip!==el&&strip.tabIndex===0&&getComputedStyle(strip).overflowX==='auto'&&
+                                strip.scrollWidth>strip.clientWidth+4){
+                                let card=el;
+                                let innerClip=false;
+                                for(let parent=el;parent!==strip;parent=parent.parentElement){
+                                    card=parent;
+                                    if(['clip','hidden'].includes(getComputedStyle(parent).overflowX)){
+                                        const bounds=parent.getBoundingClientRect();
+                                        if(textBox.left<bounds.left-2||textBox.right>bounds.right+2)innerClip=true;
+                                    }
+                                }
+                                const cardBox=card.getBoundingClientRect(),stripBox=strip.getBoundingClientRect();
+                                scrollContained=!innerClip&&card.matches('.wp-block-group,[data-sm-scroll-card]')&&
+                                    getComputedStyle(card).scrollSnapAlign==='start'&&stripBox.left>=-2&&stripBox.right<=innerWidth+2&&
+                                    cardBox.width<=strip.clientWidth+2&&textBox.left>=cardBox.left-2&&textBox.right<=cardBox.right+2;
+                            }
                             const backgroundImage=s.backgroundImage.replace(/url\([^)]*\)/g,'url([asset])');
+                            const localHorizontalScroll=r.width>0&&r.height>0&&['auto','scroll'].includes(s.overflowX)&&
+                                el.scrollWidth>el.clientWidth+4;
                             return { tag: el.tagName.slice(0, 32), id: el.id.slice(0, 128), text: el.children.length ? '' : el.textContent.slice(0, 250),
                                 node: id?.slice(0, 128) ?? null,
                                 classes:[...el.classList].slice(0,12).map(name=>name.slice(0,64)),
@@ -280,7 +387,10 @@ process.stdin.on('end', async () => {
                                     checkText:checkCharacters.slice(0,1000).join(''),checkTextTruncated:checkCharacters.length>1000,
                                 }:{}),
                                 rect: rect(r),
-                                textRect: text ? rect(range.getBoundingClientRect()) : null,
+                                textRect:textBox?rect(textBox):null,
+                                ...(scrollContained?{scrollContained:true}:{}),
+                                ...(localHorizontalScroll?{localHorizontalScroll:true,
+                                    scrollReference:el.getAttribute('data-sm-scroll-reference')?.slice(0,48)??null}:{}),
                                 lineRects: lines,
                                 wrapChangesGeometry,
                                 styles: { ...Object.fromEntries(['color','backgroundColor','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','maxWidth','overflowWrap','padding','margin','gap','display','textAlign','textTransform','textWrapStyle','alignItems','justifyContent','borderRadius'].map(k => [k,s[k].slice(0, 128)])),

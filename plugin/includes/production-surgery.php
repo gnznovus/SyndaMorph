@@ -236,6 +236,8 @@ function syndamorph_surgery_operation(array $plan,array $proposal,array $authori
         if($parent===null||!in_array($parent['type'],array('group','column'),true)) {
             return new WP_Error('sm_surgery_structure','Wrap parent must be an existing group or column.');
         }
+        if(($parent['scrollStrip']??false)===true)
+            return new WP_Error('sm_surgery_structure','A scroll strip must preserve its approved direct cards.');
         $childIds=array_column($parent['children']??array(),'id');
         $start=array_search($children[0],$childIds,true);
         if($start===false||array_slice($childIds,$start,count($children))!==$children) {

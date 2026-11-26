@@ -2,6 +2,7 @@
 /** Native block plan v1: no arbitrary markup, CSS or block attributes. */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 require_once __DIR__.'/production-tabs.php';
+require_once __DIR__.'/production-scroll-strip.php';
 
 function syndamorph_block_plan_decorative_group_rule(): string {
     return 'A nested decorative Group may have no children when it has a minHeight and a background color or gradient. Keep it empty to preserve literal copy.';
@@ -94,6 +95,8 @@ function syndamorph_block_plan_expected(string $reason,string $field,string $blo
         'Expected one root group in a version 1 plan.'=>array('format'=>'Object with version:1 and exactly one root group in blocks[]','example'=>array('version'=>1,'blocks'=>array(array('type'=>'group','children'=>array())))),
         'Unsupported node field.'=>array('format'=>'Only type, id, style, children (containers), text (leaves), level (heading), href (button)','example'=>'Put typography under style.fontSize'),
         'Unsupported style for block.'=>array('format'=>'Only supported native style keys on compatible block types','example'=>'heading.style.fontSize = 2rem'),
+        'Scroll strip needs a unique ID, mobile or compact visibility, and two to six visible Group cards.'=>array(
+            'format'=>'Approved nested Group with scrollStrip:true, its interaction ID, style.visibility and two to six Group children.'),
     );
     if($reason==='Invalid length.' && $styleKey==='margin' && in_array($block,array('group','columns','buttons'),true)) {
         $length['constraint'].=' The margin must be an object with top or bottom keys.';
@@ -171,6 +174,7 @@ function syndamorph_native_core_preview(array $blocks,?array $ids=null): string 
         if(is_readable($path))$css.=file_get_contents($path);
     }
     $css.=WP_Style_Engine::compile_stylesheet_from_css_rules($rules);
+    if(isset($classes['sm-scroll-strip']))$css.=syndamorph_scroll_strip_css();
     $css.='*,*::before,*::after{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;line-height:1.5}';
     return '<style>'.$css.'</style>'.$html;
 }
@@ -191,7 +195,8 @@ function syndamorph_compile_block_plan( string $raw ) {
             ! is_array( $plan['blocks'] ?? null ) || ! array_is_list( $plan['blocks'] ) || count( $plan['blocks'] ) !== 1 || ( $plan['blocks'][0]['type'] ?? '' ) !== 'group' ) {
             throw new InvalidArgumentException( 'Expected one root group in a version 1 plan.' );
         }
-        $count = 0; $headings = 0; $field = 'blocks[0]'; $previewIds = array(); $layoutFacts=array(); $schemaFacts=array(); $tabs=array(); $block='';
+        $count = 0; $headings = 0; $field = 'blocks[0]'; $previewIds = array(); $layoutFacts=array(); $schemaFacts=array();
+        $tabs=array();$scrollStrips=array();$block='';
         $escape = static fn( string $s ): string => htmlspecialchars( $s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' );
         $length = static function ( $v ): string {
             $unit = '[0-9]{1,3}(?:\.[0-9]{1,6})?(?:px|rem|em|vw|vh|svh|dvh)';
@@ -199,7 +204,7 @@ function syndamorph_compile_block_plan( string $raw ) {
             if ( ! is_string( $v ) || ! preg_match( '~^(?:0|' . $unit . '|clamp\(\s*' . $unit . '\s*,\s*' . $unit . '(?:\s+[+-]\s+' . $unit . ')?\s*,\s*' . $unit . '\s*\))$~D', $v ) ) { throw new InvalidArgumentException( 'Invalid length.' ); }
             return $v === '0' ? '0px' : $v;
         };
-        $build = static function ( $node, string $parent, int $depth, string $path ) use ( &$build, &$count, &$headings, &$field, &$previewIds, &$layoutFacts, &$schemaFacts, &$tabs, &$block, $escape, $length ): string {
+        $build = static function ( $node, string $parent, int $depth, string $path ) use ( &$build, &$count, &$headings, &$field, &$previewIds, &$layoutFacts, &$schemaFacts, &$tabs, &$scrollStrips, &$block, $escape, $length ): string {
             $field = $path;$block='';
             if ( ! is_array( $node ) || ++$count > 120 || $depth > 12 ) { throw new InvalidArgumentException( 'Invalid node or plan limit exceeded.' ); }
             $type = $node['type'] ?? '';
@@ -208,7 +213,7 @@ function syndamorph_compile_block_plan( string $raw ) {
             $block=$type;
             $container = in_array( $type, array('group','columns','column','buttons'), true );
             $keys = array_merge(array('type','style','id'),$container?array('children'):($type==='tabs'?array('panels'):array('text')),
-                $type==='heading'?array('level'):array(),$type==='button'?array('href'):array());
+                $type==='heading'?array('level'):array(),$type==='button'?array('href'):array(),$type==='group'?array('scrollStrip'):array());
             if ( $unknown = array_diff( array_keys($node), $keys ) ) {
                 $key = (string) reset($unknown);
                 $field = $path . '.' . preg_replace('/[^a-zA-Z0-9_-]/', '?', substr($key,0,64));
@@ -306,6 +311,22 @@ function syndamorph_compile_block_plan( string $raw ) {
                 } else { throw new InvalidArgumentException('Unsupported style for block.'); }
             }
             if(isset($style['contentAlignment']))$attrs['layout']['justifyContent']=$style['contentAlignment'];
+            if(array_key_exists('scrollStrip',$node)){
+                $field=$path.'.scrollStrip';
+                $id=$node['id']??'';
+                $cards=$node['children']??null;
+                if($node['scrollStrip']!==true||$parent==='root'||!preg_match('/^[a-z][a-z0-9-]{0,47}$/D',$id)||
+                    !in_array($style['visibility']??null,array('mobile','compact'),true)||count($style)!==1||
+                    !is_array($cards)||!array_is_list($cards)||count($cards)<2||count($cards)>6||
+                    array_filter($cards,static fn($card)=>($card['type']??null)!=='group'||isset($card['style']['visibility'])||isset($card['scrollStrip']))||
+                    isset($scrollStrips[$id])||count($scrollStrips)>=4)
+                    throw new InvalidArgumentException('Scroll strip needs a unique ID, mobile or compact visibility, and two to six visible Group cards.');
+                $attrs['layout']['orientation']='horizontal';
+                $attrs['layout']['flexWrap']='nowrap';
+                $attrs['className'].=' sm-scroll-strip';
+                $scrollStrips[$id]=array('visibility'=>$style['visibility'],'cards'=>count($cards));
+                $schemaFacts['horizontal-scroll-strip']=true;
+            }
             if(isset($attrs['layout'])||isset($attrs['style']['spacing']['blockGap'])) {
                 $layoutFacts[$node['id']??$path]=array('layout'=>$attrs['layout']??null,
                     'blockGap'=>$attrs['style']['spacing']['blockGap']??null);
@@ -430,12 +451,14 @@ function syndamorph_compile_block_plan( string $raw ) {
             class_exists('WP_HTML_Tag_Processor');
         $preview=$corePreview?syndamorph_native_core_preview($parsedBlocks,$previewIds):'<style>'.$layoutCss.'</style>'.$preview;
         if(!$corePreview&&$tabs)$preview='<style>'.syndamorph_tabs_asset('production-tabs.css').'</style>'.$preview;
+        if(!$corePreview&&$scrollStrips)$preview='<style>'.syndamorph_scroll_strip_css().'</style>'.$preview;
         if(str_contains($content,'"className":"sm-view-'))$preview='<style>'.syndamorph_native_visibility_css().'</style>'.$preview;
         return array('schemaVersion'=>1,'content'=>$content,'preview'=>$preview,'blockCount'=>$count,
             'previewRendering'=>$corePreview?'wordpress-core':'standalone','layoutFacts'=>$layoutFacts,
             'layoutNotes'=>array_values(array_unique($layoutNotes)),'schemaFacts'=>array_keys($schemaFacts),
             'tabWidgets'=>$tabs,
-            'checks'=>array('valid_plan'=>true,'native_blocks_only'=>true,'contains_heading'=>$headings>0,'no_active_markup'=>true));
+            'checks'=>array('valid_plan'=>true,'native_blocks_only'=>true,'contains_heading'=>$headings>0,'no_active_markup'=>true))+
+            ($scrollStrips?array('scrollStrips'=>$scrollStrips):array());
     } catch ( InvalidArgumentException | JsonException $e ) { return new WP_Error('sm_block_plan_invalid','Native block plan rejected: '.$e->getMessage(),array('status'=>422,'field'=>$field ?? 'plan','block'=>$block??'','expected'=>syndamorph_block_plan_expected($e->getMessage(),$field ?? 'plan',$block??''))); }
     catch ( Throwable $e ) { return new WP_Error('sm_block_plan_system','Native block compilation encountered an internal error.',array('status'=>500)); }
 }

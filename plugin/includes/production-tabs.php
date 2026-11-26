@@ -103,17 +103,26 @@ function syndamorph_tabs_design_copy(string $html,array $interactions): array {
 function syndamorph_tabs_verify(array $artifact,array $widths,array $interactions=array(),array $designTabs=array(),
     array $nativeChecks=array()): array {
     $expected=$artifact['tabWidgets']??array();
-    if(!$expected&&!$interactions)
+    $strips=$artifact['scrollStrips']??array();
+    if(!$expected&&!$interactions&&!$strips)
         return array('status'=>'not_applicable','viewports'=>array());
     $receipt=array('artifactSha256'=>hash('sha256',$artifact['content']),'viewports'=>array(),
         'requestedWidths'=>$widths,'status'=>'pending','blockers'=>array(),'nativeChecks'=>$nativeChecks);
-    $planned=array();
+    $planned=array();$plannedStrips=array();$scrollFailed=false;
     foreach($interactions as $interaction){
         if($interaction['kind']==='tabs' && in_array($interaction['classification'],array('reusable','new_special'),true))
             $planned[$interaction['id']]=true;
+        elseif($interaction['kind']==='horizontal-scroll'&&$interaction['classification']==='native'){
+            $id=$interaction['id'];$plannedStrips[$id]=true;
+            $scrollFailed=$scrollFailed||(($nativeChecks[$id]['status']??null)==='failed');
+            if(!isset($strips[$id])||($nativeChecks[$id]['status']??null)!=='verified')
+                $receipt['blockers'][]=array('id'=>$id,'reason'=>'independent_scroll_proof_missing_or_failed');
+        }
         elseif(($nativeChecks[$interaction['id']]['status']??null)!=='verified')
             $receipt['blockers'][]=array('id'=>$interaction['id'],'reason'=>'independent_functional_test_unavailable');
     }
+    foreach(array_diff_key($strips,$plannedStrips) as $id=>$_)
+        $receipt['blockers'][]=array('id'=>$id,'reason'=>'scroll_strip_not_in_specification');
     foreach(array_diff_key($planned,$expected) as $id=>$_)
         $receipt['blockers'][]=array('id'=>$id,'reason'=>'implementation_missing');
     foreach(array_diff_key($expected,$planned) as $id=>$_)
@@ -123,7 +132,8 @@ function syndamorph_tabs_verify(array $artifact,array $widths,array $interaction
             $receipt['blockers'][]=array('id'=>$id,'reason'=>'approved_panel_copy_mismatched_or_unavailable');
     }
     if(!$expected){
-        if(!$receipt['blockers'])$receipt['status']='passed';
+        if($scrollFailed)$receipt['status']='failed';
+        elseif(!$receipt['blockers'])$receipt['status']='passed';
         return $receipt;
     }
     $url=getenv('SYNDAMORPH_RENDERER_URL');
@@ -133,7 +143,7 @@ function syndamorph_tabs_verify(array $artifact,array $widths,array $interaction
         return $receipt;
     }
     $receipt['runtimeSha256']=hash('sha256',$script);
-    $passed=true;
+    $passed=!$scrollFailed;
     foreach(array_chunk($widths,5) as $batch){
         $payload=wp_json_encode(array('html'=>$artifact['preview'],'runtime'=>$script,'viewports'=>$batch));
         $response=wp_remote_post('http://renderer:3000/check-tabs',array('timeout'=>65,'redirection'=>0,
@@ -175,6 +185,7 @@ function syndamorph_functional_acceptance(array $final,string $checksum): bool {
     $receipt=$final['quality']['functionalChecks']??null;
     if($receipt===null||($receipt['status']??null)==='not_applicable'){
         return !str_contains($final['artifact']['content']??'','<!-- wp:syndamorph/tabs ')&&
+            !str_contains($final['artifact']['content']??'',' sm-scroll-strip')&&
             empty($final['designApproval']['productionSpecification']['interactions']);
     }
     return ($receipt['status']??null)==='passed'&&($receipt['artifactSha256']??null)===$checksum;

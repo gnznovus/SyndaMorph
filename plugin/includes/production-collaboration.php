@@ -638,7 +638,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $boss=$archivedAssignment===null?($resume['planningText']??$call('boss','Classify the job into a concise production specification. Return ONLY JSON {"version":1,"title":"short job title","sections":[{"id":"hero","label":"Hero","parent":null}],"requirements":[{"id":"hero-heading","target":"hero","dimension":"content","basis":"brief","requirement":"required result","acceptance":"observable pass condition"}]}. Put parents before children. A target is a section ID or page. Use short lowercase IDs, up to 12 sections and 24 requirements. Dimensions are content, visual, responsive, functional, implementation, accessibility. Basis is brief, source, or standard. Capture each explicit requirement, use the supplied viewport widths, and record unknown dependencies as verification needs. For directly stated browser assertions use optional check {kind:text|element|link|style|center,selector:one simple tag/.class/#id,value:expected literal,field:computed property for style,widths:optional exact widths}. A center check measures horizontal placement in the viewport. Style can check paddingTop or paddingBottom. Text needs a value, element and center need a selector, link needs both. Never invent a selector or asserted value. For an unsourced brief, permit generic marketing copy and provisional local CTAs without invented real-world facts.'.$sourceNote.$touchNote,
         array('brief'=>$brief,'viewportWidths'=>$viewports,'interactionClassification'=>array(
             'classes'=>array('native','reusable','new_special','external','unsupported'),
-            'supported'=>array('tabs'=>'reusable local Content Tabs block, two to six editable text panels'),
+            'supported'=>array('tabs'=>'reusable local Content Tabs block, two to six editable text panels',
+                'horizontal-scroll'=>'native compact or mobile Group strip with two to six editable cards, 80% card basis, 12px gap, 20px end padding and start snapping'),
             'tabsProofChecksByDimension'=>syndamorph_tabs_proof_contract(),
             'tabInteractionExample'=>array('id'=>'stay-tabs','kind'=>'tabs','classification'=>'reusable',
                 'requirementId'=>'initial-tab','behavior'=>'Start on the first tab and switch by click or keyboard.',
@@ -666,6 +667,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     }
     $tabsDesignNote=in_array('tabs',array_column($interactions,'kind'),true)?
         ' For each classified tabs interaction include a wrapper with data-sm-tabs-reference equal to the exact interaction ID. Inside the wrapper place each panel in an ordered direct child with a unique data-sm-tab-panel ID. Mark its heading and body with data-sm-tab-heading and data-sm-tab-body. Give its label via data-sm-tab-label or a directly owned tablist button with matching aria-labelledby and aria-controls. Show the first panel and hide inactive panel content. Do not add script or runtime behavior.':'';
+    $scrollIds=array_column(array_filter($interactions,static fn($interaction)=>
+        $interaction['kind']==='horizontal-scroll'&&$interaction['classification']==='native'),'id');
+    $scrollDesignNote=$scrollIds?
+        ' For a native horizontal-scroll interaction, use data-sm-scroll-reference equal to the interaction ID, role="group", a descriptive aria-label, tabindex="0", and data-sm-scroll-card on each visible direct card. Use a single local horizontal flex row with no wrap, 80% card basis, 12px gap, 20px inline end padding, mandatory x-axis start snapping and visible keyboard focus. Only show the strip in its approved compact or mobile variant. Its field in native JSON is scrollStrip:true on a nested Group, with style.visibility mobile or compact as its only style, and two to six Group children.': '';
     $touchScenarios=syndamorph_production_touch_scenarios($GLOBALS['syndamorph_touch_receipts']);
     $touchContext=$touchScenarios?array('touchScenarios'=>$touchScenarios):array();
     $outputs['boss']=wp_json_encode($bossBrief);
@@ -677,7 +682,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
 
     // Designer owns the visual deliverable; Boss reviews real browser evidence
     // before the Developer receives the approved reference.
-    $reference=$resume['referenceHtml']??$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Use the 1440px view for design identity and adapt continuously through 375px. Account for required checkpoints, neighboring breakpoint widths, and intermediate sizes. Use fluid containers and type while preserving content, hierarchy and required states. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.'.$sourceNote.$tabsDesignNote,
+    $reference=$resume['referenceHtml']??$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Use the 1440px view for design identity and adapt continuously through 375px. Account for required checkpoints, neighboring breakpoint widths, and intermediate sizes. Use fluid containers and type while preserving content, hierarchy and required states. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.'.$sourceNote.$tabsDesignNote.$scrollDesignNote,
         array('brief'=>$brief,'requirements'=>$bossBrief)+$sourceContext+$touchContext,
         syndamorph_collab_output_cap($provider,$model),$sourceImages);
     if(is_wp_error($reference))return $reference;
@@ -734,7 +739,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             }
         }
         $measurements=syndamorph_memory_measurements($inspectReference);
-        $nativeConstraints=syndamorph_reference_unrealizable($inspectReference);
+        $nativeConstraints=syndamorph_reference_unrealizable($inspectReference,$scrollIds);
         $reviewContext=array('requirements'=>$brief,'referenceSha256'=>hash('sha256',$reference),
             'availableTools'=>syndamorph_production_tool_catalog('boss'),
             'verificationEvidence'=>$pendingToolEvidence,
@@ -1039,7 +1044,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews,'agentPayload'=>$approval,
         'specificationReceipt'=>$specificationReceipt);
     if($on_event)$on_event('handoff',end($handoffs));
-    $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON using the cached compiler contract. Preserve content and visual intent. For classified tabs use the exact interaction ID as the tabs node ID and retain the exact panel IDs, order, labels, headings and copy from design.tabPanelSpecification. Return JSON only. Close the complete root blocks array and document.'.$sourceNote,
+    $developer=$call('developer','Translate the HTML reference into native Gutenberg JSON using the cached compiler contract. Preserve content and visual intent. For classified tabs use the exact interaction ID as the tabs node ID and retain the exact panel IDs, order, labels, headings and copy from design.tabPanelSpecification. Return JSON only. Close the complete root blocks array and document.'.$sourceNote.
+        ($scrollDesignNote!==''?' For a native horizontal-scroll interaction, use the exact interaction ID as the Group ID, scrollStrip:true and style.visibility mobile or compact, matching the approved reference. Keep two to six native Group cards with the approved order and copy.':'') ,
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,
             'imageOrder'=>array_intersect_key($viewports,array_flip($visionViewports)),
             'learnedRules'=>$useLearning?syndamorph_learning_retrieve('developer'):array(),
@@ -1742,6 +1748,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         if($interaction['classification']==='native'&&$interaction['kind']==='link'&&($check['kind']??'')==='link')
             $nativeChecks[$interaction['id']]=syndamorph_design_run_check($check,$best['evidence']);
     }
+    $nativeChecks=syndamorph_scroll_strip_verify($artifact,$viewports,$reference)+$nativeChecks;
     $functional=syndamorph_tabs_verify($artifact,$viewports,$interactions,$designMemo['tabPanelSpecification'],$nativeChecks);
     if(!in_array($functional['status'],array('not_applicable','passed'),true)){
         $status='uncompleted';

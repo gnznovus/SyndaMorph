@@ -175,6 +175,14 @@ The guard was checked against the actual GEN-000056 record. Its previously verif
 
 The isolated Section and Full Page browser regression passed with 43 mocked model responses. It verified that a pending design decision keeps its region held while another region runs and completes its own QA. The ordinary Full Page fixture also completed partial-to-full assembly, native block validation, and full-extent, first-fold and intermediate responsive checks.
 
+## v0.12.17 native scroll strip capability
+
+Designer can describe a classified horizontal scroll strip with explicit reference and card markers. Developer can use `scrollStrip: true` on a nested core Group with its approved interaction ID, `style.visibility` set to `mobile` or `compact`, and two to six direct editable Group cards. The shared stylesheet follows the measured BKKGO layout with an 80% card basis, a 12 px gap, 20 px inline-end padding, and mandatory start snapping. WordPress supplies a focusable, named group when it renders the block. Layout surgery preserves the direct card boundaries.
+
+The isolated renderer uses native wheel and arrow-key actions from separate initial states with document scripts disabled. The functional receipt checks the first and last positions, every card, visible focus, exact viewport visibility and ordered copy against the approved reference. Unclassified strips, clipped substitutes and changed card copy fail the gate. Responsive checks retain document overflow and inner clipping failures while recognizing reachable text in a measured local scroll area.
+
+The pinned BKKGO capture supplied three SIP & DINE cards and two Exclusive Offers cards, including the empty second offer card. Both compiled into an isolated WordPress draft and passed native behavior and exact ordered card copy at 1440, 1024, 1023, 768, 600, 599 and 375 px. The draft rendered zero, one and two active strips at the three mandatory widths respectively. A card edit survived Gutenberg save and reload with all 13 blocks valid. The draft establishes the reusable block capability. Source admission still needs an exact captured-control and Touch binding before either region can enter live source acceptance.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)

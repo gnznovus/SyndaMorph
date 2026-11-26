@@ -246,7 +246,7 @@ function syndamorph_reference_capability_notes(string $html): array {
  * Active effects that the native section contract cannot render. The renderer
  * supplies observed style and geometry at the requested widths.
  */
-function syndamorph_reference_unrealizable(array $samples): array {
+function syndamorph_reference_unrealizable(array $samples,array $approvedScrollIds=array()): array {
     $features=array();$controlWidths=array();
     foreach($samples as $sample) {
         $width=$sample['width'];
@@ -258,6 +258,13 @@ function syndamorph_reference_unrealizable(array $samples): array {
         foreach($sample['snapshot']['elements']??array() as $index=>$element) {
             $tag=$element['tag']??'';
             $target=mb_substr((string)($element['normalizedText']??$element['text']??''),0,110);
+            if(($element['localHorizontalScroll']??false)===true&&
+                !in_array($element['scrollReference']??null,$approvedScrollIds,true)){
+                $key='unclassified-horizontal-scroll|'.$index;
+                $features[$key]['capability']='unclassified-horizontal-scroll';
+                $features[$key]['target']=$element['scrollReference']??'section';
+                $features[$key]['views'][$width]='Horizontal scroll area needs an approved native interaction.';
+            }
             $wrap=$element['styles']['textWrapStyle']??null;
             if(in_array($wrap,array('balance','pretty'),true) && ($element['wrapChangesGeometry']??false)===true) {
                 $key='text-wrap|'.$index;
