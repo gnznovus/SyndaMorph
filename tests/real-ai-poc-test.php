@@ -2050,3 +2050,49 @@ expect($normal===null&&$expected===$recovered&&$boundaryRepair['appended']===']}
 expect(syndamorph_decode_developer_plan(substr($complete,0,-3),$invalidRepair)===null&&$invalidRepair===null,
     'A partial root block was guessed.');
 echo "PASS: bounded outer Developer JSON recovery preserves every authored field\n";
+
+require_once dirname(__DIR__).'/plugin/includes/production-scope-source.php';
+$sourceTrial=static function(array $ratios,bool $mobileLinks):array{
+    $visual=array();$markup=array();
+    foreach(SYNDAMORPH_SOURCE_WIDTHS as $index=>$width){
+        $visual[]=array('width'=>$width,'pixelDifferenceRatio'=>$ratios[$index],'heightPassed'=>true,
+            'passed'=>$ratios[$index]<=0.015,'nativeHeight'=>400);
+        $markup[]=array('width'=>$width,'literalContent'=>true,'links'=>$width!==375||$mobileLinks,
+            'assets'=>true,'functions'=>true);
+    }
+    return array('sourceSha256'=>str_repeat('a',64),'passed'=>false,'visual'=>array('views'=>$visual),
+        'markup'=>array('views'=>$markup));
+};
+$before=$sourceTrial(array(0.009,0.026,0.052),false);
+$improved=$sourceTrial(array(0.009,0.021,0.044),true);
+$comparison=syndamorph_source_surgery_comparison($before,$improved);
+expect($comparison['improved']&&empty($comparison['regressions'])&&!$improved['passed'],
+    'A localized improvement must be retained without treating it as approved source fidelity.');
+$regressed=$sourceTrial(array(0.016,0.013,0.031),false);
+$regressed['visual']['views'][2]['heightPassed']=false;
+$comparison=syndamorph_source_surgery_comparison($improved,$regressed);
+expect(array_column($comparison['regressions'],'code')===array('source-visual-gate-regressed',
+    'source-height-gate-regressed','source-markup-gate-regressed'),
+    'A lower aggregate difference must preserve any verified source width, height and links.');
+$missing=$improved;
+array_pop($missing['visual']['views']);
+expect(in_array('source-width-evidence-lost',array_column(
+    syndamorph_source_surgery_comparison($before,$missing)['regressions'],'code'),true),
+    'Missing source evidence must roll surgery back.');
+expect(array_column(syndamorph_source_surgery_comparison($improved,$improved)['regressions'],'code')===
+    array('source-surgery-no-improvement'),'Unchanged source evidence must not consume another repair round.');
+echo "PASS: source surgery preserves per-width evidence and ranks incomplete improvements\n";
+
+$root=array('node'=>'root','rect'=>array(0,0,900,300));
+$column=array('parent'=>0,'rect'=>array(115,20,670,250),'styles'=>array('padding'=>'0px'));
+$referenceElements=array($root,$column,array('parent'=>1),array('parent'=>2));
+expect(syndamorph_repair_reference_frame($referenceElements,array(array('reference'=>array('parent'=>3)),
+    array('reference'=>array('parent'=>1))))===$column,'Nested interactive text must use its nearest shared layout frame.');
+expect(syndamorph_repair_reference_frame($referenceElements,array(array('reference'=>array('parent'=>3)),
+    array('reference'=>array('parent'=>4))))===null,'Incomplete ancestry must not imply a shared frame.');
+$tabs=array('type'=>'tabs','id'=>'hotel-tabs','panels'=>array(array('id'=>'stay','body'=>'Visible'),
+    array('id'=>'arrival','body'=>'Hidden until selected')));
+$changed=$tabs;$changed['panels'][1]['body']='Changed hidden copy';
+expect(syndamorph_repair_content_signature($tabs)!==syndamorph_repair_content_signature($changed),
+    'Surgery must preserve inactive tab content and panel identity.');
+echo "PASS: nested interactive layout evidence and content signatures\n";

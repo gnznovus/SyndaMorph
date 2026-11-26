@@ -155,3 +155,51 @@ function syndamorph_source_issue(array $review,string $owner): array {
         'severity'=>'high','critical'=>true,'source'=>'browser','scoreGroup'=>'source|'.$owner,
         'detail'=>'The native section did not pass the required pinned source content and viewport comparisons.');
 }
+
+/** Rank verified repairs without altering the source acceptance policy. */
+function syndamorph_source_surgery_comparison(array $before,array $after): array {
+    $result=array('views'=>array(),'regressions'=>array(),'improved'=>false);
+    if(!hash_equals((string)($before['sourceSha256']??''),(string)($after['sourceSha256']??''))||
+        empty($before['sourceSha256'])||($before['layoutAuthorization']??null)!==($after['layoutAuthorization']??null)){
+        $result['regressions'][]=array('code'=>'source-identity-changed','target'=>'section');
+        return $result;
+    }
+    $views=array_column($before['visual']['views']??array(),null,'width');
+    $candidate=array_column($after['visual']['views']??array(),null,'width');
+    $markupBefore=array_column($before['markup']['views']??array(),null,'width');
+    $markupAfter=array_column($after['markup']['views']??array(),null,'width');
+    $identityBefore=array_column($before['layoutIdentity']??array(),'matched','width');
+    $identityAfter=array_column($after['layoutIdentity']??array(),'matched','width');
+    $delta=0.0;
+    foreach(SYNDAMORPH_SOURCE_WIDTHS as $width){
+        $previous=$views[$width]??array();
+        $next=$candidate[$width]??array();
+        $a=$previous['pixelDifferenceRatio']??null;
+        $b=$next['pixelDifferenceRatio']??null;
+        if(!is_numeric($a)||!is_numeric($b)||!is_finite((float)$a)||!is_finite((float)$b)||
+            !isset($markupBefore[$width],$markupAfter[$width])){
+            $result['regressions'][]=array('code'=>'source-width-evidence-lost','width'=>$width,'target'=>'section');
+            continue;
+        }
+        $result['views'][]=array('width'=>$width,'pixelBefore'=>$a,'pixelAfter'=>$b,
+            'heightBefore'=>$previous['nativeHeight']??null,'heightAfter'=>$next['nativeHeight']??null);
+        if(($previous['passed']??false)&&!($next['passed']??false))
+            $result['regressions'][]=array('code'=>'source-visual-gate-regressed','width'=>$width,'target'=>'section');
+        if(($previous['heightPassed']??null)===true&&($next['heightPassed']??null)!==true)
+            $result['regressions'][]=array('code'=>'source-height-gate-regressed','width'=>$width,'target'=>'section');
+        if(($identityBefore[$width]??null)===true&&($identityAfter[$width]??null)!==true)
+            $result['regressions'][]=array('code'=>'source-layout-identity-regressed','width'=>$width,'target'=>'section');
+        foreach(array('literalContent','links','assets','functions') as $gate){
+            $old=$markupBefore[$width][$gate]??null;
+            $new=$markupAfter[$width][$gate]??null;
+            if($old===true&&$new!==true)$result['regressions'][]=array(
+                'code'=>'source-markup-gate-regressed','width'=>$width,'target'=>$gate);
+            if($old===false&&$new===true)$result['improved']=true;
+        }
+        if(empty($previous['layoutDeviationAuthorized']))$delta+=$b-$a;
+    }
+    if($delta<0||(!empty($after['passed'])&&empty($before['passed'])))$result['improved']=true;
+    if(empty($before['passed'])&&empty($after['passed'])&&!$result['improved'])
+        $result['regressions'][]=array('code'=>'source-surgery-no-improvement','target'=>'section');
+    return $result;
+}

@@ -801,6 +801,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $elementIds=syndamorph_design_element_ids($inspectReference);
         if($designTrial!==null){
             $regressions=syndamorph_design_responsive_regressions($designTrial['responsive'],$responsive);
+            $sourceDelta=$sourceDesign!==null&&isset($designTrial['sourceReview'])?
+                syndamorph_source_surgery_comparison($designTrial['sourceReview'],$sourceDesign):null;
+            if($sourceDelta!==null)array_push($regressions,...$sourceDelta['regressions']);
             foreach(array_diff($designTrial['elementIds'],$elementIds) as $identity)
                 $regressions[]=array('code'=>'component-identity-removed','target'=>$identity);
             if($designTrial['sourcePassed']===true&&$sourcePassed===false)
@@ -809,13 +812,16 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 $reference=$designTrial['reference'];
                 $priorDesignDiff=array('status'=>'rolled_back','candidateSha256'=>$referenceHash,
                     'retainedSha256'=>hash('sha256',$reference),'regressions'=>$regressions);
+                if($sourceDelta!==null)$priorDesignDiff['sourceMeasurements']=$sourceDelta['views'];
                 if($on_event)$on_event('design_surgery',array('round'=>$designRound)+$priorDesignDiff);
                 $pendingToolEvidence=array('source'=>'playwright.designer','surgery'=>$priorDesignDiff);
                 $designTrial=null;
                 continue;
             }
+            if($sourceDelta!==null)$priorDesignDiff['sourceMeasurements']=$sourceDelta['views'];
             if($on_event)$on_event('design_surgery',array('status'=>'responsive_checked','round'=>$designRound,
-                'candidateSha256'=>$referenceHash,'priorSha256'=>hash('sha256',$designTrial['reference'])));
+                'candidateSha256'=>$referenceHash,'priorSha256'=>hash('sha256',$designTrial['reference']))+
+                ($sourceDelta===null?array():array('sourceMeasurements'=>$sourceDelta['views'])));
             $designTrial=null;
         }
         if($on_event&&!isset($savedDesigns[$referenceHash])){
@@ -1002,7 +1008,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 array('stage'=>'design_approval','cause'=>$surgical->get_error_code(),'issues'=>$handoff['issues']));
         }else{
             $designTrial=array('reference'=>$reference,'responsive'=>$responsive,
-                'sourcePassed'=>$sourcePassed,'elementIds'=>$elementIds);
+                'sourcePassed'=>$sourcePassed,'sourceReview'=>$sourceDesign,'elementIds'=>$elementIds);
             $reference=$surgical['reference'];
             $pendingToolEvidence=null;
             $priorDesignDiff=array('beforeHash'=>hash('sha256',$beforeReference),

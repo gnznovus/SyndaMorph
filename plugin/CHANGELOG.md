@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.11] - 2026-11-26
+
+### Fixed
+- Designer surgery measures per-width source, markup and height preservation before promotion. An incomplete candidate may retain a measured improvement while source approval remains gated.
+- Developer's measured alignment repair recognizes a shared reference container across nested interactive content. Tabs panel identity and inactive copy remain protected during structural repair.
+
+### Verified
+- A bounded patch to GEN-000051 removed three invented links, preserved source copy at all three required widths and passed all 15 responsive samples. Source pixel difference at 375 px fell from 5.265% to 4.450%. Source approval remains open.
+- Two native layout edits to GEN-000055 reduced mobile visual difference from 2.456% to 1.788%. The patched artifact passed native checks, six functional requirements, eight responsive samples and isolated Gutenberg edit, save and reload. Visual acceptance remains open.
+
 ## [0.12.10] - 2026-11-26
 
 ### Fixed

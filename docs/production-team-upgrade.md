@@ -108,6 +108,21 @@ GEN-000055 used live planning, design, design review, a targeted design correcti
 
 Tabs design proof now also recognizes reciprocal in-widget ARIA references for a visible label. In the offline recovery of the archived response, the existing normalizer moved two layout properties under style and the two panel IDs were explicitly aligned to the frozen design. No copy was changed in recovery. Artifact `44d8561fb20de9480cf610e60ec635de20b9b535592109f4127060ac3ac2cf9a` passed all six linked tab checks, all eight responsive samples, and Gutenberg edit, save, reload, and frontend interaction at 1440, 768 and 375 px. The recovered artifact still measured 1.047%, 1.491%, and 2.456% visual differences at those widths. Its visual acceptance remains open and the original job retains its failure status.
 
+## v0.12.11 source and native surgery checkpoint
+
+Designer surgery now compares each required source viewport before retaining a scoped edit. Loss of a passing visual or height check, verified responsive layout identity, literal copy, exact links, assets or functions rolls back the operation. Partial improvement can be retained while the existing source approval thresholds remain enforced. The surgery receipt includes the before and after measurements.
+
+Developer's deterministic Stack repair uses the nearest shared measured reference container when matching visible text is nested across several branches. This lets the same repair reach a constrained Group that contains a native Tabs block. Structural surgery also protects the exact Tabs component and panel records, including inactive copy.
+
+| Archived job | 1440 px | 768 px | 375 px | Verified after repair |
+| --- | ---: | ---: | ---: | --- |
+| GEN-000051 | 1.875% → 1.796% | 2.668% → 2.100% | 5.265% → 4.450% | Exact copy and links at all mandatory widths. All 15 responsive samples passed. |
+| GEN-000055 | 1.047% → 0.641% | 1.491% → 1.093% | 2.456% → 1.788% | Native blocks, all six functional requirements, eight responsive samples, and Gutenberg edit, save, reload and keyboard operation. |
+
+GEN-000051's archived reference used placeholder anchors for source labels that had no link or control behavior. The bounded edits restore label semantics and adjust scoped typography, borders, spacing and the compact grid gap. The archived source uses embedded Beausite faces. Reproducing those fonts through the native pipeline still requires evidence and a supported asset contract. Candidate SHA-256 `1de1e06d72bfd891a9ddbb433268b776baeb70847cb44b7b0c7b826404f83755` remains below acceptance. Its archived final review transport failure is still open at this checkpoint.
+
+GEN-000055's native Stack allocated its constrained Group at the start edge and introduced extra nested padding. The measured repair changed only the Stack's `justifyContent` and the column's padding. Candidate SHA-256 `06d8d11cda916c7991cd8a6857cebe9424253e5ca22d6f61c32b25ead01131ac` was tested from isolated WordPress draft 41. The frozen sketch renders shorter browser-default tab controls than the verified native controls. Visual acceptance remains open. These archived replays used zero new model calls and created no publication.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)

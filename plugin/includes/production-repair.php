@@ -284,8 +284,26 @@ function syndamorph_reference_unrealizable(array $samples): array {
 function syndamorph_repair_content_signature(array $node): array {
     $result=array();
     if(isset($node['text']))$result[]=array('text'=>$node['text'],'href'=>$node['href']??null,'type'=>$node['type']??null);
+    if(($node['type']??null)==='tabs')$result[]=array('type'=>'tabs','id'=>$node['id']??null,'panels'=>$node['panels']??null);
     foreach($node['children']??array() as $child)if(is_array($child))$result=array_merge($result,syndamorph_repair_content_signature($child));
     return $result;
+}
+
+/** Find the nearest documented common container across distinct paired text branches. */
+function syndamorph_repair_reference_frame(array $elements,array $pairs): ?array {
+    $common=null;
+    foreach($pairs as $pair){
+        $parent=$pair['reference']['parent']??null;
+        $chain=array();
+        while(is_int($parent)&&isset($elements[$parent])&&!isset($chain[$parent])){
+            $chain[$parent]=true;
+            $parent=$elements[$parent]['parent']??null;
+        }
+        $common=$common===null?$chain:array_intersect_key($common,$chain);
+        if(!$common)return null;
+    }
+    $key=$common?array_key_first($common):null;
+    return $key===null?null:$elements[$key];
 }
 
 /**
@@ -305,9 +323,10 @@ function syndamorph_repair_constrained_parent(array $node,array $reference,array
         $out=$native[$i]['snapshot']['elements']??array();
         $bounded=array_values(array_filter($out,static fn($el)=>($el['node']??null)===$inner['id']));
         $pairs=syndamorph_collab_pairs($ref,$out,array('blocks'=>array($node)));
-        $parents=array_values(array_unique(array_column(array_column($pairs,'reference'),'parent')));
-        if(count($pairs)<2||count($parents)!==1||!isset($ref[$parents[0]],$out[0],$bounded[0]))return null;
-        $frame=$ref[$parents[0]];
+        $pairs=array_values(array_filter($pairs,static fn($pair)=>
+            ($pair['reference']['visible']??true)&&($pair['native']['visible']??true)));
+        $frame=count($pairs)>=2?syndamorph_repair_reference_frame($ref,$pairs):null;
+        if($frame===null||!isset($out[0],$bounded[0]))return null;
         $root=$ref[0]['rect']??array();$r=$frame['rect']??array();$n=$bounded[0]['rect']??array();
         $nativeRoot=$out[0]['rect']??array();
         if(count($root)!==4||count($r)!==4||count($n)!==4||count($nativeRoot)!==4||
