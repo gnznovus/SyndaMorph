@@ -353,6 +353,8 @@ function syndamorph_source_verify_markup(array $source,array $evidence): array {
                 ((!$expectedStrips&&!$expectedDisclosures)||($evidence[$index]['width']??null)===$width)&&
                 ($literal['scrollStrips']??array())===$expectedStrips&&
                 ($literal['disclosures']??array())===$expectedDisclosures);
+        if(!$view['literalContent'])
+            $view['copyDifference']=syndamorph_source_copy_difference($expectedText,is_string($actualText)?$actualText:null);
         if(!$view['functions']&&$profile!==null)$view['scrollDifference']=array('expected'=>$expectedStrips,
             'observed'=>$literal['scrollStrips']??null);
         if(!$view['links']){
@@ -366,6 +368,35 @@ function syndamorph_source_verify_markup(array $source,array $evidence): array {
         $verdict[]=$view;
     }
     return array('passed'=>!array_filter($verdict,static fn($row)=>in_array(false,$row,true)),'views'=>$verdict);
+}
+
+/** Describe exact measured copy disagreement without inferring it from clipped element summaries. */
+function syndamorph_source_copy_difference(string $expected,?string $observed): array {
+    if($observed===null)return array('kind'=>'missing_evidence');
+    $a=$expected===''?array():explode(' ',$expected);
+    $b=$observed===''?array():explode(' ',$observed);
+    $aLength=count($a);
+    $bLength=count($b);
+    $start=0;
+    while($start<min($aLength,$bLength)&&$a[$start]===$b[$start])$start++;
+    $trailing=0;
+    while($trailing<min($aLength,$bLength)-$start&&$a[$aLength-$trailing-1]===$b[$bLength-$trailing-1])
+        $trailing++;
+    $caseOnly=$aLength===$bLength&&mb_strtolower($expected,'UTF-8')===mb_strtolower($observed,'UTF-8');
+    if($caseOnly){
+        $differences=array();$count=0;
+        for($i=$start;$i<$aLength-$trailing;$i++){
+            if($a[$i]===$b[$i])continue;
+            $count++;
+            if(count($differences)<6)$differences[]=array('wordIndex'=>$i,'expected'=>mb_substr($a[$i],0,80),'observed'=>mb_substr($b[$i],0,80));
+        }
+        return array('kind'=>'case_only','changedWordCount'=>$count,'caseDifferences'=>$differences);
+    }
+    $excerpt=static fn(array $words,int $length): string =>
+        mb_substr(implode(' ',array_slice($words,$start,min(8,$length-$start-$trailing))),0,220);
+    return array('kind'=>'literal_mismatch','wordIndex'=>$start,
+        'expected'=>$excerpt($a,$aLength),'observed'=>$excerpt($b,$bLength),
+        'expectedChangedWords'=>$aLength-$start-$trailing,'observedChangedWords'=>$bLength-$start-$trailing);
 }
 
 function syndamorph_source_review(array $source,string $html,?array $authorization=null): array {
@@ -433,6 +464,8 @@ function syndamorph_source_surgery_comparison(array $before,array $after): array
             'heightBefore'=>$previous['nativeHeight']??null,'heightAfter'=>$next['nativeHeight']??null);
         if(($previous['passed']??false)&&!($next['passed']??false))
             $result['regressions'][]=array('code'=>'source-visual-gate-regressed','width'=>$width,'target'=>'section');
+        elseif($b>$a&&empty($previous['layoutDeviationAuthorized']))
+            $result['regressions'][]=array('code'=>'source-pixel-difference-increased','width'=>$width,'target'=>'section');
         if(($previous['heightPassed']??null)===true&&($next['heightPassed']??null)!==true)
             $result['regressions'][]=array('code'=>'source-height-gate-regressed','width'=>$width,'target'=>'section');
         if(($identityBefore[$width]??null)===true&&($identityAfter[$width]??null)!==true)

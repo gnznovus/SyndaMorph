@@ -78,7 +78,9 @@ function syndamorph_production_tool_evidence(array $samples,string $reason='',ar
         $raw=(array)($sample['snapshot']['elements']??array());
         if(isset($query['selector']))$raw=array_values(array_filter($raw,
             static fn($element)=>syndamorph_design_matches($element,$query['selector'])));
-        foreach(array_slice($raw,0,40) as $element){
+        $displayed=array_filter($raw,static fn($element)=>($element['visible']??null)===true);
+        $ordered=$displayed+array_diff_key($raw,$displayed);
+        foreach(array_slice($ordered,0,16) as $element){
             $styles=(array)($element['styles']??array());
             $elements[]=array('tag'=>$element['tag']??'','id'=>$element['id']??'',
                 'text'=>mb_substr((string)($element['text']??''),0,110),
@@ -97,6 +99,7 @@ function syndamorph_production_tool_evidence(array $samples,string $reason='',ar
         }
         $result['viewports'][]=array('width'=>$sample['width']??null,
             'overflow'=>$sample['snapshot']['overflow']??null,
+            'matchedElementCount'=>count($raw),'visibleMatchCount'=>count($displayed),
             'elements'=>$elements,'accessibilityIssueCount'=>count((array)($sample['a11y']??array())));
     }
     return $result;

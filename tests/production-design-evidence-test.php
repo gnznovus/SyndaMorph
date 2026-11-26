@@ -54,4 +54,19 @@ $sample['snapshot']['elements'][1]['checkTextTruncated']=false;
 expect(syndamorph_design_run_check($long,array($sample))['status']==='failed','Unrelated section text satisfied an explicit paragraph check.');
 $sample['snapshot']['elements'][1]['checkText']=$paragraph;
 expect(syndamorph_design_run_check($long,array($sample))['status']==='verified','The complete scoped literal was not recognized.');
+$footerRows=array_fill(0,28,array('tag'=>'DIV','visible'=>true,'styles'=>array('backgroundColor'=>'rgb(240, 240, 240)')));
+$footerRows[]=array('tag'=>'P','visible'=>false,'normalizedText'=>'View all offers','rect'=>array(0,0,0,0));
+$footerRows[]=array('tag'=>'P','visible'=>true,'normalizedText'=>'1 / 3','rect'=>array(20,735,27,22));
+$footerRows[]=array('tag'=>'P','visible'=>true,'normalizedText'=>'View all offers','rect'=>array(262,735,93,22));
+$sample=array('width'=>375,'snapshot'=>array('copy'=>'1 / 3 View all offers','elements'=>$footerRows));
+$specification=array('format'=>'structured','requirements'=>array(array('id'=>'footer','dimension'=>'visual','basis'=>'source')));
+$facts=syndamorph_design_browser_facts(array($sample),$specification);
+expect($facts[0]['projectedElementCount']===31&&count($facts[0]['elements'])===28&&
+    array_column($facts[0]['visibleTextTail'],'text')===array('1 / 3','View all offers')&&
+    $facts[0]['visibleTextTail'][1]['rect']===array(262,735,93,22),
+    'The bounded projection lost visible footer evidence or surfaced its hidden duplicate.');
+$approval=array('requirementChecks'=>array(array('id'=>'footer','status'=>'verified',
+    'evidence'=>array($facts[0]['visibleTextTail'][1]['id']))));
+expect(syndamorph_design_requirements($specification,array($sample),$facts,$approval,array())['blocking']===array(),
+    'A visible-tail evidence ID was not accepted by the checklist.');
 echo "PASS: measured element, literal copy, link semantics, colors and requirement-level evidence authority\n";

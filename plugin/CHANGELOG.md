@@ -6,6 +6,18 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.32] - 2026-11-26
+
+### Changed
+
+- Designer reviews include exact bounded literal-copy differences and visible text near the end of each viewport. Diagnostic projections favor visible elements and report their coverage. An omitted element cannot serve as proof of absence.
+- Source surgery rolls back any increase in pixel difference at a required width without a recorded layout authorization. A repaired design can resume after a dispute only when pinned source and responsive QA pass.
+- An oversized review diagnostic can resume on the retained reference with bounded browser evidence. A metered Developer response that reached the output cap without emitting text can retry once from its exact approved handoff and original budget.
+
+### Verified
+
+- The repaired Offers reference passed source QA at 0.190%, 0.031%, and 0.066% pixel difference and passed all 13 responsive samples. With measured compact footer and WordPress contrast evidence, Bossy approved the reference and handed the original job to Developer. The first Developer call exhausted the cap without text. The retry retained a 3,255-byte partial plan. Implementation QA remains held. The original job recorded $0.128741 in metered spend.
+
 ## [0.12.31] - 2026-11-26
 
 ### Added

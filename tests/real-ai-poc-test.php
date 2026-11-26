@@ -2114,6 +2114,11 @@ $improved=$sourceTrial(array(0.009,0.021,0.044),true);
 $comparison=syndamorph_source_surgery_comparison($before,$improved);
 expect($comparison['improved']&&empty($comparison['regressions'])&&!$improved['passed'],
     'A localized improvement must be retained without treating it as approved source fidelity.');
+$moved=$sourceTrial(array(0.009,0.018,0.053),false);
+$comparison=syndamorph_source_surgery_comparison($before,$moved);
+expect($comparison['improved']&&$comparison['regressions']===array(array(
+    'code'=>'source-pixel-difference-increased','width'=>375,'target'=>'section')),
+    'Aggregate improvement masked a worsened viewport that was already held.');
 $regressed=$sourceTrial(array(0.016,0.013,0.031),false);
 $regressed['visual']['views'][2]['heightPassed']=false;
 $comparison=syndamorph_source_surgery_comparison($improved,$regressed);
@@ -2127,6 +2132,14 @@ expect(in_array('source-width-evidence-lost',array_column(
     'Missing source evidence must roll surgery back.');
 expect(array_column(syndamorph_source_surgery_comparison($improved,$improved)['regressions'],'code')===
     array('source-surgery-no-improvement'),'Unchanged source evidence must not consume another repair round.');
+$copy=syndamorph_source_copy_difference('Exclusive Offers Full intro and footer Stay Offer','EXCLUSIVE OFFERS Full intro and footer STAY OFFER');
+expect($copy['kind']==='case_only'&&array_column($copy['caseDifferences'],'wordIndex')===array(0,1,6,7)&&
+    array_column($copy['caseDifferences'],'expected')===array('Exclusive','Offers','Stay','Offer'),
+    'Exact copy evidence confused changed capitalization with missing introduction or footer text.');
+$copy=syndamorph_source_copy_difference('Start with the full introduction and footer','Start with and footer');
+expect($copy['kind']==='literal_mismatch'&&$copy['expected']==='the full introduction'&&$copy['observed']===''&&
+    syndamorph_source_copy_difference('Known source',null)===array('kind'=>'missing_evidence'),
+    'Copy diagnostics did not distinguish missing words from missing browser evidence.');
 echo "PASS: source surgery preserves per-width evidence and ranks incomplete improvements\n";
 
 $root=array('node'=>'root','rect'=>array(0,0,900,300));

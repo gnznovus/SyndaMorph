@@ -75,6 +75,7 @@ function syndamorph_design_browser_facts(array $samples,array $specification): a
         $width=$sample['width'];
         $snapshot=$sample['snapshot'];
         $projected=array();
+        $visibleText=array();
         foreach($snapshot['elements']??array() as $index=>$element){
             $style=$element['styles']??array();
             $selected=array_filter($selectors,static fn($selector)=>syndamorph_design_matches($element,$selector));
@@ -88,7 +89,10 @@ function syndamorph_design_browser_facts(array $samples,array $specification): a
             $record['text']=mb_substr((string)($element['normalizedText']??''),0,100);
             $record['styles']=array_intersect_key($style,array_flip(
                 array('fontFamily','fontSize','fontWeight','lineHeight','color','backgroundColor','backgroundImage','textAlign','padding')));
-            $projected[]=array('priority'=>$selected?0:($control?1:($index===0||$paint?2:3)),'row'=>$record);
+            $visible=($element['visible']??null)===true;
+            if($visible&&$record['text']!=='')$visibleText[]=array_intersect_key($record,
+                array_flip(array('id','text','rect','visible')));
+            $projected[]=array('priority'=>$selected?0:($visible?($control?1:($index===0||$paint?2:3)):4),'row'=>$record);
         }
         usort($projected,static fn($a,$b)=>$a['priority']<=>$b['priority']);
         $a11y=array();
@@ -97,7 +101,9 @@ function syndamorph_design_browser_facts(array $samples,array $specification): a
         }
         $result[]=array('id'=>'view-'.$width,'width'=>$width,'overflow'=>$snapshot['overflow']??null,
             'copySha256'=>is_string($snapshot['copy']??null)?hash('sha256',$snapshot['copy']):null,
-            'elements'=>array_column(array_slice($projected,0,28),'row'),'accessibility'=>$a11y);
+            'elements'=>array_column(array_slice($projected,0,28),'row'),
+            'visibleTextTail'=>array_slice($visibleText,-6),'projectedElementCount'=>count($projected),
+            'accessibility'=>$a11y);
     }
     return $result;
 }
@@ -263,7 +269,7 @@ function syndamorph_design_requirements(array $specification,array $samples,arra
     $available=array_fill_keys($extraEvidence,true);
     foreach($facts as $view){
         $available[$view['id']]=true;
-        foreach($view['elements'] as $element)$available[$element['id']]=true;
+        foreach(array_merge($view['elements'],$view['visibleTextTail']??array()) as $element)$available[$element['id']]=true;
     }
     $checks=array();
     $blocking=array();

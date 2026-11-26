@@ -208,6 +208,11 @@ if($phase==='setup') {
     scope_expect(is_wp_error($withoutEdit)&&$withoutEdit->get_error_code()==='sm_scope_review_checkpoint'&&
         is_wp_error($invalidEdit)&&$invalidEdit->get_error_code()==='sm_scope_review_regression'&&count($calls)===$priorCalls,
         'A rejected surgery must keep its exact GEN and require checked edits before any model call.');
+    syndamorph_history_append($prior['id'],'job_error',array('code'=>'sm_design_dispute','stage'=>'design_approval',
+        'message'=>'Fixture rejected an unsupported diagnosis.'));
+    $disputedEdit=syndamorph_scope_resume_checkpoint($recover,$keys[0],$badEdit,$engine);
+    scope_expect(is_wp_error($disputedEdit)&&$disputedEdit->get_error_code()==='sm_scope_review_regression'&&
+        count($calls)===$priorCalls,'A design dispute allowed a source regression to reach paid review.');
     syndamorph_history_append($prior['id'],'job_error',$originalFailure);
     $recover=scope_ok(syndamorph_scope_resume_checkpoint($recover,$keys[0],array(),$engine));
     $attempts=$recover['regions'][$keys[0]]['attempts'];
@@ -233,6 +238,20 @@ if($phase==='setup') {
         array_slice($calls,$priorCalls)===array('North:developer','North:validation')&&
         (syndamorph_history_latest($prior['id'],'design_approval_replay')['status']??null)==='revalidated',
         'Developer recovery failed to reuse the verified approval or repeated the reviewed stages.');
+    $streamJob=scope_ok(syndamorph_history_create('GEN','Offline capped Developer stream',array()));
+    $streamTasks=array('role'=>'developer','task'=>'developer');
+    $streamFailure=$streamTasks+array('code'=>'sm_generation_token_limit','stopReason'=>'max_tokens',
+        'metric'=>array('metering'=>'provider_reported'));
+    syndamorph_history_append($streamJob['id'],'agent_start',$streamTasks);
+    syndamorph_history_append($streamJob['id'],'agent_failure',$streamFailure);
+    scope_expect(syndamorph_scope_recovery_stage($streamFailure)==='developer'&&
+        syndamorph_scope_failed_stream($streamJob['id'],'developer')==='',
+        'A billed empty Developer stream was not distinguished from missing archive evidence.');
+    syndamorph_history_append($streamJob['id'],'agent_start',$streamTasks);
+    syndamorph_history_append($streamJob['id'],'agent_delta',$streamTasks+array('text'=>'{"version":1'));
+    syndamorph_history_append($streamJob['id'],'agent_failure',$streamFailure);
+    scope_expect(syndamorph_scope_failed_stream($streamJob['id'],'developer')==='{"version":1',
+        'A partial native plan was mistaken for an empty stream.');
     $nativeId=$prior['id'];
     $held=syndamorph_history_latest($nativeId,'job_complete');
     $held['status']='uncompleted';

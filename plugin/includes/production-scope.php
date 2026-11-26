@@ -98,13 +98,17 @@ function syndamorph_scope_recovery_stage(?array $failure): ?string {
         return 'design_approval';
     if($code==='sm_generation_transport'&&($failure['role']??null)==='developer'&&($failure['task']??null)==='developer')
         return 'developer';
+    if($code==='sm_generation_token_limit'&&($failure['role']??null)==='developer'&&($failure['task']??null)==='developer'&&
+        ($failure['stopReason']??null)==='max_tokens')return 'developer';
     if($code==='sm_generation_token_limit'&&($failure['role']??null)==='designer'&&($failure['task']??null)==='designer'&&
         ($failure['stopReason']??null)==='max_tokens')return 'designer_css';
+    if($code==='sm_team_context'&&($failure['role']??null)==='designer'&&($failure['task']??null)==='design_correction')
+        return 'design_evidence';
     if($code==='sm_boss_contract'&&($failure['field']??null)==='requirement check')return 'planning';
     return null;
 }
 
-function syndamorph_scope_designer_css_checkpoint(int $id): ?array {
+function syndamorph_scope_failed_stream(int $id,string $role): ?string {
     global $wpdb;
     list(,$events)=syndamorph_history_tables();
     $rows=$wpdb->get_results($wpdb->prepare(
@@ -112,18 +116,22 @@ function syndamorph_scope_designer_css_checkpoint(int $id): ?array {
     $raw=null;$saved=null;
     foreach($rows??array() as $row){
         $data=json_decode($row['payload'],true);
-        $original=($data['role']??null)==='designer'&&($data['task']??null)==='designer';
+        $original=($data['role']??null)===$role&&($data['task']??null)===$role;
         if($row['event_type']==='agent_start')$raw=$original?'':null;
         elseif($raw!==null&&$original&&$row['event_type']==='agent_delta'){
             $raw.=$data['text']??'';
             if(strlen($raw)>120000)return null;
         }elseif($raw!==null&&$original&&$row['event_type']==='agent_failure'){
-            $saved=($data['metric']['metering']??null)==='provider_reported'?
-                syndamorph_design_css_checkpoint($raw):null;
+            $saved=($data['metric']['metering']??null)==='provider_reported'?$raw:null;
             $raw=null;
         }elseif($row['event_type']==='agent_complete')$raw=null;
     }
     return $saved;
+}
+
+function syndamorph_scope_designer_css_checkpoint(int $id): ?array {
+    $raw=syndamorph_scope_failed_stream($id,'designer');
+    return $raw===null?null:syndamorph_design_css_checkpoint($raw);
 }
 
 function syndamorph_scope_planning_checkpoint(int $id): ?string {
@@ -227,6 +235,14 @@ function syndamorph_scope_status(array $manifest): array {
                 if($region['recoveryStage']==='designer_css'&&
                     (syndamorph_history_latest($last['id'],'job_resumed')!==null||
                     syndamorph_scope_designer_css_checkpoint($last['id'])===null))$region['recoveryStage']=null;
+                if($region['recoveryStage']==='design_evidence'&&
+                    ((syndamorph_history_latest($last['id'],'job_resumed')['stage']??null)==='design_evidence'||
+                    (syndamorph_history_latest($last['id'],'design_candidate')['pinnedSourcePassed']??null)!==true))
+                    $region['recoveryStage']=null;
+                if($region['recoveryStage']==='developer'&&($failure['code']??null)==='sm_generation_token_limit'&&
+                    ((syndamorph_history_latest($last['id'],'job_resumed')['stage']??null)==='developer'||
+                    syndamorph_scope_failed_stream($last['id'],'developer')!==''))
+                    $region['recoveryStage']=null;
                 if($last['status']==='failed'&&($failure['code']??null)==='sm_source_disclosure_assignment'&&
                     $last['completedCalls']===1&&syndamorph_history_latest($last['id'],'staged_implementation_review')!==null&&
                     syndamorph_history_latest($last['id'],'job_resumed')===null&&
@@ -249,6 +265,9 @@ function syndamorph_scope_status(array $manifest): array {
                     $region['designDecisionRequired']=true;
                 if($last['status']==='failed'&&$region['recoveryStage']===null&&
                     (syndamorph_history_latest($last['id'],'job_resumed')['stage']??null)==='designer_css')
+                    $region['designDecisionRequired']=true;
+                if($last['status']==='failed'&&$region['recoveryStage']===null&&
+                    ($failure['code']??null)==='sm_generation_token_limit'&&($failure['role']??null)==='developer')
                     $region['designDecisionRequired']=true;
                 if(isset($failure['sourceScroll']))$region['sourceScroll']=$failure['sourceScroll'];
                 $region['issue']=$failure['message']??$final['quality']['issues'][0]['detail']??
@@ -276,7 +295,8 @@ function syndamorph_scope_run(array $manifest,string $key,bool $retry,?callable 
     $last=end($region['attempts']);
     if($retry&&$last&&((syndamorph_history_latest($last['id'],'job_error')['code']??null)==='sm_design_review_required'||
         syndamorph_history_latest($last['id'],'staged_implementation_review')!==null||
-        (syndamorph_history_latest($last['id'],'job_resumed')['stage']??null)==='designer_css'))
+        (syndamorph_history_latest($last['id'],'job_resumed')['stage']??null)==='designer_css'||
+        !empty($region['designDecisionRequired'])))
         return syndamorph_scope_error('design_decision','The saved design requires a decision before another paid attempt.');
     $eligible=$retry?array('failed','uncompleted'):array('ready');
     if(!in_array($region['status'],$eligible,true)||!empty($region['checkpointAvailable'])||!empty($region['recoveryStage']))
@@ -444,6 +464,7 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
     $manifest=syndamorph_scope_status($manifest);
     $region=$manifest['regions'][$key]??null;
     $stage=$region['recoveryStage']??null;
+    $disputeRecovery=false;
     if($wrapId!==null){
         $last=!empty($region['attempts'])?end($region['attempts']):null;
         $failure=$last?syndamorph_history_latest($last['id'],'job_error'):null;
@@ -459,7 +480,8 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
     if($stage===null&&($edits||$workOrderEdits)&&($region['status']??null)==='failed'&&!empty($region['attempts'])){
         $last=end($region['attempts']);
         $failure=syndamorph_history_latest($last['id'],'job_error')['code']??null;
-        if(($edits&&!$workOrderEdits&&$failure==='sm_design_surgery_blocked')||
+        $disputeRecovery=$edits&&!$workOrderEdits&&$failure==='sm_design_dispute';
+        if($disputeRecovery||($edits&&!$workOrderEdits&&$failure==='sm_design_surgery_blocked')||
             ($workOrderEdits&&!$edits&&$failure==='sm_design_requirements'))
             $stage='design_approval';
     }
@@ -619,6 +641,9 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
                     return syndamorph_scope_error('work_order_evidence','The saved work-order revision no longer reproduces.');
             }
         }
+        if($stage==='design_evidence'&&($staged!==null||$edits||
+            empty($candidate['responsive']['passed'])||empty(syndamorph_source_review($source,$reference,$authorization??null)['passed'])))
+            return syndamorph_scope_error('review_checkpoint','The saved reference must still pass source and responsive QA before reviewing its evidence.');
     }
     if(in_array($stage,array('developer','native_review'),true)){
         if($edits||$extendWorkOrder)return syndamorph_scope_error('review_checkpoint','Implementation recovery requires the unchanged design and work order.');
@@ -698,11 +723,13 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
         if(is_wp_error($beforeResponsive))return $beforeResponsive;
         $afterResponsive=syndamorph_design_responsive_measure($patch['reference'],$widths,$after,$afterBuild);
         if(is_wp_error($afterResponsive))return $afterResponsive;
-        $delta=syndamorph_source_surgery_comparison(syndamorph_source_review($source,$reference,$authorization??null),
-            syndamorph_source_review($source,$patch['reference'],$authorization??null));
+        $sourceAfter=syndamorph_source_review($source,$patch['reference'],$authorization??null);
+        $delta=syndamorph_source_surgery_comparison(syndamorph_source_review($source,$reference,$authorization??null),$sourceAfter);
         if($delta['regressions']||syndamorph_design_responsive_regressions($beforeResponsive,$afterResponsive)||
             array_diff(syndamorph_design_element_ids($before),syndamorph_design_element_ids($after)))
             return syndamorph_scope_error('review_regression','The recovery patch failed to preserve verified design evidence.');
+        if($disputeRecovery&&(!$sourceAfter['passed']||!$afterResponsive['passed']))
+            return syndamorph_scope_error('review_surgery','A disputed design requires a source-passing and responsive repair before another review.');
         $reference=$patch['reference'];
         $surgery=array('status'=>'responsive_checked','priorSha256'=>$sha,'candidateSha256'=>hash('sha256',$reference),
             'changes'=>$patch['changes'],'sourceMeasurements'=>$delta['views']);
@@ -728,6 +755,9 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
         if($cssCheckpoint!==null)$resume+=array('assignment'=>$assignment,'touch'=>$touch,'designCssCheckpoint'=>$cssCheckpoint);
         elseif(!$planningStage)$resume+=array('assignment'=>$assignment,'referenceHtml'=>$reference,'archivedSha256'=>$sha,
             'touch'=>$touch,'surgery'=>$surgery,'round'=>$candidate['round']+($surgery===null?0:1));
+        if($stage==='design_evidence')$resume['reviewEvidenceRecovered']=true;
+        if($stage==='developer'&&(syndamorph_history_latest($id,'job_error')['code']??null)==='sm_generation_token_limit')
+            $resume['emptyDeveloperOutputRecovery']=true;
         if($savedApproval!==null)$resume['savedDesignApproval']=$savedApproval;
         if($stagedRepair!==null){
             $emit('staged_implementation_review',$stagedRepair['staged']);

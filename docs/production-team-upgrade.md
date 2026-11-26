@@ -315,6 +315,18 @@ Exclusive Offers GEN-000058 reached the 16,384-token Designer limit after emitti
 
 An offline evidence check found that the intro and footer were present. The literal mismatch was capitalization in the eyebrow and compact offer label. Changing their underlying copy while preserving uppercase appearance restored exact source copy and local scroll at all three required widths, with no pixel change. The best isolated typography trial used the archived Beausite Grand and Fit styles at the wider widths and measured 3.940%, 3.687% and 5.863%, preserving the 375 px rendering. It is saved privately on GEN-000058 as a trial. The Fit face was available only during that local comparison. Visual fidelity, native implementation, independent QA and placement for Exclusive Offers remain pending.
 
+## v0.12.32 measured Offers design recovery
+
+The original Offers work order and Designer artifacts remain in History. The earlier reviewer had interpreted bounded excerpts as a missing intro and footer. The full literal comparison identifies the exact casing changes and keeps visual uppercase styling independent of the source copy. A regression in any unwaived required viewport now rolls back the repair, even if the viewport already failed and the aggregate score decreases.
+
+An isolated replay compared the pinned source and retained reference rectangles. It resolved the compact 4 px and 8 px spacing drift, the unequal desktop description heights and the second card's outlined reservation label. The exact repaired reference `2c116d5908e515bdc7cd69d4a2f0eea343405f368cad2a61c9b8143df9ddabb9` passed pinned source at 0.190%, 0.031%, and 0.066% with identical rounded section heights, exact copy and the approved local scroll contract. All 13 responsive widths passed. The existing local WordPress test site registered only the archived Beausite Fit face needed for this comparison, alongside the already installed local presets.
+
+The saved design initially held on a mixed contrast and keyboard checklist row. Chromium measured minimum contrast of 5.30:1, 5.97:1 and 5.97:1 in the WordPress Page context. The original work-order wording was preserved. A second review had confused a hidden desktop label with the two visible compact footer labels. The evidence projection now passes their positive browser rectangles, the full copy verdict and the total number of elements measured. The follow-up resumed against the unchanged reference and Bossy handed it to Developer. Independent keyboard and focus verification remains required on the compiled result.
+
+The first Developer call exhausted its 16,384-token cap without emitting JSON. A Developer-only retry replayed the exact approved handoff and emitted 3,255 bytes before cutting off inside the first desktop card. History preserves the partial stream. Both charges remain on GEN-000058. The job has 15 completed responses, three metered capped responses and $0.128741 in total recorded spend. The native artifact, editor verification and Full Page placement are still open.
+
+In the disposable Gutenberg editor, Core Columns serialized and reparsed with non-stacking layout. Core Group preserved a 2 px top border and Core Paragraph preserved a 1 px border. These checks verified the native attribute mappings for the pending Offers implementation.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens and GEN-000055 completed their original jobs. Verified BKKGO Full Page assembly and broader region acceptance remain open. [Design validation audit](bossy-validation-audit.md#v0128-verification)

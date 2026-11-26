@@ -931,12 +931,14 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'priorApproval'=>false,'artifactSha256'=>$nativeReview['artifactSha256']);
         if(isset($resume['archivedSha256'])&&$designReviews===0)$reviewContext['checkpointRecovery']=array(
             'previousTask'=>'final_approval',
-            'previousOutcome'=>$nativeReview!==null&&$savedDesignApproval===null&&
+            'previousOutcome'=>!empty($resume['reviewEvidenceRecovered'])?'bounded_browser_evidence':
+                ($nativeReview!==null&&$savedDesignApproval===null&&
                 (!$stagedReview||($priorDesignDiff['operation']??null)==='paragraph_pretty')?
-                'bounded_reference_correction':'transport_failure',
+                'bounded_reference_correction':'transport_failure'),
             'archivedSha256'=>$resume['archivedSha256'],'surgery'=>$resume['surgery']);
         $browserFacts=syndamorph_design_browser_facts($inspectReference,$specification);
         $reviewContext['browserFacts']=$browserFacts;
+        $reviewContext['browserFactLimits']='Elements are a bounded projection. visibleTextTail contains independently measured visible text and its rectangles near the end of the section. A missing element from the projection is not proof of absence. Use full literal source verification for copy.';
         $browserChecks=array();
         foreach($specification['requirements'] as $requirement){
             if(isset($requirement['check']))
@@ -987,7 +989,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'Pinned source comparison is pending.',$sourceDesign['visual']['inspection']),
                 $designTrial['reference']??$reference,'design_inspection','designer',$capabilityNotes);
             $reviewContext['sourceVerification']=$sourceDesign;
-            $reviewContext['sourceLocalization']='differenceRegions lists the most changed cells of a normalized grid. Columns start at the left and rows at the top, both zero-based. Use these cells to locate pixel evidence and measured source geometry or a verified style fact to diagnose its cause.';
+            $reviewContext['sourceLocalization']='Use sourceVerification.markup for full literal copy verdicts. copyDifference describes the exact measured disagreement. A case_only mismatch needs the original source casing in the DOM and any verified uppercase appearance in CSS. A clipped element excerpt does not prove missing text. differenceRegions lists the most changed cells of a normalized grid, zero-based from top left. Use measured geometry or a verified style fact to diagnose their cause.';
             $sourcePassed=$sourceDesign['passed'];
         }elseif($source!==null){
             $sourceVisual=syndamorph_production_source_visual($source,$inspectReference);
@@ -1257,7 +1259,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews,'agentPayload'=>$approval,
         'specificationReceipt'=>$specificationReceipt);
     if($on_event)$on_event('handoff',end($handoffs));
+    $emptyDeveloperOutputRecovery=$savedDesignApproval!==null&&!empty($resume['emptyDeveloperOutputRecovery']);
     $developer=$nativeReview!==null?wp_json_encode($nativeReview['plan']):$call('developer','Translate the HTML reference into native Gutenberg JSON using the cached compiler contract. Preserve content and visual intent. For classified tabs use the exact interaction ID as the tabs node ID and retain the exact panel IDs, order, labels, headings and copy from design.tabPanelSpecification. Set appearance to standard on Tabs IDs listed in design.standardTabs. Return JSON only. Close the complete root blocks array and document.'.$sourceNote.
+        ($emptyDeveloperOutputRecovery?' Start directly with the JSON deliverable. Work from the approved reference and use only the native fields needed to reproduce its visible structure and behavior within the output limit.':'').
         ($scrollDesignNote!==''?' For a native horizontal-scroll interaction, use the exact interaction ID as the Group ID, scrollStrip:true and style.visibility mobile or compact, matching the approved reference. Keep two to six native Group cards with the approved order and copy.':'') ,
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$reference,'capabilityNotes'=>$capabilityNotes,
             'imageOrder'=>array_intersect_key($viewports,array_flip($visionViewports)),
@@ -1267,7 +1271,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'Use a top/bottom sides object for group, columns and buttons margins.',
                 'Use gradient linear-gradient(135deg,#18283a,#0f1a26) with exactly two hex color endpoints and no percentage stops.',
                 'Unsupported styles must not be emitted; preserve the approved design through native-compatible groups.'))+$sourceContext,
-        syndamorph_collab_output_cap($provider,$model),array_merge($referenceImages,$comparisonSourceImages));
+        syndamorph_collab_output_cap($provider,$model),$emptyDeveloperOutputRecovery?$referenceImages:array_merge($referenceImages,$comparisonSourceImages));
     if (is_wp_error($developer)) return $developer;
 
     // Native schema recovery operates on one persistent full-generation plan.
