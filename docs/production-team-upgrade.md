@@ -199,6 +199,12 @@ In an isolated WordPress fixture, the exact recorded BKKGO Beausite faces brough
 
 A separate native fixture retained its Manrope and Fira Code presets through Gutenberg edit, save and reload. The private WordPress draft rendered both fonts at 1440, 768 and 375 px. This verifies the installed typography contract. GEN-000051 still needs source visual and downstream native acceptance.
 
+## v0.12.20 pinned section screenshot framing
+
+Source sections were photographed at their document offsets, then compared with a candidate photographed at the top of an isolated page. Chromium's raster phase and the JPEG settings introduced differences even when text boxes and decorative tiles agreed. Pinned Section comparison now reuses the recorded origin and the capture encoder. The renderer measures actual layout and accessibility first, checks that the temporary translation preserves element geometry, and verifies the exact frame with WordPress. Missing or conflicting frame evidence stays pending. The per-viewport 1.5% and aggregate 0.5% limits are unchanged. The framing regression checks include a genuine color change and an invalid frame.
+
+On GEN-000051, the installed archive fonts and four bounded edits repaired the narrow heading cap, underline offset, footer line height and eyebrow line height. The sketch `da5c3f9658a247b57eadb0d33086259a544fceebd35abe7bccab05fb157e2987` passed source fidelity at 0.310%, 0%, and 0%, and all 15 responsive samples had no findings. It preserved source copy and its verified absence of links. The original GEN resumed for two metered Bossy reviews. The second review approved this exact sketch. The deterministic handoff held four archived requirements. The introduction style assertion selected every paragraph instead of the intro, and the heading hierarchy, host contrast and link accessibility checks still need resolution. Developer did not start. The estimated job cost is $0.096130 plus a prior unmetered reservation of $0.011048, within the original $1 cap.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)

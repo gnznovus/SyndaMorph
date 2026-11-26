@@ -3,6 +3,7 @@
 if (PHP_SAPI !== 'cli') exit;
 require '/var/www/html/wp-load.php';
 require_once WP_PLUGIN_DIR.'/syndamorph/includes/production-collaboration.php';
+require_once WP_PLUGIN_DIR.'/syndamorph/includes/production-block-plan.php';
 
 function inspection_assert(bool $passed,string $message): void {
     if(!$passed)throw new RuntimeException($message);
@@ -88,6 +89,55 @@ $pending=syndamorph_collab_inspect($ordinary,$default);
 inspection_assert(is_wp_error($pending)&&syndamorph_inspection_diagnostic($pending)['missingWidths']===array(375)&&
     $receivedRequests===array($default,array(375),array(375)),'Unrecoverable viewport was accepted or substituted');
 remove_filter('http_response',$inject,10);
+
+$origin=array(1440=>7681.890625,768=>6643.0625,375=>5662.25);
+$section='<section style="height:1050.4px;background:#fff"><h2 style="margin:0;padding:40px">Captured paint</h2></section>';
+$unframed=inspection_require_result(syndamorph_collab_inspect($section,$default,$unframedBuild,'section'));
+$framed=inspection_require_result(syndamorph_collab_inspect($section,$default,$frameBuild,'section',$origin));
+foreach($framed as $i=>$sample){
+    $width=$sample['width'];
+    inspection_assert((float)$sample['sourceFrame']['top']===$origin[$width]&&
+        $sample['sourceFrame']['screenshotTop']===(int)round($origin[$width])&&$sample['extent']===1050&&
+        $sample['snapshot']===$unframed[$i]['snapshot'],'Source framing changed measured layout or missed its exact capture origin.');
+}
+$changed=inspection_require_result(syndamorph_collab_inspect(str_replace('#fff','#a0182c',$section),$default,$frameBuild,'section',$origin));
+$differences=inspection_require_result(syndamorph_collab_compare($framed,$changed,true));
+inspection_assert(min(array_column($differences,'pixelDifferenceRatio'))>0.8,'Source framing concealed a real paint mismatch.');
+$wrongOrigin=syndamorph_collab_inspect($section,$default,$frameBuild,'section',array(1440=>500));
+$unshiftable=syndamorph_collab_inspect(str_replace('margin:0','position:fixed;top:0;margin:0',$section),
+    array(375),$frameBuild,'section',array(375=>5662.25));
+inspection_assert(is_wp_error($wrongOrigin)&&$wrongOrigin->get_error_code()==='sm_inspect_source_frame_unavailable'&&
+    is_wp_error($unshiftable)&&$unshiftable->get_error_code()==='sm_inspect_source_frame_unavailable',
+    'Incomplete or unmeasurable source framing passed inspection.');
+$wrongReceipt=static function($response,$args,$url){
+    if(!str_ends_with($url,'/inspect'))return $response;
+    $data=json_decode($response['body'],true);
+    $data['evidence'][0]['sourceFrame']['top']=12;
+    $response['body']=wp_json_encode($data);
+    $response['headers']['content-length']=(string)strlen($response['body']);
+    return $response;
+};
+add_filter('http_response',$wrongReceipt,10,3);
+try { $unproven=syndamorph_collab_inspect($section,array(375),$frameBuild,'section',array(375=>5662.25)); }
+finally { remove_filter('http_response',$wrongReceipt,10); }
+inspection_assert(is_wp_error($unproven)&&$unproven->get_error_code()==='sm_inspect_source_frame_unavailable',
+    'A substituted source frame passed inspection.');
+$frameBatches=array();
+$omitFrame=static function($response,$args,$url)use(&$frameBatches){
+    if(!str_ends_with($url,'/inspect'))return $response;
+    $frameBatches[]=json_decode($args['body'],true)['sourceFrames']??null;
+    if(count($frameBatches)>1)return $response;
+    $data=json_decode($response['body'],true);
+    unset($data['evidence'][1]['sourceFrame']);
+    $response['body']=wp_json_encode($data);
+    $response['headers']['content-length']=(string)strlen($response['body']);
+    return $response;
+};
+add_filter('http_response',$omitFrame,10,3);
+try { $reframed=inspection_require_result(syndamorph_collab_inspect($section,$default,$frameBuild,'section',$origin)); }
+finally { remove_filter('http_response',$omitFrame,10); }
+inspection_assert($frameBatches===array($origin,array(768=>$origin[768]))&&array_column($reframed,'width')===$default,
+    'Missing source framing retried unrelated widths or substituted evidence.');
 
 $testedFont=null;
 $presets=syndamorph_production_font_families();

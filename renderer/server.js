@@ -18,7 +18,7 @@ const diagnostic = { service: 'syndamorph-renderer', inspectionProtocol: PROTOCO
     maxResponseBytes: MAX_RESPONSE, maxScreenshotBytes: MAX_SCREENSHOT };
 const workerErrors = {
     browser_timeout: 504, browser_crash: 503, worker_failure: 502,
-    screenshot_limit: 507, evidence_limit: 507,
+    screenshot_limit: 507, evidence_limit: 507, source_frame_unavailable: 422,
 };
 
 function runBrowserWorker(html, viewports, signal, options = {}) {
@@ -87,7 +87,7 @@ function runBrowserWorker(html, viewports, signal, options = {}) {
             return resolve(result.html);
         });
         child.stdin.on('error', () => {});
-        child.stdin.end(JSON.stringify({ html, inspect, viewports, extent:options.extent,
+        child.stdin.end(JSON.stringify({ html, inspect, viewports, extent:options.extent,sourceFrames:options.sourceFrames,
             tabsRuntime:options.tabsRuntime,scrollStrips:options.scrollStrips }));
     });
 }
@@ -160,7 +160,11 @@ function createRendererServer(render = runBrowserWorker) {
             if(req.url==='/check-scroll-strips')
                 return reply(200,{evidence:await render(body.html,viewports,controller.signal,{scrollStrips:true})});
             if (body.extent !== undefined && !['section', 'page', 'page-fold'].includes(body.extent)) throw new RendererError('invalid_html', 400);
-            reply(200, { evidence: await render(body.html, viewports, controller.signal, { extent: body.extent }) });
+            const frames=body.sourceFrames;
+            if(frames!==undefined&&(body.extent!=='section'||!frames||typeof frames!=='object'||Array.isArray(frames)||
+                Object.keys(frames).length!==viewports.length||viewports.some(width=>!Number.isFinite(frames[width])||
+                    frames[width]<0||frames[width]>36000)))throw new RendererError('source_frame_unavailable',422);
+            reply(200, { evidence: await render(body.html, viewports, controller.signal, { extent: body.extent,sourceFrames:frames }) });
         } catch (error) {
             const known = error instanceof RendererError;
             // Only server-owned categories cross the response boundary.

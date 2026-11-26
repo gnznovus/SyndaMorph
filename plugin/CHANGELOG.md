@@ -6,6 +6,15 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.20] - 2026-11-26
+
+### Fixed
+- Pinned Section comparisons reproduce the recorded source screenshot origin and encoder. Layout and accessibility are measured before the temporary translation. A mismatched frame leaves evidence pending.
+- A bounded, verified surgical edit can resume an original job after a rejected Designer surgery. Clean WordPress inspection tests explicitly load the native compiler.
+
+### Verified
+- GEN-000051 passed deterministic source fidelity at 0.310%, 0%, and 0% and retained the repaired Designer checkpoint. Bossy approved the same resumed job. The engine held the handoff because four required design checks remain unresolved. Two new metered review calls cost an estimated $0.012275.
+
 ## [0.12.19] - 2026-11-26
 
 ### Added

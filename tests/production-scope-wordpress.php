@@ -199,6 +199,15 @@ if($phase==='setup') {
     $blocked=syndamorph_scope_resume_checkpoint($recover,$keys[0],$badEdit,$engine);
     scope_expect(is_wp_error($blocked)&&$blocked->get_error_code()==='sm_scope_review_regression'&&count($calls)===$priorCalls,
         'A recovery patch that changes source copy or links must hold before paid review.');
+    $originalFailure=syndamorph_history_latest($prior['id'],'job_error');
+    syndamorph_history_append($prior['id'],'job_error',array('code'=>'sm_design_surgery_blocked','stage'=>'design_approval',
+        'message'=>'Fixture rejected the last surgical operation.'));
+    $withoutEdit=syndamorph_scope_resume_checkpoint($recover,$keys[0],array(),$engine);
+    $invalidEdit=syndamorph_scope_resume_checkpoint($recover,$keys[0],$badEdit,$engine);
+    scope_expect(is_wp_error($withoutEdit)&&$withoutEdit->get_error_code()==='sm_scope_review_checkpoint'&&
+        is_wp_error($invalidEdit)&&$invalidEdit->get_error_code()==='sm_scope_review_regression'&&count($calls)===$priorCalls,
+        'A rejected surgery must keep its exact GEN and require checked edits before any model call.');
+    syndamorph_history_append($prior['id'],'job_error',$originalFailure);
     $recover=scope_ok(syndamorph_scope_resume_checkpoint($recover,$keys[0],array(),$engine));
     $attempts=$recover['regions'][$keys[0]]['attempts'];
     $savedRecovery=syndamorph_history_latest($prior['id'],'job_resumed');

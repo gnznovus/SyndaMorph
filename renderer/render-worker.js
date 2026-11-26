@@ -13,13 +13,14 @@ async function waitForInstalledFonts(page) {
     });
 }
 
-async function boundedScreenshot(page, width, extent) {
+async function boundedScreenshot(page, width, extent, sourceTop = null) {
     const session = extent ? await page.context().newCDPSession(page) : null;
     try {
-    for (const quality of [65, 50, 35, 20, 10]) {
+    for (const quality of sourceTop === null ? [65, 50, 35, 20, 10] : [58, 40, 22]) {
         if (session) {
             const { data } = await session.send('Page.captureScreenshot', { format: 'jpeg', quality, captureBeyondViewport: true,
-                clip: { x: 0, y: 0, width, height: extent, scale: Math.min(1, HEIGHT / extent) } });
+                clip: { x: 0, y: sourceTop === null ? 0 : Math.round(sourceTop),
+                    width, height: extent, scale: Math.min(1, HEIGHT / extent) } });
             if (data.length <= 4 * Math.ceil(MAX_JPEG / 3)) return data;
             continue;
         }
@@ -29,6 +30,35 @@ async function boundedScreenshot(page, width, extent) {
     throw new RendererError('screenshot_limit', 507);
     } finally {
         if (session) await session.detach();
+    }
+}
+
+// Match the source paint origin after measuring the candidate's authored layout.
+async function sourceFrameScreenshot(page, width, extent, top) {
+    if(top===0)return boundedScreenshot(page,width,extent,top);
+    const frame=await page.evaluateHandle(sourceTop=>{
+        const body=document.body;
+        const nodes=[...body.querySelectorAll('*')].filter(el=>el.getClientRects().length>0);
+        const original=nodes.map(el=>el.getBoundingClientRect());
+        const offset=parseFloat(getComputedStyle(body).top)||0;
+        const sheets=[...document.adoptedStyleSheets];
+        const translation=new CSSStyleSheet();
+        translation.replaceSync(`html > body { position:relative!important; top:${offset+sourceTop}px!important; }`);
+        document.adoptedStyleSheets=[...sheets,translation];
+        const close=(a,b)=>Math.abs(a-b)<=0.035;
+        const translated=nodes.every((el,index)=>{
+            const before=original[index],after=el.getBoundingClientRect();
+            return close(after.top-before.top,sourceTop)&&close(after.left,before.left)&&
+                close(after.width,before.width)&&close(after.height,before.height);
+        });
+        return {translated,restore(){document.adoptedStyleSheets=sheets;}};
+    },top);
+    try {
+        if(!await frame.evaluate(state=>state.translated))throw new RendererError('source_frame_unavailable',422);
+        return await boundedScreenshot(page,width,extent,top);
+    } finally {
+        await frame.evaluate(state=>state.restore());
+        await frame.dispose();
     }
 }
 
@@ -116,7 +146,7 @@ process.stdin.on('end', async () => {
     let crashed = false;
     const evidence = [];
     try {
-        const { html, inspect, extent, tabsRuntime, scrollStrips, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
+        const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
             headless: true, timeout: 10000,
             args: [ '--no-sandbox', '--disable-dev-shm-usage' ],
@@ -451,12 +481,18 @@ process.stdin.on('end', async () => {
                 });
                 if (Buffer.byteLength(JSON.stringify({ width, snapshot, a11y })) > MAX_METADATA)
                     throw new RendererError('evidence_limit', 507);
-                const height = extent === 'section'
+                const top=sourceFrames?.[width]??null;
+                const height = top!==null ? await page.evaluate(()=>{
+                    const first=[...document.body.children].find(el=>!['STYLE','SCRIPT','TEMPLATE'].includes(el.tagName));
+                    return Math.max(1,Math.round(first?.getBoundingClientRect().bottom??0));
+                }) : extent === 'section'
                     ? Math.max(1, Math.ceil((snapshot.elements[0]?.rect[1] || 0) + (snapshot.elements[0]?.rect[3] || 0)))
                     : extent === 'page' ? snapshot.height : null;
                 if (height > 36000) throw new RendererError('screenshot_limit', 507);
-                const screenshot = await boundedScreenshot(page, width, height);
-                evidence.push({width,snapshot,screenshot,a11y,...(height === null ? {} : { extent: height })});
+                const screenshot = top===null ? await boundedScreenshot(page, width, height) :
+                    await sourceFrameScreenshot(page,width,height,top);
+                evidence.push({width,snapshot,screenshot,a11y,...(height === null ? {} : { extent: height }),
+                    ...(top===null?{}:{sourceFrame:{top,screenshotTop:Math.round(top)}})});
             }
             process.stdout.write(JSON.stringify({ evidence }));
             return;

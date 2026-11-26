@@ -32,6 +32,7 @@ function syndamorph_inspection_failure(string $category,array $details=array()):
         'a11y_incomplete'=>'Inspection accessibility evidence is missing or invalid.',
         'snapshot_incomplete'=>'Inspection browser measurements are missing or invalid.',
         'font_evidence_missing'=>'The isolated renderer could not verify the referenced installed fonts.',
+        'source_frame_unavailable'=>'The isolated renderer could not reproduce the pinned source screenshot frame.',
         'protocol_mismatch'=>'WordPress and the renderer use different inspection protocols. Check the renderer build.',
         'rejected'=>'The isolated renderer rejected the inspection request.',
         'request_invalid'=>'Inspection requires one to five distinct integer widths from 320 to 1920 CSS px and bounded HTML.',
@@ -75,6 +76,7 @@ function syndamorph_inspection_envelope($response,int $limit,array $widths) {
             'worker_crash'=>'browser_crash','worker_failure'=>'worker_failure','worker_invalid_json'=>'invalid_json',
             'screenshot_limit'=>'response_limit','evidence_limit'=>'response_limit','protocol_mismatch'=>'protocol_mismatch',
             'missing_evidence'=>'missing_evidence','viewport_mismatch'=>'viewport_mismatch',
+            'source_frame_unavailable'=>'source_frame_unavailable',
             'request_limit'=>'rejected','invalid_viewports'=>'rejected','invalid_request_json'=>'rejected',
             'invalid_html'=>'rejected','not_found'=>'protocol_mismatch','invalid_renderer_input'=>'rejected');
         $rendererCode=$data['error']??null;
@@ -189,7 +191,8 @@ function syndamorph_inspection_ready(array $viewports) {
     });
 }
 
-function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,375),?string &$rendererBuild=null,?string $extent=null) {
+function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,375),?string &$rendererBuild=null,
+    ?string $extent=null,?array $sourceFrames=null) {
     $endpoint=syndamorph_inspection_endpoint();
     if(is_wp_error($endpoint))return $endpoint;
     $htmlLimit=in_array($extent,array('page','page-fold'),true)?2*1024*1024:120000;
@@ -197,10 +200,15 @@ function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,
         count(array_filter($viewports,static fn($width)=>is_int($width)&&$width>=320&&$width<=1920))!==count($viewports)||
         count(array_unique($viewports))!==count($viewports))
         return syndamorph_inspection_failure('request_invalid');
+    if($sourceFrames!==null&&($extent!=='section'||array_diff($viewports,array_keys($sourceFrames))||
+        count($sourceFrames)!==count($viewports)||array_filter($sourceFrames,static fn($top)=>
+            (!is_int($top)&&!is_float($top))||!is_finite($top)||$top<0||$top>36000)))
+        return syndamorph_inspection_failure('source_frame_unavailable',array('expectedWidths'=>$viewports));
     if(count($viewports)>5) {
         $evidence=array();$build=null;
         foreach(array_chunk($viewports,5) as $batch) {
-            $samples=syndamorph_collab_inspect($html,$batch,$batchBuild,$extent);
+            $batchFrames=$sourceFrames===null?null:array_intersect_key($sourceFrames,array_flip($batch));
+            $samples=syndamorph_collab_inspect($html,$batch,$batchBuild,$extent,$batchFrames);
             if(is_wp_error($samples))return $samples;
             if($build!==null && $build!==$batchBuild)
                 return syndamorph_inspection_failure('protocol_mismatch',array('expectedWidths'=>$viewports,
@@ -222,7 +230,9 @@ function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,
     for($attempt=1;$attempt<=SYNDAMORPH_INSPECTION_ATTEMPTS;$attempt++) {
         $requests[]=$missing;
         $payload=wp_json_encode(array('html'=>$frame['html'],'viewports'=>$missing,'inspectionProtocol'=>SYNDAMORPH_INSPECTION_PROTOCOL)
-            +($extent===null?array():array('extent'=>$extent)),JSON_UNESCAPED_SLASHES);
+            +($extent===null?array():array('extent'=>$extent))+
+            ($sourceFrames===null?array():array('sourceFrames'=>array_intersect_key($sourceFrames,array_flip($missing)))),
+            JSON_UNESCAPED_SLASHES);
         if(!is_string($payload))return syndamorph_inspection_failure('request_invalid');
         $response=wp_remote_post($endpoint,array('timeout'=>75,'redirection'=>0,
             'headers'=>array('Content-Type'=>'application/json','Accept-Encoding'=>'identity'),
@@ -256,13 +266,28 @@ function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,
                 return syndamorph_inspection_failure('font_evidence_missing',array('expectedWidths'=>$viewports,
                     'viewport'=>$sample['width'],'rendererBuild'=>$build));
         }
-        foreach($result['evidence'] as $sample)$collected[$sample['width']]=$sample;
+        $missingFrames=false;
+        foreach($result['evidence'] as $sample){
+            $width=$sample['width'];
+            if($sourceFrames!==null){
+                if(!array_key_exists('sourceFrame',$sample)){
+                    $missingFrames=true;
+                    continue;
+                }
+                $observed=$sample['sourceFrame']['top']??null;
+                if((!is_int($observed)&&!is_float($observed))||(float)$observed!==(float)$sourceFrames[$width]||
+                    ($sample['sourceFrame']['screenshotTop']??null)!==(int)round($sourceFrames[$width]))
+                    return syndamorph_inspection_failure('source_frame_unavailable',array('expectedWidths'=>$viewports,
+                        'viewport'=>$width,'rendererBuild'=>$build));
+            }
+            $collected[$width]=$sample;
+        }
         $missing=array_values(array_diff($viewports,array_keys($collected)));
         if(!$missing){
             $rendererBuild=$build;
             return array_map(static fn($width)=>$collected[$width],$viewports);
         }
-        $error=syndamorph_inspection_failure('missing_evidence',$details);
+        $error=syndamorph_inspection_failure($missingFrames?'source_frame_unavailable':'missing_evidence',$details);
     }
     return new WP_Error($error->get_error_code(),$error->get_error_message(),array_merge((array)$error->get_error_data(),
         array('expectedWidths'=>$viewports,'retainedWidths'=>array_values(array_intersect($viewports,array_keys($collected))),

@@ -242,6 +242,13 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
     $manifest=syndamorph_scope_status($manifest);
     $region=$manifest['regions'][$key]??null;
     $stage=$region['recoveryStage']??null;
+    // A reviewer can repair a rejected surgical operation on its original
+    // checkpoint. Existing identity and browser regression checks still apply.
+    if($stage===null&&$edits&&($region['status']??null)==='failed'&&!empty($region['attempts'])){
+        $last=end($region['attempts']);
+        if((syndamorph_history_latest($last['id'],'job_error')['code']??null)==='sm_design_surgery_blocked')
+            $stage='design_approval';
+    }
     if($stage===null||($manifest['mode']==='section'&&$manifest['selected']!==$key))
         return syndamorph_scope_error('review_checkpoint','This region has no supported recovery checkpoint.');
     if(get_transient('syndamorph_ai_real_job_lock'))return syndamorph_scope_error('busy','Another AI production job is running.',429);

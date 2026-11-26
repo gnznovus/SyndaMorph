@@ -136,9 +136,9 @@ function syndamorph_scope_engine_source(array $source,string $url): array {
             'evidence'=>$evidence,'evidenceSha256'=>hash('sha256',wp_json_encode($evidence))));
 }
 
-function syndamorph_scope_inspect(string $html,string $extent) {
+function syndamorph_scope_inspect(string $html,string $extent,?array $sourceFrames=null) {
     $build=null;
-    return syndamorph_collab_inspect($html,SYNDAMORPH_SOURCE_WIDTHS,$build,$extent);
+    return syndamorph_collab_inspect($html,SYNDAMORPH_SOURCE_WIDTHS,$build,$extent,$sourceFrames);
 }
 
 /** Compare both entire rendered extents and absolute heights at their original widths. */
@@ -154,6 +154,7 @@ function syndamorph_source_visual(array $reference,array $native,bool $extent=tr
             $row['sourceHeight']=$sourceHeight;
             $row['nativeHeight']=$height;
             $row['heightPassed']=abs($sourceHeight-$height)<=max(16,$sourceHeight*0.10);
+            if(isset($native[$i]['sourceFrame']))$row['sourceFrame']=$native[$i]['sourceFrame'];
         }
         $ratio=$row['pixelDifferenceRatio']??null;
         $measured=is_numeric($ratio)&&is_finite((float)$ratio)&&$ratio>=0&&$ratio<=1&&
@@ -206,7 +207,12 @@ function syndamorph_source_verify_markup(array $source,array $evidence): array {
 }
 
 function syndamorph_source_review(array $source,string $html,?array $authorization=null): array {
-    $native=syndamorph_scope_inspect($html,'section');
+    $origins=array();
+    foreach(SYNDAMORPH_SOURCE_WIDTHS as $width){
+        $bounds=$source['variants'][$width]['bounds']??array();
+        if(array_key_exists('y',$bounds))$origins[$width]=$bounds['y'];
+    }
+    $native=syndamorph_scope_inspect($html,'section',$origins?:null);
     $markup=syndamorph_source_verify_markup($source,is_wp_error($native)?array():$native);
     $reference=array_map(static function($width)use($source){
         $view=$source['variants'][$width];
