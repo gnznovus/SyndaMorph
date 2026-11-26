@@ -252,6 +252,15 @@ if($phase==='setup') {
     syndamorph_history_append($streamJob['id'],'agent_failure',$streamFailure);
     scope_expect(syndamorph_scope_failed_stream($streamJob['id'],'developer')==='{"version":1',
         'A partial native plan was mistaken for an empty stream.');
+    $leaf=array('id'=>'saved-leaf','text'=>'A closing brace } in the original copy.','type'=>'paragraph');
+    $partial='{"version":1,"blocks":[{"type":"group","id":"root","children":['.wp_json_encode($leaf).',{"type":"paragraph"';
+    $recovered=array('version'=>1,'blocks'=>array(array('type'=>'group','id'=>'root','children'=>array(
+        $leaf+array('style'=>array('color'=>'#112233')),array('type'=>'paragraph','id'=>'completion','text'=>'Added from pinned evidence.')))));
+    scope_expect(syndamorph_scope_retained_native_nodes($partial,$recovered)===array('saved-leaf'),
+        'A complete node inside an unfinished container was not preserved.');
+    $recovered['blocks'][0]['children'][0]['text']='Changed authored literal';
+    scope_expect(syndamorph_scope_retained_native_nodes($partial,$recovered)===null,
+        'Native completion changed the authored literal inside a retained node.');
     $nativeId=$prior['id'];
     $held=syndamorph_history_latest($nativeId,'job_complete');
     $held['status']='uncompleted';

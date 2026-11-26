@@ -18,6 +18,10 @@ function syndamorph_native_paragraph_wrap_css(): string {
     return 'p.sm-text-wrap-pretty{text-wrap:pretty}';
 }
 
+function syndamorph_native_four_three_css(): string {
+    return '.wp-block-group.sm-aspect-4-3{width:100%;aspect-ratio:4/3}';
+}
+
 if(function_exists('add_action'))add_action('enqueue_block_assets',static function():void {
     wp_register_style('syndamorph-square-grid',false);
     wp_enqueue_style('syndamorph-square-grid');
@@ -25,12 +29,15 @@ if(function_exists('add_action'))add_action('enqueue_block_assets',static functi
     wp_register_style('syndamorph-paragraph-wrap',false);
     wp_enqueue_style('syndamorph-paragraph-wrap');
     wp_add_inline_style('syndamorph-paragraph-wrap',syndamorph_native_paragraph_wrap_css());
+    wp_register_style('syndamorph-four-three',false);
+    wp_enqueue_style('syndamorph-four-three');
+    wp_add_inline_style('syndamorph-four-three',syndamorph_native_four_three_css());
 });
 
 function syndamorph_block_plan_contract(): string {
     $buttonWidth=syndamorph_native_full_button_width()?' Button style.width accepts 100% across all viewports, using current core dimensions support.':'';
     $details=syndamorph_disclosures_supported()?' For a classified native disclosure group, add "disclosureGroup":true to a nested Group with the exact interaction ID. Its two to eight direct children use type "details", stable ID, plain summary in "text", and one editable Paragraph child. Set "open":true only on the first Details. The application supplies native exclusivity, indicator and focus styling. Use "disclosureAppearance":"bordered" on the same Group only for the approved bordered design appearance.':'';
-    return 'Return a JSON object {"version":1,"blocks":[...]} with exactly one root group. Each node has type, a stable unique id and optional style. Supported nodes: group (children), columns (children of type column, 2–4), column (children), heading (text, level 1–6), paragraph (text), buttons (children of type button), button (text, href: #fragment or /local-path), tabs (panels; no inline style). Only group/column may contain ordinary content blocks. The tabs node is the registered local Content Tabs block. Use it only for an approved tabbed-content capability. It accepts two to six ordered panels, each with unique lowercase id, plain label, heading and body. Tabs use local state and have no external integration. If the approved tabs reference uses the standard appearance, add "appearance":"standard" to that Tabs node. Omit appearance for the legacy theme-inherited appearance. '.syndamorph_block_plan_decorative_group_rule().' For evenly sized square decorative tiles, use a nested group with squareGrid set to an integer column count 2 to 4. Provide 2 to 12 direct empty Groups in row order, each styled with a background color or gradient and an optional minHeight when the approved specification explicitly requires it. Set the gap on the grid, and use the existing visibility variants for different column counts. Styles: color, background (six-digit hex), fontSize, fontWeight (100–900, integer or numeric string), lineHeight (1–2.5, number or numeric string), letterSpacing (px/rem/em), padding (single length or object with top/right/bottom/left lengths on ordinary nodes), margin (single length or sides on heading/paragraph; top and bottom sides only on group/columns/buttons), textTransform (heading/paragraph/button: none, uppercase, lowercase, capitalize), gap (group/columns/buttons: simple length with theme block-gap support), borderRadius (button), gradient (group/column/button, safe two-color linear-gradient), minHeight (group), align (heading/paragraph left/center/right). Lengths: nonnegative px/rem/em/vw/vh/svh/dvh or clamp(length,length,length), including a bounded additive or subtractive middle expression such as 1.2rem + 3.5vw. Negative letterSpacing is supported. Group contentWidth (px/rem/em/ch) uses native constrained layout and applies the width to its children. contentAlignment (left/center/right) controls horizontal positioning within that constrained group. For a sole constrained Group inside a vertical flex Group, the outer justifyContent stretch lets the inner Group center its bounded children. Theme default horizontal padding may be overridden with explicit native padding matching the approved design. Group justifyContent (left/center/right/stretch) and verticalAlignment (top/center/bottom) use native vertical flex layout, incompatible with contentWidth on the same node. Group style.row set to true uses a native horizontal nonwrapping Row with left, center or right justification and optional verticalAlignment. Group style.flow set to true uses native Flow for vertical document order and cannot be combined with constrained, flex, Grid or scroll-strip layout on the same node. Column style.width takes a positive px length or percentage up to 100%. Column style.verticalAlignment accepts top, center or bottom. Buttons justifyContent (left/center/right) uses native flex layout. For a vertically centered section with bounded content, use separate flex and constrained groups. The element being constrained must be a child of the constrained group. Keep alignment, minHeight and width on the appropriate separate groups. Do not propose fluid blockGap: WordPress core discards clamp() for blockGap. Use responsive spacing on supported children if it matches the design. Mobile-only full-width CTA and breakpoint-specific per-block spacing are outside this contract.'.$buttonWidth.$details.' Do not substitute an always-full-width CTA or arbitrary leaf max-width. On Paragraphs, textDecoration may be none or underline. Set paragraph style.textWrap to pretty when the approved reference requires text-wrap: pretty. If the host fluid font rules alter a source-mandated fixed size, an explicit native clamp with equal bounds preserves it. Font family is inherited unless style.fontFamily selects a local installed preset slug on a group, heading or paragraph. Use only a slug listed in installedFontPresets. Native hover/focus styling is host-owned. Use a heading and meaningful CTA. No HTML, arbitrary CSS, remote URLs, unregistered blocks or invented attributes. When the approved design uses responsive Columns, match the native default: stack through 781 CSS pixels and use the side-by-side layout from 782 CSS pixels. Verify the 768 px layout. Do not force fixed widths. Example {"version":1,"blocks":[{"type":"group","style":{"background":"#18283a","padding":"clamp(2rem,5vw,5rem)"},"children":[{"type":"heading","level":2,"text":"Welcome","style":{"color":"#ffffff","fontSize":"clamp(2rem,5vw,4rem)"}},{"type":"paragraph","text":"Discover our hotel","style":{"color":"#ffffff"}},{"type":"buttons","children":[{"type":"button","text":"Explore","href":"#explore"}]}]}]}.';
+    return 'Return a JSON object {"version":1,"blocks":[...]} with exactly one root group. Each node has type, a stable unique id and optional style. Supported nodes: group (children), columns (children of type column, 2–4; optional isStackedOnMobile:false only where the approved reference keeps the row), column (children), heading (text, level 1–6), paragraph (text), buttons (children of type button), button (text, href: #fragment or /local-path), tabs (panels; no inline style). Only group/column may contain ordinary content blocks. The tabs node is the registered local Content Tabs block. Use it only for an approved tabbed-content capability. It accepts two to six ordered panels, each with unique lowercase id, plain label, heading and body. Tabs use local state and have no external integration. If the approved tabs reference uses the standard appearance, add "appearance":"standard" to that Tabs node. Omit appearance for the legacy theme-inherited appearance. '.syndamorph_block_plan_decorative_group_rule().' For evenly sized square decorative tiles, use a nested group with squareGrid set to an integer column count 2 to 4. Provide 2 to 12 direct empty Groups in row order, each styled with a background color or gradient and an optional minHeight when the approved specification explicitly requires it. Set the gap on the grid, and use the existing visibility variants for different column counts. Styles: color, background (six-digit hex), fontSize, fontWeight (100–900, integer or numeric string), lineHeight (1–2.5, number or numeric string), letterSpacing (px/rem/em), padding (single length or object with top/right/bottom/left lengths on ordinary nodes), margin (single length or sides on heading/paragraph; top and bottom sides only on group/columns/buttons), textTransform (heading/paragraph/button: none, uppercase, lowercase, capitalize), gap (group/columns/buttons: simple length with theme block-gap support), borderRadius (button), gradient (group/column/button, safe two-color linear-gradient), minHeight (group), align (heading/paragraph left/center/right). Lengths: nonnegative px/rem/em/vw/vh/svh/dvh or clamp(length,length,length), including a bounded additive or subtractive middle expression such as 1.2rem + 3.5vw. Negative letterSpacing is supported. Group contentWidth (px/rem/em/ch) uses native constrained layout and applies the width to its children. contentAlignment (left/center/right) controls horizontal positioning within that constrained group. For a sole constrained Group inside a vertical flex Group, the outer justifyContent stretch lets the inner Group center its bounded children. Theme default horizontal padding may be overridden with explicit native padding matching the approved design. Group justifyContent (left/center/right/stretch) and verticalAlignment (top/center/bottom) use native vertical flex layout, incompatible with contentWidth on the same node. Group style.row set to true uses a native horizontal nonwrapping Row with left, center, right or space-between justification and optional verticalAlignment. Group style.flow set to true uses native Flow for vertical document order and cannot be combined with constrained, flex, Grid or scroll-strip layout on the same node. Column style.width takes a positive px length or percentage up to 100%. Column style.verticalAlignment accepts top, center or bottom. Buttons justifyContent (left/center/right) uses native flex layout. For a vertically centered section with bounded content, use separate flex and constrained groups. The element being constrained must be a child of the constrained group. Keep alignment, minHeight and width on the appropriate separate groups. Do not propose fluid blockGap: WordPress core discards clamp() for blockGap. Use responsive spacing on supported children if it matches the design. Mobile-only full-width CTA and breakpoint-specific per-block spacing are outside this contract.'.$buttonWidth.$details.' Do not substitute an always-full-width CTA or arbitrary leaf max-width. On Paragraphs, textDecoration may be none or underline. Set paragraph style.textWrap to pretty when the approved reference requires text-wrap: pretty. For a measured decorative rectangle, use style.aspectRatio with the value 4:3 on a nested painted Group. For measured Group and Paragraph borders, style.border or style.borderTop accepts a single {"width":"1px","color":"#111111"} object with a solid line. If the host fluid font rules alter a source-mandated fixed size, an explicit native clamp with equal bounds preserves it. Font family is inherited unless style.fontFamily selects a local installed preset slug on a group, heading or paragraph. Use only a slug listed in installedFontPresets. Native hover/focus styling is host-owned. Use a heading and meaningful CTA. No HTML, arbitrary CSS, remote URLs, unregistered blocks or invented attributes. When the approved design uses responsive Columns, match the native default: stack through 781 CSS pixels and use the side-by-side layout from 782 CSS pixels. Verify the 768 px layout. Do not force fixed widths. Example {"version":1,"blocks":[{"type":"group","style":{"background":"#18283a","padding":"clamp(2rem,5vw,5rem)"},"children":[{"type":"heading","level":2,"text":"Welcome","style":{"color":"#ffffff","fontSize":"clamp(2rem,5vw,4rem)"}},{"type":"paragraph","text":"Discover our hotel","style":{"color":"#ffffff"}},{"type":"buttons","children":[{"type":"button","text":"Explore","href":"#explore"}]}]}]}.';
 }
 
 function syndamorph_native_full_button_width(): bool {
@@ -186,6 +193,11 @@ function syndamorph_native_core_preview(array $blocks,?array $ids=null): string 
         return (bool)array_intersect_key($classes,array_fill_keys($matches[1],true));
     });
     $css=wp_get_global_stylesheet();
+    if(array_intersect_key($classes,array_flip(array('has-text-align-left','has-text-align-center','has-text-align-right')))){
+        $common=ABSPATH.WPINC.'/css/dist/block-library/common.min.css';
+        if(is_readable($common)&&preg_match_all('/\.(has-text-align-(?:left|center|right))\{[^}]+\}/',file_get_contents($common),$aligned,PREG_SET_ORDER))
+            foreach($aligned as $rule)if(isset($classes[$rule[1]]))$css.=$rule[0];
+    }
     foreach(array_keys($types) as $type) {
         if($type==='syndamorph/tabs'){
             $css.=syndamorph_tabs_asset('production-tabs.css');
@@ -199,6 +211,7 @@ function syndamorph_native_core_preview(array $blocks,?array $ids=null): string 
     if(isset($classes['sm-square-grid']))$css.=syndamorph_native_square_grid_css();
     if(isset($classes['sm-disclosure-group']))$css.=syndamorph_disclosures_css();
     if(isset($classes['sm-text-wrap-pretty']))$css.=syndamorph_native_paragraph_wrap_css();
+    if(isset($classes['sm-aspect-4-3']))$css.=syndamorph_native_four_three_css();
     $css.='*,*::before,*::after{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;line-height:1.5}';
     return '<style>'.$css.'</style>'.$html;
 }
@@ -239,6 +252,7 @@ function syndamorph_compile_block_plan( string $raw ) {
             $container = in_array( $type, array('group','columns','column','buttons'), true );
             $keys = array_merge(array('type','style','id'),$container?array('children'):($type==='tabs'?array('panels','appearance'):array('text')),
                 $type==='heading'?array('level'):array(),$type==='button'?array('href'):array(),
+                $type==='columns'?array('isStackedOnMobile'):array(),
                 $type==='group'?array('scrollStrip','squareGrid','disclosureGroup','disclosureAppearance'):array(),
                 $type==='details'?array('children','open'):array());
             if ( $unknown = array_diff( array_keys($node), $keys ) ) {
@@ -282,8 +296,16 @@ function syndamorph_compile_block_plan( string $raw ) {
                     str_replace('--','\u002d\u002d',json_encode($attrs,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_THROW_ON_ERROR));
                 return '<!-- wp:syndamorph/tabs '.$json.' /-->';
             }
-            $attrs = array(); $css = array(); $classes = array();
+            $attrs = array(); $css = array(); $classes = array(); $borderCss=array();
             if ( $type !== 'paragraph' ) { $classes[] = 'wp-block-' . $type; }
+            if($type==='columns'&&array_key_exists('isStackedOnMobile',$node)){
+                $field=$path.'.isStackedOnMobile';
+                if(!is_bool($node['isStackedOnMobile']))throw new InvalidArgumentException('Column stacking must be boolean.');
+                if(!$node['isStackedOnMobile']){
+                    $attrs['isStackedOnMobile']=false;
+                    $classes[]='is-not-stacked-on-mobile';
+                }
+            }
             if ( $type === 'group' ) { $attrs['layout'] = array('type'=>'flex','orientation'=>'vertical'); $classes[]='is-layout-flex'; }
             if(array_key_exists('row',$style)){
                 $field=$path.'.style.row';
@@ -317,9 +339,10 @@ function syndamorph_compile_block_plan( string $raw ) {
                     if($value===null)throw new InvalidArgumentException('Invalid two-color gradient.');
                     $attrs['style']['color']['gradient']=$value;$css['background']=$value;$classes[]='has-background';
                 } elseif ($key==='justifyContent' && in_array($type,array('group','buttons'),true)) {
-                    if(!in_array($value,$type==='group'?array('left','center','right','stretch'):array('left','center','right'),true))throw new InvalidArgumentException('Invalid layout justification.');
-                    if(($attrs['layout']['orientation']??null)==='horizontal'&&$value==='stretch')
-                        throw new InvalidArgumentException('Row justification accepts left, center or right.');
+                    $allowedJustification=($attrs['layout']['orientation']??null)==='horizontal'?
+                        array('left','center','right','space-between'):
+                        ($type==='group'?array('left','center','right','stretch'):array('left','center','right'));
+                    if(!in_array($value,$allowedJustification,true))throw new InvalidArgumentException('Invalid layout justification.');
                     if($type==='buttons')$attrs['layout']['type']='flex';
                     $attrs['layout']['justifyContent']=$value;
                 } elseif ($key==='verticalAlignment' && $type==='group') {
@@ -385,6 +408,22 @@ function syndamorph_compile_block_plan( string $raw ) {
                     $attrs['style']['dimensions']['width']=$value;
                 } elseif ( $key==='borderRadius' && $type==='button' ) {
                     $attrs['style']['border']['radius']=$css['border-radius']=$length($value);
+                } elseif (in_array($key,array('border','borderTop'),true)&&in_array($type,array('group','paragraph'),true)) {
+                    if(!is_array($value)||count($value)!==2||!is_string($value['width']??null)||
+                        !preg_match('/^[1-4]px$/D',$value['width'])||!is_string($value['color']??null)||
+                        !preg_match('/^#[0-9a-f]{6}$/iD',$value['color'])||isset($style['border'],$style['borderTop']))
+                        throw new InvalidArgumentException('Use one solid border with a 1 to 4 px width and a six-digit color.');
+                    $border=array('color'=>$value['color'],'style'=>'solid','width'=>$value['width']);
+                    $top=$key==='borderTop';
+                    $attrs['style']['border']=$top?array('top'=>$border):$border;
+                    foreach($border as $property=>$measurement)
+                        $borderCss[($top?'border-top-':'border-').$property]=$measurement;
+                    if(!$top)$classes[]='has-border-color';
+                } elseif ($key==='aspectRatio'&&$type==='group'&&$parent!=='root') {
+                    if($value!=='4:3'||(!isset($style['background'])&&!isset($style['gradient']))||
+                        !empty($node['scrollStrip'])||isset($node['squareGrid'])||
+                        isset($node['disclosureGroup'])||isset($style['minHeight']))
+                        throw new InvalidArgumentException('A decorative 4:3 tile requires an ordinary Group without a forced height.');
                 } elseif ( $key==='gap' && in_array($type,array('group','columns','buttons'),true) ) {
                     $attrs['style']['spacing']['blockGap']=$length($value);
                 } elseif ( $key==='align' && in_array($type,array('heading','paragraph'),true) ) {
@@ -393,6 +432,7 @@ function syndamorph_compile_block_plan( string $raw ) {
                     $classes[]='has-text-align-'.$value;
                 } else { throw new InvalidArgumentException('Unsupported style for block.'); }
             }
+            if(isset($style['aspectRatio']))$attrs['className']=trim(($attrs['className']??'').' sm-aspect-4-3');
             if(isset($style['contentAlignment']))$attrs['layout']['justifyContent']=$style['contentAlignment'];
             if(array_key_exists('disclosureAppearance',$node)&&
                 (($node['disclosureGroup']??null)!==true||$node['disclosureAppearance']!=='bordered'))
@@ -450,19 +490,21 @@ function syndamorph_compile_block_plan( string $raw ) {
                 $scrollStrips[$id]=array('visibility'=>$style['visibility'],'cards'=>count($cards));
                 $schemaFacts['horizontal-scroll-strip']=true;
             }
-            if(isset($attrs['layout'])||isset($attrs['style']['spacing']['blockGap'])) {
+            if(isset($attrs['layout'])||isset($attrs['style']['spacing']['blockGap'])||isset($attrs['isStackedOnMobile'])) {
                 $layoutFacts[$node['id']??$path]=array('layout'=>$attrs['layout']??null,
                     'blockGap'=>$attrs['style']['spacing']['blockGap']??null);
+                if(isset($attrs['isStackedOnMobile']))
+                    $layoutFacts[$node['id']??$path]['isStackedOnMobile']=$attrs['isStackedOnMobile'];
             }
             // Keep core support classes in the order emitted by Gutenberg.
             $classes = array_values(array_unique($classes));
             $base = array_values(array_filter($classes,static fn($c)=>strpos($c,'wp-block-')===0 || strpos($c,'has-text-align-')===0 ||
-                strpos($c,'is-vertically-aligned-')===0||in_array($c,array('is-layout-flex','is-layout-constrained','is-layout-grid'),true)));
-            foreach(array('has-text-color','has-background') as $c) { if(in_array($c,$classes,true))$base[]=$c; }
+                strpos($c,'is-vertically-aligned-')===0||in_array($c,array('is-layout-flex','is-layout-constrained','is-layout-grid','is-not-stacked-on-mobile'),true)));
+            foreach(array('has-text-color','has-background','has-border-color') as $c) { if(in_array($c,$classes,true))$base[]=$c; }
             if(isset($attrs['fontFamily']))$base[]='has-'.$attrs['fontFamily'].'-font-family';
             if(isset($attrs['className']))$base[]=$attrs['className'];
             $classes=$base;
-            $style_parts=array(); foreach($css as $k=>$v)$style_parts[]=$k.':'.$v;
+            $style_parts=array(); foreach($borderCss+$css as $k=>$v)$style_parts[]=$k.':'.$v;
             $appearance=static fn(array $c,array $s): string => ($c?' class="'.$escape(implode(' ',$c)).'"':'').($s?' style="'.$escape(implode(';',$s)).'"':'');
             $field = $path;
             if ($container) {
@@ -470,7 +512,8 @@ function syndamorph_compile_block_plan( string $raw ) {
                 $children=$node['children']??null;
                 $emptyDecoration=$type==='group' && $parent!=='root' &&
                     (!array_key_exists('children',$node)||$children===array()) &&
-                    ($parent==='squareGrid'||isset($style['minHeight'])) && (isset($style['background'])||isset($style['gradient']));
+                    ($parent==='squareGrid'||isset($style['minHeight'])||isset($style['aspectRatio'])) &&
+                    (isset($style['background'])||isset($style['gradient']));
                 if($emptyDecoration) {
                     $children=array();
                     $schemaFacts['decorative_group']=true;
@@ -515,7 +558,7 @@ function syndamorph_compile_block_plan( string $raw ) {
             $parsedBlocks=parse_blocks($content);
             $verify($parsedBlocks);
         }
-        $preview='<style>*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;line-height:1.5}:where(.wp-block-group.is-layout-flex){display:flex;flex-direction:column;flex-wrap:wrap;align-items:flex-start}:where(.wp-block-group.is-layout-constrained){display:block}:where(.wp-block-group) :where(h1,h2,h3,h4,h5,h6,p),.is-layout-flex>:is(*,div){margin:0}:where(.wp-block-columns){display:flex;gap:1.5rem}.wp-block-column{flex:1;min-width:0}:where(.wp-block-buttons){display:flex;flex-wrap:wrap;gap:1rem;align-items:center}.wp-block-button__link{display:inline-block;padding:.75em 1.5em;background:#26384a;color:#fff;text-decoration:none;border-radius:4px}.has-text-align-center{text-align:center}.has-text-align-right{text-align:right}@media(max-width:781px){.wp-block-columns{flex-direction:column}}</style>'.$content;
+        $preview='<style>*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;line-height:1.5}:where(.wp-block-group.is-layout-flex){display:flex;flex-direction:column;flex-wrap:wrap;align-items:flex-start}:where(.wp-block-group.is-layout-constrained){display:block}:where(.wp-block-group) :where(h1,h2,h3,h4,h5,h6,p),.is-layout-flex>:is(*,div){margin:0}:where(.wp-block-columns){display:flex;gap:1.5rem}.wp-block-column{flex:1;min-width:0}:where(.wp-block-buttons){display:flex;flex-wrap:wrap;gap:1rem;align-items:center}.wp-block-button__link{display:inline-block;padding:.75em 1.5em;background:#26384a;color:#fff;text-decoration:none;border-radius:4px}.has-text-align-center{text-align:center}.has-text-align-right{text-align:right}@media(max-width:781px){.wp-block-columns:not(.is-not-stacked-on-mobile){flex-direction:column}}</style>'.$content;
         $layoutCss=''; $layoutNotes=array();
         $themeStyles=function_exists('wp_get_global_styles') ? wp_get_global_styles() : array();
         $themeGapSupport=!function_exists('wp_get_global_settings') ||
@@ -545,7 +588,7 @@ function syndamorph_compile_block_plan( string $raw ) {
                 if(($layout['type']??null)==='default')$childRules='margin-block-start:0;margin-block-end:0';
                 else $rules='gap:'.$gap.';';
             }
-            $horizontal=array('left'=>'flex-start','center'=>'center','right'=>'flex-end','stretch'=>'stretch');
+            $horizontal=array('left'=>'flex-start','center'=>'center','right'=>'flex-end','stretch'=>'stretch','space-between'=>'space-between');
             $vertical=array('top'=>'flex-start','center'=>'center','bottom'=>'flex-end');
             $row=$m[1]==='group'&&($layout['orientation']??null)==='horizontal';
             if($row)$rules.='flex-direction:row;flex-wrap:nowrap;';
@@ -587,6 +630,8 @@ function syndamorph_compile_block_plan( string $raw ) {
         if(!$corePreview&&isset($schemaFacts['square-grid']))$preview='<style>'.syndamorph_native_square_grid_css().'</style>'.$preview;
         if(!$corePreview&&str_contains($content,'"className":"sm-text-wrap-pretty"'))
             $preview='<style>'.syndamorph_native_paragraph_wrap_css().'</style>'.$preview;
+        if(!$corePreview&&str_contains($content,'sm-aspect-4-3'))
+            $preview='<style>'.syndamorph_native_four_three_css().'</style>'.$preview;
         if(str_contains($content,'"className":"sm-view-'))$preview='<style>'.syndamorph_native_visibility_css().'</style>'.$preview;
         return array('schemaVersion'=>1,'content'=>$content,'preview'=>$preview,'blockCount'=>$count,
             'previewRendering'=>$corePreview?'wordpress-core':'standalone','layoutFacts'=>$layoutFacts,

@@ -6,6 +6,18 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.33] - 2026-11-27
+
+### Changed
+
+- Capped Developer streams can resume on the original job with a completed plan that preserves the authored content and identities of every complete block. A retained artifact held exclusively on model findings can receive one independent review with fresh browser evidence and the same work order.
+- Native plans support non-stacking Core Columns, bounded solid Group and Paragraph borders, Row spacing, and painted 4:3 Group tiles. The preview uses WordPress text alignment rules. Full Page reuse restores the source scroll identity from the approved plan only when it reproduces the saved Pattern exactly.
+
+### Verified
+
+- Exclusive Offers completed as private unsynced Pattern 73 with 99 editor-verified blocks. The pinned source comparison measured 0.060%, 0.000%, and 0.000% at 1440, 768, and 375 px. The original job recorded $0.146740 in metered spend.
+- The original local BKKGO draft now contains three verified placements and 155 editor-verified blocks. The actual 375 px preview reproduced the 213 px Offers scroll range by wheel and keyboard with visible focus. Whole-page QA is pending while required regions are missing.
+
 ## [0.12.32] - 2026-11-26
 
 ### Changed

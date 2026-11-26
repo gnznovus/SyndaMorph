@@ -359,6 +359,31 @@ function syndamorph_collab_pairs(array $reference,array $native,array $plan): ar
     }
     return $pairs;
 }
+/** Report computed styles only for observed, matched text elements. */
+function syndamorph_collab_computed_text(array $reference,array $native,array $plan,array $indexes,array $priority): array {
+    $fields=array_flip(array('fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','color',
+        'textTransform','textDecorationLine','margin','marginTop','marginBottom','textAlign'));
+    $measurements=array();
+    foreach($indexes as $index){
+        $rows=array();
+        $pairs=syndamorph_collab_pairs($reference[$index]['snapshot']['elements']??array(),
+            $native[$index]['snapshot']['elements']??array(),$plan);
+        foreach($pairs as $pair){
+            $ref=array_intersect_key($pair['reference']['styles']??array(),$fields);
+            $current=array_intersect_key($pair['native']['styles']??array(),$fields);
+            if(!$ref||!$current)continue;
+            ksort($ref);
+            ksort($current);
+            $id=$pair['owner'];
+            $rows[]=array('component'=>$id,'reference'=>$ref)+($ref===$current?
+                array('nativeMatchesReference'=>true):array('native'=>$current));
+        }
+        if($priority)usort($rows,static fn(array $a,array $b):int=>
+            (int)isset($priority[$b['component']])<=>(int)isset($priority[$a['component']]));
+        $measurements[]=array('width'=>$native[$index]['width'],'pairs'=>array_slice($rows,0,24));
+    }
+    return $measurements;
+}
 function syndamorph_collab_style_findings(array $reference,array $native,array $plan,?array &$observed=null): array {
     $issues=array();
     $observed=array();
@@ -1487,7 +1512,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         'Pinned native source comparison is pending.',$initialSource['visual']['inspection']),$artifact['preview'],
         'implementation_inspection','developer',$capabilityNotes,$artifact,$surgery,$designMemo);
     if($initialSource!==null&&!$initialSource['passed'])$issues[]=syndamorph_source_issue($initialSource,$plan['blocks'][0]['id']);
-    $functionalCheck=static function(array $candidate,array $evidence)use($viewports,$interactions,$designMemo,$specification,$reference,$sourceDisclosure):array {
+    $functionalCheck=static function(array $candidate,array $evidence)use($viewports,$interactions,$designMemo,$specification,
+        $reference,$sourceDisclosure,$sourceScroll,$scopeRegion,$verifyScope):array {
         $nativeChecks=array();$byRequirement=array_column($specification['requirements'],null,'id');
         foreach($interactions as $interaction){
             $check=$byRequirement[$interaction['requirementId']]['check']??null;
@@ -1495,6 +1521,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 $nativeChecks[$interaction['id']]=syndamorph_design_run_check($check,$evidence);
         }
         $nativeChecks=syndamorph_scroll_strip_verify($candidate,$viewports,$reference)+$nativeChecks;
+        if($sourceScroll!==null)$nativeChecks+=syndamorph_scroll_strip_source_checks($specification,$sourceScroll,$candidate,
+            $evidence,$scopeRegion,$verifyScope($candidate['preview'])??array(),$nativeChecks);
         $disclosures=syndamorph_disclosures_verify($candidate,$viewports,$reference);
         if($sourceDisclosure!==null&&
             ($candidate['disclosureGroups'][$sourceDisclosure['id']]??null)!==$sourceDisclosure['panels'])
@@ -1545,16 +1573,21 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         }
     }
     $copyCheck=syndamorph_visual_copy($inspectReference,$inspectNative);
-    $paintEvidence=$nativeReview===null?array():array('paintedLeaves'=>array(
+    $sourceWidths=defined('SYNDAMORPH_SOURCE_WIDTHS')?SYNDAMORPH_SOURCE_WIDTHS:array();
+    $styleViewports=array_values(array_unique(array_merge($visionViewports,array_keys(array_intersect($viewports,$sourceWidths)))));
+    sort($styleViewports,SORT_NUMERIC);
+    $nativeEvidence=$nativeReview===null?array():array('paintedLeaves'=>array(
         'reference'=>syndamorph_collab_painted_leaves($inspectReference),'native'=>syndamorph_collab_painted_leaves($inspectNative)),
+        'computedTextStyles'=>syndamorph_collab_computed_text($inspectReference,$inspectNative,$plan,$styleViewports,
+            array_fill_keys(array_column($nativeReview['archivedObservations']['priorModelIssues']??array(),'component'),true)),
         'retainedBrowserObservations'=>$nativeReview['archivedObservations']??array());
     $review=$call('validator','Assess the frozen design and browser evidence for the implementation. Return JSON {"decision":"approved|changes_requested","issues":[{"id":"stable id","component":"existing id","category":"alignment|spacing|height|typography|wrapping|other","scope":"section|component","severity":"high|medium|low","detail":"measurable defect and suggested correction","kind":"implementation","status":"open","repairStrategy":"optional: style|structure|hybrid"}],"summary":"..."}. Use category content for literal copy disputes and consult copyComparison. Reuse deterministic issue IDs where applicable. Compiler checks are authoritative. Put host responsibilities, unsupported capabilities and pending editor verification in notes. Approve only with no actionable defects.'.
-        ($nativeReview===null?'':' When reporting tile paint or order, compare the browser rectangles and fill colors, sorted by y then x, and cite the exact width and position. Component IDs are stable edit targets and do not encode visual positions. Treat retainedBrowserObservations as archived evidence. Check them against the current rendering and work order. Distinguish preservation of an observed source element from addition of new content or fill.'),
+        ($nativeReview===null?'':' When reporting tile paint or order, compare the browser rectangles and fill colors, sorted by y then x, and cite the exact width and position. Component IDs are stable edit targets and do not encode visual positions. Use computedTextStyles as authority for matching text at the measured width. A CSS declaration overridden in the browser is not a measured difference. Use explicit compiledLayout attributes for layout exceptions. Treat retainedBrowserObservations as archived evidence and reassess any prior issues independently against the current rendering and work order. Distinguish preservation of an observed source element from addition of new content or fill.'),
         array('brief'=>$brief,'design'=>$designMemo,'reference'=>$modelEvidence($inspectReference),'native'=>$modelEvidence($inspectNative),
             'deterministicIssues'=>$issues,'copyComparison'=>$copyCheck,'pixelComparison'=>$comparison,
             'implementationHandoff'=>$implementationHandoff,'compiledLayout'=>$artifact['layoutFacts'],
             'components'=>syndamorph_surgery_context($plan['blocks'][0],121),'compilerChecks'=>$artifact['checks'],
-            'imageOrder'=>array_merge(...array_map(static fn($index)=>array($viewports[$index].'-reference',$viewports[$index].'-native'),$visionViewports)))+$paintEvidence,
+            'imageOrder'=>array_merge(...array_map(static fn($index)=>array($viewports[$index].'-reference',$viewports[$index].'-native'),$visionViewports)))+$nativeEvidence,
         syndamorph_collab_output_cap($provider,$model),$screenshots,'validation',0.0,
         array('reference'=>$reference,'native'=>$artifact['preview'],'plan'=>$plan));
     if (is_wp_error($review)) return $review;$outputs['validator']=$review;

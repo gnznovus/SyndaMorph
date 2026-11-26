@@ -94,3 +94,46 @@ function syndamorph_scroll_strip_verify(array $artifact,array $widths,string $re
     unset($result);
     return $native;
 }
+
+/** Bind separate source-strip and inert-fragment requirements to their native evidence. */
+function syndamorph_scroll_strip_source_checks(array $specification,array $profile,array $artifact,array $samples,
+    array $source,array $sourceQa,array $native): array {
+    $id=$profile['id'];
+    $components=array_values(array_filter($specification['interactions']??array(),static fn($item)=>
+        $item['id']===$id&&$item['kind']==='horizontal-scroll'&&$item['classification']==='native'));
+    if(count($components)!==1||($native[$id]['status']??null)!=='verified')return array();
+    $out=array();
+    foreach($specification['requirements'] as $requirement){
+        if($requirement['dimension']!=='functional')continue;
+        $key=$requirement['id'];
+        $widths=array_keys($profile['copyByWidth']);
+        $expect='At '.implode(' and ',$widths).' implement native horizontal scroll group id '.$id.
+            ' with two cards, 80% card basis, 12px gap, 20px end padding and start snapping. Visibility: '.$profile['visibility'].'.';
+        if($requirement['basis']==='source'&&$requirement['target']===$components[0]['target']&&
+            $requirement['requirement']===$expect&&
+            $requirement['acceptance']==='Group exists with the exact ID and two direct cards; the second card is empty; the strip starts at card one.'&&
+            $profile['cards']===2&&array_filter($profile['cardCopyByWidth'],static fn($copy)=>($copy[1]??null)!=='')===array()){
+            $out[$key]=array('status'=>'verified','check'=>'source-scroll-layout','component'=>$id,
+                'viewports'=>array_column($native[$id]['viewports'],'width'));
+        }
+        if($requirement['basis']!=='brief'||
+            $requirement['requirement']!=='No reservation integration, forms, iframes, external requests, made-up assets, extra cards or publishing. Booking labels stay as plain copy.'||
+            $requirement['acceptance']!=='Zero href attributes, zero scripts, zero external URLs in the fragment; exactly the captured cards exist.'||
+            empty($sourceQa['passed'])||!empty($artifact['tabWidgets'])||
+            preg_match('~\b(?:href|src)\s*=|<\s*(?:script|form|iframe|embed|object)\b|https?://~i',$artifact['preview'])||
+            array_column($samples,'width')!==SYNDAMORPH_SOURCE_WIDTHS)continue;
+        $counts=array();
+        foreach($samples as $sample){
+            $width=$sample['width'];
+            $captured=preg_match_all('/\baspect-ratio\s*:\s*4\s*\/\s*3\b/',$source['variants'][$width]['html']??'');
+            $rendered=count(array_filter($sample['snapshot']['elements']??array(),static fn($element)=>
+                ($element['visible']??null)===true&&in_array('sm-aspect-4-3',$element['classes']??array(),true)));
+            if(!$captured||$rendered!==$captured)break;
+            $counts[$width]=$rendered;
+        }
+        if(array_keys($counts)===SYNDAMORPH_SOURCE_WIDTHS)
+            $out[$key]=array('status'=>'verified','check'=>'inert-source-fragment','cardCounts'=>$counts,
+                'publishing'=>'excluded by the private draft workflow');
+    }
+    return $out;
+}

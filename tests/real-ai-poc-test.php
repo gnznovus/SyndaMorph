@@ -2142,6 +2142,32 @@ expect($copy['kind']==='literal_mismatch'&&$copy['expected']==='the full introdu
     'Copy diagnostics did not distinguish missing words from missing browser evidence.');
 echo "PASS: source surgery preserves per-width evidence and ranks incomplete improvements\n";
 
+$tilePlan=array('version'=>1,'blocks'=>array(array('type'=>'group','style'=>array('flow'=>true),'children'=>array(
+    array('type'=>'heading','text'=>'Offers'),
+    array('type'=>'columns','isStackedOnMobile'=>false,'children'=>array(
+        array('type'=>'column','children'=>array(array('type'=>'group','style'=>array(
+            'flow'=>true,'aspectRatio'=>'4:3','background'=>'#eae7e7'),'children'=>array()))),
+        array('type'=>'column','children'=>array(array('type'=>'paragraph','text'=>'Stay Offer','style'=>array(
+            'border'=>array('width'=>'1px','color'=>'#111111')))))))))));
+$tileArtifact=syndamorph_compile_block_plan(wp_json_encode($tilePlan));
+expect(!is_wp_error($tileArtifact)&&str_contains($tileArtifact['content'],'is-not-stacked-on-mobile')&&
+    str_contains($tileArtifact['content'],'sm-aspect-4-3')&&str_contains($tileArtifact['content'],'border-width:1px')&&
+    str_contains($tileArtifact['preview'],syndamorph_native_four_three_css()),
+    'The measured card geometry is missing from native serialization or its preview.');
+$tilePlan['blocks'][0]['children'][1]['children'][0]['children'][0]['style']['aspectRatio']='url(external)';
+expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($tilePlan))),'Unregistered aspect-ratio CSS compiled.');
+
+$tag=array('node'=>'offer-tag','tag'=>'P','text'=>'Stay Offer','styles'=>array('letterSpacing'=>'normal','fontSize'=>'12px'));
+$observed=array('width'=>768,'snapshot'=>array('elements'=>array($tag)));
+$hidden=array_replace($observed,array('snapshot'=>array('elements'=>array($tag+array('visible'=>false)))));
+$delta=$observed;
+$delta['snapshot']['elements'][0]['styles']['fontSize']='14px';
+$evidence=syndamorph_collab_computed_text(array($observed,$observed,$observed),array($observed,$hidden,$delta),
+    $tilePlan,array(0,1,2),array('offer-tag'=>true));
+expect(($evidence[0]['pairs'][0]['nativeMatchesReference']??null)===true&&$evidence[1]['pairs']===array()&&
+    ($evidence[2]['pairs'][0]['native']['fontSize']??null)==='14px',
+    'Validator evidence mislabeled a missing or different measured style as a match.');
+
 $root=array('node'=>'root','rect'=>array(0,0,900,300));
 $column=array('parent'=>0,'rect'=>array(115,20,670,250),'styles'=>array('padding'=>'0px'));
 $referenceElements=array($root,$column,array('parent'=>1),array('parent'=>2));

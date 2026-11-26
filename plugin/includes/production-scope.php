@@ -134,6 +134,41 @@ function syndamorph_scope_designer_css_checkpoint(int $id): ?array {
     return $raw===null?null:syndamorph_design_css_checkpoint($raw);
 }
 
+/** Bind a completed plan to every complete, identified block in the capped stream. */
+function syndamorph_scope_retained_native_nodes(string $raw,array $plan): ?array {
+    $length=strlen($raw);
+    if($length>120000||!is_array($plan['blocks']??null))return null;
+    $starts=array();$complete=array();$quoted=false;
+    for($i=0;$i<$length;$i++){
+        $character=$raw[$i];
+        if($quoted&&$character==='\\'){$i++;continue;}
+        if($character==='"'){$quoted=!$quoted;continue;}
+        if($quoted)continue;
+        if($character==='{')$starts[]=$i;
+        if($character!=='}')continue;
+        if(!$starts)return null;
+        $start=array_pop($starts);
+        $object=json_decode(substr($raw,$start,$i-$start+1),true,48);
+        if(is_array($object)&&isset($object['type']))$complete[$start]=$object;
+    }
+    ksort($complete,SORT_NUMERIC);
+    $retained=array();
+    $protected=array_flip(array('type','id','text','href','level','panels','open','appearance','scrollStrip',
+        'squareGrid','disclosureGroup','disclosureAppearance'));
+    foreach($complete as $saved){
+        $id=$saved['id']??null;
+        if(!is_string($id)||isset($retained[$id]))return null;
+        $node=syndamorph_collab_find($plan['blocks'],$id);
+        if(!is_array($node))return null;
+        $before=array_intersect_key($saved,$protected);ksort($before);
+        $after=array_intersect_key($node,$protected);ksort($after);
+        if($before!==$after||array_column($saved['children']??array(),'id')!==array_column($node['children']??array(),'id'))
+            return null;
+        $retained[$id]=true;
+    }
+    return $retained?array_keys($retained):null;
+}
+
 function syndamorph_scope_planning_checkpoint(int $id): ?string {
     $calls=syndamorph_job_resume_calls($id);
     if(!is_array($calls)||count($calls)!==1)return null;
@@ -459,12 +494,43 @@ function syndamorph_scope_staged_wrap(array $source,array $staged,array $artifac
 
 /** Resume an exact archived assignment or planning response on its original GEN. */
 function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $edits=array(),?callable $engine=null,
-    array $workOrderEdits=array(),?string $wrapId=null) {
+    array $workOrderEdits=array(),?string $wrapId=null,?array $retainedPlan=null) {
     global $wpdb;
     $manifest=syndamorph_scope_status($manifest);
     $region=$manifest['regions'][$key]??null;
     $stage=$region['recoveryStage']??null;
     $disputeRecovery=false;
+    $priorModelIssues=array();
+    if($retainedPlan!==null){
+        $last=!empty($region['attempts'])?end($region['attempts']):null;
+        $failure=$last?syndamorph_history_latest($last['id'],'job_error'):null;
+        $priorNative=$last?syndamorph_history_latest($last['id'],'native_partial_recovery'):null;
+        $alreadyReviewed=$last?syndamorph_history_latest($last['id'],'native_evidence_review'):null;
+        $status=$region['status']??null;
+        $capped=($failure['code']??null)==='sm_generation_token_limit'&&($failure['role']??null)==='developer'&&
+            ($failure['task']??null)==='developer'&&$priorNative===null&&$status==='failed';
+        $recheck=($failure['code']??null)==='sm_native_review_deterministic'&&$status==='failed'&&
+            ($priorNative['plan']??null)===$retainedPlan&&$alreadyReviewed===null;
+        if($status==='uncompleted'&&$alreadyReviewed===null&&($priorNative['plan']??null)===$retainedPlan){
+            $previous=syndamorph_history_latest($last['id'],'job_complete');
+            $quality=$previous['quality']??array();
+            $issues=$quality['issues']??array();
+            $content=$previous['artifact']['content']??null;
+            if(($previous['status']??null)==='uncompleted'&&($quality['terminationReason']??null)==='quality_unresolved'&&
+                ($previous['sourceAcceptance']['passed']??false)===true&&($previous['sourceAcceptance']['id']??null)===$key&&
+                ($quality['continuousResponsive']['status']??null)==='passed'&&
+                in_array($quality['functionalChecks']['status']??null,array('not_applicable','passed'),true)&&
+                ($quality['hostAccessibility']['status']??'passed')==='passed'&&
+                is_string($content)&&hash('sha256',$content)===($priorNative['artifactSha256']??null)&&$issues&&
+                array_unique(array_column($issues,'source'))===array('model')&&count(array_column($issues,'source'))===count($issues)){
+                $fields=array_flip(array('id','component','category','detail'));
+                $priorModelIssues=array_map(static fn(array $issue):array=>array_intersect_key($issue,$fields),$issues);
+            }
+        }
+        if($stage!==null||$wrapId!==null||$edits||$workOrderEdits||(!$capped&&!$recheck&&!$priorModelIssues))
+            return syndamorph_scope_error('review_checkpoint','This job has no eligible capped or independently reviewed native checkpoint.');
+        $stage='native_partial_review';
+    }
     if($wrapId!==null){
         $last=!empty($region['attempts'])?end($region['attempts']):null;
         $failure=$last?syndamorph_history_latest($last['id'],'job_error'):null;
@@ -497,7 +563,8 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
     $rowStatus=$row['status']??null;
     $final=$stage==='native_review'?syndamorph_history_latest($id,'job_complete'):null;
     $nativeReview=$stage==='native_review'?syndamorph_scope_native_review_checkpoint($id,$final):null;
-    if(!in_array($rowStatus,$nativeReview===null?array('failed'):array('failed','uncompleted'),true)||
+    $expectedStatuses=$priorModelIssues?array('uncompleted'):($nativeReview===null?array('failed'):array('failed','uncompleted'));
+    if(!in_array($rowStatus,$expectedStatuses,true)||
         ($stage==='native_review'&&$nativeReview===null)||($context['outputType']??null)!=='gutenberg'||
         ($context['brief']??null)!==$manifest['brief']||($saved['id']??null)!==$manifest['id']||
         ($saved['region']??null)!==$key||($saved['checkpoint']??null)!==$region['checkpoint']||
@@ -645,10 +712,40 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
             empty($candidate['responsive']['passed'])||empty(syndamorph_source_review($source,$reference,$authorization??null)['passed'])))
             return syndamorph_scope_error('review_checkpoint','The saved reference must still pass source and responsive QA before reviewing its evidence.');
     }
-    if(in_array($stage,array('developer','native_review'),true)){
+    $nativePartialReceipt=null;
+    if($stage==='native_partial_review'){
+        $raw=syndamorph_scope_failed_stream($id,'developer');
+        $verified=syndamorph_surgery_verify($retainedPlan,$retainedPlan);
+        $retainedIds=$raw===null?null:syndamorph_scope_retained_native_nodes($raw,$retainedPlan);
+        if(is_wp_error($verified)||$retainedIds===null)
+            return syndamorph_scope_error('review_checkpoint','The recovery plan must compile and preserve every completed block identity and its authored content.');
+        $artifact=$verified['artifact'];
+        if($priorNative!==null&&hash('sha256',$artifact['content'])!==($priorNative['artifactSha256']??null))
+            return syndamorph_scope_error('review_checkpoint','A recheck must retain the exact compiled block artifact.');
+        if($priorModelIssues&&$sha!==($priorNative['referenceSha256']??null))
+            return syndamorph_scope_error('review_checkpoint','An evidence re-review must retain the exact approved reference.');
+        $sourceQa=syndamorph_source_review($source,$artifact['preview'],$authorization??null);
+        if(!$sourceQa['passed'])
+            return syndamorph_scope_error('review_checkpoint','The completed native plan must pass fresh pinned source QA before review.');
+        $nativePartialReceipt=array('streamSha256'=>hash('sha256',$raw),'preservedIds'=>$retainedIds,
+            'referenceSha256'=>$sha,'artifactSha256'=>hash('sha256',$artifact['content']),'plan'=>$retainedPlan);
+        $resume['nativeReview']=array('artifactSha256'=>$nativePartialReceipt['artifactSha256'],'plan'=>$retainedPlan,
+            'archivedObservations'=>array('cappedDeveloperStreamSha256'=>$nativePartialReceipt['streamSha256'],
+                'completeBlockIds'=>$retainedIds));
+        if($priorModelIssues)$resume['nativeReview']['archivedObservations']['priorModelIssues']=$priorModelIssues;
+    }
+    if(in_array($stage,array('developer','native_review','native_partial_review'),true)){
         if($edits||$extendWorkOrder)return syndamorph_scope_error('review_checkpoint','Implementation recovery requires the unchanged design and work order.');
         if($nativeReview===null){
             $approved=syndamorph_history_latest($id,'handoff');
+            if($stage==='native_partial_review'&&($approved['type']??null)!=='approved_design'){
+                $handoffs=$wpdb->get_col($wpdb->prepare(
+                    "SELECT payload FROM $events WHERE job_id=%d AND event_type='handoff' ORDER BY id DESC LIMIT 16",$id));
+                foreach($handoffs as $handoff){
+                    $record=json_decode($handoff,true);
+                    if(($record['type']??null)==='approved_design'){$approved=$record;break;}
+                }
+            }
             $checked=syndamorph_history_latest($id,'design_requirements');
         }else{
             $approved=null;
@@ -748,6 +845,7 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
         if($staged!==null)$identity['nativeArtifactSha256']=$resume['nativeReview']['artifactSha256'];
         if($stage==='staged_format')$identity['formattedPlanningSha256']=hash('sha256',$resume['planningText']);
         if($nativeReview!==null)$identity['nativeArtifactSha256']=$nativeReview['artifactSha256'];
+        if($nativePartialReceipt!==null)$identity['nativeArtifactSha256']=$nativePartialReceipt['artifactSha256'];
         $emit('job_resumed',array('stage'=>$stage,'priorCompletedCalls'=>$account['completedCalls'],
             'priorEstimatedCostUsd'=>$account['estimatedCostUsd'],'priorUnmeteredReserveUsd'=>$account['unmeteredReserveUsd'])+$identity);
         $resume['account']=$account;
@@ -759,6 +857,9 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
         if($stage==='developer'&&(syndamorph_history_latest($id,'job_error')['code']??null)==='sm_generation_token_limit')
             $resume['emptyDeveloperOutputRecovery']=true;
         if($savedApproval!==null)$resume['savedDesignApproval']=$savedApproval;
+        if($priorModelIssues)$emit('native_evidence_review',array('artifactSha256'=>$nativePartialReceipt['artifactSha256'],
+            'referenceSha256'=>$sha,'priorIssueIds'=>array_column($priorModelIssues,'id')));
+        elseif($nativePartialReceipt!==null)$emit('native_partial_recovery',$nativePartialReceipt);
         if($stagedRepair!==null){
             $emit('staged_implementation_review',$stagedRepair['staged']);
             $emit('staged_native_surgery',$stagedRepair['receipt']);
@@ -876,7 +977,20 @@ function syndamorph_scope_reuse_section(array $page,int $sectionId,string $key) 
         ($target['artifactSha256']??null)===$candidate['checksum'])return syndamorph_scope_status($page);
     if($target['status']!=='ready'||!empty($target['patternId'])||!empty($target['attempts']))
         return syndamorph_scope_error('reuse_state','Only an untouched ready Full Page region can receive a verified Section.');
-    $preview='<style>'.syndamorph_native_visibility_css().'</style>'.syndamorph_native_core_preview(parse_blocks($pattern->post_content));
+    $scroll=syndamorph_source_scroll_profile($targetSource);
+    if($scroll!==null){
+        // The Core Group stores the strip behavior. Its source ID belongs to
+        // the approved plan and is projected onto the QA render only.
+        $final=syndamorph_history_latest($candidate['id'],'job_complete');
+        $plan=$final['outputs']['developer']??null;
+        $compiled=is_string($plan)?syndamorph_compile_block_plan($plan):null;
+        if(!is_array($compiled)||$compiled['content']!==$pattern->post_content||
+            !isset($compiled['scrollStrips'][$scroll['id']]))
+            return syndamorph_scope_error('reuse_artifact','The approved plan does not reproduce the saved Pattern and source scroll identity.');
+        $preview=$compiled['preview'];
+    }else{
+        $preview='<style>'.syndamorph_native_visibility_css().'</style>'.syndamorph_native_core_preview(parse_blocks($pattern->post_content));
+    }
     $review=syndamorph_source_review($targetSource,$preview);
     if(!$review['passed']){
         syndamorph_history_append($page['id'],'scope_section_reuse_held',$receipt+array('sourceReview'=>$review));
