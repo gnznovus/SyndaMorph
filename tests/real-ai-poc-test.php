@@ -1252,6 +1252,21 @@ $styles=syndamorph_collab_style_findings($referenceEvidence,$gen015['evidence'][
 $cta=array_values(array_filter($styles,static fn($issue)=>$issue['component']==='sm-hero-cta'));
 expect(count($cta)===1 && count($cta[0]['views'])===3 && syndamorph_issue_score($cta)===4,
     'A single CTA typography defect was counted separately by viewport');
+$visibleReference=array('tag'=>'P','text'=>'Example label','visible'=>true,'styles'=>array('fontSize'=>'16px'));
+$hiddenReference=array_replace($visibleReference,array('visible'=>false,'styles'=>array('fontSize'=>'24px')));
+$visibleNative=$visibleReference+array('node'=>'compact-label');
+$hiddenNative=array_replace($visibleNative,array('node'=>'desktop-label','visible'=>false,'styles'=>array('fontSize'=>'28px')));
+$visibleView=static fn(array $elements):array=>array(array('width'=>375,'snapshot'=>array('elements'=>$elements)));
+expect(syndamorph_collab_style_findings($visibleView(array($hiddenReference,$visibleReference)),
+    $visibleView(array($visibleNative,$hiddenNative)),$gen015['plan'])===array(),
+    'Hidden breakpoint variants polluted visible typography matching');
+expect(syndamorph_collab_style_findings($visibleView(array($visibleReference)),
+    $visibleView(array($hiddenNative)),$gen015['plan'])===array(),
+    'A hidden native component produced an unsupported typography finding');
+$visibleNative['styles']['fontSize']='18px';
+expect(array_column(syndamorph_collab_style_findings($visibleView(array($hiddenReference,$visibleReference)),
+    $visibleView(array($visibleNative,$hiddenNative)),$gen015['plan']),'component')===array('compact-label'),
+    'Hidden duplicates suppressed a real visible typography finding');
 $archivedDefects=array_map(static fn($i,$severity)=>array('id'=>'defect-'.$i,'component'=>'root','severity'=>$severity),
     range(1,4),array('high','medium','medium','medium'));
 $archivedDefects[]=array('id'=>'defect-5','component'=>'root','severity'=>'medium');

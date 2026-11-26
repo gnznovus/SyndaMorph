@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.24] - 2026-11-26
+
+### Fixed
+
+- Native Group Flow and Column width and vertical alignment support preserve vertical document order and desktop header alignment. Typography QA ignores browser-confirmed hidden variants when matching visible text.
+
+### Verified
+
+- GEN-000051 passed strict pinned source fidelity at 0.382%, 0% and 0% across 1440, 768 and 375 px. WordPress Page accessibility and all 12 responsive checks passed. All 34 blocks survived a private Gutenberg edit, save and reload. Recovery made zero AI calls. The final implementation decision remains pending.
+
 ## [0.12.23] - 2026-11-26
 
 ### Added

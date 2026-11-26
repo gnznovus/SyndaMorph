@@ -84,7 +84,7 @@ function syndamorph_surgery_apply(array $plan,array $proposal,?array $authorized
     $scope=syndamorph_collab_find($plan['blocks'],$owner);
     if($scope===null)return new WP_Error('sm_surgery_target','Assigned repair component not found.');
     $allowed=array('color','background','gradient','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing',
-        'textTransform','textDecoration','padding','margin','gap','minHeight','contentWidth','contentAlignment','justifyContent','verticalAlignment','align','borderRadius','width');
+        'textTransform','textDecoration','padding','margin','gap','minHeight','contentWidth','contentAlignment','flow','justifyContent','verticalAlignment','align','borderRadius','width');
     $touches=array();
     foreach($changes as $change){
         if(!is_array($change)||!is_string($change['path']??null)||

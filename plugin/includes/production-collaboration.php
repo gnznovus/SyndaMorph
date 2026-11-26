@@ -326,6 +326,9 @@ function syndamorph_collab_owner(array $nodes, string $text, string $fallback='b
 }
 /** Match by explicit HTML identity first, then by unambiguous semantic text. */
 function syndamorph_collab_pairs(array $reference,array $native,array $plan): array {
+    $visible=static fn(array $element):bool=>($element['visible']??true)!==false;
+    $reference=array_filter($reference,$visible);
+    $native=array_filter($native,$visible);
     $index=static function(array $elements):array {
         $out=array();
         foreach($elements as $element) {

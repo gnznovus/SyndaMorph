@@ -86,6 +86,34 @@ foreach($gridViews as $view){
         $nodes['below-grid']['rect'][1]>=$y+$height-0.1,
         'Square Grid failed to contain its rows and keep following content below at '.$view['width'].' px.');
 }
+
+$flowPlan=$gridPlan;
+$flowPlan['blocks'][0]['style']=array('flow'=>true,'gap'=>0);
+$flowPlan['blocks'][0]['children'][0]=array('type'=>'group','id'=>'grid-header',
+    'style'=>array('flow'=>true,'gap'=>0),'children'=>array(array('type'=>'columns','id'=>'grid-header-row',
+        'style'=>array('gap'=>'32px','margin'=>array('top'=>0,'bottom'=>0)),'children'=>array(
+            array('type'=>'column','id'=>'grid-header-title','style'=>array('width'=>'720px'),'children'=>array(
+                array('type'=>'heading','id'=>'grid-heading','text'=>'Dining','style'=>array('margin'=>0)),
+                array('type'=>'paragraph','id'=>'grid-description','text'=>'Editable introduction','style'=>array('margin'=>0)))),
+            array('type'=>'column','id'=>'grid-header-label','style'=>array('verticalAlignment'=>'bottom'),'children'=>array(
+                array('type'=>'paragraph','id'=>'grid-label','text'=>'Editable label','style'=>array('margin'=>0))))))));
+$flow=syndamorph_compile_block_plan(wp_json_encode($flowPlan));
+$expect(!is_wp_error($flow),'Native Flow and Columns did not compile.');
+$flowViews=syndamorph_collab_inspect($flow['preview'],array(1440));
+$expect(!is_wp_error($flowViews),'Native Flow could not be inspected.');
+$nodes=array_column($flowViews[0]['snapshot']['elements'],null,'node');
+[$titleX,$titleY,$titleWidth,$titleHeight]=$nodes['grid-header-title']['rect'];
+[$labelX,$labelY,,$labelHeight]=$nodes['grid-header-label']['rect'];
+$expect(abs($titleWidth-720)<1&&abs($labelX-$titleX-$titleWidth-32)<1&&
+    abs($labelY+$labelHeight-$titleY-$titleHeight)<1&&
+    $nodes['desktop-grid']['rect'][1]>=$titleY+$titleHeight-0.1,
+    'Flow did not keep the fixed lead column, bottom-aligned label and following Grid in vertical order.');
+$flowPlan['blocks'][0]['style']['justifyContent']='center';
+$expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($flowPlan))),'Flow accepted incompatible flex alignment.');
+$flowPlan['blocks'][0]['style']=array('flow'=>true,'gap'=>0);
+$flowPlan['blocks'][0]['children'][1]['style']['flow']=true;
+$expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($flowPlan))),'Decorative Grid accepted incompatible Flow layout.');
+
 $artifact=syndamorph_compile_block_plan(wp_json_encode($make($strip)));
 $expect(!is_wp_error($artifact),'Native scroll plan did not compile.');
 $expect($artifact['previewRendering']==='wordpress-core'&&$artifact['scrollStrips']['dining-cards']['cards']===3,

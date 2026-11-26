@@ -237,6 +237,14 @@ GEN-000051 has an append-only private recovery event with candidate `b8011dda65d
 
 The source visual gate still holds the job and no Pattern was saved. The final production record and the approved Designer checkpoint are preserved. The zero-call recovery left the ledger at $0.133999 estimated spend and $0.021800 reserved.
 
+## v0.12.24 native Flow and visible typography matching
+
+The desktop Grid wrapped beside the header when WordPress stretched a vertical flex Group. Using native Flow keeps the header and Grid in document order. A native Column width and bottom alignment preserve the desktop header. Explicit letter spacing removes the host theme’s inherited tracking from the pinned compact text. Browser measurements of hidden breakpoint variants no longer generate typography findings against visible content. Archived samples without a visibility field retain their prior matching behavior.
+
+GEN-000051 retained native candidate `d4e71d2effed88b7a296e3b7635c3bede408e33761793c8cba6b26098bedad2c`. The pinned source comparison passed at 0.382%, 0%, and 0% at 1440, 768 and 375 px. All three section heights matched the archive. The approved Designer-to-native comparison measured 0.099%, 0%, and 0%, with equal copy and no deterministic implementation findings. The WordPress Page heading and contrast checks and all 12 responsive samples passed.
+
+The exact candidate was opened as a private Gutenberg draft. Both Grid groups and all 34 blocks remained valid after a paragraph edit, save and reload. The append-only recovery record retains the tested artifact and scoped evidence. The existing job still needs an independent implementation decision on this exact artifact. It has no Pattern, and this checkpoint added no AI calls or provider spend.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)
