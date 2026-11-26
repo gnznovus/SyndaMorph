@@ -6,14 +6,14 @@ function syndamorph_design_check_contract($check) {
     $fields=array('fontFamily','fontSize','fontWeight','lineHeight','backgroundColor','backgroundImage','color','textAlign',
         'paddingTop','paddingBottom');
     $kind=$check['kind']??null;
-    if(!is_array($check)||!in_array($kind,array('text','element','link','style','center'),true))return null;
+    if(!is_array($check)||!in_array($kind,array('text','element','link','style','center','element-absent'),true))return null;
     $result=array('kind'=>$kind);
     if($kind!=='text'||array_key_exists('selector',$check)){
         $selector=$check['selector']??null;
         if(!is_string($selector)||preg_match('/^(?:[.#][a-zA-Z][a-zA-Z0-9_-]{0,62}|[a-z][a-z0-9-]{0,31})$/D',$selector)!==1)return null;
         $result['selector']=$selector;
     }
-    if(!in_array($kind,array('element','center'),true)){
+    if(!in_array($kind,array('element','center','element-absent'),true)){
         $value=$check['value']??null;
         if(!is_string($value)||trim($value)===''||mb_strlen($value)>($kind==='text'?1000:240))return null;
         $result['value']=trim($value);
@@ -22,6 +22,11 @@ function syndamorph_design_check_contract($check) {
         $field=$check['field']??null;
         if(!in_array($field,$fields,true))return null;
         $result['field']=$field;
+        if(array_key_exists('literal',$check)){
+            $literal=$check['literal'];
+            if(!is_string($literal)||trim($literal)===''||mb_strlen($literal)>240)return null;
+            $result['literal']=trim($literal);
+        }
     }
     if(isset($check['widths'])){
         $widths=$check['widths'];
@@ -81,7 +86,7 @@ function syndamorph_design_browser_facts(array $samples,array $specification): a
             $record['domId']=$element['id']??null;
             $record['text']=mb_substr((string)($element['normalizedText']??''),0,100);
             $record['styles']=array_intersect_key($style,array_flip(
-                array('fontFamily','fontSize','fontWeight','color','backgroundColor','backgroundImage','textAlign','padding')));
+                array('fontFamily','fontSize','fontWeight','lineHeight','color','backgroundColor','backgroundImage','textAlign','padding')));
             $projected[]=array('priority'=>$selected?0:($control?1:($index===0||$paint?2:3)),'row'=>$record);
         }
         usort($projected,static fn($a,$b)=>$a['priority']<=>$b['priority']);
@@ -94,6 +99,29 @@ function syndamorph_design_browser_facts(array $samples,array $specification): a
             'elements'=>array_column(array_slice($projected,0,28),'row'),'accessibility'=>$a11y);
     }
     return $result;
+}
+
+/** Inspect the configured Page target. The eventual draft still needs its own QA. */
+function syndamorph_design_wordpress_page_context(): ?array {
+    if(!function_exists('get_block_template')||!function_exists('wp_get_global_styles'))return null;
+    $theme=get_stylesheet();
+    $template=get_block_template($theme.'//page','wp_template');
+    if(!is_string($template->content??null)||$template->content==='')return null;
+    $blocks=array();
+    $walk=static function(array $rows)use(&$walk,&$blocks):void {
+        foreach($rows as $row){
+            if(in_array($row['blockName'],array('core/post-title','core/post-content'),true))$blocks[]=$row;
+            $walk($row['innerBlocks']);
+        }
+    };
+    $walk(parse_blocks($template->content));
+    $level=$blocks[0]['attrs']['level']??null;
+    $background=wp_get_global_styles(array('color','background'),array('transforms'=>array('resolve-variables')));
+    if(array_column($blocks,'blockName')!==array('core/post-title','core/post-content')||!is_int($level)||
+        $level<1||$level>6||!is_string($background)||!preg_match('/^#[a-f0-9]{6}$/iD',$background))return null;
+    return array('id'=>'wordpress-page-template','theme'=>$theme,'template'=>$template->slug,
+        'templateSha256'=>hash('sha256',$template->content),'pageTitleLevel'=>$level,'globalBackground'=>$background,
+        'scope'=>'Default local WordPress Page template settings. Verify the final draft in its actual insertion context.');
 }
 
 function syndamorph_design_run_check(array $check,array $samples): array {
@@ -123,6 +151,7 @@ function syndamorph_design_run_check(array $check,array $samples): array {
                             $outcome='uncertain';
                     }
                 }elseif($check['kind']==='element')$outcome=$matching?'verified':'failed';
+                elseif($check['kind']==='element-absent')$outcome=$matching?'failed':($complete?'verified':'uncertain');
                 elseif($check['kind']==='link'){
                     $verified=array_filter($matching,static fn($element)=>($element['tag']??null)==='A'&&
                         ($element['href']??null)===$check['value']&&!empty($element['keyboardReachable'])&&
@@ -138,7 +167,12 @@ function syndamorph_design_run_check(array $check,array $samples): array {
                     }
                 }else{
                     $expected=syndamorph_design_computed_value($check['field'],$check['value']);
-                    $outcome=$matching&&count(array_filter($matching,
+                    if(isset($check['literal'])){
+                        $matching=array_values(array_filter($matching,static fn($element)=>
+                            ($element['checkText']??$element['normalizedText']??null)===$check['literal']));
+                        $outcome=!$complete?'uncertain':(count($matching)===1?
+                            (syndamorph_design_style_value($matching[0]['styles']??array(),$check['field'])===$expected?'verified':'failed'):'failed');
+                    }else $outcome=$matching&&count(array_filter($matching,
                         static fn($element)=>syndamorph_design_style_value($element['styles']??array(),$check['field'])===$expected))===count($matching)
                         ?'verified':'failed';
                 }

@@ -72,6 +72,66 @@ function syndamorph_source_blockers(array $region,?array $archive=null): array {
     return $blockers;
 }
 
+/** Preserve the original work order and revise only claims contradicted by source evidence. */
+function syndamorph_source_work_order_amend(array $specification,array $source,array $samples,array $changes) {
+    $error=static fn(string $reason): WP_Error=>new WP_Error('sm_scope_work_order_evidence',$reason);
+    $region=$source['scopeRegion']??null;
+    $archive=$source['referenceArchive']??null;
+    if(($specification['format']??null)!=='structured'||!is_array($region)||!is_string($source['url']??null)||
+        !syndamorph_production_reference_valid($archive,$source['url'])||
+        !array_is_list($changes)||!$changes||count($changes)>5||array_column($samples,'width')!==SYNDAMORPH_SOURCE_WIDTHS||
+        !syndamorph_source_verify_markup($region,$samples)['passed'])
+        return $error('A work-order correction requires a structured assignment and exact pinned source markup evidence.');
+    $requirements=array_column($specification['requirements'],null,'id');
+    $sourceText=array();$static=true;
+    foreach(SYNDAMORPH_SOURCE_WIDTHS as $width){
+        $view=$region['variants'][$width];
+        $inventory=$view['inventory'];
+        $static=$static&&($inventory['links']??null)===array()&&($inventory['controls']??null)===array();
+        $sourceText[$width]=$view['facts']['copy']??syndamorph_source_text(implode(' ',$inventory['text']));
+    }
+    $previous=array();
+    foreach($changes as $change){
+        $id=$change['id']??null;$kind=$change['kind']??null;$literal=$change['literal']??null;
+        if(!is_array($change)||!is_string($id)||!isset($requirements[$id])||isset($previous[$id])||
+            !is_string($literal)||trim($literal)!==$literal||$literal===''||mb_strlen($literal)>240||
+            array_diff(array_keys($change),array('id','kind','literal')))
+            return $error('A work-order correction must identify one original requirement and literal source text.');
+        $original=$requirements[$id];
+        $revised=$original;
+        $check=$original['check']??null;
+        if($kind==='style-target'&&($check['kind']??null)==='style'&&!isset($check['literal'])&&
+            preg_match('/^[a-z][a-z0-9]*$/D',$check['selector'])&&
+            syndamorph_design_run_check($check,$samples)['status']==='failed'){
+            $revised['check']['literal']=$literal;
+            $widths=$check['widths']??SYNDAMORPH_SOURCE_WIDTHS;
+            foreach($widths as $width)if(!str_contains($sourceText[$width]??'',$literal))
+                return $error('The style target is not present in the required source widths.');
+            if(syndamorph_design_run_check($revised['check'],$samples)['status']!=='verified')
+                return $error('The exact text target does not uniquely satisfy the original computed style at every required width.');
+        }elseif($kind==='source-label'&&$static&&empty($specification['interactions'])&&$check===null&&
+            (($original['dimension']==='functional'&&$original['basis']==='source')||
+                ($original['dimension']==='accessibility'&&$original['basis']==='standard'))&&
+            preg_match('/\b(?:links?|destination|external)\b/i',$original['requirement'].' '.$original['acceptance'])&&
+            array_filter($sourceText,static fn($copy)=>str_contains($copy,$literal))){
+            $revised['dimension']=$original['dimension']==='functional'?'content':'accessibility';
+            $revised['requirement']='Preserve the observed source label as noninteractive text: '.$literal;
+            $revised['acceptance']='Preserve the exact source text and viewport visibility. The captured region has no anchor, interactive target or destination.';
+            $revised['check']=array('kind'=>'element-absent','selector'=>'a','widths'=>SYNDAMORPH_SOURCE_WIDTHS);
+            if(syndamorph_design_run_check($revised['check'],$samples)['status']!=='verified')
+                return $error('The saved reference does not prove the absence of anchors at every required width.');
+        }else return $error('The requested correction is outside the verified source or work-order contract.');
+        $previous[$id]=$original;
+        $requirements[$id]=$revised;
+    }
+    $candidate=$specification;
+    $candidate['requirements']=array_values($requirements);
+    $canonical=syndamorph_production_specification($candidate);
+    if(is_wp_error($canonical))return $canonical;
+    return array('specification'=>$canonical,'changes'=>array_map(static fn($row)=>array('before'=>$row,
+        'after'=>$requirements[$row['id']]),array_values($previous)));
+}
+
 /** Require an exact archived local gesture before any provider generation. */
 function syndamorph_source_scroll_touch(array $profile,array $archive,?callable $on_event=null) {
     $proof=array();

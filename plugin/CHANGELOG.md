@@ -6,6 +6,15 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.21] - 2026-11-26
+
+### Fixed
+- A held source-backed work order can be corrected and reverified on the original job. Exact literal targets disambiguate style checks, and verified static source labels remain noninteractive. History retains both work orders with the pinned evidence and Designer checksum.
+
+### Verified
+- GEN-000051 passed its corrected typography and source-label checks without regenerating the reference. One Bossy review cost an estimated $0.006940. The Developer handoff remained held on host heading hierarchy and contrast.
+- A disposable WordPress draft containing the exact sketch showed an H1 followed by the section H2 at all required widths. The minimum measured text contrast was 6.519:1. The proof is for the hosted sketch, with native candidate verification still open.
+
 ## [0.12.20] - 2026-11-26
 
 ### Fixed

@@ -237,16 +237,19 @@ function syndamorph_scope_run(array $manifest,string $key,bool $retry,?callable 
 }
 
 /** Resume an exact archived assignment or planning response on its original GEN. */
-function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $edits=array(),?callable $engine=null) {
+function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $edits=array(),?callable $engine=null,
+    array $workOrderEdits=array()) {
     global $wpdb;
     $manifest=syndamorph_scope_status($manifest);
     $region=$manifest['regions'][$key]??null;
     $stage=$region['recoveryStage']??null;
     // A reviewer can repair a rejected surgical operation on its original
     // checkpoint. Existing identity and browser regression checks still apply.
-    if($stage===null&&$edits&&($region['status']??null)==='failed'&&!empty($region['attempts'])){
+    if($stage===null&&($edits||$workOrderEdits)&&($region['status']??null)==='failed'&&!empty($region['attempts'])){
         $last=end($region['attempts']);
-        if((syndamorph_history_latest($last['id'],'job_error')['code']??null)==='sm_design_surgery_blocked')
+        $failure=syndamorph_history_latest($last['id'],'job_error')['code']??null;
+        if(($edits&&!$workOrderEdits&&$failure==='sm_design_surgery_blocked')||
+            ($workOrderEdits&&!$edits&&$failure==='sm_design_requirements'))
             $stage='design_approval';
     }
     if($stage===null||($manifest['mode']==='section'&&$manifest['selected']!==$key))
@@ -277,6 +280,7 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
     if($evidence!==($context['sourceEvidence']??null))
         return syndamorph_scope_error('review_checkpoint','The archived source evidence changed.');
     $candidate=syndamorph_history_latest($id,'design_candidate');
+    $retainedRevision=syndamorph_history_latest($id,'work_order_revision');
     $assignment=json_decode((string)$wpdb->get_var($wpdb->prepare(
         "SELECT payload FROM $events WHERE job_id=%d AND event_type='handoff' ORDER BY id LIMIT 1",$id)),true);
     $reference=$candidate['referenceHtml']??null;
@@ -286,9 +290,10 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
     $widths=array_values(array_unique(array_merge($widths,SYNDAMORPH_SOURCE_WIDTHS)));
     rsort($widths,SORT_NUMERIC);
     $resume=array();
+    $workOrderRevision=null;
     if($stage==='planning'){
         $planning=syndamorph_scope_planning_checkpoint($id);
-        if($planning===null||$edits||$candidate!==null||$assignment!==null)
+        if($planning===null||$edits||$workOrderEdits||$candidate!==null||$assignment!==null)
             return syndamorph_scope_error('review_checkpoint','The exact archived planning response still lacks a verifiable work order.');
         $resume['planningText']=$planning;
     }else{
@@ -299,6 +304,31 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
             ($assignment['specificationReceipt']??null)!==
             syndamorph_production_specification_receipt($specification,$manifest['brief'],$widths,$evidence))
             return syndamorph_scope_error('review_checkpoint','The saved design or assignment cannot be verified for review recovery.');
+        if($retainedRevision!==null){
+            $operations=$retainedRevision['operations']??null;
+            if(!is_array($operations)||!$operations||($retainedRevision['referenceSha256']??null)!==$sha||
+                ($retainedRevision['original']??null)!==$assignment['specificationReceipt']||
+                ($workOrderEdits&&$workOrderEdits!==$operations))
+                return syndamorph_scope_error('work_order_evidence','The saved work-order revision does not match this checkpoint.');
+            $workOrderEdits=$operations;
+        }
+        if($workOrderEdits){
+            if($edits||empty($candidate['pinnedSourcePassed'])||empty(syndamorph_source_review($source,$reference,$authorization??null)['passed']))
+                return syndamorph_scope_error('work_order_evidence','The unchanged reference must pass pinned source QA before correcting the work order.');
+            $samples=syndamorph_scope_inspect($reference,'section');
+            if(is_wp_error($samples))return $samples;
+            $revised=syndamorph_source_work_order_amend($specification,$evidence,$samples,$workOrderEdits);
+            if(is_wp_error($revised))return $revised;
+            $previousReceipt=$assignment['specificationReceipt'];
+            $updated=$revised['specification'];
+            $assignment['requirements']['specification']=$updated;
+            $assignment['requirements']['acceptance']=array_column($updated['requirements'],'acceptance');
+            $assignment['specificationReceipt']=syndamorph_production_specification_receipt($updated,$manifest['brief'],$widths,$evidence);
+            $workOrderRevision=array('original'=>$previousReceipt,'revised'=>$assignment['specificationReceipt'],
+                'referenceSha256'=>$sha,'operations'=>$workOrderEdits,'changes'=>$revised['changes']);
+            if($retainedRevision!==null&&$retainedRevision!==$workOrderRevision)
+                return syndamorph_scope_error('work_order_evidence','The saved work-order revision no longer reproduces.');
+        }
     }
     $touch=array();
     $storedScenarios=$stage==='planning'?(syndamorph_history_latest($id,'source_scroll_verified')['observed']??array()):
@@ -365,6 +395,7 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
         $emit('job_resumed',array('stage'=>$stage,'priorCompletedCalls'=>$account['completedCalls'],
             'priorEstimatedCostUsd'=>$account['estimatedCostUsd'],'priorUnmeteredReserveUsd'=>$account['unmeteredReserveUsd'])+$identity);
         $resume['account']=$account;
+        if($workOrderRevision!==null&&$retainedRevision===null)$emit('work_order_revision',$workOrderRevision);
         if($stage==='design_approval')$resume+=array('assignment'=>$assignment,'referenceHtml'=>$reference,'archivedSha256'=>$sha,
             'touch'=>$touch,'surgery'=>$surgery,'round'=>$candidate['round']+($surgery===null?0:1));
         if($surgery!==null)$emit('design_surgery',array('round'=>$resume['round'])+$surgery);
@@ -731,8 +762,11 @@ add_action('rest_api_init',static function():void {
                         case 'resume_checkpoint':
                             if(true!==$request->get_param('confirmed'))return syndamorph_scope_error('approval','Explicit paid production confirmation is required.',400);
                             ignore_user_abort(true);
-                            if(in_array($action,array('resume_design_review','resume_checkpoint'),true))
-                                return syndamorph_scope_resume_checkpoint($manifest,$region);
+                            if(in_array($action,array('resume_design_review','resume_checkpoint'),true)){
+                                $workOrderEdits=$request->get_param('workOrderEdits')??array();
+                                if(!is_array($workOrderEdits))return syndamorph_scope_error('work_order_evidence','Invalid work-order corrections.',400);
+                                return syndamorph_scope_resume_checkpoint($manifest,$region,array(),null,$workOrderEdits);
+                            }
                             return syndamorph_scope_run(syndamorph_scope_status($manifest),$region,$action==='retry');
                         case 'save_pattern': return syndamorph_scope_save_pattern($manifest,$region);
                         case 'assemble': return syndamorph_scope_assemble($manifest);

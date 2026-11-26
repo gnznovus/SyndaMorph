@@ -205,6 +205,14 @@ Source sections were photographed at their document offsets, then compared with 
 
 On GEN-000051, the installed archive fonts and four bounded edits repaired the narrow heading cap, underline offset, footer line height and eyebrow line height. The sketch `da5c3f9658a247b57eadb0d33086259a544fceebd35abe7bccab05fb157e2987` passed source fidelity at 0.310%, 0%, and 0%, and all 15 responsive samples had no findings. It preserved source copy and its verified absence of links. The original GEN resumed for two metered Bossy reviews. The second review approved this exact sketch. The deterministic handoff held four archived requirements. The introduction style assertion selected every paragraph instead of the intro, and the heading hierarchy, host contrast and link accessibility checks still need resolution. Developer did not start. The estimated job cost is $0.096130 plus a prior unmetered reservation of $0.011048, within the original $1 cap.
 
+## v0.12.21 source-backed work-order recovery
+
+When a source-passing Designer checkpoint is held on its work order, the existing resume operation can apply up to five explicit corrections. It first rechecks the same pinned source and exact saved reference. A style check may narrow a repeated tag to one verified literal text without changing the expected value or widths. A work order can recast an unsupported link claim as a literal label only when every required source view verifies zero anchors and controls. The ordinary content, interaction, accessibility and visual gates remain required. History stores the original and revised specification receipts and revalidates the revision if review recovery is needed again.
+
+The original GEN-000051 retained the exact sketch and the old work order. Five verified corrections narrowed the introduction check and removed the claim that plain source labels had destinations. Bossy approved the revised design in one metered review. The corrected checks passed. The unchanged host heading and contrast requirements kept the Developer handoff on hold. The job estimate is $0.103070 plus its earlier $0.011048 reservation.
+
+The same sketch rendered in a private disposable WordPress Page preview. The theme emitted the Page H1 before the section H2, the background under the visible text was white, and the minimum measured contrast was 6.519:1 at 1440 px and 12.635:1 at 768 and 375 px. This measurement applies to the hosted sketch. The production gate still needs evidence for the eventual native draft, and no Pattern was saved from the fixture.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)

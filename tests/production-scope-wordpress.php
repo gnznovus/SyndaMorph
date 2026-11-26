@@ -256,8 +256,57 @@ if($phase==='setup') {
     scope_expect($reviewPage['regions'][$keys[1]]['designDecisionRequired']&&
         $reviewPage['regions'][$keys[2]]['status']==='needs_review'&&count($calls)===$priorCalls+5,
         'One pending design decision blocked independent production work.');
+
+    $proofHtml='<section><h2>About</h2><p style="color:#605d5d">Eyebrow</p>'.
+        '<p style="color:#333333">Verified introduction</p><p>View details →</p></section>';
+    $proofSamples=scope_ok(syndamorph_scope_inspect($proofHtml,'section'));
+    $proofSource=array('url'=>'https://fixture.invalid/order-repair','scopeRegion'=>array('variants'=>array()));
+    $archive=array('version'=>1,'format'=>'singlefile-2.27.3','sourceUrl'=>$proofSource['url'],'views'=>array());
+    $identity=array(1,$archive['format'],$archive['sourceUrl']);
+    foreach($proofSamples as $sample){
+        $width=$sample['width'];$literal=$sample['snapshot']['literal'];
+        $proofSource['scopeRegion']['variants'][$width]=array('inventory'=>array_intersect_key($literal,
+            array('text'=>true,'links'=>true))+array('assets'=>array(),'controls'=>array()),
+            'facts'=>array('copy'=>$sample['snapshot']['copy']));
+        $view=array('width'=>$width,'viewportHeight'=>900,'scrollWidth'=>$width,'pageHeight'=>900,'pixelDifferenceRatio'=>0,
+            'javascriptEnabled'=>false,'externalRequests'=>0,'verified'=>true,'copySha256'=>hash('sha256',$sample['snapshot']['copy']));
+        $entry=array($width);
+        foreach(array('sourceDOMSha256','sourceScreenshotSha256','archiveSha256','replayScreenshotSha256') as $field)
+            $entry[]=$view[$field]=hash('sha256',$field.$width);
+        $identity[]=$entry;$archive['views'][]=$view;
+    }
+    $archive['id']=hash('sha256',wp_json_encode($identity,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE));
+    $proofSource['referenceArchive']=$archive;
+    $proofSpec=scope_ok(syndamorph_production_specification(array('version'=>1,'title'=>'Work-order proof',
+        'sections'=>array(array('id'=>'about','label'=>'About')),'requirements'=>array(
+            array('id'=>'intro-style','target'=>'about','dimension'=>'visual','basis'=>'source','requirement'=>'Introduction color matches.',
+                'acceptance'=>'The introduction uses #333333.','check'=>array('kind'=>'style','selector'=>'p','field'=>'color','value'=>'#333333')),
+            array('id'=>'link-destination','target'=>'about','dimension'=>'functional','basis'=>'source','requirement'=>'Preserve the source link.',
+                'acceptance'=>'Verify the destination in the captured evidence.'),
+            array('id'=>'heading-structure','target'=>'about','dimension'=>'accessibility','basis'=>'standard','requirement'=>'Preserve hierarchy.',
+                'acceptance'=>'The host page heading has a logical level.')))));
+    $edits=array(array('id'=>'intro-style','kind'=>'style-target','literal'=>'Verified introduction'),
+        array('id'=>'link-destination','kind'=>'source-label','literal'=>'View details →'));
+    $amended=scope_ok(syndamorph_source_work_order_amend($proofSpec,$proofSource,$proofSamples,$edits));
+    $amendedSpec=$amended['specification'];
+    $result=syndamorph_design_requirements($amendedSpec,$proofSamples,array(),array(),array());
+    scope_expect($result['blocking']===array('heading-structure')&&$amendedSpec['requirements'][2]===$proofSpec['requirements'][2]&&
+        $amended['changes'][0]['before']===$proofSpec['requirements'][0],
+        'The revision bypassed an unrelated requirement or failed to retain the original work order.');
+    $incomplete=$proofSamples;
+    $incomplete[2]['snapshot']['elementCount']++;
+    $wrongTarget=array(array('id'=>'intro-style','kind'=>'style-target','literal'=>'Eyebrow'));
+    $incorrect=$proofSource;
+    $incorrect['scopeRegion']['variants'][1440]['inventory']['links']=array(array('text'=>'View details →','href'=>'https://fixture.invalid/'));
+    $misleading=$proofSamples;
+    $misleading[0]['snapshot']['literal']['links']=$incorrect['scopeRegion']['variants'][1440]['inventory']['links'];
+    scope_expect(is_wp_error(syndamorph_source_work_order_amend($proofSpec,$proofSource,$incomplete,$edits))&&
+        is_wp_error(syndamorph_source_work_order_amend($proofSpec,$proofSource,$proofSamples,$wrongTarget))&&
+        is_wp_error(syndamorph_source_work_order_amend($proofSpec,$incorrect,$misleading,$edits)),
+        'Incomplete evidence, a different style target, or an actual captured link permitted a revision.');
     echo wp_json_encode(array('section'=>$section['id'],'page'=>$page['id'],'keys'=>$keys,'mockCalls'=>count($calls),
-        'authorizedMobileLayout'=>true,'sameGenReviewRecovery'=>true,'sameGenPlanningRecovery'=>true,'designHoldIsolated'=>true)).PHP_EOL;
+        'authorizedMobileLayout'=>true,'sameGenReviewRecovery'=>true,'sameGenPlanningRecovery'=>true,'designHoldIsolated'=>true,
+        'sourceWorkOrderEvidence'=>true)).PHP_EOL;
 } elseif($phase==='retry') {
     $page=syndamorph_scope_status(syndamorph_history_latest((int)getenv('SM_SCOPE_JOB'),'scope_manifest'));
     scope_expect($page['page']['editorVerified']&&!$page['page']['allRegions'],'Expected an independently verified partial WordPress draft.');
