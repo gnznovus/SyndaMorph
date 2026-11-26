@@ -226,6 +226,12 @@ function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,
     $frame=syndamorph_production_font_frame($html);
     if(is_wp_error($frame)||strlen($frame['html'])>2*1024*1024)
         return syndamorph_inspection_failure('font_evidence_missing',array('expectedWidths'=>$viewports));
+    if(function_exists('syndamorph_image_strip_frame')){
+        $imageFrame=syndamorph_image_strip_frame($frame['html']);
+        if(is_wp_error($imageFrame)||strlen($imageFrame)>2*1024*1024)
+            return new WP_Error('sm_image_frame','The required original image could not be rendered.',array('expectedWidths'=>$viewports));
+        $frame['html']=$imageFrame;
+    }
     $collected=array();$requests=array();$returned=array();$batches=array();$missing=$viewports;$build=null;
     for($attempt=1;$attempt<=SYNDAMORPH_INSPECTION_ATTEMPTS;$attempt++) {
         $requests[]=$missing;

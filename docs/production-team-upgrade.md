@@ -363,6 +363,14 @@ An offline fragment built from the same attachment matched the pinned source scr
 
 The recorded browser changes from the desktop region to the compact region between 1024 and 1023 px. The source page holds the desktop region at 1280 px when the viewport is 1200 or 1024 px, creating page-level overflow. At 1023 and 900 px, the compact image fits and the scroll range is zero. Its range grows to 248 px at 600 and 249 px at 599. These intermediate observations are separate from the three required source comparisons and must inform the native responsive check.
 
+## v0.12.37 native single-image scroll verification
+
+The verified replay can stage one editable Core Group and Image. QA binds the original WordPress attachment and PNG hash to the pinned source event and candidate. The renderer independently compares the source screenshots and checks responsive containment, alt text, exact compact scroll endpoints, wheel reversal, keyboard movement and visible focus. Saving requires the matching Gutenberg parse and a fresh QA pass before creating a private unsynced Pattern. Assembly revalidates the stored candidate and original attachment.
+
+Local Pattern 89 matched all three required source screenshots at 1440, 768 and 375 px with zero pixel difference. Actual WordPress served the original PNG and reached 80 px and 473 px at the compact widths using a wheel. Keyboard input moved the focused container, and a Gutenberg caption edit preserved the image and alt text after save and reload. At 1200 and 1024 px the native section fits the viewport and scales the artwork, while the captured site holds a 1280 px region and overflows the page. At 1023 px both used the compact treatment with no image overflow.
+
+Original REF-000030 draft 66 now contains five verified placements at positions 8, 10, 12, 14 and 15. Its disposable copy accepted an edit and reloaded with all 225 blocks valid. Whole-page QA remains pending because 11 required regions are missing. This checkpoint used zero paid model calls.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens and GEN-000055 completed their original jobs. Verified BKKGO Full Page assembly and broader region acceptance remain open. [Design validation audit](bossy-validation-audit.md#v0128-verification)

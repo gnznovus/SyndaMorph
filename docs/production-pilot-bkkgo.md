@@ -1,6 +1,6 @@
 # Production pilot 1 ? BKKGO homepage
 
-The initial production trial produced an editor-validated native draft for the FAQ introduction and held it on source and design fidelity. Later checkpoints recovered four complete sections and assembled them privately in local draft 66. This report preserves the initial trial and tracks subsequent coverage. [BKKGO source](https://www.syndacast.com/2026/BKKGOPrototype1/index.html)
+The initial production trial produced an editor-validated native draft for the FAQ introduction and held it on source and design fidelity. Later checkpoints verified five complete regions and assembled them privately in local draft 66. This report preserves the initial trial and tracks subsequent coverage. [BKKGO source](https://www.syndacast.com/2026/BKKGOPrototype1/index.html)
 
 ## Browser discovery
 
@@ -20,7 +20,7 @@ Playwright Chromium waited for rendered visible content and document fonts at 14
 | Gallery/social | THROUGH OUR LENS | Thonglor Through Our Lens | Discovery only. |
 | Newsletter | Newsletter signup with consent copy | Newsletter signup with mobile-specific content | Discovery only. Verify controls, integration and consent behavior before conversion. |
 | FAQs | FAQs with a side-by-side intro and accordion | FAQs with stacked intro and accordion | FAQ intro alone was trialed. The first question visibly closed in all three browsers. The remaining accordion is outside this draft. |
-| Brand strip | IHG Hotels & Resorts and rewards imagery | Equivalent brand strip | Discovery only. Portable image support required. |
+| Brand strip | IHG Hotels & Resorts and rewards imagery | Equivalent brand strip | Verified editable Core Image and compact horizontal scrolling. |
 | Footer | Full link groups and contact copy | Compact expandable footer groups | Discovery only. Verify links, responsive copy and expansion. |
 
 The manifest records version, source URL, stable per-selector identifiers, observed viewport bounds, fonts, image/link/control counts, overhangs and copy digests. The desktop intro is a container. Its smaller variants are the adjacent heading and paragraph in their original flow. The job archive binds these three observations and source screenshots to one identity. The checked-in manifest is a separate reproducible inventory capture. A second Chromium run produced the identical manifest hash, fe508fc3aea85f8069616df8d9625a6e3c0487b8b06738af8821313d23ce206e. [Responsive manifest](fixtures/production-pilot-bkkgo-manifest.json)
@@ -73,13 +73,13 @@ The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593
 | THROUGH OUR LENS | 1440, 768, 375 | GEN-000051 passed and saved a private, unsynced native Pattern. The matching Full Page capture revalidated the Pattern and placed it in its unpublished draft. |
 | Newsletter signup | 1440, 768, 375 | Country selection and SVG require component and asset support. Submission and consent need a verified external integration. |
 | FAQs | 1440, 768, 375 | GEN-000057 passed and saved a private unsynced native Pattern after the desktop introduction wrapping repair. The matching Full Page archive revalidated the Pattern and placed it in the unpublished draft. |
-| IHG Hotels & Resorts brands and IHG One Rewards | 1440, 768, 375 | The local Media Library preserves the exact archived 2650 × 590 PNG. Its alt text round-tripped in Core Image. Compact source wheel replay reached 80 px at 768 and 473 px at 375. A native single-image scroll contract is pending. |
+| IHG Hotels & Resorts brands and IHG One Rewards | 1440, 768, 375 | Private unsynced Pattern 89 preserves the original PNG and alt text in Core Image. Native compact wheel and keyboard checks passed, and the original draft holds the Pattern at source position 15. |
 | Site footer | 1440, 768, 375 | Image and declared navigation destinations need asset and link resolution. Placeholder hash links and cookie preferences provide no verified integration contract. |
 
 - **Discovery** has browser screenshots and visible inventories for 12 of 16 regions at every required width. Four regions have a variant gap. Separate runtime observations are needed before claiming complete behavioral understanding of each interactive region.
 - **Conversion eligibility** is 3 of 16 with v0.12.18. The original preflight overlooked two scroll strips and the corrected v0.12.15 replay held both, leaving 1 of 16. The exact archived controls now qualify under the native scroll-strip contract. A run still requires recorded movement at every active width before Bossy planning.
-- **Current conversion eligibility** is 4 of 16 with v0.12.28. Verified FAQ records cover all three widths and bind five native disclosures and their repeated indicator. The original source is preserved.
-- **Acceptance** is 4 of 16 as of v0.12.35. REF-000030 has verified Exclusive Offers, SIP & DINE, Through Our Lens and FAQ placements at source positions 8, 10, 12 and 14. The unpublished partial draft has 223 editor-verified blocks. Whole-page acceptance remains pending.
+- **Current conversion eligibility** is 5 of 16 with v0.12.37. Verified FAQ records cover all three widths and bind five native disclosures and their repeated indicator. The source brand image now qualifies through the verified native single-image scroll path.
+- **Acceptance** is 5 of 16 as of v0.12.37. REF-000030 has verified Exclusive Offers, SIP & DINE, Through Our Lens, FAQ and brand strip placements at source positions 8, 10, 12, 14 and 15. The unpublished partial draft has 225 editor-verified blocks. Whole-page acceptance remains pending.
 
 The five native FAQ blocks and their ordered answer text survived edit, save and reload in isolated draft 59. The source's second click could close the active panel, leaving all questions closed. Native grouped Details reproduced this behavior at 1440, 768 and 375 px. The source's Enter test opened no panel, while native Details opened the selected item. This capability proof did not use the production compiler or grant source visual approval.
 
@@ -92,3 +92,5 @@ The corrected Dining Section matched source copy and heights at all three widths
 The next source replay verified identical brand artwork bytes at all required widths with SHA-256 `db40cc8d796b00278361b5cfb993a9658f1eb3778c468e9e68ad1f3552c3b3b5`. The compact container had real horizontal overflow and wheel movement despite having no recorded button or link in the discovery inventory. Both actions ran against recorded responses with zero blocked requests. No compact keyboard behavior was established. The existing multi-card strip does not cover this single-image layout, so the region remains blocked.
 
 v0.12.36 recorded the brand asset and per-width Touch evidence in the original scope and imported Media Library attachment 83. Its permanent URL served the original PNG bytes. A disposable Core Image draft passed an edit, save and reload, and an isolated framing trial passed the pinned visual comparisons. Eligibility and accepted placement counts remain at four pending an editable single-image scroll Pattern.
+
+v0.12.37 saved private unsynced Pattern 89 after independent visual, overflow, image identity, wheel, keyboard and focus checks. Pinned visual difference measured 0% at 1440, 768 and 375 px. Real WordPress reached both compact source scroll endpoints and served the original PNG at all six tested widths. At 1200 and 1024 px, the native region fits the viewport, while the captured source overflows to 1280 px. A disposable Gutenberg copy of the five-region draft retained 225 valid blocks after edit, save and reload. This checkpoint used zero paid model calls.

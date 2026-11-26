@@ -51,10 +51,10 @@ function syndamorph_scope_open(string $mode,array $capture) {
     return $manifest;
 }
 
-function syndamorph_scope_checkpoint(int $id,int $eventId): ?array {
+function syndamorph_scope_checkpoint(int $id,int $eventId,string $type='scope_source'): ?array {
     global $wpdb;
     list(,$events)=syndamorph_history_tables();
-    $raw=$wpdb->get_var($wpdb->prepare("SELECT payload FROM $events WHERE id=%d AND job_id=%d AND event_type='scope_source'",$eventId,$id));
+    $raw=$wpdb->get_var($wpdb->prepare("SELECT payload FROM $events WHERE id=%d AND job_id=%d AND event_type=%s",$eventId,$id,$type));
     $source=is_string($raw)?json_decode($raw,true):null;
     return is_array($source)?$source:null;
 }
@@ -244,8 +244,19 @@ function syndamorph_scope_status(array $manifest): array {
         }
         $image=$region['imageEvidence']??null;
         if($image!==null&&(($image['checkpoint']??null)!==$region['checkpoint']||
-            !syndamorph_attachment_has_original((int)($image['attachmentId']??0),(string)($image['asset']['sha256']??''))))
+            !syndamorph_attachment_has_original((int)($image['attachmentId']??0),(string)($image['asset']['sha256']??'')))){
             unset($region['imageEvidence']);
+            if(isset($region['imageStripQa'])){
+                $region['issue']='The original image is unavailable or its bytes changed.';
+                if(empty($region['patternId']))$region['status']='blocked';
+                else{
+                    $region['status']='uncompleted';
+                    $manifest['status']='uncompleted';
+                    if(!empty($manifest['page']['allRegions']))
+                        $manifest['page']['qa']=array('passed'=>false,'reason'=>$region['issue']);
+                }
+            }
+        }
         foreach($region['attempts'] as &$attempt) {
             $row=$wpdb->get_row($wpdb->prepare("SELECT status,updated_at FROM $jobs WHERE id=%d",$attempt['id']),ARRAY_A);
             $status=$row['status']??'interrupted';
@@ -949,6 +960,17 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
 function syndamorph_scope_candidate(array $manifest,string $key): ?array {
     if($manifest['mode']==='section'&&$manifest['selected']!==$key)return null;
     $region=$manifest['regions'][$key]??null;
+    if(isset($region['imageStripQa'])){
+        $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
+        $receipt=$region['imageEvidence']??array();
+        $content=$source?syndamorph_image_strip_content($source,$receipt):null;
+        if($content===null)return null;
+        $checksum=hash('sha256',$content);
+        return array('imageStrip'=>true,'content'=>$content,'checksum'=>$checksum,'hostChecks'=>array(),
+            'eligible'=>($receipt['archiveId']??null)===($manifest['referenceArchive']['id']??null)&&
+                ($receipt['checkpoint']??null)===$region['checkpoint']&&
+                ($region['imageStripQa']['artifactSha256']??null)===$checksum&&!empty($region['imageStripQa']['passed']));
+    }
     if(empty($region['attempts']))return null;
     $attempt=end($region['attempts']);
     $final=syndamorph_history_latest($attempt['id'],'job_complete');
@@ -972,12 +994,27 @@ function syndamorph_scope_find_post(string $type,string $key): ?WP_Post {
     return $posts[0]??null;
 }
 
-function syndamorph_scope_save_pattern(array $manifest,string $key) {
+function syndamorph_scope_save_pattern(array $manifest,string $key,?array $imageEditor=null) {
     $candidate=syndamorph_scope_candidate($manifest,$key);
-    $validation=$candidate?syndamorph_history_latest($candidate['id'],'editor_validation'):null;
-    if(empty($candidate['eligible'])||empty($validation['passed'])||empty($validation['completionEligible'])||
-        !hash_equals($candidate['checksum'],(string)($validation['contentSha256']??'')))
-        return syndamorph_scope_error('editor','The region must pass all QA and Gutenberg validation before saving.');
+    $imageStrip=!empty($candidate['imageStrip']);
+    if($imageStrip){
+        if(empty($candidate['eligible'])||($imageEditor['valid']??null)!==true||
+            ($imageEditor['checksum']??null)!==$candidate['checksum']||
+            ($imageEditor['blockCount']??null)!==syndamorph_scope_block_count(parse_blocks($candidate['content'])))
+            return syndamorph_scope_error('editor','Gutenberg must verify the exact image strip before saving.');
+        $region=$manifest['regions'][$key];
+        $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
+        $fresh=syndamorph_image_strip_quality($source,$region['imageEvidence'],$candidate['content']);
+        if(is_wp_error($fresh))return $fresh;
+        if(!$fresh['passed'])return syndamorph_scope_error('image_qa','Fresh image strip QA remains pending.');
+        syndamorph_history_append($manifest['id'],'source_image_editor_verified',array(
+            'region'=>$key,'checkpoint'=>$region['checkpoint'],'editor'=>$imageEditor,'qa'=>$fresh));
+    }else{
+        $validation=$candidate?syndamorph_history_latest($candidate['id'],'editor_validation'):null;
+        if(empty($candidate['eligible'])||empty($validation['passed'])||empty($validation['completionEligible'])||
+            !hash_equals($candidate['checksum'],(string)($validation['contentSha256']??'')))
+            return syndamorph_scope_error('editor','The region must pass all QA and Gutenberg validation before saving.');
+    }
     if($candidate['hostChecks']){
         $native=syndamorph_native_core_preview(parse_blocks($candidate['content']));
         $host=syndamorph_design_host_accessibility($native,$candidate['hostChecks'],syndamorph_design_wordpress_page_context(),
@@ -988,11 +1025,12 @@ function syndamorph_scope_save_pattern(array $manifest,string $key) {
     $identity=$manifest['id'].':'.$key;
     $saved=syndamorph_scope_find_post('wp_block',$identity);
     if(!$saved) {
-        $created=syndamorph_insert_pattern($manifest['regions'][$key]['label'],$candidate['content'],0,$identity);
+        $created=syndamorph_insert_pattern($manifest['regions'][$key]['label'],$candidate['content'],0,$identity,$imageStrip);
         if(is_wp_error($created))return $created;
         $saved=get_post($created['id']);
     }
-    if(!$saved||$saved->post_content!==$candidate['content']||get_post_meta($saved->ID,'wp_pattern_sync_status',true)!=='unsynced')
+    if(!$saved||$saved->post_content!==$candidate['content']||($imageStrip&&$saved->post_status!=='private')||
+        get_post_meta($saved->ID,'wp_pattern_sync_status',true)!=='unsynced')
         return syndamorph_scope_error('pattern_changed','The saved pattern differs from its verified region artifact.');
     $manifest['regions'][$key]['patternId']=$saved->ID;
     $manifest['regions'][$key]['patternEditor']=get_edit_post_link($saved->ID,'raw');
@@ -1092,12 +1130,14 @@ function syndamorph_scope_verify_disclosure(array $manifest,string $key) {
     return syndamorph_scope_status($manifest);
 }
 
-/** Stage the exact original image without changing an unsupported native gate. */
+/** Verify the exact original image before native QA. */
 function syndamorph_scope_verify_image(array $manifest,string $key) {
     $region=$manifest['regions'][$key]??null;
-    if(!$region||($region['status']??null)!=='blocked'||!empty($region['attempts'])||!empty($region['patternId'])||
+    $status=$region['status']??null;
+    if(!$region||($status!=='blocked'&&($status!=='needs_review'||!isset($region['imageStripQa'])))||
+        !empty($region['attempts'])||!empty($region['patternId'])||
         ($manifest['mode']==='section'&&$manifest['selected']!==null&&$manifest['selected']!==$key))
-        return syndamorph_scope_error('image_state','Only an untouched blocked source region can verify its image.');
+        return syndamorph_scope_error('image_state','Only an unsaved image region can verify its original asset.');
     if(!current_user_can('upload_files'))return syndamorph_scope_error('image_permission','Media upload permission is required.',403);
     $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
     $archive=$manifest['referenceArchive']??null;
@@ -1123,8 +1163,47 @@ function syndamorph_scope_verify_image(array $manifest,string $key) {
     $proof=array('region'=>$key,'checkpoint'=>$region['checkpoint'],'sourceSha256'=>$sourceHash,
         'archiveId'=>$archive['id'],'attachmentId'=>$attachment,'asset'=>$replay['asset'],'views'=>$replay['views']);
     $event=syndamorph_history_append($manifest['id'],'source_image_verified',$proof);
+    if(isset($region['imageStripQa'])){
+        unset($manifest['regions'][$key]['imageStripQa']);
+        $manifest['regions'][$key]['status']='blocked';
+        $manifest['regions'][$key]['blockers']=array('Native image strip QA is required for the restored attachment.');
+    }
     $manifest['regions'][$key]['imageReplayAvailable']=true;
     $manifest['regions'][$key]['imageEvidence']=$proof+array('event'=>$event);
+    syndamorph_history_append($manifest['id'],'scope_manifest',$manifest);
+    return syndamorph_scope_status($manifest);
+}
+
+/** Convert only the independently measured single-image layout. */
+function syndamorph_scope_stage_image_strip(array $manifest,string $key) {
+    $region=$manifest['regions'][$key]??null;
+    if(!$region||!in_array($region['status'],array('blocked','needs_review'),true)||
+        !empty($region['attempts'])||!empty($region['patternId'])||
+        ($manifest['mode']==='section'&&$manifest['selected']!==$key))
+        return syndamorph_scope_error('image_state','This region cannot stage an image strip.');
+    $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
+    $receipt=$region['imageEvidence']??array();
+    $archive=$manifest['referenceArchive']??null;
+    $id=$receipt['attachmentId']??null;$hash=$receipt['asset']['sha256']??null;
+    if(!$source||!is_int($id)||!is_string($hash)||!syndamorph_attachment_has_original($id,$hash)||
+        ($receipt['checkpoint']??null)!==$region['checkpoint']||
+        !syndamorph_production_reference_valid($archive,$manifest['sourceUrl'])||
+        ($receipt['archiveId']??null)!==$archive['id']||
+        ($receipt['sourceSha256']??null)!==hash('sha256',wp_json_encode($source))||
+        !is_int($receipt['event']??null)||
+        syndamorph_scope_checkpoint($manifest['id'],$receipt['event'],'source_image_verified')!==array_diff_key($receipt,array('event'=>true)))
+        return syndamorph_scope_error('image_source','The original image receipt is unavailable or no longer exact.');
+    update_post_meta($id,'_syndamorph_source_strip_sha256',$hash);
+    $content=syndamorph_image_strip_content($source,$receipt);
+    if($content===null)return syndamorph_scope_error('image_layout','The archived image layout is outside the verified native contract.');
+    $quality=syndamorph_image_strip_quality($source,$receipt,$content);
+    if(is_wp_error($quality))return $quality;
+    syndamorph_history_append($manifest['id'],'source_image_strip_qa',array('region'=>$key,'checkpoint'=>$region['checkpoint'],
+        'archiveId'=>$archive['id'],'qa'=>$quality));
+    if(!$quality['passed'])return syndamorph_scope_error('image_qa','The image strip did not pass independent source and interaction QA.');
+    $manifest['regions'][$key]['imageStripQa']=$quality;
+    $manifest['regions'][$key]['status']='needs_review';
+    $manifest['regions'][$key]['blockers']=array();
     syndamorph_history_append($manifest['id'],'scope_manifest',$manifest);
     return syndamorph_scope_status($manifest);
 }
@@ -1261,6 +1340,8 @@ function syndamorph_scope_assemble(array $manifest) {
     $placement=array();$content=array();
     foreach($manifest['regions'] as $id=>$region) {
         if(empty($region['patternId']))continue;
+        if(isset($region['imageStripQa'])&&empty(syndamorph_scope_candidate($manifest,$id)['eligible']))
+            return syndamorph_scope_error('image_source','The saved image strip has lost its original asset evidence.');
         $pattern=get_post($region['patternId']);
         if(!$pattern||$pattern->post_type!=='wp_block'||get_post_meta($pattern->ID,'wp_pattern_sync_status',true)!=='unsynced'||
             !hash_equals($region['artifactSha256'],hash('sha256',$pattern->post_content)))
@@ -1318,6 +1399,14 @@ function syndamorph_scope_verify_page(array $manifest,string $checksum,int $coun
         !hash_equals($checksum,hash('sha256',$page->post_content)))return syndamorph_scope_error('draft_changed','The draft changed before editor verification.');
     $actual=syndamorph_scope_block_count(parse_blocks($page->post_content));
     if($actual!==$count||$count<1||$count>7200)return syndamorph_scope_error('editor','The draft block count differs from Gutenberg verification.');
+    if(!empty($manifest['page']['allRegions'])){
+        foreach($manifest['regions'] as $key=>$region){
+            if(isset($region['imageStripQa'])&&empty(syndamorph_scope_candidate($manifest,$key)['eligible'])){
+                $manifest['page']['qa']=array('passed'=>false,'reason'=>'A saved image strip has lost its original asset evidence.');
+                break;
+            }
+        }
+    }
     $manifest['page']['editorVerified']=true;
     $manifest['page']['blockCount']=$count;
     return syndamorph_scope_finish_page($manifest);
@@ -1388,7 +1477,7 @@ add_action('rest_api_init',static function():void {
         }),
         array('methods'=>'POST','permission_callback'=>$permission,'callback'=>static function(WP_REST_Request $request) {
             $action=$request->get_param('action');
-            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_image','assemble','verify_page'),true))
+            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_image','stage_image_strip','assemble','verify_page'),true))
                 return syndamorph_scope_error('action','Invalid scope action.',400);
             return syndamorph_scope_locked(static function()use($request,$action){
                 $manifest=syndamorph_history_latest((int)$request['id'],'scope_manifest');
@@ -1437,9 +1526,12 @@ add_action('rest_api_init',static function():void {
                                 return syndamorph_scope_resume_checkpoint($manifest,$region,array(),null,$workOrderEdits,$wrapId);
                             }
                             return syndamorph_scope_run(syndamorph_scope_status($manifest),$region,$action==='retry');
-                        case 'save_pattern': return syndamorph_scope_save_pattern($manifest,$region);
+                        case 'save_pattern': return syndamorph_scope_save_pattern($manifest,$region,array(
+                            'valid'=>$request->get_param('valid'),'checksum'=>$request->get_param('checksum'),
+                            'blockCount'=>$request->get_param('blockCount')));
                         case 'verify_disclosure': return syndamorph_scope_verify_disclosure($manifest,$region);
                         case 'verify_image': return syndamorph_scope_verify_image($manifest,$region);
+                        case 'stage_image_strip': return syndamorph_scope_stage_image_strip($manifest,$region);
                         case 'reuse_section':
                             $sectionId=filter_var($request->get_param('sectionId'),FILTER_VALIDATE_INT,array('options'=>array('min_range'=>1)));
                             if($sectionId===false)return syndamorph_scope_error('reuse_scope','An exact saved Section ID is required.',400);

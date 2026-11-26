@@ -13,6 +13,48 @@ async function waitForInstalledFonts(page) {
     });
 }
 
+async function checkImageStrip(page) {
+    const strip=page.locator('.wp-block-group.sm-source-image-strip');
+    if(await strip.count()!==1)return null;
+    const image=strip.locator(':scope > figure.wp-block-image > img[data-sm-source-image]');
+    if(await image.count()!==1)return null;
+    await image.evaluate(element=>element.decode());
+    const state=()=>strip.evaluate(element=>{
+        const style=getComputedStyle(element),img=element.querySelector('img'),rect=element.getBoundingClientRect();
+        return {range:element.scrollWidth-element.clientWidth,offset:element.scrollLeft,alt:img.alt,
+            insidePage:rect.left>=-1&&rect.right<=innerWidth+1&&document.documentElement.scrollWidth<=innerWidth,
+            compact:['auto','scroll'].includes(style.overflowX),name:element.getAttribute('aria-label'),
+            focus:document.activeElement===element&&element.matches(':focus-visible')&&parseFloat(style.outlineWidth)>=2,
+            focusable:element.tabIndex===0&&element.getAttribute('role')==='group',src:img.currentSrc};
+    });
+    const before=await state();
+    const png=/^data:image\/png;base64,([A-Za-z0-9+/]+=*)$/.exec(before.src);
+    if(!png||before.range>1900||before.offset!==0)return null;
+    const proof={sha256:createHash('sha256').update(Buffer.from(png[1],'base64')).digest('hex'),
+        alt:before.alt,range:before.range,initialOffset:before.offset,compact:before.compact,
+        insidePage:before.insidePage,focusable:before.focusable&&Boolean(before.name)};
+    if(!before.range)return proof;
+    await strip.scrollIntoViewIfNeeded({timeout:2000});
+    const box=await strip.boundingBox();
+    await page.mouse.move(box.x+box.width/2,Math.min(895,Math.max(4,box.y+box.height/2)));
+    const settle=async value=>{
+        const deadline=Date.now()+1500;
+        let current;
+        do{await page.waitForTimeout(60);current=await state();}while(current.offset!==value&&Date.now()<deadline);
+        return current.offset;
+    };
+    await page.mouse.wheel(before.range+100,0);
+    proof.wheelOffset=await settle(before.range);
+    await page.mouse.wheel(-before.range-100,0);
+    proof.returnOffset=await settle(0);
+    await strip.press('ArrowRight');
+    await page.waitForTimeout(160);
+    const keyboard=await state();
+    proof.keyboardOffset=keyboard.offset;
+    proof.focus=keyboard.focus;
+    return proof;
+}
+
 async function boundedScreenshot(page, width, extent, sourceTop = null) {
     const session = extent ? await page.context().newCDPSession(page) : null;
     try {
@@ -209,7 +251,7 @@ process.stdin.on('end', async () => {
     let crashed = false;
     const evidence = [];
     try {
-        const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, disclosures, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
+        const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, disclosures, imageStrip, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
             headless: true, timeout: 10000,
             args: [ '--no-sandbox', '--disable-dev-shm-usage' ],
@@ -226,12 +268,13 @@ process.stdin.on('end', async () => {
         const page = await context.newPage();
         page.on('crash', () => { crashed = true; });
         page.on('popup', (popup) => popup.close().catch(() => {}));
-        if(scrollStrips||disclosures){
+        if(scrollStrips||disclosures||imageStrip){
             for(const width of viewports){
                 await page.setViewportSize({width,height:HEIGHT});
                 await page.setContent(html,{waitUntil:'domcontentloaded',timeout:5000});
                 await waitForInstalledFonts(page);
-                evidence.push({width,checks:disclosures?await checkDisclosures(page):await checkScrollStrips(page,html)});
+                if(imageStrip)evidence.push({width,proof:await checkImageStrip(page)});
+                else evidence.push({width,checks:disclosures?await checkDisclosures(page):await checkScrollStrips(page,html)});
             }
             process.stdout.write(JSON.stringify({evidence}));
             return;

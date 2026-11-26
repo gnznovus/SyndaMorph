@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.37] - 2026-11-28
+
+### Added
+
+- Verified single-image strips can be saved as private unsynced Patterns using editable Core Group and Image blocks. Independent QA checks the original PNG bytes, source screenshots, responsive overflow, alt text, and compact pointer and keyboard behavior before save.
+
+### Verified
+
+- The BKKGO brand strip matched its pinned screenshots at 1440, 768 and 375 px with zero pixel difference. Real WordPress reproduced the 80 px and 473 px compact scroll ranges. Pattern 89 became the fifth verified placement in the original draft, which passed Gutenberg edit, save and reload with 225 valid blocks. The original Full Page still has 11 required regions pending. The checkpoint used zero paid model calls.
+
 ## [0.12.36] - 2026-11-27
 
 ### Added

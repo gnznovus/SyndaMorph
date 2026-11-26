@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SyndaMorph
  * Description: Transform static HTML into independently editable native Gutenberg blocks.
- * Version: 0.12.36
+ * Version: 0.12.37
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Update URI: https://github.com/gnznovus/SyndaMorph
@@ -55,7 +55,7 @@ function syndamorph_render_operations_page(): void {
  * Create an unsynced, independently editable WordPress pattern.
  * Both the import preview and the block editor use this one endpoint.
  */
-function syndamorph_insert_pattern( string $title, string $content, int $post_id = 0, string $scope_key = '' ) {
+function syndamorph_insert_pattern( string $title, string $content, int $post_id = 0, string $scope_key = '', bool $private = false ) {
     $title = sanitize_text_field( $title );
     if ( '' === $title || '' === trim( $content ) || strlen( $content ) > 2 * 1024 * 1024 ) {
         return new WP_Error( 'syndamorph_invalid_pattern', 'Provide a pattern name and block content under 2 MB.', array( 'status' => 400 ) );
@@ -68,7 +68,7 @@ function syndamorph_insert_pattern( string $title, string $content, int $post_id
     }
     $id = wp_insert_post( wp_slash( array(
         'post_type'    => 'wp_block',
-        'post_status'  => 'publish',
+        'post_status'  => $private ? 'private' : 'publish',
         'post_title'   => $title,
         'post_content' => $content,
         'meta_input'   => $scope_key === '' ? array() : array( '_syndamorph_scope_key' => $scope_key ),

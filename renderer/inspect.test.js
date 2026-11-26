@@ -1,6 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { createHash } = require('node:crypto');
 const url = process.env.SYNDA_RENDER_TEST_URL || 'http://127.0.0.1:3999';
 
 async function request(route, html, viewports) {
@@ -83,6 +84,24 @@ test('scroll inspection distinguishes a native component from an arbitrary scrol
         const {styles}=snapshot.elements.find(element=>element.normalizedText==='First');
         assert.deepEqual([styles.borderTopWidth,styles.borderTopStyle,styles.borderTopColor],['1px','solid','rgb(255, 255, 255)']);
     }
+});
+
+test('single-image strip verifies actual local wheel and keyboard scrolling',async()=>{
+    const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ioAAAAASUVORK5CYII=';
+    const html='<style>body{margin:0}.sm-source-image-strip:focus-visible{outline:2px solid black}'+
+        'figure{margin:0}img{display:block;width:500px;height:120px}'+
+        '@media(max-width:500px){.sm-source-image-strip{overflow-x:auto}}</style>'+
+        '<div class="wp-block-group sm-source-image-strip" role="group" aria-label="Artwork" tabindex="0">'+
+        '<figure class="wp-block-image"><img data-sm-source-image="fixture" alt="Archived artwork" src="data:image/png;base64,'+png+'"></figure></div>';
+    const {evidence}=await request('/check-image-strip',html,[768,375]);
+    assert.equal(evidence[0].proof.range,0);
+    const active=evidence[1].proof;
+    assert.equal(active.sha256,createHash('sha256').update(Buffer.from(png,'base64')).digest('hex'));
+    assert.equal(active.alt,'Archived artwork');
+    assert.equal(active.range,125);
+    assert.equal(active.wheelOffset,125);
+    assert.equal(active.returnOffset,0);
+    assert.ok(active.keyboardOffset>0&&active.focus&&active.insidePage);
 });
 
 test('existing DOM render endpoint remains available',async()=>{
