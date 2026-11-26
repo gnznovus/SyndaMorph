@@ -6,6 +6,14 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.16] - 2026-11-26
+
+### Fixed
+- A scoped Bossy design hold preserves the existing candidate, shows the recorded reason, and blocks a paid retry while a decision is pending. Independent Full Page regions can continue.
+
+### Verified
+- GEN-000056's live SIP & DINE design hold rejected a retry with zero provider calls and retained its exact archived candidate and accounting.
+
 ## [0.12.15] - 2026-11-26
 
 ### Fixed

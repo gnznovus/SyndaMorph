@@ -136,7 +136,7 @@ function syndamorph_scope_status(array $manifest): array {
         if($region['attempts']) {
             $last=end($region['attempts']);
             $region['status']=$region['patternId']?'pattern_saved':$last['status'];
-            unset($region['checkpointAvailable'],$region['designReviewRecovery'],$region['recoveryStage'],$region['issue']);
+            unset($region['checkpointAvailable'],$region['designReviewRecovery'],$region['recoveryStage'],$region['designDecisionRequired'],$region['issue']);
             if(in_array($last['status'],array('failed','uncompleted','needs_review'),true)) {
                 $failure=syndamorph_history_latest($last['id'],'job_error');
                 $final=syndamorph_history_latest($last['id'],'job_complete');
@@ -152,9 +152,15 @@ function syndamorph_scope_status(array $manifest): array {
                 if($region['recoveryStage']==='planning'&&syndamorph_scope_planning_checkpoint($last['id'])===null)
                     $region['recoveryStage']=null;
                 $region['designReviewRecovery']=$region['recoveryStage']==='design_approval';
+                $region['designDecisionRequired']=$last['status']==='failed'&&($failure['code']??null)==='sm_design_review_required';
                 $region['issue']=$failure['message']??$final['quality']['issues'][0]['detail']??
                     (in_array($functional,array('pending','failed'),true)?'Functional QA '.$functional.'. See the artifact receipt in History.':null)??
                     (in_array($responsive,array('pending','failed'),true)?'Responsive QA '.$responsive.'. See the artifact receipt in History.':null);
+                if($region['designDecisionRequired']){
+                    $decision=syndamorph_history_latest($last['id'],'agent_decision');
+                    if(($decision['stage']??null)==='design_approval'&&($decision['decision']??null)==='design_review_required'&&
+                        !empty($decision['summary']))$region['issue']=$decision['summary'];
+                }
             }
         }
     }
@@ -167,6 +173,9 @@ function syndamorph_scope_run(array $manifest,string $key,bool $retry,?callable 
     $region=$manifest['regions'][$key]??null;
     if(!$region||($manifest['mode']==='section'&&$manifest['selected']!==$key))
         return syndamorph_scope_error('selection','This region does not belong to the active scope.');
+    $last=end($region['attempts']);
+    if($retry&&$last&&(syndamorph_history_latest($last['id'],'job_error')['code']??null)==='sm_design_review_required')
+        return syndamorph_scope_error('design_decision','The saved design requires a decision before another paid attempt.');
     $eligible=$retry?array('failed','uncompleted'):array('ready');
     if(!in_array($region['status'],$eligible,true)||!empty($region['checkpointAvailable'])||!empty($region['recoveryStage']))
         return syndamorph_scope_error('region_state','Use the existing artifact or browser checkpoint for this region.');
@@ -478,6 +487,8 @@ function syndamorph_scope_repin_section(array $manifest,array $capture) {
     $previous=$manifest['regions'][$key]??null;
     if(isset($manifest['layoutAuthorization']))
         return syndamorph_scope_error('layout_authorization','Start a fresh source scope to authorize a layout change against a new capture.');
+    if(!empty($previous['designDecisionRequired']))
+        return syndamorph_scope_error('design_decision','The saved design requires a decision before replacing the evidence.');
     if($manifest['mode']!=='section'||!$previous||$previous['status']!=='failed'||!empty($previous['patternId'])||
         ($capture['url']??null)!==$manifest['sourceUrl'])
         return syndamorph_scope_error('repin','Only a failed Section on the same source URL can replace its evidence.');
@@ -688,6 +699,8 @@ add_action('rest_api_init',static function():void {
                             return syndamorph_scope_increase_budget($manifest,(float)$limit);
                         case 'recapture':
                             $manifest=syndamorph_scope_status($manifest);
+                            if(!empty($manifest['regions'][$manifest['selected']??'']['designDecisionRequired']))
+                                return syndamorph_scope_error('design_decision','The saved design requires a decision before replacing the evidence.');
                             if(isset($manifest['layoutAuthorization']))
                                 return syndamorph_scope_error('layout_authorization','Start a fresh source scope to authorize a layout change against a new capture.');
                             if($manifest['mode']!=='section'||($manifest['regions'][$manifest['selected']??'']['status']??'')!=='failed'||

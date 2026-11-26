@@ -231,8 +231,24 @@ if($phase==='setup') {
         $attempts[0]['completedCalls']===5&&$record['planningSha256']===hash('sha256',$order)&&
         array_slice($calls,$priorCalls)===array('North:designer','North:final_approval','North:developer','North:validation'),
         'Planning recovery repeated Boss classification, changed the archived response or created a new job.');
+    $reviewPage=scope_ok(syndamorph_scope_configure(scope_ok(syndamorph_scope_open('page',$capture)),$brief,null,0.24));
+    $reviewPage=scope_ok(syndamorph_scope_run($reviewPage,$keys[1],false,static function($brief,$stream,$emit){
+        $emit('agent_decision',array('stage'=>'design_approval','decision'=>'design_review_required',
+            'summary'=>'A compact source interaction needs an explicit design decision.'));
+        return new WP_Error('sm_design_review_required','Fixture design hold.',array('stage'=>'design_approval'));
+    }));
+    $priorCalls=count($calls);
+    $heldRetry=syndamorph_scope_run($reviewPage,$keys[1],true,$engine);
+    scope_expect(is_wp_error($heldRetry)&&$heldRetry->get_error_code()==='sm_scope_design_decision'&&
+        $reviewPage['regions'][$keys[1]]['designDecisionRequired']&&count($calls)===$priorCalls&&
+        str_starts_with($reviewPage['regions'][$keys[1]]['issue'],'A compact source interaction'),
+        'A paid retry bypassed the saved design decision or dropped its reason.');
+    $reviewPage=scope_ok(syndamorph_scope_run($reviewPage,$keys[2],false,$engine));
+    scope_expect($reviewPage['regions'][$keys[1]]['designDecisionRequired']&&
+        $reviewPage['regions'][$keys[2]]['status']==='needs_review'&&count($calls)===$priorCalls+5,
+        'One pending design decision blocked independent production work.');
     echo wp_json_encode(array('section'=>$section['id'],'page'=>$page['id'],'keys'=>$keys,'mockCalls'=>count($calls),
-        'authorizedMobileLayout'=>true,'sameGenReviewRecovery'=>true,'sameGenPlanningRecovery'=>true)).PHP_EOL;
+        'authorizedMobileLayout'=>true,'sameGenReviewRecovery'=>true,'sameGenPlanningRecovery'=>true,'designHoldIsolated'=>true)).PHP_EOL;
 } elseif($phase==='retry') {
     $page=syndamorph_scope_status(syndamorph_history_latest((int)getenv('SM_SCOPE_JOB'),'scope_manifest'));
     scope_expect($page['page']['editorVerified']&&!$page['page']['allRegions'],'Expected an independently verified partial WordPress draft.');

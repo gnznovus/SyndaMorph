@@ -167,6 +167,14 @@ Touch binds the gesture to a discovered target at the pinned viewport and record
 
 In the BKKGO archive, SIP & DINE moved from 0 to 594 px at 768 px and from 0 to 280 px at 375 px with the same compact target ID. Exclusive Offers moved from 0 to 213 px at 375 px. Through Our Lens had no discovered horizontal control at any required width. The archived 3/16 preflight remains preserved. With the additional measured requirements, only one of those three is eligible for the current compiler contract. No BKKGO region has full native acceptance.
 
+## v0.12.16 scoped design decision hold
+
+A scoped `design_review_required` decision now displays as **Design decision pending** with Bossy's archived reason. The held scope keeps its source, candidate and usage. A paid retry receives `sm_scope_design_decision`. Other Full Page regions remain independently runnable under the existing scope budget.
+
+The guard was checked against the actual GEN-000056 record. Its previously verified Designer artifact and original costs remained intact. The retry consumed zero model calls. SIP & DINE still requires a native scroll-strip capability, source typography and visual approval before Developer can start.
+
+The isolated Section and Full Page browser regression passed with 43 mocked model responses. It verified that a pending design decision keeps its region held while another region runs and completes its own QA. The ordinary Full Page fixture also completed partial-to-full assembly, native block validation, and full-extent, first-fold and intermediate responsive checks.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)

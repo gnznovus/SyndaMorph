@@ -109,7 +109,8 @@
             const entry = node('li');
             const checkpoint = row.recoveryStage;
             const states = {pattern_saved:'Pattern saved',needs_review:'Editor verification pending',uncompleted:'QA pending',completed:'Pattern save pending'};
-            entry.append(node('strong', row.label), node('span', ' · ' + (row.id === activeRegion ? 'Running' : states[row.status] || row.status)));
+            entry.append(node('strong', row.label), node('span', ' · ' + (row.id === activeRegion ? 'Running' :
+                row.designDecisionRequired ? 'Design decision pending' : states[row.status] || row.status)));
             for (const attempt of row.attempts) entry.append(node('span', ' · ' + attempt.jobId));
             if (row.patternEditor) entry.append(node('span',' · '),link('Edit pattern',row.patternEditor));
             if (row.blockers.length || row.issue) {
@@ -127,10 +128,11 @@
                         await runRegion(row.id, 'resume_checkpoint');
                 }));
             }
-            if (manifest.mode === 'section' && row.status === 'failed' && !row.checkpointAvailable && !checkpoint && !manifest.layoutAuthorization) entry.append(button('Recapture section evidence', async () => {
+            if (manifest.mode === 'section' && row.status === 'failed' && !row.checkpointAvailable && !checkpoint &&
+                !row.designDecisionRequired && !manifest.layoutAuthorization) entry.append(button('Recapture section evidence', async () => {
                 manifest = await request(url(), {action:'recapture'});
             }));
-            if (canSpend() && ['failed','uncompleted'].includes(row.status) && !row.checkpointAvailable && !checkpoint) {
+            if (canSpend() && ['failed','uncompleted'].includes(row.status) && !row.checkpointAvailable && !checkpoint && !row.designDecisionRequired) {
                 entry.append(button('Retry section', async () => {
                     if (window.confirm('Start one new paid attempt for this section within the remaining scope budget?')) await runRegion(row.id, 'retry');
                 }));
