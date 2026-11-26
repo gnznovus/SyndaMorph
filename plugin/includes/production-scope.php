@@ -274,6 +274,26 @@ function syndamorph_scope_status(array $manifest): array {
                     ((syndamorph_history_latest($last['id'],'job_resumed')['stage']??null)==='design_evidence'||
                     (syndamorph_history_latest($last['id'],'design_candidate')['pinnedSourcePassed']??null)!==true))
                     $region['recoveryStage']=null;
+                if(($failure['code']??null)==='sm_design_native_conflict'&&
+                    syndamorph_history_latest($last['id'],'staged_implementation_review')!==null&&
+                    syndamorph_history_latest($last['id'],'source_scroll_verified')!==null&&
+                    (syndamorph_history_latest($last['id'],'design_candidate')['pinnedSourcePassed']??null)===true&&
+                    (syndamorph_history_latest($last['id'],'job_resumed')['stage']??null)!=='staged_scroll_evidence')
+                    $region['recoveryStage']='staged_scroll_evidence';
+                if(($failure['code']??null)==='sm_tool_stagnation'&&
+                    syndamorph_history_latest($last['id'],'staged_implementation_review')!==null&&
+                    (syndamorph_history_latest($last['id'],'design_candidate')['pinnedSourcePassed']??null)===true&&
+                    (syndamorph_history_latest($last['id'],'job_resumed')['stage']??null)!=='staged_border_evidence'){
+                    $tool=syndamorph_history_latest($last['id'],'tool_invocation');
+                    if(($tool['tool']??null)==='playwright.inspect'&&($tool['target']??null)==='reference'&&
+                        preg_match('/\bborder-top-(?:width|style|color)\b/i',$tool['reason']??''))
+                        $region['recoveryStage']='staged_border_evidence';
+                }
+                if(($failure['code']??null)==='sm_native_review_deterministic'&&
+                    syndamorph_history_latest($last['id'],'staged_implementation_review')!==null&&
+                    (syndamorph_history_latest($last['id'],'design_requirements')['blocking']??null)===array()&&
+                    (syndamorph_history_latest($last['id'],'job_resumed')['stage']??null)!=='staged_native_review')
+                    $region['recoveryStage']='staged_native_review';
                 if($region['recoveryStage']==='developer'&&($failure['code']??null)==='sm_generation_token_limit'&&
                     ((syndamorph_history_latest($last['id'],'job_resumed')['stage']??null)==='developer'||
                     syndamorph_scope_failed_stream($last['id'],'developer')!==''))
@@ -711,6 +731,35 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
         if($stage==='design_evidence'&&($staged!==null||$edits||
             empty($candidate['responsive']['passed'])||empty(syndamorph_source_review($source,$reference,$authorization??null)['passed'])))
             return syndamorph_scope_error('review_checkpoint','The saved reference must still pass source and responsive QA before reviewing its evidence.');
+        if($stage==='staged_scroll_evidence'){
+            $profile=syndamorph_source_scroll_profile($source);
+            if($staged===null||$edits||$workOrderEdits||$wrapId!==null||$profile===null||
+                !isset($compiled['artifact']['scrollStrips'][$profile['id']]))
+                return syndamorph_scope_error('review_checkpoint','The staged plan must retain its exact captured scroll identity.');
+            $samples=syndamorph_collab_inspect($reference,$widths,$build);
+            if(is_wp_error($samples))return $samples;
+            $responsive=syndamorph_design_responsive_measure($reference,$widths,$samples,$build);
+            $strip=syndamorph_scroll_strip_verify($compiled['artifact'],SYNDAMORPH_SOURCE_WIDTHS,$reference);
+            if(empty($responsive['passed'])||($strip[$profile['id']]['status']??null)!=='verified'||
+                syndamorph_reference_unrealizable($samples,array($profile['id']))||
+                empty(syndamorph_source_review($source,$reference)['passed']))
+                return syndamorph_scope_error('review_checkpoint','Fresh browser evidence must resolve the exact scroll capability conflict.');
+        }
+        if($stage==='staged_border_evidence'){
+            $tool=syndamorph_history_latest($id,'tool_invocation');
+            if($staged===null||$edits||$workOrderEdits||$wrapId!==null||($tool['artifactSha256']??null)!==$sha)
+                return syndamorph_scope_error('review_checkpoint','The browser request must identify the unchanged staged reference.');
+            $samples=syndamorph_collab_inspect($reference,$widths,$build);
+            if(is_wp_error($samples))return $samples;
+            $borderFields=array_flip(array('borderTopWidth','borderTopStyle','borderTopColor'));
+            $measured=false;
+            foreach($samples as $sample)foreach($sample['snapshot']['elements'] as $element){
+                if(($element['visible']??null)===true&&count(array_intersect_key($element['styles']??array(),$borderFields))===3)
+                    $measured=true;
+            }
+            if(!$measured||empty(syndamorph_source_review($source,$reference)['passed']))
+                return syndamorph_scope_error('review_checkpoint','Fresh browser evidence must include the requested border measurements.');
+        }
     }
     $nativePartialReceipt=null;
     if($stage==='native_partial_review'){
@@ -734,11 +783,11 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
                 'completeBlockIds'=>$retainedIds));
         if($priorModelIssues)$resume['nativeReview']['archivedObservations']['priorModelIssues']=$priorModelIssues;
     }
-    if(in_array($stage,array('developer','native_review','native_partial_review'),true)){
+    if(in_array($stage,array('developer','native_review','native_partial_review','staged_native_review'),true)){
         if($edits||$extendWorkOrder)return syndamorph_scope_error('review_checkpoint','Implementation recovery requires the unchanged design and work order.');
         if($nativeReview===null){
             $approved=syndamorph_history_latest($id,'handoff');
-            if($stage==='native_partial_review'&&($approved['type']??null)!=='approved_design'){
+            if(in_array($stage,array('native_partial_review','staged_native_review'),true)&&($approved['type']??null)!=='approved_design'){
                 $handoffs=$wpdb->get_col($wpdb->prepare(
                     "SELECT payload FROM $events WHERE job_id=%d AND event_type='handoff' ORDER BY id DESC LIMIT 16",$id));
                 foreach($handoffs as $handoff){
@@ -853,7 +902,7 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
         if($cssCheckpoint!==null)$resume+=array('assignment'=>$assignment,'touch'=>$touch,'designCssCheckpoint'=>$cssCheckpoint);
         elseif(!$planningStage)$resume+=array('assignment'=>$assignment,'referenceHtml'=>$reference,'archivedSha256'=>$sha,
             'touch'=>$touch,'surgery'=>$surgery,'round'=>$candidate['round']+($surgery===null?0:1));
-        if($stage==='design_evidence')$resume['reviewEvidenceRecovered']=true;
+        if(in_array($stage,array('design_evidence','staged_scroll_evidence','staged_border_evidence'),true))$resume['reviewEvidenceRecovered']=true;
         if($stage==='developer'&&(syndamorph_history_latest($id,'job_error')['code']??null)==='sm_generation_token_limit')
             $resume['emptyDeveloperOutputRecovery']=true;
         if($savedApproval!==null)$resume['savedDesignApproval']=$savedApproval;

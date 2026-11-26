@@ -112,7 +112,8 @@ function syndamorph_memory_measurements(array $samples,array $texts=array(),int 
             if($texts && !in_array($text,$texts,true))continue;
             if(!$texts && $text==='' && count($elements)>0)continue;
             $item=array('text'=>mb_substr($text,0,110),'rect'=>$el['rect']??array(),
-                'styles'=>array_intersect_key($el['styles']??array(),array_flip(array('fontSize','fontWeight','color','lineHeight','letterSpacing','margin','gap','textAlign','textTransform'))));
+                'styles'=>array_intersect_key($el['styles']??array(),array_flip(array('fontSize','fontWeight','color','lineHeight','letterSpacing','margin','gap','textAlign','textTransform',
+                    'borderTopWidth','borderTopStyle','borderTopColor'))));
             if(isset($el['node']))$item['node']=$el['node'];
             if(isset($el['textRect']))$item['textRect']=$el['textRect'];
             if(!empty($el['lineRects']))$item['lines']=count($el['lineRects']);

@@ -81,6 +81,7 @@ function syndamorph_design_browser_facts(array $samples,array $specification): a
             $selected=array_filter($selectors,static fn($selector)=>syndamorph_design_matches($element,$selector));
             $control=in_array($element['tag']??null,array('A','BUTTON','INPUT','SELECT'),true)||!empty($element['role']);
             $paint=($style['backgroundImage']??'none')!=='none'||
+                isset($style['borderTopWidth'])||
                 !in_array($style['backgroundColor']??'',array('','rgba(0, 0, 0, 0)','transparent'),true);
             if($index!==0&&!$selected&&!$control&&!$paint&&empty($element['normalizedText']))continue;
             $record=array('id'=>'view-'.$width.'-element-'.$index)+array_intersect_key($element,array_flip(
@@ -88,7 +89,8 @@ function syndamorph_design_browser_facts(array $samples,array $specification): a
             $record['domId']=$element['id']??null;
             $record['text']=mb_substr((string)($element['normalizedText']??''),0,100);
             $record['styles']=array_intersect_key($style,array_flip(
-                array('fontFamily','fontSize','fontWeight','lineHeight','color','backgroundColor','backgroundImage','textAlign','padding')));
+                array('fontFamily','fontSize','fontWeight','lineHeight','color','backgroundColor','backgroundImage','textAlign','padding',
+                    'borderTopWidth','borderTopStyle','borderTopColor')));
             $visible=($element['visible']??null)===true;
             if($visible&&$record['text']!=='')$visibleText[]=array_intersect_key($record,
                 array_flip(array('id','text','rect','visible')));
@@ -259,7 +261,7 @@ function syndamorph_design_run_check(array $check,array $samples): array {
 }
 
 function syndamorph_design_requirements(array $specification,array $samples,array $facts,array $approval,
-    array $extraEvidence,array $hostChecks=array()): array {
+    array $extraEvidence,array $hostChecks=array(),array $interactionChecks=array()): array {
     if($specification['format']!=='structured')return array('checks'=>array(),'blocking'=>array());
     $reported=array();
     foreach((array)($approval['requirementChecks']??array()) as $row){
@@ -286,6 +288,8 @@ function syndamorph_design_requirements(array $specification,array $samples,arra
             $result['evidence']=$hostChecks[$id]['views']??array();
         }elseif(isset($requirement['check'])){
             $result=array_replace($result,syndamorph_design_run_check($requirement['check'],$samples));
+        }elseif(isset($interactionChecks[$id])){
+            $result=array_replace($result,$interactionChecks[$id]);
         }elseif(isset($implementationProof[$id])||in_array($requirement['dimension'],array('functional','implementation'),true)){
             $result['owner']='implementation_qa';
             $result['reason']='Requires independent implementation evidence.';

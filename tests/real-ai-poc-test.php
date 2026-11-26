@@ -2152,8 +2152,12 @@ $tilePlan=array('version'=>1,'blocks'=>array(array('type'=>'group','style'=>arra
 $tileArtifact=syndamorph_compile_block_plan(wp_json_encode($tilePlan));
 expect(!is_wp_error($tileArtifact)&&str_contains($tileArtifact['content'],'is-not-stacked-on-mobile')&&
     str_contains($tileArtifact['content'],'sm-aspect-4-3')&&str_contains($tileArtifact['content'],'border-width:1px')&&
-    str_contains($tileArtifact['preview'],syndamorph_native_four_three_css()),
+    str_contains($tileArtifact['preview'],syndamorph_native_tile_aspect_css()),
     'The measured card geometry is missing from native serialization or its preview.');
+$tilePlan['blocks'][0]['children'][1]['children'][0]['children'][0]['style']['aspectRatio']='3:4';
+$portraitTile=syndamorph_compile_block_plan(wp_json_encode($tilePlan));
+expect(!is_wp_error($portraitTile)&&str_contains($portraitTile['content'],'sm-aspect-3-4'),
+    'The measured portrait ratio is missing from the native Group.');
 $tilePlan['blocks'][0]['children'][1]['children'][0]['children'][0]['style']['aspectRatio']='url(external)';
 expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($tilePlan))),'Unregistered aspect-ratio CSS compiled.');
 
@@ -2167,6 +2171,20 @@ $evidence=syndamorph_collab_computed_text(array($observed,$observed,$observed),a
 expect(($evidence[0]['pairs'][0]['nativeMatchesReference']??null)===true&&$evidence[1]['pairs']===array()&&
     ($evidence[2]['pairs'][0]['native']['fontSize']??null)==='14px',
     'Validator evidence mislabeled a missing or different measured style as a match.');
+
+$stripRequirement=array('id'=>'strip-focus','target'=>'strip','dimension'=>'accessibility','basis'=>'standard',
+    'requirement'=>'Strip is keyboard operable with a visible focus indicator meeting WCAG 2.2 AA focus visibility.',
+    'acceptance'=>'Keyboard focus is visible on strip and controls; browser behavior is marked unverified until compiled artifact check.');
+$mixedRequirement=array_replace($stripRequirement,array('id'=>'focus-and-contrast',
+    'acceptance'=>'Verify keyboard reachability, visible focus and text contrast.'));
+$stripProfile=array('id'=>'scroll-approved');
+$stripDesign=array('format'=>'structured','requirements'=>array($stripRequirement,$mixedRequirement),
+    'interactions'=>array(array('id'=>'scroll-approved','target'=>'strip','classification'=>'native','kind'=>'horizontal-scroll')));
+expect(syndamorph_scroll_strip_keyboard_requirements($stripDesign,$stripProfile)===array('strip-focus'),
+    'A scroll gesture receipt was assigned to an unrelated contrast check.');
+$scopedFocus=syndamorph_design_requirements($stripDesign,array(),array(),array(),array(),array(),
+    array('strip-focus'=>array('owner'=>'browser','status'=>'verified','evidence'=>array(array('width'=>375,'focusVisible'=>true)))));
+expect($scopedFocus['blocking']===array('focus-and-contrast'),'Measured strip focus incorrectly resolved another requirement.');
 
 $root=array('node'=>'root','rect'=>array(0,0,900,300));
 $column=array('parent'=>0,'rect'=>array(115,20,670,250),'styles'=>array('padding'=>'0px'));

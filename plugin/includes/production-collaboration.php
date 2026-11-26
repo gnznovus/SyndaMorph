@@ -986,6 +986,24 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $nativeKeyboard=$stagedReview&&$sourceDisclosure!==null?
             syndamorph_disclosures_keyboard_requirements($specification,$sourceDisclosure):array();
         if($nativeKeyboard)$reviewContext['implementationOnlyRequirementIds']=$nativeKeyboard;
+        $interactionChecks=array();
+        $stripKeyboard=$stagedReview&&$sourceScroll!==null?
+            syndamorph_scroll_strip_keyboard_requirements($specification,$sourceScroll):array();
+        if($stripKeyboard){
+            $stripId=$sourceScroll['id'];
+            $receipt=syndamorph_scroll_strip_measure($reference,$viewports,array($stripId=>array(
+                'visibility'=>$sourceScroll['visibility'],'cards'=>$sourceScroll['cards'])))[$stripId];
+            $proof=static function(array $view):array{
+                return array('width'=>$view['width'],'required'=>$view['required'],'passed'=>$view['passed'])+
+                    array_intersect_key($view['proof']??array(),array_flip(array('keyboard','focusVisible')));
+            };
+            $reviewContext['referenceScrollKeyboard']=array('component'=>$stripId,'status'=>$receipt['status'],
+                'viewports'=>array_map($proof,$receipt['viewports']));
+            $state=$receipt['status']==='verified'?'verified':($receipt['status']==='failed'?'failed':'uncertain');
+            if($state==='verified')$extraEvidence[]='reference-scroll-keyboard';
+            foreach($stripKeyboard as $id)$interactionChecks[$id]=array('owner'=>'browser','status'=>$state,
+                'evidence'=>$reviewContext['referenceScrollKeyboard']['viewports']);
+        }
         $wordpressPage=$scopeRegion===null?null:syndamorph_design_wordpress_page_context();
         if($wordpressPage!==null){
             $reviewContext['wordpressPageContext']=$wordpressPage;
@@ -1140,7 +1158,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 array('stage'=>'design_approval','findings'=>$responsive['findings'],'widths'=>$responsive['widths']));
         }
         $requirementResults=syndamorph_design_requirements($specification,$inspectReference,$browserFacts,$approval,$extraEvidence,
-            $hostDesign['checks']??array());
+            $hostDesign['checks']??array(),$interactionChecks);
         if($savedDesignApproval!==null){
             $savedChecks=$savedDesignApproval['requirementReceipt']??null;
             if(!empty($savedDesignApproval['deferredDisclosureKeyboard'])){

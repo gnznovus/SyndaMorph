@@ -6,6 +6,18 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.35] - 2026-11-27
+
+### Changed
+
+- Editable painted Groups support the measured 3:4 portrait ratio. Browser inspection preserves the identity of a compiled native scroll strip and reports measured borders on visible labels and dividers.
+- Staged reviews can resume after fresh evidence resolves a scroll identity or border diagnostic. Verified keyboard, focus, initial state and inert text receipts bind to their exact requirements. A native-only recheck retains the recorded design decision and reruns required checks before Validator.
+
+### Verified
+
+- The corrected Dining Section completed as private unsynced Pattern 79 with 68 editor-verified blocks. Native source difference measured 0.172%, 0.117%, and 0.340% at 1440, 768 and 375 px. Its staged job used eight metered calls totaling $0.057829.
+- Local BKKGO draft 66 contains four accepted placements and 223 editor-verified blocks. Dining reproduced the pinned first scroll movements at 768 and 375 px. Whole-page QA remains pending while required regions are missing.
+
 ## [0.12.34] - 2026-11-27
 
 ### Fixed

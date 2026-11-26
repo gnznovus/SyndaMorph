@@ -95,6 +95,19 @@ function syndamorph_scroll_strip_verify(array $artifact,array $widths,string $re
     return $native;
 }
 
+function syndamorph_scroll_strip_keyboard_requirements(array $specification,array $profile): array {
+    $strips=array_values(array_filter($specification['interactions']??array(),static fn($item)=>
+        $item['kind']==='horizontal-scroll'&&$item['classification']==='native'&&$item['id']===$profile['id']));
+    if(count($strips)!==1)return array();
+    $requirements=array_filter($specification['requirements'],static function(array $item)use($strips): bool {
+        return ($item['target']??null)===$strips[0]['target']&&$item['dimension']==='accessibility'&&
+            $item['basis']==='standard'&&!isset($item['check'])&&
+            $item['requirement']==='Strip is keyboard operable with a visible focus indicator meeting WCAG 2.2 AA focus visibility.'&&
+            $item['acceptance']==='Keyboard focus is visible on strip and controls; browser behavior is marked unverified until compiled artifact check.';
+    });
+    return array_column($requirements,'id');
+}
+
 /** Bind separate source-strip and inert-fragment requirements to their native evidence. */
 function syndamorph_scroll_strip_source_checks(array $specification,array $profile,array $artifact,array $samples,
     array $source,array $sourceQa,array $native): array {
@@ -103,10 +116,12 @@ function syndamorph_scroll_strip_source_checks(array $specification,array $profi
         $item['id']===$id&&$item['kind']==='horizontal-scroll'&&$item['classification']==='native'));
     if(count($components)!==1||($native[$id]['status']??null)!=='verified')return array();
     $out=array();
+    $widths=array_keys($profile['copyByWidth']);
+    $inert=!empty($sourceQa['passed'])&&empty($artifact['tabWidgets'])&&
+        !preg_match('~\b(?:href|src)\s*=|<\s*(?:script|form|iframe|embed|object)\b|https?://~i',$artifact['preview']);
     foreach($specification['requirements'] as $requirement){
         if($requirement['dimension']!=='functional')continue;
         $key=$requirement['id'];
-        $widths=array_keys($profile['copyByWidth']);
         $expect='At '.implode(' and ',$widths).' implement native horizontal scroll group id '.$id.
             ' with two cards, 80% card basis, 12px gap, 20px end padding and start snapping. Visibility: '.$profile['visibility'].'.';
         if($requirement['basis']==='source'&&$requirement['target']===$components[0]['target']&&
@@ -116,11 +131,31 @@ function syndamorph_scroll_strip_source_checks(array $specification,array $profi
             $out[$key]=array('status'=>'verified','check'=>'source-scroll-layout','component'=>$id,
                 'viewports'=>array_column($native[$id]['viewports'],'width'));
         }
+        if($inert&&$requirement['basis']==='brief'&&
+            $requirement['requirement']==="Reservation labels 'Reserve a table', 'Explore' and 'All Sip & Dine →' remain plain text with no link or booking destination."&&
+            $requirement['acceptance']==='No link, button href or invented destination exists for these labels in the native plan.')
+            $out[$key]=array('status'=>'verified','check'=>'inert-source-fragment');
+        if($inert&&$requirement['basis']==='source'&&$requirement['target']===$components[0]['target']&&
+            $requirement['requirement']==="Initial state shows the first card at the start of the strip and the indicator text '1 / 3' as captured text."&&
+            $requirement['acceptance']==="Strip starts at scrollLeft 0; '1 / 3' is plain text and does not update."){
+            $matched=array();
+            foreach($samples as $sample){
+                $width=$sample['width'];
+                if(!in_array($width,SYNDAMORPH_SOURCE_WIDTHS,true))continue;
+                $indicators=array_values(array_filter($sample['snapshot']['elements']??array(),static fn($element)=>
+                    ($element['visible']??null)===true&&($element['normalizedText']??null)==='1 / 3'));
+                $active=in_array($width,$widths,true);
+                if(count($indicators)!==(int)$active||($active&&(($indicators[0]['tag']??null)!=='P'||
+                    ($indicators[0]['keyboardReachable']??null)!==false||!empty($indicators[0]['role']))))break;
+                $matched[]=$width;
+            }
+            if($matched===SYNDAMORPH_SOURCE_WIDTHS)
+                $out[$key]=array('status'=>'verified','check'=>'static-source-scroll-indicator','component'=>$id,'widths'=>$widths);
+        }
         if($requirement['basis']!=='brief'||
             $requirement['requirement']!=='No reservation integration, forms, iframes, external requests, made-up assets, extra cards or publishing. Booking labels stay as plain copy.'||
             $requirement['acceptance']!=='Zero href attributes, zero scripts, zero external URLs in the fragment; exactly the captured cards exist.'||
-            empty($sourceQa['passed'])||!empty($artifact['tabWidgets'])||
-            preg_match('~\b(?:href|src)\s*=|<\s*(?:script|form|iframe|embed|object)\b|https?://~i',$artifact['preview'])||
+            !$inert||
             array_column($samples,'width')!==SYNDAMORPH_SOURCE_WIDTHS)continue;
         $counts=array();
         foreach($samples as $sample){

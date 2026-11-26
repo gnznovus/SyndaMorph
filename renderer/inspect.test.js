@@ -70,6 +70,21 @@ test('inspection shares a fragment origin and measures effective unsupported sty
     assert.equal(byWidth[768].find(el=>el.tag==='A').widthValue,'auto');
 });
 
+test('scroll inspection distinguishes a native component from an arbitrary scrolling element',async()=>{
+    const html='<style>.strip{display:flex;width:300px;overflow-x:auto}.strip>div{flex:0 0 250px}.strip div:first-child{border:1px solid #fff}</style>'+
+        '<section><div class="wp-block-group sm-scroll-strip strip" data-sm-node="scroll-native"><div>First</div><div>Second</div></div>'+
+        '<div class="strip" data-sm-node="scroll-unknown"><div>First</div><div>Second</div></div></section>';
+    const {evidence}=await request('/inspect',html,[768,375]);
+    for(const {snapshot} of evidence){
+        const strips=snapshot.elements.filter(element=>element.localHorizontalScroll);
+        assert.deepEqual(strips.map(element=>[element.node,element.scrollReference]),[
+            ['scroll-native','scroll-native'],['scroll-unknown',null],
+        ]);
+        const {styles}=snapshot.elements.find(element=>element.normalizedText==='First');
+        assert.deepEqual([styles.borderTopWidth,styles.borderTopStyle,styles.borderTopColor],['1px','solid','rgb(255, 255, 255)']);
+    }
+});
+
 test('existing DOM render endpoint remains available',async()=>{
     const result=await request('/render','<main><p>Original mode</p></main>');
     assert.match(result.html,/<p>Original mode<\/p>/);

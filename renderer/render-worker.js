@@ -427,6 +427,11 @@ process.stdin.on('end', async () => {
                         return {titleLevel:title&&visible(title)?depth(title):null,levels,textRuns:candidates.length,
                             unresolved,minContrast:minimum};
                     })():null;
+                    const scrollIdentity=el=>{
+                        const id=el.getAttribute('data-sm-scroll-reference')??
+                            (el.matches('.wp-block-group.sm-scroll-strip')?el.getAttribute('data-sm-node'):null);
+                        return id&&id.length<=48?id:null;
+                    };
                     const literal = includeLiteral ? (() => {
                         const normalize = value => value.replace(/\s+/gu, ' ').trim();
                         const visible = new Set([document.body, ...elements].filter(el => {
@@ -450,10 +455,9 @@ process.stdin.on('end', async () => {
                         const scrollAreas = [...visible].filter(el=>['auto','scroll'].includes(getComputedStyle(el).overflowX)&&
                             el.clientWidth>0&&el.scrollWidth-el.clientWidth>4);
                         const scrollStrips = scrollAreas.slice(0,5).map(el=>{
-                            const id=el.getAttribute('data-sm-scroll-reference')??
-                                (el.classList.contains('sm-scroll-strip')?el.getAttribute('data-sm-node'):null);
+                            const id=scrollIdentity(el);
                             const cards=[...el.children];
-                            if(!id||id.length>48||cards.length<2||cards.length>6||
+                            if(!id||cards.length<2||cards.length>6||
                                 !cards.every(card=>visible.has(card)&&card.matches('.wp-block-group,[data-sm-scroll-card]')))return null;
                             const copy=cards.map(card=>normalize(card.innerText));
                             return copy.some(item=>item.length>4000)?null:{id,copy};
@@ -544,6 +548,9 @@ process.stdin.on('end', async () => {
                                     cardBox.width<=strip.clientWidth+2&&textBox.left>=cardBox.left-2&&textBox.right<=cardBox.right+2;
                             }
                             const backgroundImage=s.backgroundImage.replace(/url\([^)]*\)/g,'url([asset])');
+                            const border=parseFloat(s.borderTopWidth)>0?{
+                                borderTopWidth:s.borderTopWidth,borderTopStyle:s.borderTopStyle,borderTopColor:s.borderTopColor,
+                            }:{};
                             const localHorizontalScroll=r.width>0&&r.height>0&&['auto','scroll'].includes(s.overflowX)&&
                                 el.scrollWidth>el.clientWidth+4;
                             return { tag: el.tagName.slice(0, 32), id: el.id.slice(0, 128), text: el.children.length ? '' : el.textContent.slice(0, 250),
@@ -563,11 +570,11 @@ process.stdin.on('end', async () => {
                                 textRect:textBox?rect(textBox):null,
                                 ...(scrollContained?{scrollContained:true}:{}),
                                 ...(localHorizontalScroll?{localHorizontalScroll:true,
-                                    scrollReference:el.getAttribute('data-sm-scroll-reference')?.slice(0,48)??null}:{}),
+                                    scrollReference:scrollIdentity(el)}:{}),
                                 lineRects: lines,
                                 wrapChangesGeometry,
                                 styles: { ...Object.fromEntries(['color','backgroundColor','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','maxWidth','overflowWrap','padding','margin','gap','display','textAlign','textTransform','textWrapStyle','alignItems','justifyContent','borderRadius'].map(k => [k,s[k].slice(0, 128)])),
-                                    backgroundImage:backgroundImage.slice(0,240) },
+                                    backgroundImage:backgroundImage.slice(0,240),...border },
                                 widthValue: el.computedStyleMap().get('width')?.toString().slice(0,128) ?? null,
                                 clipped: /^(?:hidden|clip)$/.test(s.overflowX) && el.scrollWidth > el.clientWidth + 2,
                                 missingAlt: el.tagName === 'IMG' && !el.hasAttribute('alt'),
