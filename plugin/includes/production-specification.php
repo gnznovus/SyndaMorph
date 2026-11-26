@@ -48,6 +48,9 @@ function syndamorph_production_specification(array $data) {
         if(isset($requirement['check'])){
             $check=syndamorph_design_check_contract($requirement['check']);
             if($check===null)return $invalid('requirement check');
+            if(in_array($check['kind'],array('host-heading','host-contrast'),true)&&
+                ($requirement['dimension']!=='accessibility'||$requirement['basis']!=='standard'))
+                return $invalid('host accessibility check scope');
             $requirements[$key]['check']=$check;
         }
     }

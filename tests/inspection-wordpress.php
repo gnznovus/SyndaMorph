@@ -176,6 +176,36 @@ if($presets){
         'A renderer response without font evidence passed inspection.');
     $testedFont=$family;
 }
+$host=syndamorph_design_wordpress_page_context();
+if($host!==null){
+    $level=$host['pageTitleLevel']+1;
+    $positive='<section style="background:#fff;color:#222"><h'.$level.'>Correct hierarchy</h'.$level.'><p>Visible text</p></section>';
+    $checks=array('heading'=>'host-heading','contrast'=>'host-contrast');
+    $good=syndamorph_design_host_accessibility($positive,$checks,$host,$default);
+    inspection_assert($good['status']==='passed'&&array_column($good['checks']['contrast']['views'],'width')===$default,
+        'The host check did not evaluate the terminal WordPress Page context at all required widths.');
+    $sha=hash('sha256',$positive);
+    $result=array('artifact'=>array('preview'=>$positive),'quality'=>array('viewportWidths'=>$default,
+        'hostAccessibility'=>$good+array('artifactSha256'=>$sha)),
+        'designApproval'=>array('productionSpecification'=>array('requirements'=>array(
+            array('id'=>'heading','check'=>array('kind'=>'host-heading')),array('id'=>'contrast','check'=>array('kind'=>'host-contrast'))))));
+    inspection_assert(syndamorph_design_host_acceptance($result,$sha),'Verified host evidence did not permit the exact artifact.');
+    $result['quality']['hostAccessibility']['checks']['contrast']['views']=array_slice($good['checks']['contrast']['views'],0,2);
+    inspection_assert(!syndamorph_design_host_acceptance($result,$sha)&&
+        !syndamorph_design_host_acceptance($result,hash('sha256','changed')),
+        'Missing viewport evidence or a different artifact passed host acceptance.');
+    $bad=str_replace(array('h'.$level,'#222'),array('h'.$host['pageTitleLevel'],'#aaa'),$positive);
+    $failed=syndamorph_design_host_accessibility($bad,$checks,$host,$default);
+    inspection_assert($failed['status']==='failed'&&array_column($failed['checks'],'status')===array('failed','failed'),
+        'An invalid heading hierarchy or low contrast passed the default Page evidence check.');
+    $ambiguous=str_replace('background:#fff','background:linear-gradient(#fff,#000)',$positive);
+    $pending=syndamorph_design_host_accessibility($ambiguous,$checks,$host,array(375));
+    inspection_assert($pending['status']==='pending'&&$pending['checks']['contrast']['status']==='uncertain',
+        'An unresolved composed background was assumed to have adequate contrast.');
+    $blended=syndamorph_design_host_accessibility('<div style="opacity:.35">'.$positive.'</div>',$checks,$host,array(375));
+    inspection_assert($blended['status']==='pending'&&$blended['checks']['contrast']['status']==='uncertain',
+        'A translucent ancestor was silently treated as an opaque background.');
+}
 echo wp_json_encode(array('renderer'=>$ready,'responses'=>$responses,'heavyScreenshotBytes'=>$shots,
     'comparisonUploadBase64Bytes'=>2*array_sum($shots[0]),'phpPeakBytes'=>memory_get_peak_usage(true),
     'recoveryCases'=>array('reordered','missing','unrecoverable'),'verifiedInstalledFont'=>$testedFont)).PHP_EOL;

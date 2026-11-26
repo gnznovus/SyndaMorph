@@ -5,6 +5,7 @@ require_once __DIR__.'/production-editor-learning.php';
 require_once __DIR__.'/production-learning.php';
 require_once __DIR__.'/production-tabs.php';
 require_once __DIR__.'/production-responsive.php';
+require_once __DIR__.'/production-design-evidence.php';
 
 function syndamorph_history_tables(): array {
     global $wpdb;
@@ -127,6 +128,8 @@ function syndamorph_history_responsive_result(int $id,array $final): array {
             $final['quality']['terminationReason']='source_fidelity_pending';
         elseif(!syndamorph_functional_acceptance($final,$receipt['artifactSha256']))
             $final['quality']['terminationReason']='functional_validation_'.($final['quality']['functionalChecks']['status']??'pending');
+        elseif(!syndamorph_design_host_acceptance($final,$receipt['artifactSha256']))
+            $final['quality']['terminationReason']='native_host_accessibility_pending';
         else{
             $final['quality']['terminationReason']='quality_resolved';
             $final['status']='needs_review';
@@ -591,6 +594,7 @@ add_action( 'rest_api_init', static function (): void {
                 ($sourceQa['artifactSha256']??null)===$checksum &&
                 ($sourceQa['identity']??null)===syndamorph_production_source_identity($source));
             $eligible=$sourceEligible && syndamorph_functional_acceptance($final,$checksum) &&
+                syndamorph_design_host_acceptance($final,$checksum) &&
                 syndamorph_native_responsive_acceptance($final,$checksum) &&
                 empty($final['quality']['issues']) && !empty($final['quality']['visionInspected']) && !empty($final['quality']['browserInspected']);
             if(isset($final['sourceAcceptance']))$eligible=$eligible&& !empty($final['sourceAcceptance']['passed']) &&

@@ -79,7 +79,7 @@ function syndamorph_source_work_order_amend(array $specification,array $source,a
     $archive=$source['referenceArchive']??null;
     if(($specification['format']??null)!=='structured'||!is_array($region)||!is_string($source['url']??null)||
         !syndamorph_production_reference_valid($archive,$source['url'])||
-        !array_is_list($changes)||!$changes||count($changes)>5||array_column($samples,'width')!==SYNDAMORPH_SOURCE_WIDTHS||
+        !array_is_list($changes)||!$changes||count($changes)>7||array_column($samples,'width')!==SYNDAMORPH_SOURCE_WIDTHS||
         !syndamorph_source_verify_markup($region,$samples)['passed'])
         return $error('A work-order correction requires a structured assignment and exact pinned source markup evidence.');
     $requirements=array_column($specification['requirements'],null,'id');
@@ -91,6 +91,7 @@ function syndamorph_source_work_order_amend(array $specification,array $source,a
         $sourceText[$width]=$view['facts']['copy']??syndamorph_source_text(implode(' ',$inventory['text']));
     }
     $previous=array();
+    $hostKinds=array();$sourceChanges=0;
     foreach($changes as $change){
         $id=$change['id']??null;$kind=$change['kind']??null;$literal=$change['literal']??null;
         if(!is_array($change)||!is_string($id)||!isset($requirements[$id])||isset($previous[$id])||
@@ -100,6 +101,7 @@ function syndamorph_source_work_order_amend(array $specification,array $source,a
         $original=$requirements[$id];
         $revised=$original;
         $check=$original['check']??null;
+        if($kind!=='host-context'&&++$sourceChanges>5)return $error('The source work-order correction limit was exceeded.');
         if($kind==='style-target'&&($check['kind']??null)==='style'&&!isset($check['literal'])&&
             preg_match('/^[a-z][a-z0-9]*$/D',$check['selector'])&&
             syndamorph_design_run_check($check,$samples)['status']==='failed'){
@@ -120,6 +122,11 @@ function syndamorph_source_work_order_amend(array $specification,array $source,a
             $revised['check']=array('kind'=>'element-absent','selector'=>'a','widths'=>SYNDAMORPH_SOURCE_WIDTHS);
             if(syndamorph_design_run_check($revised['check'],$samples)['status']!=='verified')
                 return $error('The saved reference does not prove the absence of anchors at every required width.');
+        }elseif($kind==='host-context'&&$check===null&&$original['dimension']==='accessibility'&&$original['basis']==='standard'&&
+            in_array($literal,array('heading','contrast'),true)&&!isset($hostKinds[$literal])&&
+            preg_match('/\b'.$literal.'\b/i',$original['requirement'].' '.$original['acceptance'])){
+            $revised['check']=array('kind'=>'host-'.$literal);
+            $hostKinds[$literal]=true;
         }else return $error('The requested correction is outside the verified source or work-order contract.');
         $previous[$id]=$original;
         $requirements[$id]=$revised;

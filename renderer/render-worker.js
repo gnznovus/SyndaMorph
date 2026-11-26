@@ -323,6 +323,41 @@ process.stdin.on('end', async () => {
                         if (boundary) parts.push(' ');
                     }
                     gatherCopy(document.body);
+                    const targets=document.querySelectorAll('[data-sm-host-target]');
+                    const hostAccessibility=targets.length===1?(()=>{
+                        const target=targets[0];
+                        const title=document.querySelector('[data-sm-host-title]');
+                        const visible=el=>el.getClientRects().length>0&&el.checkVisibility({opacityProperty:true,visibilityProperty:true});
+                        const depth=el=>Number(el.getAttribute('aria-level')||el.tagName.slice(1));
+                        const levels=[...target.querySelectorAll('h1,h2,h3,h4,h5,h6,[role=heading]')].filter(visible).map(depth);
+                        const candidates=[...target.querySelectorAll('*')].filter(el=>visible(el)&&
+                            [...el.childNodes].some(node=>node.nodeType===Node.TEXT_NODE&&node.textContent.trim()));
+                        const rgb=color=>color.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/)?.slice(1).map(Number);
+                        const brightness=channels=>channels.map(value=>value/255).map(value=>value<=.04045?
+                            value/12.92:((value+.055)/1.055)**2.4).reduce((sum,value,i)=>sum+value*[.2126,.7152,.0722][i],0);
+                        let unresolved=0,minimum=null;
+                        for(const el of candidates){
+                            const foreground=rgb(getComputedStyle(el).color);
+                            let background=null;
+                            for(let ancestor=el;ancestor;ancestor=ancestor.parentElement){
+                                const css=getComputedStyle(ancestor);
+                                if(css.opacity!=='1'||css.mixBlendMode!=='normal'||css.filter!=='none'){
+                                    background=null;
+                                    break;
+                                }
+                                if(background)continue;
+                                if(css.backgroundImage!=='none')break;
+                                background=rgb(css.backgroundColor);
+                                if(!background&&css.backgroundColor!=='rgba(0, 0, 0, 0)')break;
+                            }
+                            if(!foreground||!background){unresolved++;continue;}
+                            const values=[brightness(foreground),brightness(background)].sort((a,b)=>b-a);
+                            const ratio=(values[0]+.05)/(values[1]+.05);
+                            minimum=minimum===null?ratio:Math.min(ratio,minimum);
+                        }
+                        return {titleLevel:title&&visible(title)?depth(title):null,levels,textRuns:candidates.length,
+                            unresolved,minContrast:minimum};
+                    })():null;
                     const literal = includeLiteral ? (() => {
                         const normalize = value => value.replace(/\s+/gu, ' ').trim();
                         const visible = new Set([document.body, ...elements].filter(el => {
@@ -372,6 +407,7 @@ process.stdin.on('end', async () => {
                         height: document.documentElement.scrollHeight,
                         elementCount: elements.length,
                         ...(literal ? { literal } : {}),
+                        ...(hostAccessibility?{hostAccessibility}:{}),
                         elements: elements.slice(0, 200).map(el => {
                             const r = el.getBoundingClientRect(), s = getComputedStyle(el);
                             const text = el.children.length ? '' : el.textContent.replace(/\s+/gu, ' ').trim().slice(0, 250);

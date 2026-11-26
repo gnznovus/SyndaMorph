@@ -6,6 +6,7 @@ function syndamorph_design_check_contract($check) {
     $fields=array('fontFamily','fontSize','fontWeight','lineHeight','backgroundColor','backgroundImage','color','textAlign',
         'paddingTop','paddingBottom');
     $kind=$check['kind']??null;
+    if(is_array($check)&&array_keys($check)===array('kind')&&in_array($kind,array('host-heading','host-contrast'),true))return $check;
     if(!is_array($check)||!in_array($kind,array('text','element','link','style','center','element-absent'),true))return null;
     $result=array('kind'=>$kind);
     if($kind!=='text'||array_key_exists('selector',$check)){
@@ -121,7 +122,73 @@ function syndamorph_design_wordpress_page_context(): ?array {
         $level<1||$level>6||!is_string($background)||!preg_match('/^#[a-f0-9]{6}$/iD',$background))return null;
     return array('id'=>'wordpress-page-template','theme'=>$theme,'template'=>$template->slug,
         'templateSha256'=>hash('sha256',$template->content),'pageTitleLevel'=>$level,'globalBackground'=>$background,
+        'globalStylesSha256'=>hash('sha256',wp_get_global_stylesheet()),
         'scope'=>'Default local WordPress Page template settings. Verify the final draft in its actual insertion context.');
+}
+
+function syndamorph_design_host_checks(array $specification): array {
+    $checks=array();
+    foreach($specification['requirements']??array() as $item){
+        $kind=$item['check']['kind']??null;
+        if(in_array($kind,array('host-heading','host-contrast'),true))$checks[$item['id']]=$kind;
+    }
+    return $checks;
+}
+
+/** Verify a fragment in the configured WordPress Page heading and background context. */
+function syndamorph_design_host_accessibility(string $fragment,array $checks,?array $context,array $widths): array {
+    $receipt=array('status'=>'pending','fragmentSha256'=>hash('sha256',$fragment),'target'=>$context,'checks'=>array());
+    if(!$checks||$context===null)return $receipt;
+    $level=$context['pageTitleLevel'];
+    $html='<html lang="'.esc_attr(get_bloginfo('language')).'"><head><style>'.wp_get_global_stylesheet().
+        '</style></head><body class="page" style="background-color:'.$context['globalBackground'].'"><div class="wp-site-blocks"><main>'.
+        '<h'.$level.' class="wp-block-post-title" data-sm-host-title>Page title</h'.$level.'>'.
+        '<div class="entry-content wp-block-post-content" data-sm-host-target>'.$fragment.'</div></main></div></body></html>';
+    $evidence=syndamorph_collab_inspect($html,$widths,$build,'page-fold');
+    if(is_wp_error($evidence)){
+        $receipt['inspection']=syndamorph_inspection_diagnostic($evidence);
+        return $receipt;
+    }
+    foreach($checks as $id=>$kind){
+        $check=array('id'=>$id,'kind'=>$kind,'status'=>'verified','views'=>array());
+        foreach($evidence as $sample){
+            $host=$sample['snapshot']['hostAccessibility']??array();
+            $state='uncertain';
+            if($kind==='host-heading'&&($host['titleLevel']??null)===$level&&is_array($host['levels']??null)){
+                $depth=$level;$valid=(bool)$host['levels'];
+                foreach($host['levels'] as $next){
+                    $valid=$valid&&is_int($next)&&$next>$level&&$next<=$depth+1;
+                    $depth=$next;
+                }
+                $state=$valid?'verified':'failed';
+            }elseif($kind==='host-contrast'&&($host['textRuns']??0)>0&&($host['unresolved']??null)===0&&
+                is_numeric($host['minContrast']??null))$state=$host['minContrast']>=4.5?'verified':'failed';
+            if($state!=='verified'&&$check['status']!=='failed')$check['status']=$state;
+            $check['views'][]=array('width'=>$sample['width'],'status'=>$state,'evidence'=>$host);
+        }
+        $receipt['checks'][$id]=$check;
+    }
+    $statuses=array_column($receipt['checks'],'status');
+    $receipt['status']=in_array('failed',$statuses,true)?'failed':(in_array('uncertain',$statuses,true)?'pending':'passed');
+    return $receipt;
+}
+
+function syndamorph_design_host_acceptance(array $result,string $checksum): bool {
+    $required=syndamorph_design_host_checks($result['designApproval']['productionSpecification']??array());
+    if(!$required)return true;
+    $receipt=$result['quality']['hostAccessibility']??null;
+    $context=syndamorph_design_wordpress_page_context();
+    $widths=$result['quality']['viewportWidths']??array();
+    if(($receipt['status']??null)!=='passed'||($receipt['artifactSha256']??null)!==$checksum||
+        ($receipt['fragmentSha256']??null)!==hash('sha256',$result['artifact']['preview']??'')||
+        $context===null||($receipt['target']??null)!==$context||!$widths)return false;
+    foreach($required as $id=>$kind){
+        $check=$receipt['checks'][$id]??null;
+        if(($check['kind']??null)!==$kind||($check['status']??null)!=='verified'||
+            array_column($check['views']??array(),'width')!==$widths||
+            array_unique(array_column($check['views']??array(),'status'))!==array('verified'))return false;
+    }
+    return true;
 }
 
 function syndamorph_design_run_check(array $check,array $samples): array {
@@ -186,7 +253,7 @@ function syndamorph_design_run_check(array $check,array $samples): array {
 }
 
 function syndamorph_design_requirements(array $specification,array $samples,array $facts,array $approval,
-    array $extraEvidence): array {
+    array $extraEvidence,array $hostChecks=array()): array {
     if($specification['format']!=='structured')return array('checks'=>array(),'blocking'=>array());
     $reported=array();
     foreach((array)($approval['requirementChecks']??array()) as $row){
@@ -207,7 +274,11 @@ function syndamorph_design_requirements(array $specification,array $samples,arra
         $id=$requirement['id'];
         $result=array('id'=>$id,'dimension'=>$requirement['dimension'],'owner'=>'boss',
             'status'=>'uncertain','evidence'=>array());
-        if(isset($requirement['check'])){
+        if(in_array($requirement['check']['kind']??null,array('host-heading','host-contrast'),true)){
+            $result['owner']='browser';
+            $result['status']=$hostChecks[$id]['status']??'uncertain';
+            $result['evidence']=$hostChecks[$id]['views']??array();
+        }elseif(isset($requirement['check'])){
             $result=array_replace($result,syndamorph_design_run_check($requirement['check'],$samples));
         }elseif(isset($implementationProof[$id])||in_array($requirement['dimension'],array('functional','implementation'),true)){
             $result['owner']='implementation_qa';

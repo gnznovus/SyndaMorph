@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.22] - 2026-11-26
+
+### Added
+- Source-backed Section work orders can require browser-measured heading hierarchy and text contrast in the configured WordPress Page context. The check covers the Designer reference and native output. Pattern and completion guards require current, artifact-bound native proof.
+
+### Fixed
+- A timed-out Developer can resume on the original job from the reviewed design and its exact work order. The application remeasures the saved approval checklist before retrying Developer and preserves the provider reservation.
+
+### Verified
+- GEN-000051 resumed at Developer and retained its first native artifact. All 40 blocks survived a real Gutenberg edit, save and reload. The native source pixel differences of 31.278%, 41.897% and 33.896% kept the job uncompleted. The scoped repair escalated because the tile layout requires structural work.
+
 ## [0.12.21] - 2026-11-26
 
 ### Fixed

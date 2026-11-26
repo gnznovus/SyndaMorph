@@ -96,6 +96,8 @@ function syndamorph_scope_recovery_stage(?array $failure): ?string {
     $code=$failure['code']??null;
     if($code==='sm_generation_transport'&&($failure['role']??null)==='boss'&&($failure['task']??null)==='final_approval')
         return 'design_approval';
+    if($code==='sm_generation_transport'&&($failure['role']??null)==='developer'&&($failure['task']??null)==='developer')
+        return 'developer';
     if($code==='sm_boss_contract'&&($failure['field']??null)==='requirement check')return 'planning';
     return null;
 }
@@ -291,6 +293,8 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
     rsort($widths,SORT_NUMERIC);
     $resume=array();
     $workOrderRevision=null;
+    $extendWorkOrder=false;
+    $savedApproval=null;
     if($stage==='planning'){
         $planning=syndamorph_scope_planning_checkpoint($id);
         if($planning===null||$edits||$workOrderEdits||$candidate!==null||$assignment!==null)
@@ -307,10 +311,16 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
         if($retainedRevision!==null){
             $operations=$retainedRevision['operations']??null;
             if(!is_array($operations)||!$operations||($retainedRevision['referenceSha256']??null)!==$sha||
-                ($retainedRevision['original']??null)!==$assignment['specificationReceipt']||
-                ($workOrderEdits&&$workOrderEdits!==$operations))
+                ($retainedRevision['original']??null)!==$assignment['specificationReceipt'])
                 return syndamorph_scope_error('work_order_evidence','The saved work-order revision does not match this checkpoint.');
-            $workOrderEdits=$operations;
+            if(!$workOrderEdits)$workOrderEdits=$operations;
+            if($workOrderEdits!==$operations){
+                $extension=array_slice($workOrderEdits,count($operations));
+                if(!$extension||array_slice($workOrderEdits,0,count($operations))!==$operations||
+                    array_column($extension,'kind')!==array_fill(0,count($extension),'host-context'))
+                    return syndamorph_scope_error('work_order_evidence','A saved revision may only add independently verified host checks.');
+                $extendWorkOrder=true;
+            }
         }
         if($workOrderEdits){
             if($edits||empty($candidate['pinnedSourcePassed'])||empty(syndamorph_source_review($source,$reference,$authorization??null)['passed']))
@@ -321,14 +331,33 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
             if(is_wp_error($revised))return $revised;
             $previousReceipt=$assignment['specificationReceipt'];
             $updated=$revised['specification'];
+            $hostChecks=syndamorph_design_host_checks($updated);
+            if($hostChecks&&($manifest['mode']!=='section'||
+                syndamorph_design_host_accessibility($reference,$hostChecks,syndamorph_design_wordpress_page_context(),$widths)['status']!=='passed'))
+                return syndamorph_scope_error('host_accessibility','The unchanged sketch must pass measured WordPress Page context checks.');
             $assignment['requirements']['specification']=$updated;
             $assignment['requirements']['acceptance']=array_column($updated['requirements'],'acceptance');
             $assignment['specificationReceipt']=syndamorph_production_specification_receipt($updated,$manifest['brief'],$widths,$evidence);
             $workOrderRevision=array('original'=>$previousReceipt,'revised'=>$assignment['specificationReceipt'],
                 'referenceSha256'=>$sha,'operations'=>$workOrderEdits,'changes'=>$revised['changes']);
-            if($retainedRevision!==null&&$retainedRevision!==$workOrderRevision)
-                return syndamorph_scope_error('work_order_evidence','The saved work-order revision no longer reproduces.');
+            if($retainedRevision!==null){
+                $unchanged=array_slice($workOrderRevision['changes'],0,count($retainedRevision['operations']));
+                if($unchanged!==$retainedRevision['changes']||(!$extendWorkOrder&&$retainedRevision!==$workOrderRevision))
+                    return syndamorph_scope_error('work_order_evidence','The saved work-order revision no longer reproduces.');
+            }
         }
+    }
+    if($stage==='developer'){
+        if($edits||$extendWorkOrder)return syndamorph_scope_error('review_checkpoint','Developer recovery requires the unchanged design and work order.');
+        $approved=syndamorph_history_latest($id,'handoff');
+        $checked=syndamorph_history_latest($id,'design_requirements');
+        if(($approved['type']??null)!=='approved_design'||($approved['from']??null)!=='boss'||
+            ($approved['to']??null)!=='developer'||($approved['referenceSha256']??null)!==$sha||
+            ($approved['specificationReceipt']??null)!==$assignment['specificationReceipt']||
+            ($approved['agentPayload']['decision']??null)!=='approved'||($approved['agentPayload']['issues']??null)!==array()||
+            ($checked['referenceSha256']??null)!==$sha||($checked['blocking']??null)!==array()||!is_array($checked['checks']??null))
+            return syndamorph_scope_error('review_checkpoint','The approved design handoff or its independent checklist cannot be verified.');
+        $savedApproval=$approved+array('requirementReceipt'=>array('checks'=>$checked['checks'],'blocking'=>$checked['blocking']));
     }
     $touch=array();
     $storedScenarios=$stage==='planning'?(syndamorph_history_latest($id,'source_scroll_verified')['observed']??array()):
@@ -395,9 +424,10 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
         $emit('job_resumed',array('stage'=>$stage,'priorCompletedCalls'=>$account['completedCalls'],
             'priorEstimatedCostUsd'=>$account['estimatedCostUsd'],'priorUnmeteredReserveUsd'=>$account['unmeteredReserveUsd'])+$identity);
         $resume['account']=$account;
-        if($workOrderRevision!==null&&$retainedRevision===null)$emit('work_order_revision',$workOrderRevision);
-        if($stage==='design_approval')$resume+=array('assignment'=>$assignment,'referenceHtml'=>$reference,'archivedSha256'=>$sha,
+        if($workOrderRevision!==null&&($retainedRevision===null||$extendWorkOrder))$emit('work_order_revision',$workOrderRevision);
+        if($stage!=='planning')$resume+=array('assignment'=>$assignment,'referenceHtml'=>$reference,'archivedSha256'=>$sha,
             'touch'=>$touch,'surgery'=>$surgery,'round'=>$candidate['round']+($surgery===null?0:1));
+        if($savedApproval!==null)$resume['savedDesignApproval']=$savedApproval;
         if($surgery!==null)$emit('design_surgery',array('round'=>$resume['round'])+$surgery);
         $result=($engine??'syndamorph_collab_run')($manifest['brief'],true,$emit,true,$evidence,$max,$work,$resume);
         if(is_wp_error($result)){
@@ -428,11 +458,13 @@ function syndamorph_scope_candidate(array $manifest,string $key): ?array {
     if(empty($final['artifact']['content']))return null;
     $final=syndamorph_history_responsive_result($attempt['id'],$final);
     $checksum=hash('sha256',$final['artifact']['content']);
+    $hostChecks=syndamorph_design_host_checks($final['designApproval']['productionSpecification']??array());
     return array('id'=>$attempt['id'],'content'=>$final['artifact']['content'],
-        'checksum'=>$checksum,'sourceAcceptance'=>$final['sourceAcceptance']??null,
+        'checksum'=>$checksum,'sourceAcceptance'=>$final['sourceAcceptance']??null,'hostChecks'=>$hostChecks,
         'eligible'=>!empty($final['sourceAcceptance']['passed'])&&!empty($final['quality']['bossApproved'])&&
             ($final['sourceAcceptance']['id']??null)===$key&&hash_equals((string)($final['sourceAcceptance']['artifactSha256']??''),$checksum)&&
             !empty($final['quality']['visionInspected'])&&!empty($final['quality']['browserInspected'])&&
+            syndamorph_design_host_acceptance($final,$checksum)&&
             empty($final['quality']['issues'])&&syndamorph_functional_acceptance($final,$checksum)&&
             syndamorph_native_responsive_acceptance($final,$checksum));
 }
@@ -449,6 +481,13 @@ function syndamorph_scope_save_pattern(array $manifest,string $key) {
     if(empty($candidate['eligible'])||empty($validation['passed'])||empty($validation['completionEligible'])||
         !hash_equals($candidate['checksum'],(string)($validation['contentSha256']??'')))
         return syndamorph_scope_error('editor','The region must pass all QA and Gutenberg validation before saving.');
+    if($candidate['hostChecks']){
+        $native=syndamorph_native_core_preview(parse_blocks($candidate['content']));
+        $host=syndamorph_design_host_accessibility($native,$candidate['hostChecks'],syndamorph_design_wordpress_page_context(),
+            SYNDAMORPH_SOURCE_WIDTHS);
+        if($host['status']!=='passed')return syndamorph_scope_error('host_accessibility','Pattern save needs fresh WordPress Page context evidence.');
+        syndamorph_history_append($candidate['id'],'pattern_host_accessibility',array('artifactSha256'=>$candidate['checksum'])+$host);
+    }
     $identity=$manifest['id'].':'.$key;
     $saved=syndamorph_scope_find_post('wp_block',$identity);
     if(!$saved) {

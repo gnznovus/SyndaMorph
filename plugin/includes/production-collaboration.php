@@ -666,6 +666,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $bossBrief=$archivedAssignment['requirements']??syndamorph_collab_requirements($boss??'');
     if(is_wp_error($bossBrief))return $bossBrief;
     $specification=$bossBrief['specification'];
+    $hostRequirements=syndamorph_design_host_checks($specification);
     $specificationReceipt=syndamorph_production_specification_receipt($specification,$brief,$viewports,$source);
     if($archivedAssignment!==null&&$specificationReceipt!==$archivedAssignment['specificationReceipt'])
         return new WP_Error('sm_resume_design_receipt','The archived assignment does not match the brief, source and required widths.');
@@ -708,6 +709,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         syndamorph_collab_output_cap($provider,$model),$sourceImages);
     if(is_wp_error($reference))return $reference;
     $approval=array('decision'=>'rejected','issues'=>array());
+    $savedDesignApproval=$resume['savedDesignApproval']??null;
     $approvedReference=false;$designReviews=0;$handoffs=array($assignment);
     $priorDesignMeasurements=null;$priorDesignReview=null;$priorDesignDiff=$resume['surgery']??null;
     $priorDesignImageHashes=null;$designSeenStates=array();
@@ -799,9 +801,15 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         if($browserChecks)$reviewContext['applicationChecks']=$browserChecks;
         $extraEvidence=array('responsive');
         if($source!==null)$extraEvidence[]='pinned-source';
-        if($scopeRegion!==null&&($wordpressPage=syndamorph_design_wordpress_page_context())!==null){
+        $wordpressPage=$scopeRegion===null?null:syndamorph_design_wordpress_page_context();
+        if($wordpressPage!==null){
             $reviewContext['wordpressPageContext']=$wordpressPage;
             $extraEvidence[]=$wordpressPage['id'];
+        }
+        $hostDesign=$hostRequirements?syndamorph_design_host_accessibility($reference,$hostRequirements,$wordpressPage,$viewports):null;
+        if($hostDesign!==null){
+            $reviewContext['hostAccessibility']=$hostDesign;
+            if($on_event)$on_event('host_accessibility',array('stage'=>'design')+$hostDesign);
         }
         if($touchScenarios)$extraEvidence[]='touch-scenarios';
         if(($pendingToolEvidence['receipt']['artifactSha256']??null)===$referenceHash)$extraEvidence[]='targeted-verification';
@@ -863,13 +871,16 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             $savedDesigns[$referenceHash]=true;
         }
         $priorDesignImageHashes=$currentImageHashes;
-        $review=$call('boss','Review the Designer reference against the brief, native compiler contract and browser evidence. In diff mode, focus on changed evidence and unresolved defects. Use nativeConstraints to resolve observed effects that cannot be converted. If they are present, give the Designer a supported alternative within the brief, or request human design review if the brief requires the effect. applicationChecks are measured verdicts for explicit requirements. A failed verdict is evidence of a concrete defect at its stated widths. Use it directly and make a correction request when possible. Ask for additional verification only for still-uncertain evidence. Browser-computed styles and geometry are authoritative for matching DOM targets. For a structured specification include requirementChecks:[{id,status:verified|failed|uncertain|not_applicable,evidence:[measured evidence IDs],reason}]. Explain standard criteria that do not apply. Requirements mapped to executable tests in interactions.proof await independent implementation QA, along with other implementation-only criteria. Do not approve while a design requirement is unresolved. If evidence is insufficient, return JSON {"decision":"verification_required","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"specific browser diagnostic question"},"summary":"brief"} instead of requesting HTML changes. Otherwise return JSON {"decision":"approved|changes_requested|design_review_required","issues":[{"target":"section","problem":"measurable defect","requiredChange":"specific correction"}],"acceptedCapabilityDeviations":[],"summary":"brief"}. Request no more than three concrete issues. Do not demand browser verification from Designer.'.$sourceNote,
+        if($savedDesignApproval!==null&&(($savedDesignApproval['referenceSha256']??null)!==$referenceHash||
+            ($savedDesignApproval['specificationReceipt']??null)!==$specificationReceipt))
+            return new WP_Error('sm_resume_design_receipt','The saved design approval does not match the reference and work order.');
+        $review=$savedDesignApproval!==null?wp_json_encode($savedDesignApproval['agentPayload']):$call('boss','Review the Designer reference against the brief, native compiler contract and browser evidence. In diff mode, focus on changed evidence and unresolved defects. Use nativeConstraints to resolve observed effects that cannot be converted. If they are present, give the Designer a supported alternative within the brief, or request human design review if the brief requires the effect. applicationChecks are measured verdicts for explicit requirements. A failed verdict is evidence of a concrete defect at its stated widths. Use it directly and make a correction request when possible. Ask for additional verification only for still-uncertain evidence. Browser-computed styles and geometry are authoritative for matching DOM targets. For a structured specification include requirementChecks:[{id,status:verified|failed|uncertain|not_applicable,evidence:[measured evidence IDs],reason}]. Explain standard criteria that do not apply. Requirements mapped to executable tests in interactions.proof await independent implementation QA, along with other implementation-only criteria. Do not approve while a design requirement is unresolved. If evidence is insufficient, return JSON {"decision":"verification_required","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"specific browser diagnostic question"},"summary":"brief"} instead of requesting HTML changes. For a final decision return JSON {"decision":"approved|changes_requested|design_review_required","issues":[{"target":"section","problem":"measurable defect","requiredChange":"specific correction"}],"acceptedCapabilityDeviations":[],"requirementChecks":[{"id":"exact requirement ID","status":"verified|failed|uncertain|not_applicable","evidence":["exact evidence ID"],"reason":"brief fact"}],"summary":"brief"}. For a structured work order the requirementChecks array is required even when issues is empty. Fill every design requirement row; deterministic checks and implementation-only checks retain their independent verdicts. Request no more than three concrete issues. Do not demand browser verification from Designer.'.$sourceNote,
             $reviewContext,syndamorph_collab_output_cap($provider,$model),array_merge($referenceImages,$comparisonSourceImages),'final_approval');
         $priorDesignMeasurements=$measurements;
         if(is_wp_error($review))return $review;
         $parsed=json_decode(syndamorph_native_json_text($review),true);
         $record=syndamorph_authority_decision('boss','design_approval',$parsed,
-            array('approved','changes_requested','verification_required','design_review_required'),$on_event);
+            array('approved','changes_requested','verification_required','design_review_required'),$savedDesignApproval===null?$on_event:null);
         if(is_wp_error($record))return $record;
         $approval=$parsed;
         $designReviews++;
@@ -905,6 +916,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         if($decision==='approved' && $nativeConstraints && !$approval['issues']) {
             syndamorph_authority_gate($record,'blocked',
                 'Browser evidence shows an active effect outside the native implementation contract.',$on_event);
+            if($savedDesignApproval!==null)return new WP_Error('sm_resume_design_receipt','The saved sketch now requires a native design decision.');
             $constraintKey=hash('sha256',wp_json_encode($nativeConstraints));
             if(isset($unrealizableApprovals[$constraintKey])) {
                 return new WP_Error('sm_design_native_conflict',
@@ -942,7 +954,10 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             return new WP_Error('sm_design_responsive','The Designer reference failed continuous responsive checks.',
                 array('stage'=>'design_approval','findings'=>$responsive['findings'],'widths'=>$responsive['widths']));
         }
-        $requirementResults=syndamorph_design_requirements($specification,$inspectReference,$browserFacts,$approval,$extraEvidence);
+        $requirementResults=syndamorph_design_requirements($specification,$inspectReference,$browserFacts,$approval,$extraEvidence,
+            $hostDesign['checks']??array());
+        if($savedDesignApproval!==null&&$requirementResults!==($savedDesignApproval['requirementReceipt']??null))
+            return new WP_Error('sm_resume_design_receipt','The saved design checklist no longer matches fresh browser evidence.');
         if($on_event)$on_event('design_requirements',array('referenceSha256'=>$referenceHash)+$requirementResults);
         if($decision==='approved' && $requirementResults['blocking']){
             syndamorph_authority_gate($record,'blocked','Required design verifications are failed or uncertain.',$on_event);
@@ -1054,6 +1069,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'changes'=>$surgical['changes']));
         }
     }
+    if($savedDesignApproval!==null&&$on_event)$on_event('design_approval_replay',array('referenceSha256'=>hash('sha256',$reference),
+        'specificationReceipt'=>$specificationReceipt,'status'=>'revalidated'));
     if(!$approvedReference)return new WP_Error('sm_design_unapproved','Boss did not approve the visual reference.',
         array('stage'=>'design_approval','reviewRounds'=>$designReviews,'issues'=>end($handoffs)['issues']??array()));
     $outputs['designer']='Visual reference approved by Boss; see referenceHtml.';
@@ -1781,6 +1798,16 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     }
     if($functional['status']!=='not_applicable'&&$on_event)$on_event('functional_validation',
         array('artifactSha256'=>$artifact['contentSha256'])+$functional);
+    $hostNative=null;
+    if($hostRequirements){
+        $hostNative=syndamorph_design_host_accessibility($artifact['preview'],$hostRequirements,$wordpressPage,$viewports)+
+            array('artifactSha256'=>$artifact['contentSha256']);
+        if($on_event)$on_event('host_accessibility',array('stage'=>'native')+$hostNative);
+        if($hostNative['status']!=='passed'){
+            $status='uncompleted';
+            if($terminationReason==='quality_resolved')$terminationReason='native_host_accessibility_'.$hostNative['status'];
+        }
+    }
     $sourceQuality=null;
     if($source!==null){
         if($scopeRegion===null)$sourceQuality=syndamorph_production_source_assess($source,$best['evidence']);
@@ -1807,6 +1834,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'sourceFidelity'=>$sourceQuality===null?'not_applicable':($sourceQuality['issues']?'blocked':'passed'),
             'browserQa'=>$inspectionPending!==null?'pending':(($best['score']===0&&$bossQaApproved)?'passed':'blocked'),
             'wordpressEditor'=>'pending','functional'=>$functional['status'],'responsive'=>$nativeResponsive['status'],
+            'hostAccessibility'=>$hostNative['status']??'not_applicable',
             'blockerIds'=>array_values(array_unique(array_merge(array_column($best['issues'],'id'),
                 array_column($sourceQuality['issues']??array(),'id'),array_column($functional['blockers']??array(),'id'))))),
         'quality'=>array('escalation'=>$escalation,'inspection'=>$inspectionPending,'capabilityNotes'=>$capabilityNotes,'issueRegistry'=>array_values($registry),'score'=>$best['score'],
@@ -1814,7 +1842,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'repairSummary'=>syndamorph_repair_summary($revisions,$metrics,$in,$out),'terminationReason'=>$terminationReason,'evidence'=>array(
             'reference'=>$evidenceSummary($inspectReference),'native'=>$evidenceSummary($best['evidence'],true)),
             'pixelComparison'=>$best['comparison'],'copyComparison'=>syndamorph_visual_copy($inspectReference,$best['evidence']),
-            'functionalChecks'=>$functional,'continuousResponsive'=>$nativeResponsive,
+            'functionalChecks'=>$functional,'continuousResponsive'=>$nativeResponsive,'hostAccessibility'=>$hostNative,
             'browserInspected'=>true,'visionInspected'=>true,'bossApproved'=>$bossQaApproved,'nativeEditorVerified'=>false),
         'published'=>false,'renderedInBrowser'=>true)+($scopeRegion===null?array():array('sourceAcceptance'=>array(
             'passed'=>!$sourceQuality['issues'],'id'=>$scopeRegion['id'],'artifactSha256'=>$artifact['contentSha256'])+

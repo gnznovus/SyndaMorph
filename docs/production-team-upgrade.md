@@ -213,6 +213,16 @@ The original GEN-000051 retained the exact sketch and the old work order. Five v
 
 The same sketch rendered in a private disposable WordPress Page preview. The theme emitted the Page H1 before the section H2, the background under the visible text was white, and the minimum measured contrast was 6.519:1 at 1440 px and 12.635:1 at 768 and 375 px. This measurement applies to the hosted sketch. The production gate still needs evidence for the eventual native draft, and no Pattern was saved from the fixture.
 
+## v0.12.22 WordPress Page accessibility and Developer recovery
+
+Two executable checks bind the source-backed Section work order to the configured WordPress Page title level and theme background. Chromium measures the reference and native artifact across every required viewport in that context. A mismatched heading hierarchy or contrast below 4.5:1 fails. Unsupported background composition or missing viewport evidence remains pending. Completion binds the receipt to the precise native artifact, preview, template and global stylesheet. Pattern save rechecks the native fragment in the current Page context. A different destination still needs its own frontend verification.
+
+If Developer transport fails after design approval, the original job can revalidate the saved work order, exact sketch and requirement checklist, then retry Developer directly. The existing reservation and metered usage carry forward. The original agent decision stays in History and the application logs the revalidation separately.
+
+GEN-000051 reached Developer on the original record after the corrected Bossy checklist and the two browser-owned host checks passed. The first Developer request timed out. The original job resumed at Developer with the same reference `da5c3f9658a247b57eadb0d33086259a544fceebd35abe7bccab05fb157e2987`. Its retained native candidate `17229be4791361561fc5b78ae0f7fa35a6a663ee04723d24d3dcdfcd60f06502` passed compilation, source copy and links, continuous responsiveness and the independent host checks. All 40 native blocks were valid in a private Gutenberg draft, and an edited paragraph survived save and reload. Source visual differences were 31.278%, 41.897%, and 33.896% at 1440, 768 and 375 px. Core Columns stacked the compact tiles and the desktop header and grid also differed. Bossy reported an engineering hold because the remaining changes exceeded the assigned style repair scope. The candidate remains uncompleted and was never saved as a Pattern.
+
+This checkpoint logged five new metered calls estimated at $0.030929 and one timed-out Developer request with a $0.010752 reservation. The original job estimate is $0.133999 plus $0.021800 in total reservations, under the $1 cap.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)
