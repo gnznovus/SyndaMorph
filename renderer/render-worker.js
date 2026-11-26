@@ -5,6 +5,14 @@ const { createHash } = require('node:crypto');
 const axe = require('axe-core');
 const { HEIGHT, MAX_JPEG, MAX_METADATA, DEFAULT_VIEWPORTS, RendererError } = require('./inspection-contract');
 
+async function waitForInstalledFonts(page) {
+    await page.evaluate(() => {
+        if(!document.querySelector('style[data-sm-installed-fonts]'))return true;
+        document.body.getBoundingClientRect();
+        return document.fonts.ready.then(() => true);
+    });
+}
+
 async function boundedScreenshot(page, width, extent) {
     const session = extent ? await page.context().newCDPSession(page) : null;
     try {
@@ -82,6 +90,7 @@ async function checkScrollStrips(page,html) {
                 // Keyboard reachability starts from a fresh initial state,
                 // separate from Chromium's still-settling wheel scroll.
                 await page.setContent(html,{waitUntil:'domcontentloaded',timeout:5000});
+                await waitForInstalledFonts(page);
                 const atStart=await state();
                 const reached=new Set(atStart.visible);
                 for(let key=0;key<cards&&reached.size<cards;key++){
@@ -128,6 +137,7 @@ process.stdin.on('end', async () => {
             for(const width of viewports){
                 await page.setViewportSize({width,height:HEIGHT});
                 await page.setContent(html,{waitUntil:'domcontentloaded',timeout:5000});
+                await waitForInstalledFonts(page);
                 evidence.push({width,checks:await checkScrollStrips(page,html)});
             }
             process.stdout.write(JSON.stringify({evidence}));
@@ -136,7 +146,7 @@ process.stdin.on('end', async () => {
         if(tabsRuntime){
             const fixture = 'https://functional.invalid/';
             await page.route(fixture+'document',route=>route.fulfill({contentType:'text/html;charset=utf-8',
-                headers:{'content-security-policy':"default-src 'none'; script-src https://functional.invalid/tabs-runtime.js; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"},
+                headers:{'content-security-policy':"default-src 'none'; script-src https://functional.invalid/tabs-runtime.js; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'"},
                 body:'<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1">'+html+
                     '<script src="/tabs-runtime.js"></script>'}));
             await page.route(fixture+'tabs-runtime.js',route=>route.fulfill({
@@ -144,6 +154,7 @@ process.stdin.on('end', async () => {
             for(const width of viewports){
                 await page.setViewportSize({width,height:HEIGHT});
                 await page.goto(fixture+'document',{waitUntil:'domcontentloaded',timeout:5000});
+                await waitForInstalledFonts(page);
                 const widgets=page.locator('[data-sm-tabs]');
                 const count=await widgets.count();
                 if(count>12)throw new RendererError('evidence_limit',507);
@@ -257,6 +268,7 @@ process.stdin.on('end', async () => {
             await a11yPage.evaluate(axe.source);
             for (const width of viewports) {
                 await page.setViewportSize({ width, height: HEIGHT });
+                await waitForInstalledFonts(page);
                 const snapshot = await page.evaluate(includeLiteral => {
                     const elements = [...document.body.querySelectorAll('*')].filter(el => !['STYLE','SCRIPT'].includes(el.tagName));
                     const positions = new Map(elements.map((el, index) => [el, index]));
@@ -414,7 +426,18 @@ process.stdin.on('end', async () => {
                         })
                     };
                 }, extent === 'section');
+                const fontFrame=await page.evaluate(()=>{
+                    const style=document.querySelector('style[data-sm-installed-fonts]');
+                    if(!style)return null;
+                    const faces=[...document.fonts];
+                    return {css:style.textContent,ready:!!style.sheet?.cssRules.length&&faces.length>0&&
+                        faces.every(face=>face.status!=='error'),loaded:[...new Set(faces.filter(face=>face.status==='loaded')
+                        .map(face=>face.family))].slice(0,12)};
+                });
+                if(fontFrame)snapshot.installedFonts={sha256:createHash('sha256').update(fontFrame.css).digest('hex'),
+                    status:fontFrame.ready?'ready':'failed',loaded:fontFrame.loaded};
                 await a11yPage.setViewportSize({width,height:HEIGHT});
+                await waitForInstalledFonts(a11yPage);
                 if(snapshot.literal) snapshot.literal.scrollStrips=snapshot.literal.scrollStrips.map(strip=>strip===null?null:{
                     id:strip.id,cards:strip.copy.length,copySha256:createHash('sha256').update(JSON.stringify(strip.copy)).digest('hex'),
                 });

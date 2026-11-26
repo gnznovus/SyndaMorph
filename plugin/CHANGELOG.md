@@ -6,6 +6,15 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.19] - 2026-11-26
+
+### Added
+- Production can use an installed WordPress font preset in Designer inspection and native Group, Heading and Paragraph blocks. Chromium receives verified local font bytes through the isolated renderer, and Gutenberg stores editable preset references.
+
+### Verified
+- The archived GEN-000051 sketch improved from 1.797%, 1.451% and 4.239% to 0.636%, 0.924% and 1.458% at 1440, 768 and 375 px after loading its recorded fonts and correcting the mobile title width. The 1.006% average still exceeds the 0.5% gate. No model call was needed.
+- A private Gutenberg draft retained the Manrope and Fira Code presets after a content edit, save and reload. Both fonts loaded at all three required front-end widths.
+
 ## [0.12.18] - 2026-11-26
 
 ### Added

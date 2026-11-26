@@ -88,6 +88,44 @@ $pending=syndamorph_collab_inspect($ordinary,$default);
 inspection_assert(is_wp_error($pending)&&syndamorph_inspection_diagnostic($pending)['missingWidths']===array(375)&&
     $receivedRequests===array($default,array(375),array(375)),'Unrecoverable viewport was accepted or substituted');
 remove_filter('http_response',$inject,10);
+
+$testedFont=null;
+$presets=syndamorph_production_font_families();
+if($presets){
+    $slug=array_key_first($presets);
+    $family=$presets[$slug]['name'];
+    $plan=array('version'=>1,'blocks'=>array(array('type'=>'group','id'=>'font-root','style'=>array('fontFamily'=>$slug),
+        'children'=>array(array('type'=>'heading','text'=>'Editable installed typography')))));
+    $native=inspection_require_result(syndamorph_compile_block_plan(wp_json_encode($plan)));
+    $parsed=parse_blocks($native['content']);
+    inspection_assert($parsed[0]['attrs']['fontFamily']===$slug&&!str_contains($native['content'],'data:font/'),
+        'The saved native block did not preserve a portable preset reference.');
+    $reference='<style>.sample{--sample-family:"'.$family.'";font-family:var(--sample-family),sans-serif}</style>'.
+        '<section class="sample"><h2>Editable installed typography</h2></section>';
+    foreach(array($reference,$native['preview']) as $fontHtml){
+        $fontViews=inspection_require_result(syndamorph_collab_inspect($fontHtml,$default));
+        foreach($fontViews as $sample)inspection_assert(in_array($family,$sample['snapshot']['installedFonts']['loaded']??array(),true),
+            'The browser silently substituted the locally installed font.');
+    }
+    $plan['blocks'][0]['style']['fontFamily']='unregistered-fixture-preset';
+    inspection_assert(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($plan)))&&
+        syndamorph_production_font_path('https://fonts.invalid/unchecked.woff2')===null,
+        'The compiler accepted uninstalled or remote font input.');
+    $dropFontEvidence=static function($response,$args,$url){
+        if(!str_ends_with($url,'/inspect'))return $response;
+        $data=json_decode($response['body'],true);
+        unset($data['evidence'][0]['snapshot']['installedFonts']);
+        $response['body']=wp_json_encode($data);
+        $response['headers']['content-length']=(string)strlen($response['body']);
+        return $response;
+    };
+    add_filter('http_response',$dropFontEvidence,10,3);
+    try { $unchecked=syndamorph_collab_inspect($reference,array(375)); }
+    finally { remove_filter('http_response',$dropFontEvidence,10); }
+    inspection_assert(is_wp_error($unchecked)&&$unchecked->get_error_code()==='sm_inspect_font_evidence_missing',
+        'A renderer response without font evidence passed inspection.');
+    $testedFont=$family;
+}
 echo wp_json_encode(array('renderer'=>$ready,'responses'=>$responses,'heavyScreenshotBytes'=>$shots,
     'comparisonUploadBase64Bytes'=>2*array_sum($shots[0]),'phpPeakBytes'=>memory_get_peak_usage(true),
-    'recoveryCases'=>array('reordered','missing','unrecoverable'))).PHP_EOL;
+    'recoveryCases'=>array('reordered','missing','unrecoverable'),'verifiedInstalledFont'=>$testedFont)).PHP_EOL;

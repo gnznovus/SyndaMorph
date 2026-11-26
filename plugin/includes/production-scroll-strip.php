@@ -32,10 +32,12 @@ function syndamorph_scroll_strip_measure(string $html,array $widths,array $expec
     if(!$expected)return array();
     $results=array_fill_keys(array_keys($expected),array('status'=>'uncertain','viewports'=>array()));
     if(getenv('SYNDAMORPH_RENDERER_URL')!=='http://renderer:3000/render')return $results;
+    $frame=syndamorph_production_font_frame($html);
+    if(is_wp_error($frame))return $results;
     foreach(array_chunk($widths,5) as $batch){
         $response=wp_remote_post('http://renderer:3000/check-scroll-strips',array('timeout'=>65,'redirection'=>0,
             'limit_response_size'=>64000,'headers'=>array('Content-Type'=>'application/json'),
-            'body'=>wp_json_encode(array('html'=>$html,'viewports'=>$batch))));
+            'body'=>wp_json_encode(array('html'=>$frame['html'],'viewports'=>$batch),JSON_UNESCAPED_SLASHES)));
         $data=is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200?null:
             json_decode(wp_remote_retrieve_body($response),true);
         if(!is_array($data['evidence']??null)||array_column($data['evidence'],'width')!==$batch)return $results;

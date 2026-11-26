@@ -142,10 +142,15 @@ function syndamorph_tabs_verify(array $artifact,array $widths,array $interaction
         $receipt['blockers'][]=array('reason'=>'functional_renderer_unavailable','widths'=>$widths);
         return $receipt;
     }
+    $frame=syndamorph_production_font_frame($artifact['preview']);
+    if(is_wp_error($frame)){
+        $receipt['blockers'][]=array('reason'=>'functional_fonts_unavailable','widths'=>$widths);
+        return $receipt;
+    }
     $receipt['runtimeSha256']=hash('sha256',$script);
     $passed=!$scrollFailed;
     foreach(array_chunk($widths,5) as $batch){
-        $payload=wp_json_encode(array('html'=>$artifact['preview'],'runtime'=>$script,'viewports'=>$batch));
+        $payload=wp_json_encode(array('html'=>$frame['html'],'runtime'=>$script,'viewports'=>$batch),JSON_UNESCAPED_SLASHES);
         $response=wp_remote_post('http://renderer:3000/check-tabs',array('timeout'=>65,'redirection'=>0,
             'limit_response_size'=>64000,'headers'=>array('Content-Type'=>'application/json'),'body'=>$payload));
         $status=is_wp_error($response)?null:wp_remote_retrieve_response_code($response);

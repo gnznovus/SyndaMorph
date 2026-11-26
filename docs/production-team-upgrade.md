@@ -191,6 +191,14 @@ The engine replays each active strip before Bossy planning. The exact archived t
 
 Offline replay of all 16 pinned BKKGO regions restored eligibility for SIP & DINE and Exclusive Offers. SIP & DINE moved 594 px at 768 px and 280 px at 375 px. Exclusive Offers moved 213 px at 375 px. The total is three eligible regions out of 16, with 12 complete sets of mandatory-width evidence and zero accepted regions. This checkpoint used no paid calls. [BKKGO region inventory](production-pilot-bkkgo.md#production-reliability-region-inventory)
 
+## v0.12.19 installed native typography
+
+The production compiler accepts `style.fontFamily` for a local WordPress preset on Group, Heading and Paragraph blocks. The saved block stores the preset slug. WordPress applies its own theme or Font Library rules in the editor and frontend. Designer receives the installed family names. Developer receives their preset slugs. Isolated inspection supplies only referenced local theme or Font Library files, validates their format and byte limits, and requires Chromium evidence for the exact supplied stylesheet. Font bytes stay out of the model payload, generated draft and plugin package. Hosts with different fonts must install compatible presets before relying on the same appearance.
+
+In an isolated WordPress fixture, the exact recorded BKKGO Beausite faces brought the retained GEN-000051 sketch to 0.636%, 0.924% and 1.825% difference at 1440, 768 and 375 px. A targeted mobile heading edit removed an artificial 280 px cap from the 335 px source column. The resulting candidate `8b4ddcaf85ef443783e10c84edc0c9829c7996a868852fc417396fa7a753619c` measured 0.636%, 0.924% and 1.458%. The three heights, literal content and links were preserved. Fifteen responsive samples produced no findings. A separate footer line-height adjustment increased measured height and regressed tablet fidelity, so that candidate was discarded. The 1.006% average still exceeds the unchanged 0.5% gate. The original History candidate remains held. This work used no paid model calls.
+
+A separate native fixture retained its Manrope and Fira Code presets through Gutenberg edit, save and reload. The private WordPress draft rendered both fonts at 1440, 768 and 375 px. This verifies the installed typography contract. GEN-000051 still needs source visual and downstream native acceptance.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)

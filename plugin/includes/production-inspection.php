@@ -1,6 +1,7 @@
 <?php
 /** Versioned transport for the isolated renderer. */
 if (!defined('ABSPATH')) exit;
+require_once __DIR__.'/production-fonts.php';
 
 const SYNDAMORPH_INSPECTION_PROTOCOL = 2;
 const SYNDAMORPH_INSPECTION_SCREENSHOT_BYTES = 400000;
@@ -30,6 +31,7 @@ function syndamorph_inspection_failure(string $category,array $details=array()):
         'screenshot_incomplete'=>'Inspection screenshot evidence is missing, invalid, or incorrectly sized.',
         'a11y_incomplete'=>'Inspection accessibility evidence is missing or invalid.',
         'snapshot_incomplete'=>'Inspection browser measurements are missing or invalid.',
+        'font_evidence_missing'=>'The isolated renderer could not verify the referenced installed fonts.',
         'protocol_mismatch'=>'WordPress and the renderer use different inspection protocols. Check the renderer build.',
         'rejected'=>'The isolated renderer rejected the inspection request.',
         'request_invalid'=>'Inspection requires one to five distinct integer widths from 320 to 1920 CSS px and bounded HTML.',
@@ -203,17 +205,24 @@ function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,
             if($build!==null && $build!==$batchBuild)
                 return syndamorph_inspection_failure('protocol_mismatch',array('expectedWidths'=>$viewports,
                     'rendererBuild'=>$batchBuild,'previousRendererBuild'=>$build));
+            if($evidence&&($evidence[0]['snapshot']['installedFonts']['sha256']??null)!==
+                ($samples[0]['snapshot']['installedFonts']['sha256']??null))
+                return syndamorph_inspection_failure('font_evidence_missing',array('expectedWidths'=>$viewports,
+                    'rendererBuild'=>$batchBuild));
             $build=$batchBuild;
             array_push($evidence,...$samples);
         }
         $rendererBuild=$build;
         return $evidence;
     }
+    $frame=syndamorph_production_font_frame($html);
+    if(is_wp_error($frame)||strlen($frame['html'])>2*1024*1024)
+        return syndamorph_inspection_failure('font_evidence_missing',array('expectedWidths'=>$viewports));
     $collected=array();$requests=array();$returned=array();$batches=array();$missing=$viewports;$build=null;
     for($attempt=1;$attempt<=SYNDAMORPH_INSPECTION_ATTEMPTS;$attempt++) {
         $requests[]=$missing;
-        $payload=wp_json_encode(array('html'=>$html,'viewports'=>$missing,'inspectionProtocol'=>SYNDAMORPH_INSPECTION_PROTOCOL)
-            +($extent===null?array():array('extent'=>$extent)));
+        $payload=wp_json_encode(array('html'=>$frame['html'],'viewports'=>$missing,'inspectionProtocol'=>SYNDAMORPH_INSPECTION_PROTOCOL)
+            +($extent===null?array():array('extent'=>$extent)),JSON_UNESCAPED_SLASHES);
         if(!is_string($payload))return syndamorph_inspection_failure('request_invalid');
         $response=wp_remote_post($endpoint,array('timeout'=>75,'redirection'=>0,
             'headers'=>array('Content-Type'=>'application/json','Accept-Encoding'=>'identity'),
@@ -241,6 +250,12 @@ function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,
             break;
         }
         $build=$details['rendererBuild'];
+        if($frame['sha256']!==null)foreach($result['evidence'] as $sample){
+            $font=$sample['snapshot']['installedFonts']??null;
+            if(($font['sha256']??null)!==$frame['sha256']||($font['status']??null)!=='ready')
+                return syndamorph_inspection_failure('font_evidence_missing',array('expectedWidths'=>$viewports,
+                    'viewport'=>$sample['width'],'rendererBuild'=>$build));
+        }
         foreach($result['evidence'] as $sample)$collected[$sample['width']]=$sample;
         $missing=array_values(array_diff($viewports,array_keys($collected)));
         if(!$missing){
