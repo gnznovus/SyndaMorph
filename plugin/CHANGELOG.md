@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.27] - 2026-11-26
+
+### Added
+
+- Full Page can reuse an independently verified Section Pattern when the selected region, source archive, exact captured evidence and applicable work order agree. The adapter rechecks the region source, stores its original proof and keeps provider spend on the original job.
+
+### Verified
+
+- BKKGO Full Page REF-000030 accepted its Through Our Lens placement and assembled unpublished WordPress draft 66 with zero additional AI calls. All 35 blocks survived Gutenberg editing and reload in a disposable copy of the exact draft. The Full Page job remains uncompleted with one of 16 placements.
+
 ## [0.12.26] - 2026-11-26
 
 ### Added

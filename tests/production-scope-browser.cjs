@@ -102,6 +102,7 @@ async function verifyOverlayEvidence(browser) {
                     {valid:true,contentSha256:native.checksum,blockCount});
                 return {validation,blockCount,state:await request(endpoint,{action:'save_pattern',region:key})};
             }
+            if(operation==='reuse') return request(endpoint,{action:'reuse_section',region:key,sectionId:args[2]});
             if(operation==='assemble') {
                 await request(endpoint,{action:'assemble'});
                 const native = await request(endpoint,null,{draft:'1'});
@@ -116,6 +117,19 @@ async function verifyOverlayEvidence(browser) {
         assert.equal(selected.blockCount,3);
         assert.equal(selected.validation.status,'completed');
         assert.equal(Object.values(selected.state.regions).filter(region=>region.patternId).length,1);
+        await assert.rejects(run('reuse',archive.differentPage,first,archive.section),/sm_scope_reuse_source/);
+        const reused=await run('reuse',archive.reusePage,first,archive.section);
+        const reusedRegion=reused.regions[first];
+        assert.equal(reusedRegion.patternId,selected.state.regions[first].patternId);
+        assert.equal(reusedRegion.patternOrigin.scopeId,archive.section);
+        assert.deepEqual(reusedRegion.attempts,[]);
+        assert.equal(reused.spentUsd,0);
+        assert.deepEqual(await run('reuse',archive.reusePage,first,archive.section),reused);
+        const reusedPage=await run('assemble',archive.reusePage);
+        assert.equal(reusedPage.status,'uncompleted');
+        assert.equal(reusedPage.page.allRegions,false);
+        assert.equal(reusedPage.page.editorVerified,true);
+        assert.deepEqual(reusedPage.page.placements.map(p=>p.patternId),[reusedRegion.patternId]);
         await run('pattern',archive.page,first);
         await run('pattern',archive.page,last);
         const partial = await run('assemble',archive.page);
@@ -167,6 +181,7 @@ async function verifyOverlayEvidence(browser) {
         await page.waitForFunction(() => String(window.wp?.data?.select('core/block-editor')?.getBlocks()[0]?.innerBlocks[0]?.attributes?.content)
             .includes('North remains editable'));
         console.log(JSON.stringify({sectionPattern:selected.state.regions[first].patternId,partialDraft:partial.page.id,
+            reusedPartialDraft:reusedPage.page.id,reusedPattern:reusedRegion.patternId,
             fullDraft:complete.page.id,patterns:complete.page.placements.map(p=>p.patternId),blockCount:complete.page.blockCount,
             responsivePageQa:complete.page.qa,offlineModelResponses:archive.mockCalls+recovered.mockCalls,paidCalls:0}));
     } finally { await browser.close(); }

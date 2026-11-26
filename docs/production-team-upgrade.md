@@ -265,6 +265,14 @@ The old reference and native artifact remain in History. Bossy reviewed referenc
 
 GEN-000055 is complete in the original History record and its approved content is saved as unpublished local draft 65. The correction reused the archived work order and native plan. It used two review calls totaling $0.006613 and no new Designer or Developer generation. GEN-000055 closed with eight completed calls and $0.023836 estimated spend.
 
+## v0.12.27 verified Section reuse in Full Page
+
+The Full Page adapter can attach an already accepted unsynced Pattern to an untouched ready region. The `reuse_section` action takes a region ID and the saved Section scope ID. It checks the source URL, archive and exact region capture, the work order when configured, and the original editor and QA receipts. It re-renders the Pattern against the Full Page region before recording the placement. A repeat returns the existing placement. A changed capture, Pattern or layout authorization requires fresh validation.
+
+BKKGO Full Page REF-000030 reused private Through Our Lens Pattern 64 from Section REF-000028 and GEN-000051. Fresh region fidelity measured 0.310%, 0%, and 0% at the three required widths. It assembled unpublished draft 66 with 35 blocks, one of 16 ordered placements, and zero new provider calls. The exact assembled content was editable in a disposable Gutenberg draft and survived save and reload. Its Full Page frontend rendered four tile columns at 1440 px and two at 768 and 375 px. The original partial draft recorded editor verification. Whole-page QA remains pending while required regions are missing.
+
+The disposable WordPress browser integration rejected a different compact capture, preserved the reused Pattern and zero spend across repeated requests, verified the partial draft, and still completed its independent three-region fixture through first-fold, full-extent and continuous responsive QA.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens and GEN-000055 completed their original jobs. Verified BKKGO Full Page assembly and broader region acceptance remain open. [Design validation audit](bossy-validation-audit.md#v0128-verification)

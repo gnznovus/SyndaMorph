@@ -380,7 +380,14 @@ if($phase==='setup') {
         is_wp_error(syndamorph_source_work_order_amend($proofSpec,$proofSource,$proofSamples,$wrongTarget))&&
         is_wp_error(syndamorph_source_work_order_amend($proofSpec,$incorrect,$misleading,$edits)),
         'Incomplete evidence, a different style target, or an actual captured link permitted a revision.');
-    echo wp_json_encode(array('section'=>$section['id'],'page'=>$page['id'],'keys'=>$keys,'mockCalls'=>count($calls),
+    $reusePage=scope_ok(syndamorph_scope_open('page',$capture));
+    scope_expect(is_wp_error(syndamorph_scope_reuse_section($reusePage,$section['id'],$keys[0])),
+        'Full Page attached a Section before Gutenberg and Pattern acceptance.');
+    $changedCapture=$capture;
+    $changedCapture['sections'][0]['variants'][375]['inventory']['text'][]='Other captured copy';
+    $differentPage=scope_ok(syndamorph_scope_open('page',$changedCapture));
+    echo wp_json_encode(array('section'=>$section['id'],'page'=>$page['id'],'reusePage'=>$reusePage['id'],
+        'differentPage'=>$differentPage['id'],'keys'=>$keys,'mockCalls'=>count($calls),
         'authorizedMobileLayout'=>true,'sameGenReviewRecovery'=>true,'sameGenPlanningRecovery'=>true,'designHoldIsolated'=>true,
         'sourceWorkOrderEvidence'=>true,'sameGenDeveloperRecovery'=>true)).PHP_EOL;
 } elseif($phase==='retry') {

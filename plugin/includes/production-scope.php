@@ -544,6 +544,53 @@ function syndamorph_scope_save_pattern(array $manifest,string $key) {
     return syndamorph_scope_status($manifest);
 }
 
+/** Attach an independently accepted Section, without transferring its attempts or spend. */
+function syndamorph_scope_reuse_section(array $page,int $sectionId,string $key) {
+    $section=syndamorph_history_latest($sectionId,'scope_manifest');
+    $target=$page['regions'][$key]??null;
+    $origin=$section['regions'][$key]??null;
+    $archive=$page['referenceArchive']??null;
+    if(($page['mode']??null)!=='page'||($section['mode']??null)!=='section'||
+        ($section['status']??null)!=='completed'||($section['selected']??null)!==$key||
+        !$target||!$origin||($origin['status']??null)!=='pattern_saved'||
+        ($page['sourceUrl']??null)!==($section['sourceUrl']??null)||
+        $archive!==($section['referenceArchive']??null)||
+        ($archive!==null&&!syndamorph_production_reference_valid($archive,$page['sourceUrl']))||
+        !empty($page['layoutAuthorization'])||!empty($section['layoutAuthorization'])||
+        (isset($page['brief'])&&$page['brief']!==($section['brief']??null)))
+        return syndamorph_scope_error('reuse_scope','The saved Section and Full Page work orders or source archives do not match.');
+    $previousSource=syndamorph_scope_checkpoint($sectionId,$origin['checkpoint']);
+    $targetSource=syndamorph_scope_checkpoint($page['id'],$target['checkpoint']);
+    if($previousSource===null||$previousSource!==$targetSource||syndamorph_source_blockers($targetSource,$archive))
+        return syndamorph_scope_error('reuse_source','The Full Page region does not have the exact accepted Section capture.');
+    $candidate=syndamorph_scope_candidate($section,$key);
+    $editor=$candidate?syndamorph_history_latest($candidate['id'],'editor_validation'):null;
+    $pattern=!empty($origin['patternId'])?get_post($origin['patternId']):null;
+    if(empty($candidate['eligible'])||empty($editor['passed'])||empty($editor['completionEligible'])||
+        ($editor['contentSha256']??null)!==$candidate['checksum']||!$pattern||$pattern->post_type!=='wp_block'||
+        !current_user_can('edit_post',$pattern->ID)||get_post_meta($pattern->ID,'wp_pattern_sync_status',true)!=='unsynced'||
+        ($origin['artifactSha256']??null)!==$candidate['checksum']||$pattern->post_content!==$candidate['content'])
+        return syndamorph_scope_error('reuse_artifact','The saved Pattern no longer matches its independently verified Section artifact.');
+    $receipt=array('scopeId'=>$sectionId,'generationId'=>$candidate['id'],'sectionCheckpoint'=>$origin['checkpoint'],
+        'pageCheckpoint'=>$target['checkpoint'],'region'=>$key,'patternId'=>$pattern->ID,'artifactSha256'=>$candidate['checksum'],
+        'sourceSha256'=>hash('sha256',wp_json_encode($targetSource)));
+    if(($target['patternOrigin']??null)===$receipt&&($target['patternId']??null)===$pattern->ID&&
+        ($target['artifactSha256']??null)===$candidate['checksum'])return syndamorph_scope_status($page);
+    if($target['status']!=='ready'||!empty($target['patternId'])||!empty($target['attempts']))
+        return syndamorph_scope_error('reuse_state','Only an untouched ready Full Page region can receive a verified Section.');
+    $preview='<style>'.syndamorph_native_visibility_css().'</style>'.syndamorph_native_core_preview(parse_blocks($pattern->post_content));
+    $review=syndamorph_source_review($targetSource,$preview);
+    if(!$review['passed']){
+        syndamorph_history_append($page['id'],'scope_section_reuse_held',$receipt+array('sourceReview'=>$review));
+        return syndamorph_scope_error('reuse_quality','Fresh source QA is pending or failed. See the region receipt in History.');
+    }
+    $page['regions'][$key]=array_replace($target,array('status'=>'pattern_saved','patternId'=>$pattern->ID,
+        'artifactSha256'=>$candidate['checksum'],'patternEditor'=>get_edit_post_link($pattern->ID,'raw'),'patternOrigin'=>$receipt));
+    syndamorph_history_append($page['id'],'scope_section_reused',$receipt+array('sourceReview'=>$review));
+    syndamorph_history_append($page['id'],'scope_manifest',$page);
+    return syndamorph_scope_status($page);
+}
+
 function syndamorph_scope_targets(array $manifest): array {
     return $manifest['mode']==='page'?$manifest['regions']:
         array_intersect_key($manifest['regions'],array_flip(array($manifest['selected']??'')));
@@ -803,7 +850,7 @@ add_action('rest_api_init',static function():void {
         }),
         array('methods'=>'POST','permission_callback'=>$permission,'callback'=>static function(WP_REST_Request $request) {
             $action=$request->get_param('action');
-            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','resume_design_review','resume_checkpoint','save_pattern','assemble','verify_page'),true))
+            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','resume_design_review','resume_checkpoint','save_pattern','reuse_section','assemble','verify_page'),true))
                 return syndamorph_scope_error('action','Invalid scope action.',400);
             return syndamorph_scope_locked(static function()use($request,$action){
                 $manifest=syndamorph_history_latest((int)$request['id'],'scope_manifest');
@@ -845,6 +892,10 @@ add_action('rest_api_init',static function():void {
                             }
                             return syndamorph_scope_run(syndamorph_scope_status($manifest),$region,$action==='retry');
                         case 'save_pattern': return syndamorph_scope_save_pattern($manifest,$region);
+                        case 'reuse_section':
+                            $sectionId=filter_var($request->get_param('sectionId'),FILTER_VALIDATE_INT,array('options'=>array('min_range'=>1)));
+                            if($sectionId===false)return syndamorph_scope_error('reuse_scope','An exact saved Section ID is required.',400);
+                            return syndamorph_scope_reuse_section($manifest,$sectionId,$region);
                         case 'assemble': return syndamorph_scope_assemble($manifest);
                         case 'verify_page':
                             if(true!==$request->get_param('valid'))return syndamorph_scope_error('editor','A Gutenberg validation result is required.',400);
