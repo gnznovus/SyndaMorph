@@ -72,7 +72,7 @@ function syndamorph_scope_inspect(string $html,string $extent) {
 
 /** Compare both entire rendered extents and absolute heights at their original widths. */
 function syndamorph_source_visual(array $reference,array $native,bool $extent=true,array $layoutWidths=array()): array {
-    $comparison=syndamorph_collab_compare($reference,$native,$extent);
+    $comparison=syndamorph_collab_compare($reference,$native,$extent,$extent);
     if(is_wp_error($comparison))return array('passed'=>false,'inspection'=>array('code'=>$comparison->get_error_code(),
         'message'=>$comparison->get_error_message()));
     $passed=true;$strictRatios=array();

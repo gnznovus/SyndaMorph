@@ -133,6 +133,18 @@ Touch now requires a measured result from the requested action. Scrolling into v
 
 The isolated WordPress regression recovered a timed-out design review on the existing GEN and rejected an invented-link patch before a provider call. A separate Section and Full Page fixture saved three editable Patterns, recovered its partial draft, and passed editor verification and first-fold, full-extent, and continuous responsive QA. The fixture used 34 mocked model responses and zero paid requests. Its local success is independent of the live BKKGO job outcomes.
 
+## v0.12.13 source mismatch localization
+
+The renderer now identifies up to six cells with the most changed samples in a three-column, eight-row grid over the compared section extents. Each cell reports its position, sample count and changed count. Bossy and Designer receive the same comparison. A CSS diagnosis still requires a measured source box or style fact. The existing source thresholds and sampling stay in use.
+
+The retained GEN-000051 candidate reproduced 1.797%, 1.451%, and 4.239% through the updated renderer. At 1440 px the second row contained 1,180 of 1,294 changed samples. At 375 px the first two rows dominated, with an additional discrepancy around the bottom label. The source and candidate extents agree at each width. This directs investigation to typography and spacing in the intro and footer.
+
+An offline Chromium trial loaded only the Beausite faces embedded in the pinned archive. The measured difference fell to approximately 0.61%, 0.92%, and 1.79% at 1440, 768, and 375 px. This indicates a font contribution while leaving further source differences and the production font-delivery contract open. The trial stayed outside the production approval path.
+
+GEN-000055 now retains the patched artifact and separate native, interaction, editor, responsiveness and visual receipts on the original History record. Prospective Tabs typography corrections improved some measurements in a preview-only diagnostic. The saved artifact was independently validated against the original approved sketch. Its visual gate remains open.
+
+The v0.12.8 offline matrix ran with the archived BKKGO negative control. All 28 deterministic defects were held, six controls advanced, and the four trust cases retained their expected guards. This replay used zero paid calls. The historical live statistic remains the recorded 11/12 distinct detections, 14/14 holds, and 4/4 clean passes.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)

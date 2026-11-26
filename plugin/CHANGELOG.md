@@ -6,6 +6,15 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.13] - 2026-11-26
+
+### Fixed
+- Scoped visual comparisons report where the sampled differences concentrate. Bossy and Designer receive the same measured source evidence and retained surgery context. Rejected patch contracts preserve the exact error and retained reference hash.
+
+### Verified
+- Replaying the retained GEN-000051 candidate through local WordPress preserved the exact source ratios and verdict. Its largest differences concentrated near the heading and introduction at 1440 and 375 px.
+- The offline Bossy matrix held 28 defective cases, accepted six controls and exercised four trust-boundary cases without paid calls.
+
 ## [0.12.12] - 2026-11-26
 
 ### Fixed

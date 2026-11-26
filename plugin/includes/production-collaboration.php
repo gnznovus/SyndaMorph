@@ -242,7 +242,7 @@ function syndamorph_collab_viewports(string $brief) {
     return $widths;
 }
 /** Deterministic visual comparison reuses already captured screenshots. */
-function syndamorph_collab_compare(array $reference,array $native,bool $fitExtent=false) {
+function syndamorph_collab_compare(array $reference,array $native,bool $fitExtent=false,bool $localize=false) {
     $url=getenv('SYNDAMORPH_RENDERER_URL');
     if ($url !== 'http://renderer:3000/render') return new WP_Error('sm_compare_config','Isolated visual comparison service not configured.');
     if(array_column($reference,'width')!==array_column($native,'width'))
@@ -250,7 +250,7 @@ function syndamorph_collab_compare(array $reference,array $native,bool $fitExten
     if(count($reference)>5){
         $comparison=array();
         foreach(array_chunk($reference,5) as $index=>$batch) {
-            $validated=syndamorph_collab_compare($batch,array_slice($native,$index*5,5),$fitExtent);
+            $validated=syndamorph_collab_compare($batch,array_slice($native,$index*5,5),$fitExtent,$localize);
             if(is_wp_error($validated))return $validated;
             array_push($comparison,...$validated);
         }
@@ -260,7 +260,7 @@ function syndamorph_collab_compare(array $reference,array $native,bool $fitExten
         +($fitExtent?array('extent'=>$s['extent']??null):array()),$samples);
     $response=wp_remote_post('http://renderer:3000/compare',array('timeout'=>20,'redirection'=>0,
         'headers'=>array('Content-Type'=>'application/json'),'body'=>wp_json_encode(array('reference'=>$pick($reference),'native'=>$pick($native))+
-            ($fitExtent?array('fitExtent'=>true):array())),
+            ($fitExtent?array('fitExtent'=>true):array())+($localize?array('localize'=>true):array())),
         'limit_response_size'=>50000));
     if(is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200)return new WP_Error('sm_compare_unavailable','Pixel comparison is unavailable.');
     $data=json_decode(wp_remote_retrieve_body($response),true);
@@ -790,6 +790,7 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
                 'Pinned source comparison is pending.',$sourceDesign['visual']['inspection']),
                 $designTrial['reference']??$reference,'design_inspection','designer',$capabilityNotes);
             $reviewContext['sourceVerification']=$sourceDesign;
+            $reviewContext['sourceLocalization']='differenceRegions lists the most changed cells of a normalized grid. Columns start at the left and rows at the top, both zero-based. Use these cells to locate pixel evidence and measured source geometry or a verified style fact to diagnose its cause.';
             $sourcePassed=$sourceDesign['passed'];
         }elseif($source!==null){
             $sourceVisual=syndamorph_production_source_visual($source,$inspectReference);
@@ -973,7 +974,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         $patchReply=$call('designer','Apply only actual design defects using JSON {"edits":[{"find":"exact unique fragment","replace":"replacement"}]}. Maximum five edits. If a browser diagnostic is required, return JSON {"action":"verification_required","toolRequest":{"name":"playwright.inspect","target":"reference","reason":"specific question"}}. If Boss feedback contradicts recorded evidence, return JSON {"action":"no_change","reason":"specific evidence-based dispute"}; never fabricate an edit or return empty edits. Do not return the whole reference.',
             array('reference'=>$reference,'feedback'=>$handoff['issues'],'requirements'=>$brief,
                 'availableTools'=>syndamorph_production_tool_catalog('designer'),
-                'verificationEvidence'=>$pendingToolEvidence),syndamorph_collab_output_cap($provider,$model),array(),'design_correction');
+                'verificationEvidence'=>$pendingToolEvidence)+($sourceDesign===null?array():array(
+                    'sourceVerification'=>$sourceDesign,'sourceLocalization'=>$reviewContext['sourceLocalization'],
+                    'previousSurgery'=>$priorDesignDiff)),syndamorph_collab_output_cap($provider,$model),array(),'design_correction');
         if(is_wp_error($patchReply))return $patchReply;
         $parsedPatch=json_decode(syndamorph_native_json_text($patchReply),true);
         if(is_array($parsedPatch)&&($parsedPatch['action']??'')==='verification_required'){
@@ -1006,7 +1009,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             if($on_event)$on_event('design_surgery',array('status'=>'rejected','reason'=>$surgical->get_error_code(),'round'=>$designRound));
             return new WP_Error('sm_design_surgery_blocked',
                 'Designer surgery could not be applied atomically; retain existing reference for manual review.',
-                array('stage'=>'design_approval','cause'=>$surgical->get_error_code(),'issues'=>$handoff['issues']));
+                array('stage'=>'design_approval','cause'=>$surgical->get_error_code(),'referenceSha256'=>$referenceHash,
+                    'issues'=>$handoff['issues']));
         }else{
             $designTrial=array('reference'=>$reference,'responsive'=>$responsive,
                 'sourcePassed'=>$sourcePassed,'sourceReview'=>$sourceDesign,'elementIds'=>$elementIds);

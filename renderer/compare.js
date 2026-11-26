@@ -46,7 +46,7 @@ function overlapEvidence(a,b,width,beforeHeight,afterHeight) {
         data:jpeg.encode({data,width:cols,height:rows},75).data.toString('base64') };
 }
 
-function compareScreenshots(reference,native,fitExtent=false,includeOverlay=false) {
+function compareScreenshots(reference,native,fitExtent=false,includeOverlay=false,localize=false) {
     if (!Array.isArray(reference) || !validViewports(reference.map(sample => sample?.width)) ||
         !Array.isArray(native) || native.length !== reference.length) throw new Error('Matched responsive viewports required.');
     return reference.map((ref,i)=>{
@@ -60,6 +60,7 @@ function compareScreenshots(reference,native,fitExtent=false,includeOverlay=fals
         let changed=0,total=0,distance=0;
         const cols=fitExtent?Math.min(a.width,b.width,320):a.width;
         const rows=fitExtent?Math.min(a.height,b.height,HEIGHT):a.height;
+        const zones=fitExtent&&localize?Array.from({length:24},(_,index)=>({index,changed:0,sampled:0})):null;
         for(let index=0;index<cols*rows;index+=4){
             const x=index%cols,y=Math.floor(index/cols);
             const at=fitExtent?(Math.floor(y*a.height/rows)*a.width+Math.floor(x*a.width/cols))*4:index*4;
@@ -68,11 +69,21 @@ function compareScreenshots(reference,native,fitExtent=false,includeOverlay=fals
             for(let k=0;k<3;k++)diff+=Math.abs(a.data[at+k]-b.data[bt+k]);
             diff/=3;distance+=diff;
             if(diff>24)changed++;
+            if(zones){
+                const zone=zones[Math.floor(y*8/rows)*3+Math.floor(x*3/cols)];
+                zone.sampled++;
+                if(diff>24)zone.changed++;
+            }
             total++;
         }
+        const differenceRegions=zones?.filter(zone=>zone.changed>0).sort((left,right)=>right.changed-left.changed)
+            .slice(0,6).map(({index,sampled,changed})=>({
+                column:index%3,row:Math.floor(index/3),sampled,changed,
+            }));
         return {width,pixelDifferenceRatio:Number((changed/total).toFixed(5)),
             meanChannelDifference:Number((distance/total).toFixed(3)),
-            sampledPixels:total,...(includeOverlay?{ overlap:overlapEvidence(
+            sampledPixels:total,...(zones?{differenceRegions:{columns:3,rows:8,regions:differenceRegions}}:{}),
+            ...(includeOverlay?{ overlap:overlapEvidence(
                 a,b,width,fitExtent?ref.extent:a.height,fitExtent?result.extent:b.height) }:{})};
     });
 }

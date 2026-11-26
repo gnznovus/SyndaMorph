@@ -17,6 +17,8 @@ function syndamorph_team_failure_payload( WP_Error $error ): array {
             'stage' => 'preflight', 'role' => '', 'completedCalls' => 0 ),
         array_intersect_key( $details, array_flip( array( 'stage', 'role', 'task', 'completedCalls', 'stopReason', 'outputTokens', 'field', 'metric', 'generationCompleted' ) ) )
     );
+    if($error->get_error_code()==='sm_design_surgery_blocked')
+        $payload+=array_intersect_key($details,array_flip(array('cause','referenceSha256')));
     if(str_starts_with($error->get_error_code(),'sm_inspect_')) {
         $payload['inspection']=syndamorph_inspection_diagnostic($error);
         $checkpoint=$details['referenceCheckpoint']??null;
