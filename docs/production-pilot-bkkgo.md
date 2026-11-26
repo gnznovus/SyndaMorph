@@ -68,14 +68,16 @@ The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593
 | OUR STORY | 1440, 768, 375 | Desktop illustration requires a verified native image import. The story URL is declared at all widths and needs a pinned destination contract. |
 | EXCLUSIVE OFFERS | 1440, 768, 375 | Current preflight permits conversion. The capture lists no actionable controls or destinations. No interaction is accepted from the numbered artwork alone. |
 | Rooms | 1440, 768, 375 | Desktop photo navigation and room selection have separate behaviors. Reusable carousel and disclosure capabilities need proof. Booking effects remain unverified. |
-| SIP & DINE | 1440, 768, 375 | Current preflight permits conversion. The capture lists no links or controls. Reservation labels do not verify an entitlement to add destinations. |
+| SIP & DINE | 1440, 768, 375 | The original preflight missed an anonymous compact scroll-snap strip. Recorded replay moved the strip by 280 px at 375 px. The live Section held the design for compact behavior and visual fidelity before Developer. Reservation labels remain source copy. |
 | THE NEIGHBORHOOD | 1440, 768, 375 | Desktop custom cards need Touch evidence for their states and actions before any static or reusable mapping can qualify. |
 | THROUGH OUR LENS | 1440, 768, 375 | Current preflight permits conversion. Recorded source labels have no links or controls. GEN-000051 source visual QA remains held. |
 | Newsletter signup | 1440, 768, 375 | Country selection and SVG require component and asset support. Submission and consent need a verified external integration. |
-| FAQs | 1440, 768, 375 | Five disclosure triggers and their chevrons are captured. Touch observed local visible copy changes at every width. Core Details is a candidate capability pending exact state, ordered answers, appearance and independent replay. |
+| FAQs | 1440, 768, 375 | Recorded replay verified five ordered disclosures, the first open by default and at most one open. Native Core Details reproduced the click sequence at all widths and added keyboard operation in an isolated Gutenberg draft. Production mapping, chevron fidelity and source visual QA remain open. |
 | IHG Hotels & Resorts brands and IHG One Rewards | 1440, 768, 375 | The region is artwork with an exact alt attribute. Image import and an asset-only native contract are required. |
 | Site footer | 1440, 768, 375 | Image and declared navigation destinations need asset and link resolution. Placeholder hash links and cookie preferences provide no verified integration contract. |
 
 - **Discovery** has browser screenshots and visible inventories for 12 of 16 regions at every required width. Four regions have a variant gap. Separate runtime observations are needed before claiming complete behavioral understanding of each interactive region.
-- **Conversion eligibility** remains 3 of 16 under the current source and native contracts.
+- **Conversion eligibility** in the pinned manifest is 3 of 16. Subsequent SIP & DINE replay found a working mobile scroll strip the original preflight missed. The region needs a matching native capability and its independent replay before it can advance.
 - **Acceptance** is 0 of 16 for this pinned capture. Source inspection, discovery, and partial repairs do not grant a native Pattern or Full Page acceptance.
+
+The five native FAQ blocks and their ordered answer text survived edit, save and reload in isolated draft 59. The source's second click could close the active panel, leaving all questions closed. Native grouped Details reproduced this behavior at 1440, 768 and 375 px. The source's Enter test opened no panel, while native Details opened the selected item. This capability proof did not use the production compiler or grant source visual approval.

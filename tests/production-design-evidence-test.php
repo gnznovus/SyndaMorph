@@ -41,4 +41,17 @@ $hidden=syndamorph_design_run_check($checks[0]['check'],array($sample));
 expect($hidden['status']==='uncertain','An incomplete inventory was treated as proof of absence');
 expect($make(array('kind'=>'element','selector'=>'section>button'))===null,'Unrestricted selector entered the inspection contract');
 expect(syndamorph_design_computed_value('backgroundColor','#18283a')==='rgb(24, 40, 58)','Equivalent color values did not normalize');
+$paragraph=str_repeat('Literal text retained in the measured paragraph. ',6).'Final words.';
+$long=$make(array('kind'=>'text','selector'=>'p','value'=>$paragraph,'widths'=>array(1440)));
+$sample=array('width'=>1440,'snapshot'=>array('copy'=>$paragraph,'elements'=>array(
+    array('tag'=>'DIV','visible'=>true,'normalizedText'=>$paragraph),
+    array('tag'=>'P','visible'=>true,'normalizedText'=>substr($paragraph,0,250)),
+)));
+expect($long['value']===$paragraph&&$long['selector']==='p','Paragraph-sized checks lost their full text or selector.');
+expect(syndamorph_design_run_check($long,array($sample))['status']==='uncertain','Shortened evidence proved an unmeasured paragraph.');
+$sample['snapshot']['elements'][1]['checkText']='Unrelated visible paragraph.';
+$sample['snapshot']['elements'][1]['checkTextTruncated']=false;
+expect(syndamorph_design_run_check($long,array($sample))['status']==='failed','Unrelated section text satisfied an explicit paragraph check.');
+$sample['snapshot']['elements'][1]['checkText']=$paragraph;
+expect(syndamorph_design_run_check($long,array($sample))['status']==='verified','The complete scoped literal was not recognized.');
 echo "PASS: measured element, literal copy, link semantics, colors and requirement-level evidence authority\n";

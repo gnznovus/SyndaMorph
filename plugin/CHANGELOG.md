@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.14] - 2026-11-26
+
+### Fixed
+- Browser text checks retain paragraph-sized literals and optional selectors. Incomplete element evidence leaves the scoped check uncertain.
+- A recoverable scoped planning response can be validated from History and continued on the same GEN without repeating Bossy classification or losing its recorded cost.
+
+### Verified
+- The exact 253-character SIP & DINE paragraph in GEN-000056's archived work order passed the scoped browser check at its required width.
+- Live continuation on GEN-000056 proceeded to Designer and Bossy with the saved work order. Source markup passed and visual acceptance was held before Developer.
+- GEN-000055's native Group gap correction improved the mobile visual result to 1.753%. The artifact passed six functional requirements, eight responsive widths and isolated Gutenberg edit, save and reload. Visual acceptance remains open.
+
 ## [0.12.13] - 2026-11-26
 
 ### Fixed

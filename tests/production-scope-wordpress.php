@@ -196,10 +196,10 @@ if($phase==='setup') {
         is_wp_error(syndamorph_scope_run($recover,$keys[0],true,$engine)),
         'Timed-out review did not retain the current GEN and its conservative reservation.');
     $badEdit=array(array('find'=>'</section>','replace'=>'<a href="#">An invented link</a></section>'));
-    $blocked=syndamorph_scope_resume_design($recover,$keys[0],$badEdit,$engine);
+    $blocked=syndamorph_scope_resume_checkpoint($recover,$keys[0],$badEdit,$engine);
     scope_expect(is_wp_error($blocked)&&$blocked->get_error_code()==='sm_scope_review_regression'&&count($calls)===$priorCalls,
         'A recovery patch that changes source copy or links must hold before paid review.');
-    $recover=scope_ok(syndamorph_scope_resume_design($recover,$keys[0],array(),$engine));
+    $recover=scope_ok(syndamorph_scope_resume_checkpoint($recover,$keys[0],array(),$engine));
     $attempts=$recover['regions'][$keys[0]]['attempts'];
     $savedRecovery=syndamorph_history_latest($prior['id'],'job_resumed');
     scope_expect(count($attempts)===1&&$attempts[0]['id']===$prior['id']&&$attempts[0]['status']==='needs_review'&&
@@ -207,8 +207,32 @@ if($phase==='setup') {
         $attempts[0]['unmeteredReserveUsd']===$prior['unmeteredReserveUsd']&&$savedRecovery['priorCompletedCalls']===2&&
         array_slice($calls,$priorCalls)===array('North:final_approval','North:developer','North:validation'),
         'Design review recovery repeated completed work, created a GEN, or lost the original accounting.');
+    $planning=scope_ok(syndamorph_scope_configure(scope_ok(syndamorph_scope_open('section',$capture)),$brief,$keys[0]));
+    $order=wp_json_encode(array('version'=>1,'title'=>'North','sections'=>array(array('id'=>'north','label'=>'North')),
+        'requirements'=>array(array('id'=>'north-paragraph','target'=>'north','dimension'=>'content','basis'=>'source',
+            'requirement'=>'Preserve the North paragraph.','acceptance'=>'Literal paragraph is present.',
+            'check'=>array('kind'=>'text','selector'=>'p','value'=>'Literal source content for North.')))));
+    $planning=scope_ok(syndamorph_scope_run($planning,$keys[0],false,static function($brief,$stream,$emit)use($order){
+        $stage=array('role'=>'boss','task'=>'boss');
+        $emit('agent_start',$stage);
+        $emit('agent_delta',$stage+array('text'=>$order));
+        $emit('agent_complete',$stage+array('metric'=>array('metering'=>'provider_reported','inputTokens'=>100,
+            'outputTokens'=>250,'estimatedCostUsd'=>0.000135)));
+        return new WP_Error('sm_boss_contract','Fixture older work-order parser rejected the check.',array('field'=>'requirement check'));
+    }));
+    $planningId=$planning['regions'][$keys[0]]['attempts'][0]['id'];
+    $priorCalls=count($calls);
+    scope_expect($planning['regions'][$keys[0]]['recoveryStage']==='planning'&&
+        is_wp_error(syndamorph_scope_run($planning,$keys[0],true,$engine)),'The prior work order needs a checkpoint, not a new GEN.');
+    $planning=scope_ok(syndamorph_scope_resume_checkpoint($planning,$keys[0],array(),$engine));
+    $attempts=$planning['regions'][$keys[0]]['attempts'];
+    $record=syndamorph_history_latest($planningId,'job_resumed');
+    scope_expect(count($attempts)===1&&$attempts[0]['id']===$planningId&&$attempts[0]['status']==='needs_review'&&
+        $attempts[0]['completedCalls']===5&&$record['planningSha256']===hash('sha256',$order)&&
+        array_slice($calls,$priorCalls)===array('North:designer','North:final_approval','North:developer','North:validation'),
+        'Planning recovery repeated Boss classification, changed the archived response or created a new job.');
     echo wp_json_encode(array('section'=>$section['id'],'page'=>$page['id'],'keys'=>$keys,'mockCalls'=>count($calls),
-        'authorizedMobileLayout'=>true,'sameGenReviewRecovery'=>true)).PHP_EOL;
+        'authorizedMobileLayout'=>true,'sameGenReviewRecovery'=>true,'sameGenPlanningRecovery'=>true)).PHP_EOL;
 } elseif($phase==='retry') {
     $page=syndamorph_scope_status(syndamorph_history_latest((int)getenv('SM_SCOPE_JOB'),'scope_manifest'));
     scope_expect($page['page']['editorVerified']&&!$page['page']['allRegions'],'Expected an independently verified partial WordPress draft.');

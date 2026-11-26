@@ -8,14 +8,14 @@ function syndamorph_design_check_contract($check) {
     $kind=$check['kind']??null;
     if(!is_array($check)||!in_array($kind,array('text','element','link','style','center'),true))return null;
     $result=array('kind'=>$kind);
-    if($kind!=='text'){
+    if($kind!=='text'||array_key_exists('selector',$check)){
         $selector=$check['selector']??null;
         if(!is_string($selector)||preg_match('/^(?:[.#][a-zA-Z][a-zA-Z0-9_-]{0,62}|[a-z][a-z0-9-]{0,31})$/D',$selector)!==1)return null;
         $result['selector']=$selector;
     }
     if(!in_array($kind,array('element','center'),true)){
         $value=$check['value']??null;
-        if(!is_string($value)||trim($value)===''||mb_strlen($value)>240)return null;
+        if(!is_string($value)||trim($value)===''||mb_strlen($value)>($kind==='text'?1000:240))return null;
         $result['value']=trim($value);
     }
     if($kind==='style'){
@@ -104,15 +104,25 @@ function syndamorph_design_run_check(array $check,array $samples): array {
     foreach($widths as $width){
         $snapshot=$views[$width]['snapshot']??null;
         $outcome='uncertain';
-        if($check['kind']==='text'&&is_string($snapshot['copy']??null)){
+        if($check['kind']==='text'&&!isset($check['selector'])&&is_string($snapshot['copy']??null)){
             $outcome=str_contains($snapshot['copy'],$check['value'])?'verified':'failed';
-        }elseif($check['kind']!=='text'){
+        }elseif(isset($check['selector'])){
             $elements=$snapshot['elements']??array();
             if($elements&&array_key_exists('visible',$elements[0])){
                 $matching=array_values(array_filter($elements,
                     static fn($element)=>syndamorph_design_matches($element,$check['selector'])));
                 $complete=($snapshot['elementCount']??count($elements))===count($elements);
-                if($check['kind']==='element')$outcome=$matching?'verified':'failed';
+                if($check['kind']==='text'){
+                    $outcome=$complete?'failed':'uncertain';
+                    foreach($matching as $element){
+                        $text=$element['checkText']??$element['normalizedText']??null;
+                        if(is_string($text)&&str_contains($text,$check['value'])){
+                            $outcome='verified';break;
+                        }
+                        if(!is_string($text)||($element['checkTextTruncated']??($text===''||strlen($text)>=250)))
+                            $outcome='uncertain';
+                    }
+                }elseif($check['kind']==='element')$outcome=$matching?'verified':'failed';
                 elseif($check['kind']==='link'){
                     $verified=array_filter($matching,static fn($element)=>($element['tag']??null)==='A'&&
                         ($element['href']??null)===$check['value']&&!empty($element['keyboardReachable'])&&

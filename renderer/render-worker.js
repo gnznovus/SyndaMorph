@@ -178,9 +178,9 @@ process.stdin.on('end', async () => {
                     // Compare literal authored copy, including inline formatting and
                     // long text, independently of geometry and text-transform.
                     const copyParts = [];
-                    function gatherCopy(node) {
+                    function gatherCopy(node,parts=copyParts) {
                         if (node.nodeType === Node.TEXT_NODE) {
-                            copyParts.push(node.nodeValue);
+                            parts.push(node.nodeValue);
                             return;
                         }
                         if (node.nodeType !== Node.ELEMENT_NODE ||
@@ -188,11 +188,11 @@ process.stdin.on('end', async () => {
                         const { display, visibility } = getComputedStyle(node);
                         if (display === 'none') return;
                         const boundary = node.tagName === 'BR' || !/^(?:inline|contents)/.test(display);
-                        if (boundary) copyParts.push(' ');
+                        if (boundary) parts.push(' ');
                         for (const child of node.childNodes) {
-                            if (child.nodeType !== Node.TEXT_NODE || visibility === 'visible') gatherCopy(child);
+                            if (child.nodeType !== Node.TEXT_NODE || visibility === 'visible') gatherCopy(child,parts);
                         }
-                        if (boundary) copyParts.push(' ');
+                        if (boundary) parts.push(' ');
                     }
                     gatherCopy(document.body);
                     const literal = includeLiteral ? (() => {
@@ -236,6 +236,11 @@ process.stdin.on('end', async () => {
                         elements: elements.slice(0, 200).map(el => {
                             const r = el.getBoundingClientRect(), s = getComputedStyle(el);
                             const text = el.children.length ? '' : el.textContent.replace(/\s+/gu, ' ').trim().slice(0, 250);
+                            const textParts=[];
+                            if((el.children.length||el.textContent.length>250)&&
+                                el.matches('p,h1,h2,h3,h4,h5,h6,a,button,label,li,summary'))gatherCopy(el,textParts);
+                            const checkText=textParts.length?textParts.join('').replace(/\s+/gu,' ').trim():null;
+                            const checkCharacters=checkText!==null&&checkText!==text?Array.from(checkText):null;
                             const range = document.createRange();
                             if (text) range.selectNodeContents(el);
                             const lines = text ? [...range.getClientRects()].slice(0, 12).map(rect) : [];
@@ -271,6 +276,9 @@ process.stdin.on('end', async () => {
                                 keyboardReachable:el.tabIndex>=0&&!el.matches(':disabled')&&!el.closest('[inert]'),
                                 parent: positions.get(el.parentElement) ?? null,
                                 normalizedText: text,
+                                ...(checkCharacters?{
+                                    checkText:checkCharacters.slice(0,1000).join(''),checkTextTruncated:checkCharacters.length>1000,
+                                }:{}),
                                 rect: rect(r),
                                 textRect: text ? rect(range.getBoundingClientRect()) : null,
                                 lineRects: lines,

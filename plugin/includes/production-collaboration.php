@@ -446,10 +446,10 @@ function syndamorph_design_surgery(string $reference,array $response) {
 }
 
 function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bool $useLearning=true,?array $source=null,
-    ?float $budgetLimit=null,?float $workingLimit=null,?array $designResume=null) {
+    ?float $budgetLimit=null,?float $workingLimit=null,?array $resume=null) {
     $GLOBALS['syndamorph_production_tool_cache']=array();
     $GLOBALS['syndamorph_production_tool_count']=0;
-    $GLOBALS['syndamorph_touch_receipts']=$designResume['touch']??array();
+    $GLOBALS['syndamorph_touch_receipts']=$resume['touch']??array();
     unset($GLOBALS['syndamorph_current_reference']);
     $viewports=syndamorph_collab_viewports($brief);
     if(is_wp_error($viewports))return $viewports;
@@ -497,8 +497,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $learningSource='job:'.($activeJob>0?(string)$activeJob:bin2hex(random_bytes(8)));
     $started=microtime(true);$calls=0;$cutoff=$max*0.8;$unmeteredReserve=0.0;$memory=new SyndaMorph_Job_Memory($brief);
     if($workingLimit!==null)$cutoff=min($cutoff,$workingLimit);
-    if($designResume!==null){
-        $account=$designResume['account'];
+    if($resume!==null){
+        $account=$resume['account'];
         $usage=$account['usage'];$metrics=$account['metrics'];
         $calls=$account['completedCalls'];$unmeteredReserve=$account['unmeteredReserveUsd'];
     }
@@ -634,7 +634,8 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'published'=>false,'renderedInBrowser'=>false);
     };
     $touchNote=isset($source['referenceArchive']['runtimeSha256'])?' For a concrete interaction uncertainty, use the available Touch tool. First request the pinned width with actions:[]. Use only discovered target IDs in subsequent actions. A blocked request or inferred destination does not verify real behavior.':'';
-    $boss=$designResume===null?$call('boss','Classify the job into a concise production specification. Return ONLY JSON {"version":1,"title":"short job title","sections":[{"id":"hero","label":"Hero","parent":null}],"requirements":[{"id":"hero-heading","target":"hero","dimension":"content","basis":"brief","requirement":"required result","acceptance":"observable pass condition"}]}. Put parents before children. A target is a section ID or page. Use short lowercase IDs, up to 12 sections and 24 requirements. Dimensions are content, visual, responsive, functional, implementation, accessibility. Basis is brief, source, or standard. Capture each explicit requirement, use the supplied viewport widths, and record unknown dependencies as verification needs. For directly stated browser assertions use optional check {kind:text|element|link|style|center,selector:one simple tag/.class/#id,value:expected literal,field:computed property for style,widths:optional exact widths}. A center check measures horizontal placement in the viewport. Style can check paddingTop or paddingBottom. Text needs a value, element and center need a selector, link needs both. Never invent a selector or asserted value. For an unsourced brief, permit generic marketing copy and provisional local CTAs without invented real-world facts.'.$sourceNote.$touchNote,
+    $archivedAssignment=$resume['assignment']??null;
+    $boss=$archivedAssignment===null?($resume['planningText']??$call('boss','Classify the job into a concise production specification. Return ONLY JSON {"version":1,"title":"short job title","sections":[{"id":"hero","label":"Hero","parent":null}],"requirements":[{"id":"hero-heading","target":"hero","dimension":"content","basis":"brief","requirement":"required result","acceptance":"observable pass condition"}]}. Put parents before children. A target is a section ID or page. Use short lowercase IDs, up to 12 sections and 24 requirements. Dimensions are content, visual, responsive, functional, implementation, accessibility. Basis is brief, source, or standard. Capture each explicit requirement, use the supplied viewport widths, and record unknown dependencies as verification needs. For directly stated browser assertions use optional check {kind:text|element|link|style|center,selector:one simple tag/.class/#id,value:expected literal,field:computed property for style,widths:optional exact widths}. A center check measures horizontal placement in the viewport. Style can check paddingTop or paddingBottom. Text needs a value, element and center need a selector, link needs both. Never invent a selector or asserted value. For an unsourced brief, permit generic marketing copy and provisional local CTAs without invented real-world facts.'.$sourceNote.$touchNote,
         array('brief'=>$brief,'viewportWidths'=>$viewports,'interactionClassification'=>array(
             'classes'=>array('native','reusable','new_special','external','unsupported'),
             'supported'=>array('tabs'=>'reusable local Content Tabs block, two to six editable text panels'),
@@ -646,13 +647,13 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
             'tabsProof'=>'Include one tabs interaction for one block. Use a behavior of 240 characters or fewer and a primary requirementId from a functional requirement. Link all of its independent requirements in proof:[{requirementId,check}]. Use the supplied executable checks and their exact dimensions. Native block registry, default state, real clicks, keyboard operation, built-in tab styling, ARIA and visible keyboard focus can be proven only on the compiled artifact. Ordinary design appearance and panel copy still need design-stage acceptance.',
             'contract'=>'For every required interactive behavior include interactions:[{id,kind,requirementId,classification,behavior,proof}]. Use the stable block ID as interaction ID and reference a functional requirement. For tabs, fill proof with every independently tested block requirement, and keep the relevant explicit requirement IDs and checks in the returned JSON. Use no proof field for other interaction kinds. Do not conflate visual scaffolds with external services.'))+$sourceContext,
         syndamorph_collab_output_cap($provider,$model),$sourceImages,'boss',0.0,
-        isset($source['referenceArchive'])?array('sourceArchive'=>$source['referenceArchive']):array()):null;
+        isset($source['referenceArchive'])?array('sourceArchive'=>$source['referenceArchive']):array())):null;
     if(is_wp_error($boss))return $boss;
-    $bossBrief=$designResume['assignment']['requirements']??syndamorph_collab_requirements($boss??'');
+    $bossBrief=$archivedAssignment['requirements']??syndamorph_collab_requirements($boss??'');
     if(is_wp_error($bossBrief))return $bossBrief;
     $specification=$bossBrief['specification'];
     $specificationReceipt=syndamorph_production_specification_receipt($specification,$brief,$viewports,$source);
-    if($designResume!==null&&$specificationReceipt!==$designResume['assignment']['specificationReceipt'])
+    if($archivedAssignment!==null&&$specificationReceipt!==$archivedAssignment['specificationReceipt'])
         return new WP_Error('sm_resume_design_receipt','The archived assignment does not match the brief, source and required widths.');
     $interactions=$specification['interactions']??array();
     $classifiedRequirements=array_column($interactions,'requirementId');
@@ -668,26 +669,26 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
     $touchScenarios=syndamorph_production_touch_scenarios($GLOBALS['syndamorph_touch_receipts']);
     $touchContext=$touchScenarios?array('touchScenarios'=>$touchScenarios):array();
     $outputs['boss']=wp_json_encode($bossBrief);
-    if($on_event&&$designResume===null)$on_event('job_title',array('title'=>$bossBrief['title']));
+    if($on_event&&$archivedAssignment===null)$on_event('job_title',array('title'=>$bossBrief['title']));
     $assignment=array('from'=>'boss','to'=>'designer','type'=>'assignment',
         'requirements'=>$bossBrief,'briefSha256'=>$specificationReceipt['briefSha256'],
         'specificationReceipt'=>$specificationReceipt)+$touchContext;
-    if($on_event&&$designResume===null)$on_event('handoff',$assignment);
+    if($on_event&&$archivedAssignment===null)$on_event('handoff',$assignment);
 
     // Designer owns the visual deliverable; Boss reviews real browser evidence
     // before the Developer receives the approved reference.
-    $reference=$designResume['referenceHtml']??$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Use the 1440px view for design identity and adapt continuously through 375px. Account for required checkpoints, neighboring breakpoint widths, and intermediate sizes. Use fluid containers and type while preserving content, hierarchy and required states. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.'.$sourceNote.$tabsDesignNote,
+    $reference=$resume['referenceHtml']??$call('designer','Build ONE self-contained semantic HTML section with scoped CSS as the visual benchmark. Use the 1440px view for design identity and adapt continuously through 375px. Account for required checkpoints, neighboring breakpoint widths, and intermediate sizes. Use fluid containers and type while preserving content, hierarchy and required states. Implement only native-compatible design features. Include the requested complete sections with finished content, no external assets, scripts, JS or markdown. Respect the native layout contract. Return only the HTML artifact.'.$sourceNote.$tabsDesignNote,
         array('brief'=>$brief,'requirements'=>$bossBrief)+$sourceContext+$touchContext,
         syndamorph_collab_output_cap($provider,$model),$sourceImages);
     if(is_wp_error($reference))return $reference;
     $approval=array('decision'=>'rejected','issues'=>array());
     $approvedReference=false;$designReviews=0;$handoffs=array($assignment);
-    $priorDesignMeasurements=null;$priorDesignReview=null;$priorDesignDiff=$designResume['surgery']??null;
+    $priorDesignMeasurements=null;$priorDesignReview=null;$priorDesignDiff=$resume['surgery']??null;
     $priorDesignImageHashes=null;$designSeenStates=array();
     $pendingToolEvidence=null;$toolRequestKeys=array();$reviewEvidenceSeen=array();$toolRequestCount=0;
     $responsiveReceipts=array();$designTrial=null;$responsive=null;$savedDesigns=array();
-    if($designResume!==null)$savedDesigns[$designResume['archivedSha256']]=true;
-    for($designRound=$designResume['round']??1;;$designRound++){
+    if(isset($resume['archivedSha256']))$savedDesigns[$resume['archivedSha256']]=true;
+    for($designRound=$resume['round']??1;;$designRound++){
         $control=syndamorph_job_control_gate();
         if(is_wp_error($control))return $control;
         $reference=trim($reference);
@@ -759,9 +760,9 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         }
         $reviewContext+=$touchContext;
         $reviewContext['continuousResponsive']=$responsive;
-        if($designResume!==null&&$designReviews===0)$reviewContext['checkpointRecovery']=array(
+        if(isset($resume['archivedSha256'])&&$designReviews===0)$reviewContext['checkpointRecovery']=array(
             'previousTask'=>'final_approval','previousOutcome'=>'transport_failure',
-            'archivedSha256'=>$designResume['archivedSha256'],'surgery'=>$designResume['surgery']);
+            'archivedSha256'=>$resume['archivedSha256'],'surgery'=>$resume['surgery']);
         $browserFacts=syndamorph_design_browser_facts($inspectReference,$specification);
         $reviewContext['browserFacts']=$browserFacts;
         $browserChecks=array();

@@ -145,6 +145,20 @@ GEN-000055 now retains the patched artifact and separate native, interaction, ed
 
 The v0.12.8 offline matrix ran with the archived BKKGO negative control. All 28 deterministic defects were held, six controls advanced, and the four trust cases retained their expected guards. This replay used zero paid calls. The historical live statistic remains the recorded 11/12 distinct detections, 14/14 holds, and 4/4 clean passes.
 
+## v0.12.14 saved planning and paragraph evidence
+
+The live SIP & DINE Section exposed a 240-character limit on browser checks. Its 253-character paragraph was rejected before Designer started. The parser now accepts bounded paragraph-sized text and retains a valid optional selector. The renderer measures the literal text within the selected element, including longer or nested copy. Incomplete selected-element evidence stays uncertain. A matching phrase outside an explicitly selected paragraph cannot satisfy the check.
+
+The initial GEN-000056 result contained one complete Bossy planning response, with SHA-256 `916a81935ec0da765daf0eb4258c521b8c9901bb2e8b0b728986bde27fac227e`. The exact archived response now validates and verifies the intro paragraph at 1440 px. Scoped recovery can continue from such an archive when the prior attempt ended at the check parser, the work order now validates, and pinned source, pricing and usage also match. Recovery uses the original GEN and budget.
+
+The live continuation ran Designer and Bossy on the same GEN after the saved planning response. Its retained design `1652f3882745d1238fd6d8a4d37c30de8f4709c0fbb9590a49d85b0a134ff12e` passed exact source markup. Visual differences measured 7.406%, 56.881%, and 46.662%. Bossy requested a design decision for the compact clipped card strip and reported missing Beausite faces and desktop typography collision. Developer did not start. Three metered requests, including the initial planning call, cost an estimated USD 0.018427.
+
+The current GEN-000055 recovery candidate `d6a34bf308973d05e47a9f458d56baa7485d04ba81eef8357b5ff5b6d1a454b4` removes a theme default 19.2 px sibling gap at 375 px in favor of the existing 16 px heading margin. The earlier 48.5 px tab control height remains intact on mobile. All six functional requirements and eight responsive widths passed, together with repeat Gutenberg edit, save, reload and keyboard operation in isolated draft 50. The pixel difference is 0.641%, 1.093%, and 1.753%. The visual gate is still open.
+
+The actual BKKGO Full Page adapter read all 16 pinned regions in REF-000030. Only three were eligible. Assembly returned `sm_scope_empty` and left WordPress without a new BKKGO page because none had a verified native artifact.
+
+The isolated Section and Full Page regression verified both original-GEN recovery paths with 38 mocked model responses and zero paid requests. The fixture's full and first-fold screenshots matched at all three mandatory widths. All eight responsive samples passed, and the same draft persisted through partial assembly, section recovery, and full Gutenberg verification.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens still has a source fidelity and design-review hold. [Design validation audit](bossy-validation-audit.md#v0128-verification)

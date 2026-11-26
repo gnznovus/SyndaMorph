@@ -107,6 +107,7 @@
         const list = node('ol');
         for (const row of targets()) {
             const entry = node('li');
+            const checkpoint = row.recoveryStage;
             const states = {pattern_saved:'Pattern saved',needs_review:'Editor verification pending',uncompleted:'QA pending',completed:'Pattern save pending'};
             entry.append(node('strong', row.label), node('span', ' · ' + (row.id === activeRegion ? 'Running' : states[row.status] || row.status)));
             for (const attempt of row.attempts) entry.append(node('span', ' · ' + attempt.jobId));
@@ -119,17 +120,17 @@
             }
             if (!row.patternId && ['needs_review','completed'].includes(row.status)) entry.append(button('Validate and save pattern', () => finishRegion(row.id)));
             if (row.checkpointAvailable) entry.append(button('Recheck browser', () => recheck(row)));
-            if (row.designReviewRecovery && manifest.costBounded &&
+            if (checkpoint && manifest.costBounded &&
                 Number(manifest.spentUsd) + Number(manifest.unmeteredReserveUsd) < budget() * 0.8) {
-                entry.append(button('Resume design review', async () => {
-                    if (window.confirm('Resume paid design review on the saved job within its original budget?'))
-                        await runRegion(row.id, 'resume_design_review');
+                entry.append(button(checkpoint === 'planning' ? 'Resume from saved work order' : 'Resume design review', async () => {
+                    if (window.confirm('Resume the saved job within its original budget?'))
+                        await runRegion(row.id, 'resume_checkpoint');
                 }));
             }
-            if (manifest.mode === 'section' && row.status === 'failed' && !row.checkpointAvailable && !row.designReviewRecovery && !manifest.layoutAuthorization) entry.append(button('Recapture section evidence', async () => {
+            if (manifest.mode === 'section' && row.status === 'failed' && !row.checkpointAvailable && !checkpoint && !manifest.layoutAuthorization) entry.append(button('Recapture section evidence', async () => {
                 manifest = await request(url(), {action:'recapture'});
             }));
-            if (canSpend() && ['failed','uncompleted'].includes(row.status) && !row.checkpointAvailable && !row.designReviewRecovery) {
+            if (canSpend() && ['failed','uncompleted'].includes(row.status) && !row.checkpointAvailable && !checkpoint) {
                 entry.append(button('Retry section', async () => {
                     if (window.confirm('Start one new paid attempt for this section within the remaining scope budget?')) await runRegion(row.id, 'retry');
                 }));
