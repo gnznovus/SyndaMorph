@@ -1,0 +1,192 @@
+.sm-reveal-layout {
+    background: white;
+    color: #201e1d;
+    font: 400 15px/1.55 "Beausite Classic", system-ui, sans-serif;
+    letter-spacing: normal;
+}
+
+.sm-reveal-layout :is(.wp-block-group, h2, p) {
+    margin: 0;
+}
+
+.sm-reveal-layout .sm-reveal-desktop {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 24px;
+    padding: 96px 60px 120px;
+}
+
+.sm-reveal-layout .sm-reveal-intro {
+    grid-column: 1 / span 4;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.sm-reveal-layout .sm-reveal-kicker {
+    color: #605d5d;
+    font: 700 14px/1.55 "Beausite Fit", sans-serif;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.sm-reveal-layout h2.sm-reveal-title {
+    color: inherit;
+    font: 400 56px/1 "Beausite Grand", serif;
+    letter-spacing: normal;
+}
+
+.sm-reveal-layout .sm-reveal-description {
+    color: #333;
+    font-size: 18px;
+    line-height: 1.6;
+    text-wrap: pretty;
+}
+
+.sm-reveal-layout .sm-reveal-map {
+    aspect-ratio: 4 / 3;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    margin-top: 16px;
+    padding: 12px;
+    background: #eae7e7;
+    color: #605d5d;
+    font-size: 14px;
+}
+
+.sm-reveal-layout .sm-reveal-map-detail {
+    color: #111;
+}
+
+.sm-reveal-layout .sm-reveal-explore {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.sm-reveal-layout .sm-reveal-grid {
+    grid-column: 6 / span 7;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+}
+
+.sm-reveal-layout .sm-reveal-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.sm-reveal-layout .sm-reveal-card:nth-child(even) {
+    margin-top: 64px;
+}
+
+.sm-reveal-layout .sm-reveal-card:focus-visible {
+    outline: 2px solid #201e1d;
+    outline-offset: 3px;
+}
+
+.sm-reveal-layout .sm-reveal-cover {
+    aspect-ratio: 1;
+    position: relative;
+    overflow: hidden;
+    background: #eae7e7;
+}
+
+.sm-reveal-layout .sm-reveal-cover-caption {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    color: #605d5d;
+    font-size: 14px;
+}
+
+.sm-reveal-layout .sm-reveal-panel {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 14px;
+    padding: 28px;
+    opacity: 0;
+    background: rgba(17, 17, 17, .82);
+    color: white;
+    overflow-wrap: anywhere;
+}
+
+.sm-reveal-layout .sm-reveal-card:is(:hover, :focus-visible) .sm-reveal-panel {
+    opacity: 1;
+}
+
+.sm-reveal-layout .sm-reveal-panel-copy {
+    font-size: 18px;
+    text-wrap: pretty;
+}
+
+.sm-reveal-layout .sm-reveal-label {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.sm-reveal-layout .sm-reveal-card-title {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.sm-reveal-layout .sm-reveal-card-detail {
+    color: #605d5d;
+    font-size: 15px;
+}
+
+.sm-reveal-layout .sm-reveal-compact {
+    display: none;
+}
+
+@media (max-width: 1023px) {
+    .sm-reveal-layout .sm-reveal-desktop {
+        display: none;
+    }
+
+    .sm-reveal-layout .sm-reveal-compact {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        padding: 56px 20px;
+    }
+
+    .sm-reveal-layout .sm-reveal-kicker {
+        font-size: 12px;
+    }
+
+    .sm-reveal-layout h2.sm-reveal-title {
+        font-size: 30px;
+    }
+
+    .sm-reveal-layout .sm-reveal-description {
+        font-size: 16px;
+    }
+
+    .sm-reveal-layout .sm-reveal-grid {
+        gap: 12px;
+    }
+
+    .sm-reveal-layout .sm-reveal-compact-card {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .sm-reveal-layout .sm-reveal-card-title {
+        font-size: 16px;
+    }
+
+    .sm-reveal-layout .sm-reveal-map {
+        aspect-ratio: 16 / 9;
+        display: block;
+        margin-top: 0;
+        padding: 10px;
+        font-size: 13px;
+    }
+}

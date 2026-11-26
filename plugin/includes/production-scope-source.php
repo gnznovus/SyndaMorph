@@ -327,7 +327,7 @@ function syndamorph_source_visual(array $reference,array $native,bool $extent=tr
     return array('passed'=>$passed&&syndamorph_visual_pixels_within_limits($strictRatios),'views'=>$comparison);
 }
 
-function syndamorph_source_verify_markup(array $source,array $evidence,?array $originalImages=null): array {
+function syndamorph_source_verify_markup(array $source,array $evidence,?array $originalImages=null,array $revealEvidence=array()): array {
     $verdict=array();
     $profile=syndamorph_source_scroll_profile($source);
     $disclosure=syndamorph_source_disclosure_profile($source);
@@ -345,7 +345,7 @@ function syndamorph_source_verify_markup(array $source,array $evidence,?array $o
         $expectedDisclosures=$disclosure===null?array():array(array('id'=>$disclosure['id'],
             'initial'=>$disclosure['initial'],'panels'=>$disclosure['panels']));
         $controlCount=$disclosure===null?0:count($disclosure['panels']);
-        $controlsSupported=empty($inventory['controls'])||!empty($expectedStrips)||$disclosure!==null;
+        $controlsSupported=empty($inventory['controls'])||!empty($expectedStrips)||$disclosure!==null||($revealEvidence[$width]??false)===true;
         $assets=(empty($inventory['assets'])||$disclosure!==null)&&($literal['assets']??null)===0;
         if($originalImages!==null){
             $expected=$originalImages[$width]??null;

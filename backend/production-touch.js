@@ -400,4 +400,97 @@ async function inspectLinkedImage(page, {width,sourceRef,copySha256}, sealNetwor
     return {...receipt,status:'observed',sourceCopySha256,...state,destinationStatus:'declared',blockedRequestCount:0};
 }
 
-module.exports={ validateTouchActions,inspectTouch,touchTargetId,disclosureRef,inspectDisclosure,inspectImageStrip,inspectLinkedImage };
+/** Replay a bounded pointer reveal and confirm the apparent call to action is inert. */
+async function inspectRevealCards(page,{width,sourceRef,copySha256},sealNetwork) {
+    if(!WIDTHS.includes(width)||page.viewportSize()?.width!==width||!disclosureRef(sourceRef))
+        throw new Error('Invalid reveal evidence request.');
+    const denied=sealNetwork();
+    const sourceCopySha256=digest(await page.evaluate(()=>document.body.innerText.replace(/\s+/gu,' ').trim()));
+    const pending={version:1,width,sourceRef,sourceCopySha256,status:'unknown'};
+    if(sourceCopySha256!==copySha256)return {...pending,reason:'live_source_changed'};
+    const root=page.locator(sourceRef).filter({visible:true});
+    if(await root.count()!==1)return {...pending,reason:'region_not_unique'};
+    const shape=await root.evaluate(region=>{
+        const supported=!region.querySelector('a[href],form,input,select,textarea,button,details,[role=button],'+
+            '[role=tab],iframe,svg,video,object,img,canvas,[tabindex],[draggable=true]');
+        const candidates=[...region.querySelectorAll('*')].filter(node=>node.checkVisibility()&&
+            (typeof node.onclick==='function'||getComputedStyle(node).cursor==='pointer'&&
+                getComputedStyle(node.parentElement).cursor!=='pointer'));
+        const paths=candidates.map(node=>{
+            const path=[];
+            for(let part=node;part!==region;part=part.parentElement)
+                path.unshift(`:nth-child(${[...part.parentElement.children].indexOf(part)+1})`);
+            return path.join(' > ');
+        });
+        return {supported,paths};
+    });
+    if(!shape.supported)return {...pending,reason:'unsupported_reveal_controls'};
+    if(width!==1440)return shape.paths.length||denied.length?{...pending,reason:'compact_actions_present'}:
+        {...pending,status:'observed',modeAtWidth:'static',cards:[],blockedRequestCount:0};
+    if(shape.paths.length<2||shape.paths.length>6)return {...pending,reason:'incorrect_control_count'};
+    let prerequisite=null;
+    // The recorded desktop overlay may occlude the cards. Only dispatch the inert local dismiss action.
+    const dismiss=page.locator('[role=button]').filter({hasText:/^Continue to website(?: →)?$/}).filter({visible:true});
+    if(await dismiss.count()===1&&await dismiss.evaluate(node=>{
+        if(node.closest('a[href],form,[inert]')||node.hasAttribute('formaction'))return false;
+        for(let parent=node.parentElement;parent;parent=parent.parentElement)
+            if(['absolute','fixed'].includes(getComputedStyle(parent).position))return true;
+        return false;
+    })){
+        try{await dismiss.click({timeout:2000});await page.waitForTimeout(300);}catch{return {...pending,reason:'overlay_not_dismissed'};}
+        if(await dismiss.isVisible()||denied.length)return {...pending,reason:'overlay_not_dismissed'};
+        prerequisite='dismissed-local-overlay';
+    }
+    const cards=[];
+    for(const [index,path] of shape.paths.entries()){
+        const card=root.locator(':scope > '+path);
+        const read=()=>card.evaluate(element=>{
+            const cover=element.firstElementChild,panel=cover?.lastElementChild;
+            if(element.tagName!=='DIV'||!cover||!panel||element.children.length!==3||cover.children.length!==2||
+                panel.tagName!=='DIV'||panel.children.length!==2||panel.firstElementChild.tagName!=='P'||
+                panel.lastElementChild.tagName!=='SPAN'||panel.lastElementChild.children.length||
+                getComputedStyle(panel).position!=='absolute')return null;
+            const text=node=>node.textContent.replace(/\s+/gu,' ').trim();
+            const style=getComputedStyle(panel),size=cover.getBoundingClientRect();
+            const copy=[text(cover.firstElementChild),...Array.from(panel.children,text),...Array.from(element.children).slice(1).map(text)];
+            if(copy.some(value=>!value||value.length>900)||size.width>650||size.height>650||size.width<120||size.height<120)return null;
+            return {copy,opacity:Number(style.opacity),hovered:element.matches(':hover'),keyboardReachable:element.tabIndex>=0,
+                paint:style.backgroundImage,color:style.backgroundColor,padding:style.padding,gap:style.gap,
+                extent:[Math.round(size.width),Math.round(size.height)]};
+        });
+        try{
+            if(await card.count()!==1)return {...pending,reason:'reveal_target_lost'};
+            await card.scrollIntoViewIfNeeded({timeout:1800});
+            await page.mouse.move(0,0);
+            await page.waitForTimeout(400);
+            const before=await read();
+            if(!before||before.hovered||before.opacity!==0||before.keyboardReachable)return {...pending,reason:'initial_reveal_state_mismatch'};
+            const screenshot=()=>card.screenshot({animations:'disabled',timeout:2400});
+            const initialSha256=digest(await screenshot());
+            await card.hover({timeout:1800});
+            await page.waitForTimeout(400);
+            const after=await read();
+            if(!after||!after.hovered||after.opacity!==1||JSON.stringify(after.copy)!==JSON.stringify(before.copy))
+                return {...pending,reason:'hover_reveal_not_observed',cardIndex:index,
+                    hovered:after?.hovered??false,opacity:after?.opacity??null};
+            const revealedSha256=digest(await screenshot());
+            if(initialSha256===revealedSha256)return {...pending,reason:'hover_paint_unchanged'};
+            const label=card.locator(':scope > div:first-child > div:last-child > span:last-child');
+            const url=page.url();
+            await label.click({timeout:1800});
+            const clicked=await read();
+            if(denied.length||page.url()!==url||JSON.stringify(clicked)!==JSON.stringify(after))
+                return {...pending,reason:'reveal_label_has_unverified_effects'};
+            await page.mouse.move(0,0);
+            await page.waitForTimeout(400);
+            if(JSON.stringify(await read())!==JSON.stringify(before))return {...pending,reason:'hover_reveal_not_reversible'};
+            const copySha256=digest(JSON.stringify(before.copy));
+            cards.push({id:digest(JSON.stringify([sourceRef,index,copySha256])).slice(0,24),index,copy:before.copy,copySha256,
+                actions:['hover','click-label','leave'],opacity:[0,1,1,0],keyboard:'unavailable-in-source',destination:'absent',
+                paint:after.paint,color:after.color,padding:after.padding,gap:after.gap,extent:after.extent,initialSha256,revealedSha256});
+        }catch{return {...pending,reason:'reveal_replay_failed'};}
+    }
+    return {...pending,status:'observed',modeAtWidth:'hover-reveal',prerequisite,cards,blockedRequestCount:0};
+}
+
+module.exports={ validateTouchActions,inspectTouch,touchTargetId,disclosureRef,inspectDisclosure,inspectImageStrip,inspectLinkedImage,inspectRevealCards };

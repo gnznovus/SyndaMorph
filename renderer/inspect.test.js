@@ -125,6 +125,24 @@ test('existing DOM render endpoint remains available',async()=>{
     assert.match(result.html,/<p>Original mode<\/p>/);
 });
 
+test('native reveal cards need visible keyboard focus and stay inactive at compact widths',async()=>{
+    const cards=[0,1].map(id=>`<div tabindex="0" role="group" aria-label="Card ${id}" data-sm-reveal-card="${id}">`+
+        '<div class="sm-reveal-cover"><p>Cover</p><div class="sm-reveal-panel"><p>Copy</p><p class="sm-reveal-label">Discover</p></div></div>'+
+        '<p>Title</p><p>Detail</p></div>').join('');
+    const markup='<style>.sm-reveal-layout{display:flex;gap:16px;margin:20px}[data-sm-reveal-card]{width:180px}'+
+        '.sm-reveal-cover{position:relative;height:180px}.sm-reveal-panel{position:absolute;inset:0;opacity:0;background:#333;color:white}'+
+        '[data-sm-reveal-card]:is(:hover,:focus-visible) .sm-reveal-panel{opacity:1}'+
+        '[data-sm-reveal-card]:focus-visible{outline:2px solid black}'+
+        '@media(max-width:1023px){[data-sm-reveal-card]{display:none}}</style><section class="sm-reveal-layout">'+cards+'</section>';
+    const {evidence}=await request('/check-reveal-cards',markup,[1440,1023]);
+    assert.deepEqual(evidence[0].proof.keyboard,['0','1']);
+    assert.equal(evidence[0].proof.closed,true);
+    assert.deepEqual(evidence[0].proof.cards.map(c=>c.opacity),[[0,1,1,0],[0,1,1,0]]);
+    assert.deepEqual(evidence[1].proof,{insidePage:true,cards:[],keyboard:[]});
+    const missingFocus=await request('/check-reveal-cards',markup.replace('outline:2px solid black','outline:none'),[1440]);
+    assert.equal(missingFocus.evidence[0].proof,null);
+});
+
 test('browser facts expose painted markers, typography and live fragment semantics',async()=>{
     const html='<section class="hero" style="background:linear-gradient(#18283a,#294c77)">'+
         '<span id="gold-mark" style="display:block;width:2px;height:2px;background:#ffc900" aria-hidden="true"></span>'+

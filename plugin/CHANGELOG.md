@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.40] - 2026-11-27
+
+### Added
+
+- Production Setup can verify an archived desktop reveal grid and compile it into editable Core blocks. The recorded receipt binds each card to its copy, hover and exit states, and inert label. Independent browser QA checks pointer behavior, visible keyboard focus, and absence of reveal controls in the compact variant.
+
+### Verified
+
+- BKKGO Neighborhood passed pinned visual QA with pixel differences of 0.685%, 0.128%, and 0.026% at 1440, 768, and 375 px. Private unsynced Pattern 106 became the seventh verified placement. A copy of the original unpublished draft kept all 297 blocks valid through Gutenberg edit, save and reload. No paid model calls were used.
+
 ## [0.12.39] - 2026-11-27
 
 ### Added

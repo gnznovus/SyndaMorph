@@ -387,6 +387,16 @@ BKKGO Our Story passed its pinned source comparisons at 0%, 0.413% and 0.757%, w
 
 Local private unsynced Pattern 100 retained all 15 editable blocks. Original draft 66 now has six verified placements at source positions 7, 8, 10, 12, 14 and 15. Its exact Gutenberg copy passed an edit, save and reload with all 240 blocks valid, and the original draft retains its editor verification. Whole-page visual QA remains pending with 10 required regions outstanding. No model calls were used.
 
+## v0.12.40 native pointer reveal cards
+
+Recorded Touch verifies each desktop card against the archived region and viewport, captures before and after screenshot fingerprints and measures panel copy, paint, and pointer states. The Neighborhood desktop replay required the local offer overlay to be dismissed. Hover revealed each panel, clicking its Discover label produced no navigation or additional state change, and leaving closed the panel. Both compact source variants had zero interactive targets in this region.
+
+The production compiler maps the measured desktop grid and compact stack to editable Core Group, Heading and Paragraph blocks. Native browser QA checks hover, inert label dispatch, pointer exit and visible keyboard focus in card order. The source cards had no keyboard entry point. The native implementation adds focus access and keeps the compact layout static. Invented destinations and altered source receipts fail QA. A stylesheet change invalidates the measured verdict while preserving the saved blocks.
+
+Neighborhood matched pinned heights of 1253, 1140 and 824 px. Pixel differences were 0.685%, 0.128%, and 0.026% at the required widths. All 14 responsive samples passed. At 1200 and 1024 px the source overflows to 1280 px. The native layout fits those widths, with desktop reveals still available at 1024 px and absent at 1023 px. Both actual pointer and keyboard checks ran in WordPress, and all 57 blocks survived editing a revealed paragraph and reloading.
+
+Local private unsynced Pattern 106 was placed at source position 11. Original draft 66 now has seven verified regions, with all 297 blocks editor-verified on an exact disposable copy. Whole-page QA remains pending with nine regions outstanding. This checkpoint used zero paid model calls.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens and GEN-000055 completed their original jobs. Verified BKKGO Full Page assembly and broader region acceptance remain open. [Design validation audit](bossy-validation-audit.md#v0128-verification)

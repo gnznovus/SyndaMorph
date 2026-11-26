@@ -139,6 +139,12 @@
                     manifest = await request(url(), {action:'verify_image',region:row.id});
                 }));
             }
+            if (row.revealReplayAvailable && (row.status === 'blocked' || (row.status === 'uncompleted' && row.patternId))) {
+                entry.append(button('Verify native reveal cards', async () => {
+                    manifest = await request(url(), {action:'stage_reveal_layout',region:row.id});
+                    if (!row.patternId) await finishRegion(row.id);
+                }));
+            }
             if (row.checkpointAvailable) entry.append(button('Recheck browser', () => recheck(row)));
             if (checkpoint && manifest.costBounded &&
                 Number(manifest.spentUsd) + Number(manifest.unmeteredReserveUsd) < budget() * 0.8) {
@@ -190,7 +196,7 @@
     async function finishRegion(id) {
         const candidate = await request(url(), null, {region: id});
         if (!candidate.eligible) throw new Error('This section is still pending source or production QA.');
-        if (candidate.assetKind) {
+        if (candidate.assetKind || candidate.verifiedLayout) {
             const count = window.SyndaMorphAIExport.validateNative(candidate.content);
             manifest = await request(url(), {action:'save_pattern',region:id,checksum:candidate.checksum,blockCount:count,valid:true});
             return;

@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const test=require('node:test');
 const { createHash }=require('node:crypto');
 const { chromium }=require('playwright');
-const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef,inspectImageStrip,inspectLinkedImage }=require('./production-touch');
+const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef,inspectImageStrip,inspectLinkedImage,inspectRevealCards }=require('./production-touch');
 const { recordedPng }=require('./production-reference');
 const { captureResponsiveViewport }=require('./responsive-capture');
 
@@ -86,6 +86,37 @@ test('recorded linked image keeps the exact link and each viewport’s optional 
             assert.equal((await evidence(375)).reason,'unsupported_linked_image_markup');
         }
         assert.equal(destinationRequests,0);
+    }finally{await browser.close();}
+});
+
+test('recorded pointer reveals bind each card and hold a link inside revealed copy',{
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const browser=await chromium.launch();
+    try{
+        const page=await browser.newPage({viewport:{width:1440,height:900}});
+        const cards=[1,2].map(id=>`<div class="card"><div class="cover"><span>Card ${id}</span>`+
+            '<div class="panel"><p>Reveal content</p><span>Discover</span></div></div><div>Title</div><div>Detail</div></div>').join('');
+        const markup='<!doctype html><style>section{margin:24px;display:flex;gap:20px}.card{cursor:pointer;width:180px}'+
+            '.cover{position:relative;height:180px;background:#ccc}.panel{position:absolute;inset:0;opacity:0;background:#333;color:white}'+
+            '.card:hover .panel{opacity:1}.compact{display:none}'+
+            '@media(max-width:1023px){.card{display:none}.compact{display:block}}</style><section id="reveal">'+
+            cards+'<p class="compact">Compact card copy</p></section>';
+        const run=async(width,html)=>{
+            await page.setViewportSize({width,height:900});
+            await page.setContent(html);
+            const copy=await page.locator('body').evaluate(body=>body.innerText.replace(/\s+/gu,' ').trim());
+            return inspectRevealCards(page,{width,sourceRef:'[id="reveal"]',copySha256:createHash('sha256').update(copy).digest('hex')},()=>[]);
+        };
+        const desktop=await run(1440,markup);
+        assert.equal(desktop.status,'observed',JSON.stringify(desktop));
+        assert.deepEqual(desktop.cards.map(c=>c.opacity),[[0,1,1,0],[0,1,1,0]]);
+        assert.ok(desktop.cards.every(c=>c.initialSha256!==c.revealedSha256&&c.destination==='absent'));
+        const compact=await run(375,markup);
+        assert.equal(compact.modeAtWidth,'static');
+        assert.deepEqual(compact.cards,[]);
+        const unsupported=await run(1440,markup.replace('<span>Discover</span>','<a href="/unverified">Discover</a>'));
+        assert.equal(unsupported.reason,'unsupported_reveal_controls');
     }finally{await browser.close();}
 });
 

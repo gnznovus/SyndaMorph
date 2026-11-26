@@ -55,6 +55,62 @@ async function checkImageStrip(page) {
     return proof;
 }
 
+async function checkRevealCards(page) {
+    const layout=page.locator('.sm-reveal-layout');
+    if(await layout.count()!==1)return null;
+    const cards=layout.locator('[data-sm-reveal-card]:visible');
+    const count=await cards.count();
+    const insidePage=await layout.evaluate(()=>document.documentElement.scrollWidth<=innerWidth);
+    if(count===0)return {insidePage,cards:[],keyboard:[]};
+    if(count<2||count>6)return null;
+    const read=card=>card.evaluate(node=>{
+        const cover=node.querySelector(':scope > .sm-reveal-cover'),panel=cover?.querySelector(':scope > .sm-reveal-panel');
+        if(!cover||!panel||node.querySelector('a,button,form,input'))return null;
+        const copy=[cover.firstElementChild,...panel.children,...Array.from(node.children).slice(1)]
+            .map(el=>el.textContent.replace(/\s+/gu,' ').trim());
+        const style=getComputedStyle(panel),box=cover.getBoundingClientRect();
+        return {id:node.getAttribute('data-sm-reveal-card'),copy,opacity:Number(style.opacity),paint:style.backgroundImage,
+            color:style.backgroundColor,padding:style.padding,gap:style.gap,extent:[Math.round(box.width),Math.round(box.height)],
+            focusable:node.tabIndex===0&&node.getAttribute('role')==='group'&&!!node.getAttribute('aria-label'),
+            labelInert:panel.lastElementChild.tabIndex<0};
+    });
+    const results=[];
+    for(const card of await cards.all()){
+        await card.scrollIntoViewIfNeeded({timeout:2000});
+        await page.mouse.move(0,0);
+        const initial=await read(card);
+        if(!initial||initial.opacity!==0||!initial.focusable||!initial.labelInert)return null;
+        await card.hover({timeout:2000});
+        const revealed=await read(card);
+        const label=card.locator('.sm-reveal-label');
+        const url=page.url();
+        await label.click({timeout:2000});
+        const clicked=await read(card);
+        await page.mouse.move(0,0);
+        const left=await read(card);
+        if(!revealed||!clicked||!left||page.url()!==url||
+            JSON.stringify(initial.copy)!==JSON.stringify(revealed.copy)||JSON.stringify(revealed)!==JSON.stringify(clicked)||
+            JSON.stringify(initial)!==JSON.stringify(left))return null;
+        results.push({...revealed,opacity:[initial.opacity,revealed.opacity,clicked.opacity,left.opacity]});
+    }
+    await page.evaluate(()=>{document.body.tabIndex=-1;document.body.focus();});
+    const keyboard=[];
+    for(const card of await cards.all()){
+        await page.keyboard.press('Tab');
+        const focused=await card.evaluate(el=>{
+            const style=getComputedStyle(el);
+            return el===document.activeElement&&el.matches(':focus-visible')&&style.outlineStyle!=='none'&&parseFloat(style.outlineWidth)>=2;
+        });
+        const open=await cards.evaluateAll(nodes=>nodes.filter(el=>Number(getComputedStyle(el.querySelector('.sm-reveal-panel')).opacity)===1)
+            .map(el=>el.getAttribute('data-sm-reveal-card')));
+        if(!focused||open.length!==1||open[0]!==await card.getAttribute('data-sm-reveal-card'))return null;
+        keyboard.push(open[0]);
+    }
+    await page.keyboard.press('Tab');
+    const closed=await cards.evaluateAll(nodes=>nodes.every(el=>getComputedStyle(el.querySelector('.sm-reveal-panel')).opacity==='0'));
+    return {insidePage,cards:results,keyboard,closed};
+}
+
 async function boundedScreenshot(page, width, extent, sourceTop = null) {
     const session = extent ? await page.context().newCDPSession(page) : null;
     try {
@@ -251,7 +307,7 @@ process.stdin.on('end', async () => {
     let crashed = false;
     const evidence = [];
     try {
-        const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, disclosures, imageStrip, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
+        const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, disclosures, imageStrip, revealCards, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
             headless: true, timeout: 10000,
             args: [ '--no-sandbox', '--disable-dev-shm-usage' ],
@@ -268,12 +324,13 @@ process.stdin.on('end', async () => {
         const page = await context.newPage();
         page.on('crash', () => { crashed = true; });
         page.on('popup', (popup) => popup.close().catch(() => {}));
-        if(scrollStrips||disclosures||imageStrip){
+        if(scrollStrips||disclosures||imageStrip||revealCards){
             for(const width of viewports){
                 await page.setViewportSize({width,height:HEIGHT});
                 await page.setContent(html,{waitUntil:'domcontentloaded',timeout:5000});
                 await waitForInstalledFonts(page);
                 if(imageStrip)evidence.push({width,proof:await checkImageStrip(page)});
+                else if(revealCards)evidence.push({width,proof:await checkRevealCards(page)});
                 else evidence.push({width,checks:disclosures?await checkDisclosures(page):await checkScrollStrips(page,html)});
             }
             process.stdout.write(JSON.stringify({evidence}));
