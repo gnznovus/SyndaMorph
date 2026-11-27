@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.60] - 2026-11-28
+
+### Fixed
+
+- The Full Page verifier accepts a single top-level Recorded Header with a checksum-verified local PNG. The isolated preview includes the header stylesheet and frames the logo without fetching it over the network. The WordPress preview loads the existing menu and drawer script.
+
+### Verified
+
+- A separate BKKGO Full Page draft kept all 422 blocks valid through a header edit, save, reload and restoration. The saved draft reproduced the archived closed header within 0.1% at 1440, 768 and 375 px and preserved sticky geometry and local menu behavior. Production placement remains pending.
+
 ## [0.12.59] - 2026-11-27
 
 ### Fixed

@@ -143,21 +143,25 @@ if(function_exists('add_action')){
 }
 
 function syndamorph_image_strip_attachment(WP_HTML_Tag_Processor $tags): ?array {
-    $marker=$tags->get_attribute('data-sm-source-image');
+    $strip=$tags->get_attribute('data-sm-source-image');
+    $header=$tags->get_attribute('data-sm-header-logo');
+    if($strip!==null&&$header!==null)return null;
+    $marker=$strip??$header;
     if(!is_string($marker)||!preg_match('/^([1-9][0-9]{0,9}):([a-f0-9]{64})$/D',$marker,$match))return null;
     $id=(int)$match[1];$hash=$match[2];
-    if($tags->get_attribute('src')!==wp_get_attachment_url($id)||
-        get_post_meta($id,'_syndamorph_source_strip_sha256',true)!==$hash)return null;
+    if($tags->get_attribute('src')!==wp_get_attachment_url($id)||($strip!==null
+        ?get_post_meta($id,'_syndamorph_source_strip_sha256',true)!==$hash
+        :get_post_mime_type($id)!=='image/png'))return null;
     return array($id,$hash);
 }
 
 /** Resolve marked WordPress media to inline bytes for the network-isolated renderer. */
 function syndamorph_image_strip_frame(string $html) {
-    if(!str_contains($html,'data-sm-source-image'))return $html;
+    if(!str_contains($html,'data-sm-source-image')&&!str_contains($html,'data-sm-header-logo'))return $html;
     $tags=new WP_HTML_Tag_Processor($html);
     $bytes=0;$assets=array();$replace=array();
     while($tags->next_tag('IMG')){
-        if($tags->get_attribute('data-sm-source-image')===null)continue;
+        if($tags->get_attribute('data-sm-source-image')===null&&$tags->get_attribute('data-sm-header-logo')===null)continue;
         $image=syndamorph_image_strip_attachment($tags);
         if($image===null)
             return new WP_Error('sm_image_frame','Invalid image evidence marker.');
@@ -166,7 +170,7 @@ function syndamorph_image_strip_frame(string $html) {
             return new WP_Error('sm_image_frame','The required original WordPress image is unavailable.');
         if(!isset($assets[$id])){
             $raw=@file_get_contents(get_attached_file($id,true),false,null,0,524289);
-            if(!is_string($raw)||strlen($raw)>524288||hash('sha256',$raw)!==$hash)
+            if(!is_string($raw)||strlen($raw)>524288||!str_starts_with($raw,"\x89PNG\r\n\x1a\n")||hash('sha256',$raw)!==$hash)
                 return new WP_Error('sm_image_frame','The required original image bytes changed.');
             $assets[$id]='data:image/png;base64,'.base64_encode($raw);
         }

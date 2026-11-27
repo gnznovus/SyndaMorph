@@ -35,12 +35,11 @@ $offerEntrance='<!-- wp:group {"className":"sm-offer-entrance","layout":{"type":
 $offerPost=wp_insert_post(array('post_type'=>'page','post_status'=>'draft','post_title'=>'Desktop Offer fixture',
     'post_content'=>wp_slash($offerBlock."\n\n".$offerEntrance)),true);
 if(is_wp_error($offerPost)||!$offerPost){http_response_code(500);exit('Desktop Offer draft was not created');}
-$headerPost=0;
+$headerPost=0;$scopeHeaderPost=0;
 if(function_exists('register_block_template')&&wp_is_block_theme()){
     $uploaded=array();
-    $logo=syndamorph_import_image_bytes(base64_decode(
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ioAAAAASUVORK5CYII=',true),
-        'native-header-fixture.png',$uploaded,true);
+    $image=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ioAAAAASUVORK5CYII=',true);
+    $logo=syndamorph_import_image_bytes($image,'native-header-fixture.png',$uploaded,true);
     if(is_wp_error($logo)){http_response_code(500);exit('Header fixture image failed');}
     $root='https://example.invalid/';
     $headerNav=array('logoId'=>$logo,'logoAlt'=>'Example logo','homeUrl'=>$root,'rateUrl'=>$root.'rates?a=1&b=2',
@@ -65,6 +64,26 @@ if(function_exists('register_block_template')&&wp_is_block_theme()){
         'post_content'=>wp_slash(implode("\n\n",array($headerBlock,$offerEntrance,$spacer)))),true);
     if(is_wp_error($headerPost)||!$headerPost){http_response_code(500);exit('Recorded Header draft was not created');}
     update_post_meta($headerPost,'_wp_page_template','production-canvas');
+    $hash=hash('sha256',$image);
+    $scopeBlock=get_comment_delimited_block_content('syndamorph/recorded-header',
+        array('navigation'=>$headerNav,'logoSha256'=>$hash),'');
+    $scopeContent=implode("\n\n",array($scopeBlock,$offerEntrance,$spacer));
+    $document=syndamorph_scope_document($scopeContent,'Full Page header fixture');
+    $isolated=syndamorph_image_strip_frame($document);
+    $changed=str_replace($hash,str_repeat('0',64),$scopeBlock);
+    $nested='<!-- wp:group --><div class="wp-block-group">'.$scopeBlock.'</div><!-- /wp:group -->';
+    if(syndamorph_scope_block_count(parse_blocks($scopeContent))!==4||
+        syndamorph_scope_block_count(parse_blocks($headerBlock))!==-1||
+        syndamorph_scope_block_count(parse_blocks($changed))!==-1||
+        syndamorph_scope_block_count(parse_blocks($nested))!==-1||
+        syndamorph_scope_block_count(parse_blocks($scopeBlock.$scopeBlock))!==-1||
+        is_wp_error($isolated)||substr_count($isolated,'data:image/png;base64,'.base64_encode($image))!==3||
+        !is_wp_error(syndamorph_image_strip_frame(syndamorph_scope_document($changed,'Changed logo')))){
+        http_response_code(500);exit('Full Page header evidence was lost or invalid evidence passed.');
+    }
+    $scopeHeaderPost=wp_insert_post(array('post_type'=>'page','post_status'=>'draft','post_title'=>'Full Page header fixture',
+        'post_content'=>wp_slash($scopeContent),'meta_input'=>array('_syndamorph_scope_key'=>'0:page')),true);
+    if(is_wp_error($scopeHeaderPost)||!$scopeHeaderPost){http_response_code(500);exit('Full Page header draft was not created');}
 }
 $button=array('type'=>'button','text'=>'CTA label','href'=>'#reservations');
 $wrap=static fn(array $child,array $style=array())=>array('type'=>'buttons','style'=>$style,'children'=>array($child));
@@ -197,4 +216,4 @@ header('Content-Type: text/html; charset=utf-8');
 ?><!doctype html><html><head><meta charset="utf-8"><?php
 wp_enqueue_script('wp-block-library');
 wp_print_scripts(array('wp-block-library','syndamorph-tabs-editor'));
-?></head><body><script src="/wp-content/plugins/syndamorph/assets/production-ai-export.js"></script><script>window.nativeFixture=<?php echo wp_json_encode($artifact,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeFixtures=<?php echo wp_json_encode($fixtures,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeParity=<?php echo wp_json_encode($parity,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.tabsPost=<?php echo (int)($tabsPost->ID??0); ?>;window.tabsContent=<?php echo wp_json_encode($tabsPost->post_content??'',JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeAlignments=<?php echo wp_json_encode($alignments,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.bookingPost=<?php echo (int)get_option('syndamorph_test_booking_post',0); ?>;window.offerPost=<?php echo (int)$offerPost; ?>;window.headerPost=<?php echo (int)$headerPost; ?>;</script></body></html>
+?></head><body><script src="/wp-content/plugins/syndamorph/assets/production-ai-export.js"></script><script>window.nativeFixture=<?php echo wp_json_encode($artifact,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeFixtures=<?php echo wp_json_encode($fixtures,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeParity=<?php echo wp_json_encode($parity,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.tabsPost=<?php echo (int)($tabsPost->ID??0); ?>;window.tabsContent=<?php echo wp_json_encode($tabsPost->post_content??'',JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeAlignments=<?php echo wp_json_encode($alignments,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.bookingPost=<?php echo (int)get_option('syndamorph_test_booking_post',0); ?>;window.offerPost=<?php echo (int)$offerPost; ?>;window.headerPost=<?php echo (int)$headerPost; ?>;window.scopeHeaderPost=<?php echo (int)$scopeHeaderPost; ?>;</script></body></html>

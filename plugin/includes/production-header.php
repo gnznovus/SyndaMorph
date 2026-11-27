@@ -106,8 +106,11 @@ function syndamorph_recorded_header_render( array $attributes ): string {
     $source = wp_get_attachment_url( $data['logoId'] );
     if ( ! $source ) { return ''; }
     $id = wp_unique_id( 'sm-header-' );
+    $hash = $attributes['logoSha256'] ?? null;
+    $marker = is_string( $hash ) && preg_match( '/^[a-f0-9]{64}$/D', $hash )
+        ? ' data-sm-header-logo="' . esc_attr( $data['logoId'] . ':' . $hash ) . '"' : '';
     $logo = '<a class="sm-header-logo" href="' . esc_url( $data['homeUrl'] ) . '">' .
-        '<img src="' . esc_url( $source ) . '" alt="' . esc_attr( $data['logoAlt'] ) . '" decoding="sync"></a>';
+        '<img src="' . esc_url( $source ) . '" alt="' . esc_attr( $data['logoAlt'] ) . '" decoding="sync"' . $marker . '></a>';
     $check_rate = '<a class="sm-header-rate" href="' . esc_url( $data['rateUrl'] ) . '" target="_blank" rel="noopener noreferrer">' .
         esc_html( $data['rateLabel'] ) . '</a>';
 
@@ -170,7 +173,8 @@ add_action( 'init', static function (): void {
     wp_register_style( 'syndamorph-header', $url( 'production-header.css' ), array(), $version( 'production-header.css' ) );
     register_block_type( 'syndamorph/recorded-header', array(
         'api_version' => 3, 'title' => 'Recorded Header', 'category' => 'design',
-        'attributes' => array( 'navigation' => array( 'type' => 'object', 'default' => array() ) ),
+        'attributes' => array( 'navigation' => array( 'type' => 'object', 'default' => array() ),
+            'logoSha256' => array( 'type' => 'string' ) ),
         'supports' => array( 'html' => false, 'multiple' => false, 'customClassName' => false ),
         'editor_script' => 'syndamorph-header-editor', 'view_script' => 'syndamorph-header-view',
         'style' => 'syndamorph-header', 'render_callback' => 'syndamorph_recorded_header_render',

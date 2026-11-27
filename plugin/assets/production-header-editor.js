@@ -45,7 +45,7 @@
         title: 'Recorded Header',
         category: 'design',
         icon: 'menu',
-        attributes: { navigation: { type: 'object', default: {} } },
+        attributes: { navigation: { type: 'object', default: {} }, logoSha256: { type: 'string' } },
         supports: { html: false, multiple: false, customClassName: false },
         edit({ attributes, setAttributes }) {
             const props = useBlockProps();
@@ -54,7 +54,10 @@
             const languages = data.languages ?? [];
             return h('div', props,
                 h(MediaUploadCheck, null, h(MediaUpload, { allowedTypes: ['image'], value: data.logoId,
-                    onSelect: image => setAttributes({ navigation: { ...data, logoId: image.id, logoAlt: image.alt } }),
+                    onSelect: image => setAttributes({
+                        navigation: { ...data, logoId: image.id, logoAlt: image.alt },
+                        logoSha256: image.id === data.logoId ? attributes.logoSha256 : undefined,
+                    }),
                     render: ({ open }) => h(Button, { variant: 'secondary', onClick: open },
                         data.logoId ? 'Replace header logo' : 'Choose header logo') })),
                 field('logoAlt', 'Logo alt text', data.logoAlt, value => set('logoAlt', value)),

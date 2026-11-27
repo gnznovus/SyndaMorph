@@ -201,6 +201,10 @@ function syndamorph_block_plan_expected(string $reason,string $field,string $blo
 function syndamorph_native_core_preview(array $blocks,?array $ids=null,bool $pageWidth=false): string {
     $index=0;$types=array();
     $annotate=static function(array $block)use(&$annotate,&$index,&$types,$ids):array {
+        if($block['blockName']==='syndamorph/recorded-header'&&$ids===null){
+            $types[$block['blockName']]=true;
+            return $block;
+        }
         if($block['blockName']==='syndamorph/tabs'){
             $types[$block['blockName']]=true;
             if($ids!==null){

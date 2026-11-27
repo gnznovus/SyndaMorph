@@ -159,6 +159,14 @@ History stores source receipt 23360, browser QA 23362 and the exact Gutenberg sa
 
 REF-000030 remains partial while the header, hero, offer, relocated intro, newsletter and footer still need production placement. The renderer and capture backend must be updated together with the plugin for this new replay. No model calls were made.
 
+### v0.12.60 Recorded Header in the Full Page canvas
+
+The Full Page block verifier accepts one top-level Recorded Header with a pinned local PNG and rejects a changed logo, a nested header or a duplicate. The WordPress preview uses the existing header script. The network-isolated inspection path frames the original logo bytes after checking the attachment path, PNG signature and checksum.
+
+Local unpublished draft 220 combines the retained BKKGO header with the ten already accepted regions in a separate copy of draft 66. All 422 blocks and the pinned logo survived a real Gutenberg edit, save, reload and restoration. Gutenberg rewrote some surrounding block markup, so visual and interaction checks ran again against the exact saved draft. History event 23370 binds that draft's SHA-256 `c150a09db397f27f9b746b8bcfa1a3acdb826aed7e5ecf23154be167accf41d7` to source checkpoint 12132.
+
+Closed header crops measured 0.097%, 0.043% and 0.015% differing pixels at 1440, 768 and 375 px. The header stayed at y=0 at scroll positions 0, 500, 1400 and 3000. Chromium exercised the desktop flyout and language panel and the compact drawer, including Escape and focus restoration, with zero external requests. Production binding and placement remain pending. REF-000030 retains its ten accepted placements. No model calls were made.
+
 History event 23342 binds draft 184 and its saved content SHA-256 `ed7bda9ee638f5b7850c01c87246a01efc2c7bb1bc93529c2368debbda2caa6e` to the native test. Event 23343 records compact source evidence against checkpoints 12136 and 12137.
 
 ### SIP & DINE alignment checkpoint, v0.12.42

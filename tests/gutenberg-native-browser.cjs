@@ -138,7 +138,7 @@ async function verifyDesktopOffer(page, post) {
  console.log('PASS: editable Desktop Offer retains its responsive lifecycle through Gutenberg save and reload.');
 }
 
-async function verifyRecordedHeader(page, post) {
+async function verifyRecordedHeader(page, post, canvasSelector = '.sm-production-canvas') {
  if(!post)return;
  await page.goto(origin+'/wp-admin/post.php?post='+post+'&action=edit');
  const field=page.frameLocator('iframe[name="editor-canvas"]').getByRole('textbox',{name:'Compact booking display label'});
@@ -153,11 +153,12 @@ async function verifyRecordedHeader(page, post) {
  assert.equal(await page.evaluate(()=>wp.data.select('core/block-editor').getBlocks().every(block=>block.isValid)),true);
  await page.setViewportSize({width:1440,height:900});
  await page.goto(origin+'/?page_id='+post+'&preview=true');
- const canvas=page.locator('.sm-production-canvas');
+ const canvas=page.locator(canvasSelector);
  const header=canvas.locator('[data-sm-header]');
  await header.waitFor();
  assert.equal(await canvas.locator('header').count(),1);
  assert.equal((await header.boundingBox()).height,141);
+ assert.equal(await header.locator('.sm-header-desktop img').evaluate(img=>img.complete && img.naturalWidth>0),true);
  await page.evaluate(()=>window.scrollTo(0,250));
  assert.equal((await header.boundingBox()).y,0);
  await page.evaluate(()=>window.scrollTo(0,0));
@@ -301,7 +302,8 @@ async function verifySectionWidths(page, sections) {
    try{validate(gen9.replace(' has-custom-font-size',''));}catch(e){missingFontClassRejected=/serialization invalid/.test(e.message);}
    const tabBlocks=window.tabsPost?validate(window.tabsContent):0;
    return {initial,count,registered,expected:a.blockCount,rejected,cases,missingFontClassRejected,tabBlocks,
-    tabsPost:window.tabsPost,bookingPost:window.bookingPost,offerPost:window.offerPost,headerPost:window.headerPost,sections:window.nativeAlignments};
+    tabsPost:window.tabsPost,bookingPost:window.bookingPost,offerPost:window.offerPost,headerPost:window.headerPost,
+    scopeHeaderPost:window.scopeHeaderPost,sections:window.nativeAlignments};
   });
   console.log({...result,sections:Object.keys(result.sections)});
   assert.ok(result.initial<=1,'Only the custom tabs block should be registered before the native validator sets up core.');
@@ -394,6 +396,7 @@ async function verifySectionWidths(page, sections) {
   await verifyBooking(page,result.bookingPost);
   await verifyDesktopOffer(page,result.offerPost);
   await verifyRecordedHeader(page,result.headerPost);
+  await verifyRecordedHeader(page,result.scopeHeaderPost,'#syndamorph-page');
   await verifySectionWidths(page,result.sections);
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

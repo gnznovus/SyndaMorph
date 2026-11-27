@@ -1546,6 +1546,12 @@ function syndamorph_scope_document(string $content,string $title): string {
     $body=syndamorph_native_core_preview($blocks);
     $runtime=str_contains($body,'data-sm-room-photo=')?'<script defer src="'.esc_url(add_query_arg('ver',syndamorph_rooms_fingerprint(),
         plugins_url('assets/production-rooms-view.js',dirname(__DIR__).'/syndamorph.php'))).'"></script>':'';
+    if(in_array('syndamorph/recorded-header',array_column($blocks,'blockName'),true)){
+        $asset='assets/production-header-view.js';
+        $plugin=dirname(__DIR__).'/syndamorph.php';
+        $runtime.='<script defer src="'.esc_url(add_query_arg('ver',filemtime(dirname($plugin).'/'.$asset),
+            plugins_url($asset,$plugin))).'"></script>';
+    }
     return '<!doctype html><html lang="'.esc_attr(get_bloginfo('language')).'"><head><meta charset="utf-8">'.
         '<meta name="viewport" content="width=device-width,initial-scale=1"><title>'.esc_html($title).'</title>'.
         '<style>'.syndamorph_native_visibility_css().'</style></head>'.
@@ -1678,14 +1684,24 @@ function syndamorph_scope_verify_page(array $manifest,string $checksum,int $coun
     return syndamorph_scope_finish_page($manifest);
 }
 
-function syndamorph_scope_block_count(array $nodes): int {
-    $total=0;
+function syndamorph_scope_block_count(array $nodes,bool $root=true): int {
+    $total=0;$recordedHeader=false;
     foreach($nodes as $node) {
         if(($node['blockName']??null)===null&&trim($node['innerHTML']??'')==='')continue;
         $name=$node['blockName']??'';
+        if($name==='syndamorph/recorded-header'){
+            $data=syndamorph_header_content($node['attrs']['navigation']??null);
+            $hash=$node['attrs']['logoSha256']??null;
+            if(!$root||$recordedHeader||!$data||!is_string($hash)||!preg_match('/^[a-f0-9]{64}$/D',$hash)||
+                get_post_mime_type($data['logoId'])!=='image/png'||!syndamorph_attachment_has_original($data['logoId'],$hash)||
+                !empty($node['innerBlocks'])||trim($node['innerHTML']??'')!=='')return -1;
+            $recordedHeader=true;
+            $total++;
+            continue;
+        }
         if(!str_starts_with($name,'core/')&&$name!=='syndamorph/tabs')return -1;
         if($name==='syndamorph/tabs'&&syndamorph_tabs_decode($node['attrs']['panelData']??null)===null)return -1;
-        $children=syndamorph_scope_block_count($node['innerBlocks']??array());
+        $children=syndamorph_scope_block_count($node['innerBlocks']??array(),false);
         if($children<0)return -1;
         $total+=1+$children;
     }
