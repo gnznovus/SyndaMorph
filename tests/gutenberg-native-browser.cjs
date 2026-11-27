@@ -79,6 +79,65 @@ async function verifyBooking(page, post) {
  console.log('PASS: Gutenberg booking edit, save, reload, local actions, and independent instances.');
 }
 
+async function verifyDesktopOffer(page, post) {
+ assert.ok(post, 'Desktop Offer fixture did not save a draft');
+ await page.goto(origin+'/wp-admin/post.php?post='+post+'&action=edit');
+ const title=page.frameLocator('iframe[name="editor-canvas"]').getByRole('textbox',{name:'Offer title',exact:true});
+ await title.waitFor();
+ await title.fill('Edited offer title');
+ await page.waitForFunction(()=>wp.data.select('core/editor').isEditedPostDirty());
+ await page.evaluate(()=>wp.data.dispatch('core/editor').savePost());
+ await page.waitForFunction(()=>wp.data.select('core/editor').didPostSaveRequestSucceed());
+ await page.reload();
+ await title.waitFor();
+ assert.equal(await title.inputValue(),'Edited offer title');
+ const editor=await page.evaluate(()=>wp.data.select('core/block-editor').getBlocks()
+  .map(({name,isValid})=>({name,isValid})));
+ assert.deepEqual(editor,[{name:'syndamorph/desktop-offer',isValid:true},{name:'core/group',isValid:true}]);
+
+ await page.setViewportSize({width:1440,height:900});
+ await page.goto(origin+'/?page_id='+post+'&preview=true');
+ const card=page.getByRole('region',{name:'Edited offer title'});
+ const dismiss=card.getByRole('button',{name:'Continue to website'});
+ const shade=page.locator('.sm-offer-shade');
+ const lead=page.locator('.sm-offer-entrance h2');
+ for(const width of [1440,1024,1023,768,375,1440]){
+  await page.setViewportSize({width,height:900});
+  assert.equal(await card.isVisible(),width>=1024);
+  assert.equal(await shade.isVisible(),width>=1024);
+  assert.equal(await lead.isVisible(),width<1024);
+  if(width>=1024){
+   await page.waitForFunction(()=>Math.abs(document.querySelector('.sm-offer-card').getBoundingClientRect().top-200)<.1);
+   const box=await card.boundingBox();
+   assert.equal(box.width,680);
+  }
+ }
+ const requests=[];
+ const observe=request=>{if(request.isNavigationRequest()||['xhr','fetch'].includes(request.resourceType()))requests.push(request.method());};
+ page.on('request',observe);
+ try {
+  const label=card.getByText('View offer',{exact:true});
+  assert.equal(await label.getAttribute('href'),null);
+  await label.click();
+  await shade.click({position:{x:30,y:250}});
+  await page.keyboard.press('Escape');
+  assert.equal(await card.isVisible(),true);
+  await dismiss.click();
+  assert.equal(await card.isVisible(),false);
+  assert.equal(await lead.isVisible(),true);
+  await page.setViewportSize({width:768,height:900});
+  await page.setViewportSize({width:1440,height:900});
+  assert.equal(await card.isVisible(),false);
+  assert.deepEqual(requests,[]);
+ } finally { page.off('request',observe); }
+ await page.reload();
+ await dismiss.focus();
+ assert.equal(await dismiss.evaluate(button=>button.matches(':focus-visible')),true);
+ await dismiss.press('Enter');
+ assert.equal(await card.isVisible(),false);
+ console.log('PASS: editable Desktop Offer retains its responsive lifecycle through Gutenberg save and reload.');
+}
+
 async function verifySectionWidths(page, sections) {
  await page.setViewportSize({width:1440,height:900});
  await page.goto(origin+'/wp-admin/post-new.php?post_type=page');
@@ -178,7 +237,7 @@ async function verifySectionWidths(page, sections) {
    try{validate(gen9.replace(' has-custom-font-size',''));}catch(e){missingFontClassRejected=/serialization invalid/.test(e.message);}
    const tabBlocks=window.tabsPost?validate(window.tabsContent):0;
    return {initial,count,registered,expected:a.blockCount,rejected,cases,missingFontClassRejected,tabBlocks,
-    tabsPost:window.tabsPost,bookingPost:window.bookingPost,sections:window.nativeAlignments};
+    tabsPost:window.tabsPost,bookingPost:window.bookingPost,offerPost:window.offerPost,sections:window.nativeAlignments};
   });
   console.log({...result,sections:Object.keys(result.sections)});
   assert.ok(result.initial<=1,'Only the custom tabs block should be registered before the native validator sets up core.');
@@ -269,6 +328,7 @@ async function verifySectionWidths(page, sections) {
   }
   await verifyEditableTabs(page,result.tabsPost);
   await verifyBooking(page,result.bookingPost);
+  await verifyDesktopOffer(page,result.offerPost);
   await verifySectionWidths(page,result.sections);
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

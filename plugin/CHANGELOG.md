@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.51] - 2026-11-27
+
+### Added
+
+- Desktop Offer is an editable Gutenberg block with breakpoint-controlled visibility, an inert promotional label and a local dismissal button. A source-marked hero Group can keep its lead text hidden while the offer is open without changing the booking bar.
+
+### Verified
+
+- The unpublished BKKGO trial preserved 426 valid blocks through Gutenberg save and reload. The card matched its archived geometry and measured 0% differing pixels at 1440 px. The combined initial and dismissed hero comparisons still exceeded the visual gate, so Full Page acceptance remains pending. No model calls were made.
+
 ## [0.12.50] - 2026-11-27
 
 ### Added

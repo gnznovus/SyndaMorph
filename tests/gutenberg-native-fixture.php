@@ -21,6 +21,20 @@ $add=static function(string $name,array $children,array $rootStyle=array())use(&
 $heading=array('type'=>'heading','text'=>'Fixture heading');
 $paragraph=array('type'=>'paragraph','text'=>'Plain & editable.');
 $tabsPost=get_post((int)get_option('syndamorph_test_tabs_post',0));
+$offerCopy=array('placeholder'=>'4:5','eyebrow'=>'Special offer','title'=>'Original offer title',
+    'description'=>'An edited promotion with literal <local> copy.','offerLabel'=>'View offer','dismissLabel'=>'Continue to website');
+$offerBlock=get_comment_delimited_block_content('syndamorph/desktop-offer',array('copy'=>$offerCopy),'');
+if(!syndamorph_offer_copy($offerCopy)||syndamorph_offer_copy($offerCopy+array('href'=>'/unsupported'))||
+    syndamorph_offer_copy(array_diff_key($offerCopy,array('dismissLabel'=>true)))||
+    !str_contains(syndamorph_offer_render(array('copy'=>$offerCopy)),'&lt;local&gt;')){
+    http_response_code(500);exit('Invalid Desktop Offer contract');
+}
+$offerEntrance='<!-- wp:group {"className":"sm-offer-entrance","layout":{"type":"flow"}} -->'.
+    '<div class="wp-block-group sm-offer-entrance"><!-- wp:heading -->'.
+    '<h2 class="wp-block-heading">Offer entrance fixture</h2><!-- /wp:heading --></div><!-- /wp:group -->';
+$offerPost=wp_insert_post(array('post_type'=>'page','post_status'=>'draft','post_title'=>'Desktop Offer fixture',
+    'post_content'=>wp_slash($offerBlock."\n\n".$offerEntrance)),true);
+if(is_wp_error($offerPost)||!$offerPost){http_response_code(500);exit('Desktop Offer draft was not created');}
 $button=array('type'=>'button','text'=>'CTA label','href'=>'#reservations');
 $wrap=static fn(array $child,array $style=array())=>array('type'=>'buttons','style'=>$style,'children'=>array($child));
 $add('GEN9 custom CTA font',array($heading,$wrap(array_merge($button,array('style'=>array('color'=>'#18283a','background'=>'#c9a86a','fontSize'=>'1rem','fontWeight'=>600,'lineHeight'=>1.25,'padding'=>array('top'=>'0.875rem','right'=>'1.5rem','bottom'=>'0.875rem','left'=>'1.5rem'),'borderRadius'=>'0.25rem'))))));
@@ -141,4 +155,4 @@ header('Content-Type: text/html; charset=utf-8');
 ?><!doctype html><html><head><meta charset="utf-8"><?php
 wp_enqueue_script('wp-block-library');
 wp_print_scripts(array('wp-block-library','syndamorph-tabs-editor'));
-?></head><body><script src="/wp-content/plugins/syndamorph/assets/production-ai-export.js"></script><script>window.nativeFixture=<?php echo wp_json_encode($artifact,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeFixtures=<?php echo wp_json_encode($fixtures,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeParity=<?php echo wp_json_encode($parity,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.tabsPost=<?php echo (int)($tabsPost->ID??0); ?>;window.tabsContent=<?php echo wp_json_encode($tabsPost->post_content??'',JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeAlignments=<?php echo wp_json_encode($alignments,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.bookingPost=<?php echo (int)get_option('syndamorph_test_booking_post',0); ?>;</script></body></html>
+?></head><body><script src="/wp-content/plugins/syndamorph/assets/production-ai-export.js"></script><script>window.nativeFixture=<?php echo wp_json_encode($artifact,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeFixtures=<?php echo wp_json_encode($fixtures,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeParity=<?php echo wp_json_encode($parity,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.tabsPost=<?php echo (int)($tabsPost->ID??0); ?>;window.tabsContent=<?php echo wp_json_encode($tabsPost->post_content??'',JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeAlignments=<?php echo wp_json_encode($alignments,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.bookingPost=<?php echo (int)get_option('syndamorph_test_booking_post',0); ?>;window.offerPost=<?php echo (int)$offerPost; ?>;</script></body></html>
