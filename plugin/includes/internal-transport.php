@@ -6,6 +6,12 @@ function syndamorph_internal_setting( string $name ) {
     return defined( $name ) ? constant( $name ) : getenv( $name );
 }
 
+function syndamorph_capture_hosts(): array {
+    $configured = syndamorph_internal_setting( 'SYNDAMORPH_CAPTURE_HOSTS' );
+    if ( ! is_string( $configured ) ) { return array(); }
+    return array_filter( array_map( 'trim', explode( ',', strtolower( $configured ) ) ) );
+}
+
 function syndamorph_internal_services(): array {
     return array(
         'backend' => array( 3100, 'SYNDAMORPH_BACKEND_URL', '/capture', 'SYNDAMORPH_BACKEND_TOKEN', 'X-SyndaMorph-Token', 1 ),

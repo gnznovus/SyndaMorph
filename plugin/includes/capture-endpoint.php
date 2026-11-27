@@ -10,7 +10,7 @@ function syndamorph_capture_page( string $url, string $mode, bool $responsive = 
     }
     $url = esc_url_raw( $url );
     $parts = wp_parse_url( $url );
-    $hosts = array_filter( array_map( 'trim', explode( ',', (string) syndamorph_internal_setting( 'SYNDAMORPH_CAPTURE_HOSTS' ) ) ) );
+    $hosts = syndamorph_capture_hosts();
     if ( ! is_array( $parts ) || ! isset( $parts['scheme'], $parts['host'] ) ||
         ! in_array( strtolower( $parts['scheme'] ), array( 'https', 'http' ), true ) ||
         ! in_array( strtolower( $parts['host'] ), $hosts, true ) ||

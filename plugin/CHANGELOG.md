@@ -6,6 +6,12 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.59] - 2026-11-27
+
+### Fixed
+
+- Capture and Production Source share the WordPress source host allowlist. Empty entries cannot match a malformed source URL, and the administrator check reports an empty allowlist even when the backend handshake succeeds.
+
 ## [0.12.58] - 2026-11-27
 
 ### Security

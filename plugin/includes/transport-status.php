@@ -26,6 +26,9 @@ function syndamorph_transport_self_test(): array {
         array( 'service' => 'syndamorph-backend', 'protocol' => 1 ) ) {
         $backend_status = 'The capture protocol did not match.';
     }
+    if ( 'Verified' === $backend_status && ! syndamorph_capture_hosts() ) {
+        $backend_status = 'Capture protocol verified. Configure the WordPress source host allowlist.';
+    }
 
     $widths = array( 375 );
     $renderer = syndamorph_internal_request( 'renderer', 'POST', '/inspect', array(

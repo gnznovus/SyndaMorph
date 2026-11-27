@@ -17,6 +17,11 @@ function transport_expect( bool $ok, string $label ): void {
     if ( ! $ok ) { throw new RuntimeException( $label ); }
 }
 
+putenv( 'SYNDAMORPH_CAPTURE_HOSTS= , Approved.Example,  ' );
+transport_expect( array_values( syndamorph_capture_hosts() ) === array( 'approved.example' ), 'Capture host normalization differed from the backend' );
+putenv( 'SYNDAMORPH_CAPTURE_HOSTS= , ' );
+transport_expect( syndamorph_capture_hosts() === array(), 'Empty capture allowlist accepted a host' );
+
 putenv( 'SYNDAMORPH_BACKEND_TOKEN=backend-transport-test-fixture' );
 putenv( 'SYNDAMORPH_RENDERER_TOKEN=renderer-transport-test-fixture-v1' );
 putenv( 'SYNDAMORPH_GATEWAY_ADMIN_TOKEN=gateway-transport-test-fixture-1' );

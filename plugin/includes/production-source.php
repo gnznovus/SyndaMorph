@@ -7,7 +7,7 @@ function syndamorph_production_source_capture(string $url,?string $sectionId,?ar
     if(!syndamorph_internal_configured('backend'))
         return new WP_Error('sm_source_config','Production capture backend is unavailable.',array('status'=>503));
     $parts=wp_parse_url($url);
-    $hosts=array_map('trim',explode(',',strtolower((string)syndamorph_internal_setting('SYNDAMORPH_CAPTURE_HOSTS'))));
+    $hosts=syndamorph_capture_hosts();
     if(strlen($url)>2048 || !in_array(strtolower($parts['scheme']??''),array('http','https'),true) ||
         !in_array(strtolower($parts['host']??''),$hosts,true)||isset($parts['user'])||isset($parts['pass'])||
         ($sectionId!==null&&!preg_match('/^[a-f0-9]{24}$/D',$sectionId)))
