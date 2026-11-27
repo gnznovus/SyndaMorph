@@ -291,6 +291,77 @@ async function captureOwnedRegion(page,sections,diagnostics,{width,sourceRef,des
     }
 }
 
+/** Replay a compact-only, noninteractive list with small decorative vector badges. */
+async function captureCompactGuarantee(page, sections, diagnostics, {width,sourceRef,copySha256,pinnedSha256}, sealNetwork) {
+    const unknown = reason => ({version:1,width,sourceRef,status:'unknown',reason});
+    const denied = sealNetwork();
+    const hash = value => createHash('sha256').update(value).digest('hex');
+    const readCopy = () => page.evaluate(() => document.body.innerText.replace(/\s+/gu,' ').trim());
+    if (!diagnostics.contentReady || denied.length || hash(await readCopy()) !== copySha256)
+        return unknown('source_changed_during_replay');
+    const receipt = {version:1,width,sourceRef,status:'observed',sourceCopySha256:copySha256,blockedRequestCount:0};
+    const root = page.locator(sourceRef).filter({visible:true});
+    if (width === 1440) {
+        if (await root.count() !== 0) return unknown('visible_at_desktop');
+        return denied.length ? unknown('source_changed_during_replay') : {...receipt,present:false};
+    }
+    const target = sections.find(section => section.sourceRef === sourceRef && section.kind === 'content');
+    const y = Math.round(target?.bounds?.y ?? -1);
+    const height = Math.round(target?.bounds?.height ?? 0);
+    if (!target?.geometryAvailable || target.bounds.x !== 0 || target.bounds.width !== width ||
+        y < 0 || height <= 0 || height > 420 || await root.count() !== 1)
+        return unknown('unsupported_guarantee_geometry');
+    const profile = await root.evaluate(element => {
+        const active = 'a,button,input,select,textarea,form,[role],[tabindex],[contenteditable],[onclick]';
+        if (element.children.length !== 3 || element.closest('a,form,[inert]') ||
+            element.matches(active) || element.querySelector(active))
+            return null;
+        const rows = [...element.children].map(row => {
+            if (row.children.length !== 2) return null;
+            const [icon, words] = row.children;
+            const svg = icon.firstElementChild;
+            if (icon.children.length !== 1 || svg?.localName !== 'svg' || words.children.length !== 2 ||
+                [...words.children].some(line => line.children.length) ||
+                !svg.children.length || svg.children.length > 12 ||
+                [...svg.children].some(shape => !['path','rect','circle','line','polyline','polygon','ellipse'].includes(shape.localName) || shape.children.length))
+                return null;
+            const {width,height} = svg.getBoundingClientRect();
+            if (width !== 20 || height !== 20) return null;
+            return [...words.children].map(line => line.textContent.replace(/\s+/gu,' ').trim());
+        });
+        return rows.every(row => row?.every(text => text && text.length <= 150)) ? rows.flat() : null;
+    });
+    if (!profile) return unknown('unsupported_guarantee_markup');
+    const original = await captureResponsiveViewport(page, sections.filter(section => section === target || section.kind === 'overlay'),
+        width, diagnostics);
+    const composed = original.sections.find(section => section.sourceRef === sourceRef)?.screenshot;
+    if (!composed || hash(Buffer.from(composed,'base64')) !== pinnedSha256) return unknown('pinned_crop_changed');
+
+    // Separate this region from fixed overlays without mutating the archived DOM.
+    await page.evaluate(top => window.scrollTo({top,behavior:'instant'}), Math.max(0,y-128));
+    if (!await root.evaluate(element => {
+        const box = element.getBoundingClientRect();
+        if (box.top < 0 || box.bottom > innerHeight || box.left !== 0 || box.right !== innerWidth) return false;
+        return [box.top+2,box.top+box.height/2,box.bottom-2].every(y =>
+            [2,innerWidth/2,innerWidth-2].every(x => element.contains(document.elementFromPoint(x,y))));
+    })) return unknown('guarantee_occluded');
+    const icons = [];
+    const svg = root.locator('svg');
+    for (let i=0;i<3;i++) {
+        const bytes = await svg.nth(i).screenshot({type:'png',timeout:2500});
+        if (bytes.length > 8192) return unknown('badge_paint_limit');
+        icons.push({asset:{sha256:hash(bytes),bytes:bytes.length,mime:'image/png',
+            pixels:[bytes.readUInt32BE(16),bytes.readUInt32BE(20)]},assetBase64:bytes.toString('base64')});
+    }
+    const session = await page.context().newCDPSession(page);
+    try {
+        const screenshot = await captureImage(session,width,y,height);
+        if (!screenshot || denied.length || hash(await readCopy()) !== copySha256)
+            return unknown('isolated_crop_unverified');
+        return {...receipt,present:true,copy:profile,y,height,pinnedSha256,screenshot,icons};
+    } finally { await session.detach(); }
+}
+
 async function captureResponsiveViewport(page, sections, width, diagnostics, describeSource = null) {
     const session = await page.context().newCDPSession(page);
     try {
@@ -382,4 +453,5 @@ function reconcileResponsive(url, views) {
     return regions;
 }
 
-module.exports = { VIEWPORTS, settleEntrancePaint, captureResponsiveViewport, captureOwnedRegion, captureSettledPair, reconcileResponsive };
+module.exports = { VIEWPORTS, settleEntrancePaint, captureResponsiveViewport, captureOwnedRegion, captureSettledPair,
+    captureCompactGuarantee, reconcileResponsive };

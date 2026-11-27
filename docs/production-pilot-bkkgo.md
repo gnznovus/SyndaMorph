@@ -78,8 +78,8 @@ The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593
 
 - **Discovery** has browser screenshots and visible inventories for 12 of 16 regions at every required width. Four regions have a variant gap. Separate runtime observations are needed before claiming complete behavioral understanding of each interactive region.
 - **Conversion eligibility** is 3 of 16 with v0.12.18. The original preflight overlooked two scroll strips and the corrected v0.12.15 replay held both, leaving 1 of 16. The exact archived controls now qualify under the native scroll-strip contract. A run still requires recorded movement at every active width before Bossy planning.
-- **Current conversion eligibility** is 8 of 16 with v0.12.41. Rooms qualifies through integrated replay of the desktop showcase and compact label strip.
-- **Acceptance** is 8 of 16 as of v0.12.41. REF-000030 has verified Our Story, Exclusive Offers, Rooms, SIP & DINE, Neighborhood, Through Our Lens, FAQ and brand strip at source positions 7, 8, 9, 10, 11, 12, 14 and 15. The unpublished partial draft has 400 editor-verified blocks. Whole-page acceptance remains pending.
+- **Current conversion eligibility** is 9 of 16 with v0.12.56. Rooms qualifies through integrated replay of the desktop showcase and compact label strip. The compact guarantee qualifies through recorded desktop absence, exact compact crops and verified badge assets.
+- **Acceptance** is 9 of 16 as of v0.12.56. REF-000030 has verified the compact guarantee, Our Story, Exclusive Offers, Rooms, SIP & DINE, Neighborhood, Through Our Lens, FAQ and brand strip at source positions 5, 7, 8, 9, 10, 11, 12, 14 and 15. The unpublished partial draft has 416 editor-verified blocks. Whole-page acceptance remains pending.
 
 ### Responsive intro source checkpoint, v0.12.43
 
@@ -141,7 +141,15 @@ Unpublished draft 202 keeps the compact hero, the three guarantee rows and the f
 
 History event 23346 binds the Gutenberg-saved content SHA-256 `eac9174da41217fc84c3390d0aea5495b8573a67786a94784c49d43425d722c6` to source checkpoints 12133, 12136 and 12137 and source visual receipt 23345. All 448 blocks stayed valid through a badge-title edit, save, reload and restoration under an editor account. The first fold and both individual compact crops measured **0% differing pixels** at 768 and 375 px under the existing comparison. Chromium checked compact visibility at 13 widths, including 1024 and 1023 px. Desktop first-fold difference stayed below the 0.5% gate at **0.129%** with the offer open and **0.190%** after dismissal.
 
-Automatic source binding and placement, remaining regions and Full Page acceptance are pending. REF-000030 retains eight accepted placements. This local trial used zero model calls.
+Automatic source binding and placement, remaining regions and Full Page acceptance were pending at this local trial, with eight accepted placements. The trial used zero model calls.
+
+### v0.12.56 compact guarantee in Full Page Production
+
+The archived source replay reproduced the original compact crops before moving the fixed booking strip out of the screenshot by scrolling. At 1440 px it verified that the guarantee is absent. The 768 and 375 px replays returned the same six lines of copy and three decorative badge hashes. The normal Full Page Production action imported those exact PNG bytes and ran separate browser checks for markup, breakpoint visibility, clipping and pixel fidelity.
+
+REF-000030 tied source checkpoint 12136 to replay receipt 23349, browser QA 23351 and Gutenberg receipt 23353. The editable 16-block Pattern 209 is private and unsynced. Its SHA-256 is `236d9df0bd9f87e4bec7d34667bd6282eb8469cba476ec3ac754991d9b09bb3d`. Both compact crops measured **0% differing pixels**, and all 14 native responsive checks passed. The existing assembly path placed it at source position 5 in unpublished draft 66. The other eight accepted Pattern identities remained intact.
+
+The 416-block partial draft passed Gutenberg validation. A byte-exact unpublished copy of Pattern 209 retained all 16 valid blocks and three original attachments through a Gutenberg title edit, save, reload and restoration. The fixed compact booking strip, other missing placements and full-page visual QA remain pending. Source History receipts 23347 and 23348 preserve the newsletter country-picker behavior and separate compact footer visual evidence. No model calls were made.
 
 History event 23342 binds draft 184 and its saved content SHA-256 `ed7bda9ee638f5b7850c01c87246a01efc2c7bb1bc93529c2368debbda2caa6e` to the native test. Event 23343 records compact source evidence against checkpoints 12136 and 12137.
 

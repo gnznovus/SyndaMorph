@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.56] - 2026-11-27
+
+### Added
+
+- Production Setup can replay a compact guarantee against its pinned archive, verify desktop absence and both compact crops, and import three checksum-verified decorative badges as native Images. Saving requires independent visual and responsive checks and exact Gutenberg validation.
+
+### Verified
+
+- REF-000030 saved the guarantee as a private unsynced Pattern and placed it at source position 5. The guarantee measured 0% visual difference at 768 and 375 px and passed 14 native responsive checks. The original partial draft now includes 9 of 16 regions. Full Page QA remains pending. No model calls were made.
+
 ## [0.12.55] - 2026-11-27
 
 ### Added

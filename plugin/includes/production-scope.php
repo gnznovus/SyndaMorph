@@ -7,6 +7,7 @@ require_once __DIR__.'/production-image-strip.php';
 require_once __DIR__.'/production-linked-image.php';
 require_once __DIR__.'/production-reveals.php';
 require_once __DIR__.'/production-rooms.php';
+require_once __DIR__.'/production-compact.php';
 require_once __DIR__.'/production-tabs.php';
 require_once __DIR__.'/production-responsive.php';
 
@@ -38,6 +39,7 @@ function syndamorph_scope_open(string $mode,array $capture) {
             'linkedImageReplayAvailable'=>!empty($capture['referenceArchive']['runtimeSha256'])&&
                 syndamorph_linked_image_inventory($source,$capture['url'])!==null,
             'revealReplayAvailable'=>!empty($capture['referenceArchive']['runtimeSha256'])&&syndamorph_reveal_layout_inventory($source)!==null,
+            'compactGuaranteeReplayAvailable'=>!empty($capture['referenceArchive']['runtimeSha256'])&&syndamorph_compact_guarantee_inventory($source)!==null,
             'roomsReplayAvailable'=>!empty($capture['referenceArchive']['runtimeSha256'])&&syndamorph_rooms_inventory($source)!==null);
     }
     $record=syndamorph_history_create('REF',($mode==='page'?'Full Page · ':'Section · ').$capture['url'],
@@ -243,6 +245,19 @@ function syndamorph_scope_status(array $manifest): array {
     $manifest['unmeteredReserveUsd']=0.0;
     $manifest['outputTokens']=0;
     foreach($manifest['regions'] as &$region) {
+        if(!isset($region['compactGuaranteeReplayAvailable'])&&($region['status']??null)==='blocked'&&
+            !empty($manifest['referenceArchive']['runtimeSha256'])&&count($region['variants']??array())===2&&
+            isset($region['variants'][768],$region['variants'][375])){
+            $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
+            $region['compactGuaranteeReplayAvailable']=$source!==null&&syndamorph_compact_guarantee_inventory($source)!==null;
+        }
+        if(isset($region['compactGuaranteeQa'])&&empty(syndamorph_scope_candidate($manifest,$region['id'])['eligible'])){
+            $region['issue']='The compact source, media or render styles changed and browser QA is pending.';
+            $region['status']=empty($region['patternId'])?'blocked':'uncompleted';
+            $manifest['status']='uncompleted';
+            if(!empty($manifest['page']['allRegions']))
+                $manifest['page']['qa']=array('passed'=>false,'reason'=>$region['issue']);
+        }
         if(!isset($region['imageReplayAvailable'])&&($region['status']??null)==='blocked'&&
             !empty($manifest['referenceArchive']['runtimeSha256'])&&
             in_array('No editable literal text captured at 1440px.',$region['blockers']??array(),true)){
@@ -993,6 +1008,16 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
 function syndamorph_scope_candidate(array $manifest,string $key): ?array {
     if($manifest['mode']==='section'&&$manifest['selected']!==$key)return null;
     $region=$manifest['regions'][$key]??null;
+    if(isset($region['compactGuaranteeQa'])){
+        $receipt=syndamorph_scope_compact_guarantee_receipt($manifest,$region);
+        $content=$receipt?syndamorph_compact_guarantee_content($receipt):null;
+        if($content===null)return null;
+        $checksum=hash('sha256',$content);$qa=$region['compactGuaranteeQa'];
+        $fingerprint=syndamorph_compact_guarantee_fingerprint();
+        return array('verifiedLayout'=>'compactGuarantee','content'=>$content,'checksum'=>$checksum,'hostChecks'=>array(),
+            'eligible'=>($qa['artifactSha256']??null)===$checksum&&!empty($qa['passed'])&&
+                $fingerprint!==null&&($qa['fingerprint']??null)===$fingerprint);
+    }
     if(isset($region['roomsQa'])){
         $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
         $receipt=$source?syndamorph_scope_reveal_receipt($manifest,$region,$source,true):null;
@@ -1061,6 +1086,7 @@ function syndamorph_scope_save_pattern(array $manifest,string $key,?array $image
         $region=$manifest['regions'][$key];
         $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
         $fresh=match($assetKind){
+            'compactGuarantee'=>syndamorph_compact_guarantee_quality($region['compactGuaranteeEvidence'],$candidate['content']),
             'revealLayout'=>syndamorph_reveal_layout_quality($source,$region['revealEvidence'],$candidate['content']),
             'rooms'=>syndamorph_rooms_quality($source,$region['roomsEvidence'],$candidate['content']),
             'linkedEditorial'=>syndamorph_linked_editorial_quality($source,$region['linkedImageEvidence'],$candidate['content']),
@@ -1068,7 +1094,8 @@ function syndamorph_scope_save_pattern(array $manifest,string $key,?array $image
         };
         if(is_wp_error($fresh))return $fresh;
         if(!$fresh['passed'])return syndamorph_scope_error('image_qa','Fresh source section QA remains pending.');
-        $event=match($assetKind){'revealLayout'=>'source_reveal_editor_verified','rooms'=>'source_rooms_editor_verified','linkedEditorial'=>'source_linked_editor_verified',
+        $event=match($assetKind){'compactGuarantee'=>'compact_guarantee_editor',
+            'revealLayout'=>'source_reveal_editor_verified','rooms'=>'source_rooms_editor_verified','linkedEditorial'=>'source_linked_editor_verified',
             default=>'source_image_editor_verified'};
         syndamorph_history_append($manifest['id'],$event,array(
             'region'=>$key,'checkpoint'=>$region['checkpoint'],'editor'=>$imageEditor,'qa'=>$fresh));
@@ -1526,7 +1553,13 @@ function syndamorph_scope_page_qa(array $manifest,WP_Post $page): array {
         return array('passed'=>false,'reason'=>'Pinned full-page viewport evidence is incomplete.');
     foreach($source as $view) {
         $width=$view['width'];
-        $order=array_values(array_map(static fn($region)=>$region['variants'][$width]??null,$manifest['regions']));
+        $order=array();
+        foreach($manifest['regions'] as $key=>$region){
+            $ref=$region['variants'][$width]??null;
+            if($ref===null&&($region['compactGuaranteeEvidence']['views'][$width]['present']??null)===false&&
+                !empty(syndamorph_scope_candidate($manifest,$key)['eligible']))continue;
+            $order[]=$ref;
+        }
         if(($view['order']??null)!==$order)return array('passed'=>false,'reason'=>"Reconstructed section order differs from the source at {$width}px.");
     }
     $html=syndamorph_scope_document($page->post_content,$page->post_title);
@@ -1564,6 +1597,8 @@ function syndamorph_scope_assemble(array $manifest) {
             return syndamorph_scope_error('image_source','The saved region has lost its original asset evidence.');
         if((isset($region['revealLayoutQa'])||isset($region['roomsQa']))&&empty(syndamorph_scope_candidate($manifest,$id)['eligible']))
             return syndamorph_scope_error('reveal_source','The saved reveal layout needs fresh source QA.');
+        if(isset($region['compactGuaranteeQa'])&&empty(syndamorph_scope_candidate($manifest,$id)['eligible']))
+            return syndamorph_scope_error('compact_source','The saved compact guarantee needs fresh source QA.');
         $pattern=get_post($region['patternId']);
         if(!$pattern||$pattern->post_type!=='wp_block'||get_post_meta($pattern->ID,'wp_pattern_sync_status',true)!=='unsynced'||
             !hash_equals($region['artifactSha256'],hash('sha256',$pattern->post_content)))
@@ -1623,7 +1658,8 @@ function syndamorph_scope_verify_page(array $manifest,string $checksum,int $coun
     if($actual!==$count||$count<1||$count>7200)return syndamorph_scope_error('editor','The draft block count differs from Gutenberg verification.');
     if(!empty($manifest['page']['allRegions'])){
         foreach($manifest['regions'] as $key=>$region){
-            if((isset($region['imageStripQa'])||isset($region['linkedEditorialQa'])||isset($region['revealLayoutQa'])||isset($region['roomsQa']))&&
+            if((isset($region['imageStripQa'])||isset($region['linkedEditorialQa'])||isset($region['revealLayoutQa'])||isset($region['roomsQa'])||
+                isset($region['compactGuaranteeQa']))&&
                 empty(syndamorph_scope_candidate($manifest,$key)['eligible'])){
                 $manifest['page']['qa']=array('passed'=>false,'reason'=>'A saved region needs fresh source QA.');
                 break;
@@ -1700,7 +1736,7 @@ add_action('rest_api_init',static function():void {
         }),
         array('methods'=>'POST','permission_callback'=>$permission,'callback'=>static function(WP_REST_Request $request) {
             $action=$request->get_param('action');
-            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_copy_placement','verify_settled_pair','verify_image','stage_image_strip','stage_linked_editorial','stage_reveal_layout','stage_rooms','assemble','verify_page'),true))
+            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_copy_placement','verify_settled_pair','verify_image','stage_image_strip','stage_linked_editorial','stage_reveal_layout','stage_rooms','stage_compact_guarantee','assemble','verify_page'),true))
                 return syndamorph_scope_error('action','Invalid scope action.',400);
             return syndamorph_scope_locked(static function()use($request,$action){
                 $manifest=syndamorph_history_latest((int)$request['id'],'scope_manifest');
@@ -1771,6 +1807,7 @@ add_action('rest_api_init',static function():void {
                         case 'stage_linked_editorial': return syndamorph_scope_stage_asset($manifest,$region,true);
                         case 'stage_reveal_layout': return syndamorph_scope_stage_reveal($manifest,$region);
                         case 'stage_rooms': return syndamorph_scope_stage_reveal($manifest,$region,true);
+                        case 'stage_compact_guarantee': return syndamorph_scope_stage_compact_guarantee($manifest,$region);
                         case 'reuse_section':
                             $sectionId=filter_var($request->get_param('sectionId'),FILTER_VALIDATE_INT,array('options'=>array('min_range'=>1)));
                             if($sectionId===false)return syndamorph_scope_error('reuse_scope','An exact saved Section ID is required.',400);

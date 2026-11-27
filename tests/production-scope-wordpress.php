@@ -125,6 +125,26 @@ if($phase==='setup') {
         }
         $capture['sections'][]=array('id'=>$key,'label'=>$fixture['label'],'kind'=>'content','variants'=>$variants,'sourceRef'=>$variants[1440]['sourceRef']);
     }
+    $guarantee=array('kind'=>'content','sourceRef'=>'div[id="compact-guarantee"]','variants'=>array());
+    $guaranteeCopy=array('First','Terms one','Second','Terms two','Third','Terms three');
+    foreach(array(768,375) as $width){
+        $guarantee['variants'][$width]=array(
+            'sourceRef'=>$guarantee['sourceRef'],'geometryAvailable'=>true,
+            'bounds'=>array('x'=>0,'y'=>0,'width'=>$width,'height'=>$capture['sections'][0]['variants'][$width]['bounds']['height']),
+            'screenshot'=>$capture['sections'][0]['variants'][$width]['screenshot'],
+            'inventory'=>array('position'=>'static','text'=>$guaranteeCopy,'assets'=>array_fill(0,3,array('type'=>'svg')),
+                'controls'=>array(),'links'=>array(),'anchors'=>array()));
+    }
+    scope_expect(syndamorph_compact_guarantee_inventory($guarantee)===$guaranteeCopy,'The compact guarantee lost its literal source profile.');
+    $badGuarantee=$guarantee;
+    $badGuarantee['variants'][375]['inventory']['links'][]=array('href'=>'#terms');
+    scope_expect(syndamorph_compact_guarantee_inventory($badGuarantee)===null,'A linked guarantee was accepted as display only.');
+    $badGuarantee=$guarantee;
+    $badGuarantee['variants'][375]['inventory']['text'][1]='Changed compact text';
+    scope_expect(syndamorph_compact_guarantee_inventory($badGuarantee)===null,'Different viewport copy was accepted as one native guarantee.');
+    $badGuarantee=$guarantee;
+    $badGuarantee['variants'][1440]=$guarantee['variants'][768];
+    scope_expect(syndamorph_compact_guarantee_inventory($badGuarantee)===null,'A desktop variant was silently dropped.');
     $pageDocument=syndamorph_scope_document(implode("\n\n",array_map(static fn($f)=>$f['artifact']['content'],$fixtures)),'Offline reference');
     $whole=scope_ok(syndamorph_scope_inspect($pageDocument,'page'));
     $fold=scope_ok(syndamorph_collab_inspect($pageDocument,SYNDAMORPH_SOURCE_WIDTHS));

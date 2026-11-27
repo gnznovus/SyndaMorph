@@ -6,7 +6,7 @@ const { createHash }=require('node:crypto');
 const { chromium }=require('playwright');
 const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms,inspectRelocatedCopy }=require('./production-touch');
 const { recordedPng }=require('./production-reference');
-const { settleEntrancePaint,captureResponsiveViewport,captureOwnedRegion,captureSettledPair }=require('./responsive-capture');
+const { settleEntrancePaint,captureResponsiveViewport,captureOwnedRegion,captureSettledPair,captureCompactGuarantee }=require('./responsive-capture');
 
 test('Touch actions are limited to server target identities and bounded gestures',()=>{
     assert.throws(()=>validateTouchActions([{type:'click',target:'#submit'}]));
@@ -37,6 +37,42 @@ test('fresh discovery waits for the visible hero entrance and leaves infinite an
             return [style.opacity,style.transform,document.querySelector('#ticker').getAnimations()[0].playState,scrollY];
         });
         assert.deepEqual(paint,['1','matrix(1, 0, 0, 1, 0, 0)','running',0]);
+    }finally{await browser.close();}
+});
+
+test('compact guarantee replay requires desktop absence, the pinned crop and decorative badges',{
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const browser=await chromium.launch();
+    try{
+        const page=await browser.newPage({viewport:{width:375,height:900}});
+        const hash=value=>createHash('sha256').update(value).digest('hex');
+        const width=375,sourceRef='div[id="guarantee"]';
+        const rows=['First','Second','Third'].map(word=>'<div><span><svg width="20" height="20">'+
+            '<rect width="10" height="10"/></svg></span><div><span>'+word+'</span><span>Terms</span></div></div>').join('');
+        await page.setContent('<style>body{margin:0;height:1200px}#guarantee{height:204px}'+
+            '@media(min-width:1024px){#guarantee{display:none}}</style><div id="guarantee">'+rows+'</div>');
+        const sections=[{kind:'content',geometryAvailable:true,sourceRef,bounds:{x:0,y:0,width,height:204}}];
+        const diagnostics={contentReady:true};
+        const original=await captureResponsiveViewport(page,sections,width,diagnostics);
+        const sourceCopy=async()=>hash((await page.locator('body').innerText()).replace(/\s+/gu,' ').trim());
+        const request={width,sourceRef,copySha256:await sourceCopy(),
+            pinnedSha256:hash(Buffer.from(original.sections[0].screenshot,'base64'))};
+        const run=(input,denied=[])=>captureCompactGuarantee(page,sections,diagnostics,input,()=>denied);
+        assert.equal((await run({...request,pinnedSha256:'0'.repeat(64)})).reason,'pinned_crop_changed');
+        assert.equal((await run(request,['blocked'])).reason,'source_changed_during_replay');
+        const accepted=await run(request);
+        assert.equal(accepted.status,'observed',accepted.reason);
+        assert.deepEqual(accepted.copy,['First','Terms','Second','Terms','Third','Terms']);
+        assert.ok(accepted.icons.every(icon=>icon.asset.sha256===hash(Buffer.from(icon.assetBase64,'base64'))));
+        await page.locator('#guarantee').evaluate(root=>root.setAttribute('role','button'));
+        await page.locator('#guarantee div').first().evaluate(row=>row.setAttribute('onclick',''));
+        assert.equal((await run(request)).reason,'unsupported_guarantee_markup');
+        await page.setViewportSize({width:1440,height:900});
+        const desktop={...request,width:1440,copySha256:await sourceCopy(),pinnedSha256:null};
+        assert.equal((await run(desktop)).present,false);
+        await page.locator('#guarantee').evaluate(root=>root.style.display='block');
+        assert.equal((await run({...desktop,copySha256:await sourceCopy()})).reason,'visible_at_desktop');
     }finally{await browser.close();}
 });
 

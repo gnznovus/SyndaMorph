@@ -189,6 +189,12 @@
                     if (!row.patternId) await finishRegion(row.id);
                 }));
             }
+            if (row.compactGuaranteeReplayAvailable && ['blocked','uncompleted'].includes(row.status)) {
+                entry.append(button('Verify archived compact guarantee', async () => {
+                    manifest = await request(url(), {action:'stage_compact_guarantee',region:row.id});
+                    if (!row.patternId) await finishRegion(row.id);
+                }));
+            }
             if (row.checkpointAvailable) entry.append(button('Recheck browser', () => recheck(row)));
             if (checkpoint && manifest.costBounded &&
                 Number(manifest.spentUsd) + Number(manifest.unmeteredReserveUsd) < budget() * 0.8) {
