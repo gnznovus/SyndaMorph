@@ -240,6 +240,9 @@ jobs:
           node --test renderer/inspect.test.js
           node tests/adaptive-surgery-benchmark.cjs
       - name: Real WordPress Gutenberg serialization gate
+        env:
+          SYNDAMORPH_GATEWAY_ADMIN_TOKEN: gateway-ci-admin-token-fixture-v1
+          SYNDAMORPH_GATEWAY_PEPPER: gateway-ci-storage-pepper-fixture-v1
         run: |
           docker compose up -d db wordpress renderer
           trap 'docker compose down -v' EXIT
@@ -259,7 +262,8 @@ jobs:
           cd backend && npx playwright install --with-deps chromium && cd ..
           node tests/gutenberg-native-browser.cjs
           node tests/production-scope-browser.cjs
-          docker compose exec -T wordpress php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; $result = activate_plugin("syndamorph/syndamorph.php"); if (is_wp_error($result)) { exit(1); }'
+          docker compose up -d --wait --wait-timeout 90 backend gateway
+          docker compose exec -T wordpress php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; $result = activate_plugin("syndamorph/syndamorph.php"); if (is_wp_error($result)) { exit(1); } $subscriber = wp_insert_user(["user_login"=>"transport_subscriber","user_pass"=>"subscriber-local-test-password","role"=>"subscriber"]); if (is_wp_error($subscriber)) { exit(1); }'
           node tests/transport-admin-browser.cjs
       - name: Backend runtime packaging
         run: |

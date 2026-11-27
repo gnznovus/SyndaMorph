@@ -5,6 +5,13 @@ const origin = process.env.SM_SCOPE_ORIGIN || 'http://127.0.0.1:8085';
 const target = origin + '/wp-admin/tools.php?page=syndamorph-transport';
 const field = 'syndamorph_check_transport';
 
+async function login(page, user, password) {
+    await page.goto(origin + '/wp-login.php');
+    await page.locator('#user_login').fill(user);
+    await page.locator('#user_pass').fill(password);
+    await Promise.all([page.waitForURL(/\/wp-admin\//), page.locator('#wp-submit').click()]);
+}
+
 async function main() {
     const channel = process.env.SM_BROWSER_CHANNEL;
     const browser = await chromium.launch({ headless: true, ...(channel ? { channel } : {}) });
@@ -14,10 +21,13 @@ async function main() {
         assert.equal(anonymous.status(), 302);
         assert.match(anonymous.headers().location, /wp-login\.php/);
 
-        await page.goto(origin + '/wp-login.php');
-        await page.locator('#user_login').fill('ciadmin');
-        await page.locator('#user_pass').fill('ci-only-test-password');
-        await Promise.all([page.waitForURL(/\/wp-admin\//), page.locator('#wp-submit').click()]);
+        const subscriber = await browser.newPage();
+        await login(subscriber, 'transport_subscriber', 'subscriber-local-test-password');
+        assert.equal((await subscriber.request.get(target)).status(), 403);
+        assert.equal((await subscriber.request.post(target, { form: { [field]: '1' } })).status(), 403);
+        await subscriber.close();
+
+        await login(page, 'ciadmin', 'ci-only-test-password');
         for (const form of [{ [field]: '1' }, { [field]: '1', _wpnonce: 'invalid' }]) {
             const denied = await page.request.post(target, { form });
             assert.equal(denied.status(), 403, 'A missing or invalid nonce must be rejected before admin output');
@@ -32,9 +42,9 @@ async function main() {
         const services = await page.locator('dl dt').allTextContents();
         const statuses = await page.locator('dl dd').allTextContents();
         assert.deepEqual(services, ['Capture', 'Renderer', 'Gateway']);
-        assert.equal(statuses[services.indexOf('Renderer')], 'Verified');
+        assert.deepEqual(statuses, ['Verified', 'Verified', 'Verified']);
         assert.doesNotMatch(await page.content(), /Private renderer check/);
-        console.log('PASS: administrator transport page requires a valid nonce and verifies framed Chromium evidence.');
+        console.log('PASS: administrator transport check verifies Capture, framed Chromium inspection and Gateway. Anonymous, subscriber and invalid-nonce requests are denied.');
     } finally {
         await browser.close();
     }

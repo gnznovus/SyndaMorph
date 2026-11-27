@@ -6,6 +6,12 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.58] - 2026-11-27
+
+### Security
+
+- The WordPress transport regression now requires successful authenticated protocol checks from Capture, Renderer, and Gateway. It also checks that subscribers cannot open or submit the administrator diagnostic.
+
 ## [0.12.57] - 2026-11-27
 
 ### Added
