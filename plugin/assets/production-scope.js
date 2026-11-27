@@ -145,6 +145,12 @@
                     if (!row.patternId) await finishRegion(row.id);
                 }));
             }
+            if (row.roomsReplayAvailable && (row.status === 'blocked' || (row.status === 'uncompleted' && row.patternId))) {
+                entry.append(button('Verify native room showcase', async () => {
+                    manifest = await request(url(), {action:'stage_rooms',region:row.id});
+                    if (!row.patternId) await finishRegion(row.id);
+                }));
+            }
             if (row.checkpointAvailable) entry.append(button('Recheck browser', () => recheck(row)));
             if (checkpoint && manifest.costBounded &&
                 Number(manifest.spentUsd) + Number(manifest.unmeteredReserveUsd) < budget() * 0.8) {

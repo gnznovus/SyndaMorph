@@ -6,6 +6,7 @@ require_once __DIR__.'/production-scope-source.php';
 require_once __DIR__.'/production-image-strip.php';
 require_once __DIR__.'/production-linked-image.php';
 require_once __DIR__.'/production-reveals.php';
+require_once __DIR__.'/production-rooms.php';
 require_once __DIR__.'/production-tabs.php';
 require_once __DIR__.'/production-responsive.php';
 
@@ -36,7 +37,8 @@ function syndamorph_scope_open(string $mode,array $capture) {
             'imageReplayAvailable'=>!empty($capture['referenceArchive']['runtimeSha256'])&&syndamorph_image_strip_inventory($source)!==null,
             'linkedImageReplayAvailable'=>!empty($capture['referenceArchive']['runtimeSha256'])&&
                 syndamorph_linked_image_inventory($source,$capture['url'])!==null,
-            'revealReplayAvailable'=>!empty($capture['referenceArchive']['runtimeSha256'])&&syndamorph_reveal_layout_inventory($source)!==null);
+            'revealReplayAvailable'=>!empty($capture['referenceArchive']['runtimeSha256'])&&syndamorph_reveal_layout_inventory($source)!==null,
+            'roomsReplayAvailable'=>!empty($capture['referenceArchive']['runtimeSha256'])&&syndamorph_rooms_inventory($source)!==null);
     }
     $record=syndamorph_history_create('REF',($mode==='page'?'Full Page · ':'Section · ').$capture['url'],
         array('workflow'=>SYNDAMORPH_SCOPE_WORKFLOW,'mode'=>$mode,'sourceUrl'=>$capture['url']));
@@ -259,6 +261,12 @@ function syndamorph_scope_status(array $manifest): array {
             $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
             $region['revealReplayAvailable']=$source!==null&&syndamorph_reveal_layout_inventory($source)!==null;
         }
+        if(!isset($region['roomsReplayAvailable'])&&($region['status']??null)==='blocked'&&
+            !empty($manifest['referenceArchive']['runtimeSha256'])&&
+            in_array('1440px source actions need a native implementation and functional tests (button, div).',$region['blockers']??array(),true)){
+            $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
+            $region['roomsReplayAvailable']=$source!==null&&syndamorph_rooms_inventory($source)!==null;
+        }
         $linked=isset($region['linkedImageEvidence'])||isset($region['linkedEditorialQa']);
         $assetField=$linked?'linkedImageEvidence':'imageEvidence';
         $qaField=$linked?'linkedEditorialQa':'imageStripQa';
@@ -270,9 +278,10 @@ function syndamorph_scope_status(array $manifest): array {
             ($region[$qaField]['stylesheetSha256']??null)!==hash('sha256',syndamorph_linked_editorial_css());
         $staleReveal=isset($region['revealLayoutQa'])&&
             ($region['revealLayoutQa']['stylesheetSha256']??null)!==hash('sha256',syndamorph_reveal_layout_css());
-        if((isset($region[$qaField])&&($lostImage||$staleStyles))||$staleReveal){
-            $region['issue']=$lostImage&&!$staleReveal?'The original image is unavailable or its bytes changed.':
-                'The native stylesheet changed and browser QA is pending.';
+        $staleRooms=isset($region['roomsQa'])&&($region['roomsQa']['runtimeSha256']??null)!==syndamorph_rooms_fingerprint();
+        if((isset($region[$qaField])&&($lostImage||$staleStyles))||$staleReveal||$staleRooms){
+            $region['issue']=$lostImage&&!$staleReveal&&!$staleRooms?'The original image is unavailable or its bytes changed.':
+                'The native styles or controls changed and browser QA is pending.';
             if(empty($region['patternId']))$region['status']='blocked';
             else{
                 $region['status']='uncompleted';
@@ -984,6 +993,16 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
 function syndamorph_scope_candidate(array $manifest,string $key): ?array {
     if($manifest['mode']==='section'&&$manifest['selected']!==$key)return null;
     $region=$manifest['regions'][$key]??null;
+    if(isset($region['roomsQa'])){
+        $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
+        $receipt=$source?syndamorph_scope_reveal_receipt($manifest,$region,$source,true):null;
+        $content=$receipt?syndamorph_rooms_content($source,$receipt):null;
+        if($content===null)return null;
+        $checksum=hash('sha256',$content);$qa=$region['roomsQa'];
+        return array('verifiedLayout'=>'rooms','content'=>$content,'checksum'=>$checksum,'hostChecks'=>array(),
+            'eligible'=>($qa['artifactSha256']??null)===$checksum&&!empty($qa['passed'])&&
+                ($qa['runtimeSha256']??null)===syndamorph_rooms_fingerprint());
+    }
     if(isset($region['revealLayoutQa'])){
         $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
         $receipt=$source?syndamorph_scope_reveal_receipt($manifest,$region,$source):null;
@@ -1043,12 +1062,13 @@ function syndamorph_scope_save_pattern(array $manifest,string $key,?array $image
         $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
         $fresh=match($assetKind){
             'revealLayout'=>syndamorph_reveal_layout_quality($source,$region['revealEvidence'],$candidate['content']),
+            'rooms'=>syndamorph_rooms_quality($source,$region['roomsEvidence'],$candidate['content']),
             'linkedEditorial'=>syndamorph_linked_editorial_quality($source,$region['linkedImageEvidence'],$candidate['content']),
             default=>syndamorph_image_strip_quality($source,$region['imageEvidence'],$candidate['content']),
         };
         if(is_wp_error($fresh))return $fresh;
         if(!$fresh['passed'])return syndamorph_scope_error('image_qa','Fresh source section QA remains pending.');
-        $event=match($assetKind){'revealLayout'=>'source_reveal_editor_verified','linkedEditorial'=>'source_linked_editor_verified',
+        $event=match($assetKind){'revealLayout'=>'source_reveal_editor_verified','rooms'=>'source_rooms_editor_verified','linkedEditorial'=>'source_linked_editor_verified',
             default=>'source_image_editor_verified'};
         syndamorph_history_append($manifest['id'],$event,array(
             'region'=>$key,'checkpoint'=>$region['checkpoint'],'editor'=>$imageEditor,'qa'=>$fresh));
@@ -1282,65 +1302,69 @@ function syndamorph_scope_stage_asset(array $manifest,string $key,bool $editoria
     return syndamorph_scope_status($manifest);
 }
 
-function syndamorph_scope_reveal_receipt(array $manifest,array $region,array $source): ?array {
-    $receipt=$region['revealEvidence']??array();
+function syndamorph_scope_reveal_receipt(array $manifest,array $region,array $source,bool $rooms=false): ?array {
+    $receipt=$region[$rooms?'roomsEvidence':'revealEvidence']??array();
+    $event=$rooms?'source_rooms_verified':'source_reveal_verified';
     $archive=$manifest['referenceArchive']??null;
     if(($receipt['checkpoint']??null)!==$region['checkpoint']||($receipt['region']??null)!==$region['id']||
         !syndamorph_production_reference_valid($archive,$manifest['sourceUrl'])||($receipt['archiveId']??null)!==$archive['id']||
         ($receipt['sourceSha256']??null)!==hash('sha256',wp_json_encode($source))||!is_int($receipt['event']??null)||
-        syndamorph_scope_checkpoint($manifest['id'],$receipt['event'],'source_reveal_verified')!==array_diff_key($receipt,array('event'=>true)))
+        syndamorph_scope_checkpoint($manifest['id'],$receipt['event'],$event)!==array_diff_key($receipt,array('event'=>true)))
         return null;
     return $receipt;
 }
 
-function syndamorph_scope_stage_reveal(array $manifest,string $key) {
+function syndamorph_scope_stage_reveal(array $manifest,string $key,bool $rooms=false) {
     $region=$manifest['regions'][$key]??null;
-    $existing=isset($region['revealLayoutQa'])&&!empty($region['patternId'])&&($region['status']??null)==='pattern_saved';
+    $qa=$rooms?'roomsQa':'revealLayoutQa';
+    $hashKey=$rooms?'runtimeSha256':'stylesheetSha256';
+    $prefix=$rooms?'source_rooms':'source_reveal';
+    $existing=isset($region[$qa])&&!empty($region['patternId'])&&($region['status']??null)==='pattern_saved';
     if(!$region||(!$existing&&(!empty($region['patternId'])||!in_array($region['status'],array('blocked','needs_review'),true)))||
         !empty($region['attempts'])||($manifest['mode']==='section'&&$manifest['selected']!==$key))
-        return syndamorph_scope_error('reveal_state','This region cannot stage a pointer reveal layout.');
+        return syndamorph_scope_error('reveal_state','This region cannot stage the selected interactive layout.');
     $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
     $archive=$manifest['referenceArchive']??null;
     if(!$source||!syndamorph_production_reference_valid($archive,$manifest['sourceUrl']))
         return syndamorph_scope_error('reveal_source','Pinned reveal source evidence is unavailable.');
     $identity=array('region'=>$key,'checkpoint'=>$region['checkpoint'],'archiveId'=>$archive['id'],
         'sourceSha256'=>hash('sha256',wp_json_encode($source)));
-    $receipt=syndamorph_scope_reveal_receipt($manifest,$region,$source);
+    $receipt=syndamorph_scope_reveal_receipt($manifest,$region,$source,$rooms);
     if($receipt===null){
-        $views=syndamorph_reveal_layout_replay($source,$archive);
+        $views=$rooms?syndamorph_rooms_replay($source,$archive):syndamorph_reveal_layout_replay($source,$archive);
         if(is_wp_error($views)){
-            syndamorph_history_append($manifest['id'],'source_reveal_pending',$identity+array('diagnostic'=>$views->get_error_data()));
+            syndamorph_history_append($manifest['id'],$prefix.'_pending',$identity+array('diagnostic'=>$views->get_error_data()));
             return $views;
         }
         $receipt=$identity+array('views'=>$views);
-        $receipt['event']=syndamorph_history_append($manifest['id'],'source_reveal_verified',$receipt);
-        $manifest['regions'][$key]['revealEvidence']=$receipt;
-        $manifest['regions'][$key]['revealReplayAvailable']=true;
+        $receipt['event']=syndamorph_history_append($manifest['id'],$prefix.'_verified',$receipt);
+        $manifest['regions'][$key][$rooms?'roomsEvidence':'revealEvidence']=$receipt;
+        $manifest['regions'][$key][$rooms?'roomsReplayAvailable':'revealReplayAvailable']=true;
         syndamorph_history_append($manifest['id'],'scope_manifest',$manifest);
     }
-    $content=syndamorph_reveal_layout_content($source,$receipt);
-    if($content===null)return syndamorph_scope_error('reveal_layout','The captured layout is outside the native reveal contract.');
+    $content=$rooms?syndamorph_rooms_content($source,$receipt):syndamorph_reveal_layout_content($source,$receipt);
+    if($content===null)return syndamorph_scope_error('reveal_layout','The captured layout is outside the selected native contract.');
     if($existing){
         $pattern=get_post($region['patternId']);
         if(!$pattern||$pattern->post_type!=='wp_block'||$pattern->post_status!=='private'||$pattern->post_content!==$content||
             ($region['artifactSha256']??null)!==hash('sha256',$content)||get_post_meta($pattern->ID,'wp_pattern_sync_status',true)!=='unsynced')
             return syndamorph_scope_error('pattern_changed','The saved Pattern differs from its editor-verified artifact.');
     }
-    $quality=syndamorph_reveal_layout_quality($source,$receipt,$content);
+    $quality=$rooms?syndamorph_rooms_quality($source,$receipt,$content):syndamorph_reveal_layout_quality($source,$receipt,$content);
     if(is_wp_error($quality)){
-        syndamorph_history_append($manifest['id'],'source_reveal_layout_qa',$identity+array('qa'=>array('passed'=>false,
+        syndamorph_history_append($manifest['id'],$prefix.'_layout_qa',$identity+array('qa'=>array('passed'=>false,
             'status'=>'pending','inspection'=>syndamorph_inspection_diagnostic($quality))));
         return $quality;
     }
-    syndamorph_history_append($manifest['id'],'source_reveal_layout_qa',$identity+array('qa'=>$quality));
-    if(!$quality['passed'])return syndamorph_scope_error('reveal_qa','The reveal layout did not pass independent QA.');
+    syndamorph_history_append($manifest['id'],$prefix.'_layout_qa',$identity+array('qa'=>$quality));
+    if(!$quality['passed'])return syndamorph_scope_error('reveal_qa','The interactive layout did not pass independent QA.');
     if($existing&&!empty($manifest['page']['allRegions'])&&
-        $region['revealLayoutQa']['stylesheetSha256']!==$quality['stylesheetSha256']){
+        $region[$qa][$hashKey]!==$quality[$hashKey]){
         $manifest['page']['qa']=array('passed'=>false,'reason'=>'Reconstructed page visual comparison pending after stylesheet changes.');
         $manifest['status']='uncompleted';
         update_post_meta($manifest['page']['id'],'_syndamorph_scope_manifest',$manifest['page']);
     }
-    $manifest['regions'][$key]['revealLayoutQa']=$quality;
+    $manifest['regions'][$key][$qa]=$quality;
     $manifest['regions'][$key]['status']=$existing?'pattern_saved':'needs_review';
     $manifest['regions'][$key]['blockers']=array();
     syndamorph_history_append($manifest['id'],'scope_manifest',$manifest);
@@ -1432,10 +1456,12 @@ function syndamorph_scope_repin_section(array $manifest,array $capture) {
 function syndamorph_scope_document(string $content,string $title): string {
     $blocks=array_values(array_filter(parse_blocks($content),static fn($block)=>$block['blockName']!==null));
     $body=syndamorph_native_core_preview($blocks);
+    $runtime=str_contains($body,'data-sm-room-photo=')?'<script defer src="'.esc_url(add_query_arg('ver',syndamorph_rooms_fingerprint(),
+        plugins_url('assets/production-rooms-view.js',dirname(__DIR__).'/syndamorph.php'))).'"></script>':'';
     return '<!doctype html><html lang="'.esc_attr(get_bloginfo('language')).'"><head><meta charset="utf-8">'.
         '<meta name="viewport" content="width=device-width,initial-scale=1"><title>'.esc_html($title).'</title>'.
         '<style>'.syndamorph_native_visibility_css().'</style></head>'.
-        '<body><main id="syndamorph-page">'.$body.'</main></body></html>';
+        '<body><main id="syndamorph-page">'.$body.'</main>'.$runtime.'</body></html>';
 }
 
 function syndamorph_scope_page_qa(array $manifest,WP_Post $page): array {
@@ -1481,7 +1507,7 @@ function syndamorph_scope_assemble(array $manifest) {
         if(empty($region['patternId']))continue;
         if((isset($region['imageStripQa'])||isset($region['linkedEditorialQa']))&&empty(syndamorph_scope_candidate($manifest,$id)['eligible']))
             return syndamorph_scope_error('image_source','The saved region has lost its original asset evidence.');
-        if(isset($region['revealLayoutQa'])&&empty(syndamorph_scope_candidate($manifest,$id)['eligible']))
+        if((isset($region['revealLayoutQa'])||isset($region['roomsQa']))&&empty(syndamorph_scope_candidate($manifest,$id)['eligible']))
             return syndamorph_scope_error('reveal_source','The saved reveal layout needs fresh source QA.');
         $pattern=get_post($region['patternId']);
         if(!$pattern||$pattern->post_type!=='wp_block'||get_post_meta($pattern->ID,'wp_pattern_sync_status',true)!=='unsynced'||
@@ -1542,7 +1568,7 @@ function syndamorph_scope_verify_page(array $manifest,string $checksum,int $coun
     if($actual!==$count||$count<1||$count>7200)return syndamorph_scope_error('editor','The draft block count differs from Gutenberg verification.');
     if(!empty($manifest['page']['allRegions'])){
         foreach($manifest['regions'] as $key=>$region){
-            if((isset($region['imageStripQa'])||isset($region['linkedEditorialQa'])||isset($region['revealLayoutQa']))&&
+            if((isset($region['imageStripQa'])||isset($region['linkedEditorialQa'])||isset($region['revealLayoutQa'])||isset($region['roomsQa']))&&
                 empty(syndamorph_scope_candidate($manifest,$key)['eligible'])){
                 $manifest['page']['qa']=array('passed'=>false,'reason'=>'A saved region needs fresh source QA.');
                 break;
@@ -1619,7 +1645,7 @@ add_action('rest_api_init',static function():void {
         }),
         array('methods'=>'POST','permission_callback'=>$permission,'callback'=>static function(WP_REST_Request $request) {
             $action=$request->get_param('action');
-            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_image','stage_image_strip','stage_linked_editorial','stage_reveal_layout','assemble','verify_page'),true))
+            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_image','stage_image_strip','stage_linked_editorial','stage_reveal_layout','stage_rooms','assemble','verify_page'),true))
                 return syndamorph_scope_error('action','Invalid scope action.',400);
             return syndamorph_scope_locked(static function()use($request,$action){
                 $manifest=syndamorph_history_latest((int)$request['id'],'scope_manifest');
@@ -1676,6 +1702,7 @@ add_action('rest_api_init',static function():void {
                         case 'stage_image_strip': return syndamorph_scope_stage_asset($manifest,$region);
                         case 'stage_linked_editorial': return syndamorph_scope_stage_asset($manifest,$region,true);
                         case 'stage_reveal_layout': return syndamorph_scope_stage_reveal($manifest,$region);
+                        case 'stage_rooms': return syndamorph_scope_stage_reveal($manifest,$region,true);
                         case 'reuse_section':
                             $sectionId=filter_var($request->get_param('sectionId'),FILTER_VALIDATE_INT,array('options'=>array('min_range'=>1)));
                             if($sectionId===false)return syndamorph_scope_error('reuse_scope','An exact saved Section ID is required.',400);

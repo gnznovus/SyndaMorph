@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.41] - 2026-11-28
+
+### Added
+
+- Production Setup can verify and compile a recorded Rooms showcase into editable Core blocks. The desktop carousel preserves automatic progression, wraparound, direct photo selection and category resets. Compact widths retain the measured label strip and its scrolling behavior. Its apparent booking links remain inert where the archive showed no destination.
+
+### Verified
+
+- BKKGO Rooms passed pinned visual comparisons at 1440, 768 and 375 px with differences of 0.917%, 0% and 0%. The private unsynced 103-block Pattern became the eighth verified placement. The original unpublished draft passed Gutenberg edit, save and reload with all 400 blocks valid. No paid model calls were used.
+
 ## [0.12.40] - 2026-11-27
 
 ### Added

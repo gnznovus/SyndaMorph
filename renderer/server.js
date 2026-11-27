@@ -89,7 +89,7 @@ function runBrowserWorker(html, viewports, signal, options = {}) {
         child.stdin.on('error', () => {});
         child.stdin.end(JSON.stringify({ html, inspect, viewports, extent:options.extent,sourceFrames:options.sourceFrames,
             tabsRuntime:options.tabsRuntime,scrollStrips:options.scrollStrips,disclosures:options.disclosures,imageStrip:options.imageStrip,
-            revealCards:options.revealCards }));
+            revealCards:options.revealCards,roomsRuntime:options.roomsRuntime }));
     });
 }
 
@@ -129,7 +129,7 @@ function createRendererServer(render = runBrowserWorker) {
             res.end(bytes);
         }
         if (req.method === 'GET' && req.url === '/healthz') return reply(200, diagnostic);
-        if (req.method !== 'POST' || !['/render','/inspect','/compare','/crop','/check-tabs','/check-scroll-strips','/check-disclosures','/check-image-strip','/check-reveal-cards'].includes(req.url))
+        if (req.method !== 'POST' || !['/render','/inspect','/compare','/crop','/check-tabs','/check-scroll-strips','/check-disclosures','/check-image-strip','/check-reveal-cards','/check-rooms'].includes(req.url))
             return reply(404, { error: 'not_found' });
         if (busy) {
             req.resume();
@@ -166,6 +166,11 @@ function createRendererServer(render = runBrowserWorker) {
                 return reply(200,{evidence:await render(body.html,viewports,controller.signal,{imageStrip:true})});
             if(req.url==='/check-reveal-cards')
                 return reply(200,{evidence:await render(body.html,viewports,controller.signal,{revealCards:true})});
+            if(req.url==='/check-rooms'){
+                if(typeof body.runtime!=='string'||!body.runtime||Buffer.byteLength(body.runtime)>16384)
+                    throw new RendererError('invalid_html',400);
+                return reply(200,{evidence:await render(body.html,viewports,controller.signal,{roomsRuntime:body.runtime})});
+            }
             if (body.extent !== undefined && !['section', 'page', 'page-fold'].includes(body.extent)) throw new RendererError('invalid_html', 400);
             const frames=body.sourceFrames;
             if(frames!==undefined&&(body.extent!=='section'||!frames||typeof frames!=='object'||Array.isArray(frames)||

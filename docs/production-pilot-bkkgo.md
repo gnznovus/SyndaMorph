@@ -14,7 +14,7 @@ Playwright Chromium waited for rendered visible content and document fonts at 14
 | Introductory story | Live Thonglor's rhythm ? | Headline moves into the hero and the separate prose is absent | Discovery only. Responsive copy varies by template. |
 | Our story | OUR STORY | OUR STORY | Verified Core Pattern with the original desktop illustration and exact link. |
 | Offers | EXCLUSIVE OFFERS | EXCLUSIVE OFFERS | Discovery only. Visible content differs by template. |
-| Stay | Rooms and carousel controls | STAY | Discovery only. Preserve selector and carousel behavior when present. |
+| Stay | Rooms and carousel controls | STAY | Verified automatic carousel, category selection and compact label scrolling. |
 | Dining | SIP & DINE | SIP & DINE | Discovery only. |
 | Neighborhood | THE NEIGHBORHOOD and map treatment | THE NEIGHBORHOOD | Discovery only. Verify the map implementation and data. |
 | Gallery/social | THROUGH OUR LENS | Thonglor Through Our Lens | Discovery only. |
@@ -67,7 +67,7 @@ The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593
 | 12–14 DEC · 2 GUESTS | 768, 375 | No standalone desktop variant. Compact sticky placement needs a responsive behavior contract. Booking effects remain external or unverified. |
 | OUR STORY | 1440, 768, 375 | Private unsynced Pattern 100 retains the original PNG at desktop and the exact Brand History link at all widths. It passed independent native QA and occupies source position 7. |
 | EXCLUSIVE OFFERS | 1440, 768, 375 | GEN-000058 passed and saved private unsynced Pattern 73 with the original empty second card. The original Full Page scope revalidated and placed it at source position 8. The actual draft reproduced the source's 213 px scroll range at 375 px. |
-| Rooms | 1440, 768, 375 | Desktop photo navigation and room selection have separate behaviors. Reusable carousel and disclosure capabilities need proof. Booking effects remain unverified. |
+| Rooms | 1440, 768, 375 | Private unsynced Pattern 115 preserves autoplay, wraparound, direct photo selection, category reset and compact label scrolling. Recorded booking labels are inert. |
 | SIP & DINE | 1440, 768, 375 | The corrected-capture GEN-000059 passed and saved private unsynced Pattern 79. REF-000030 revalidated it at source position 10. The actual draft reproduced 594 px of scroll at 768 px and 280 px at 375 px. The original GEN-000056 remains on its earlier capture. |
 | THE NEIGHBORHOOD | 1440, 768, 375 | Private unsynced Pattern 106 preserves four desktop reveals and the static compact layout. The native cards support keyboard focus. Recorded Discover and Explore copy has no navigation destination. |
 | THROUGH OUR LENS | 1440, 768, 375 | GEN-000051 passed and saved a private, unsynced native Pattern. The matching Full Page capture revalidated the Pattern and placed it in its unpublished draft. |
@@ -78,8 +78,8 @@ The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593
 
 - **Discovery** has browser screenshots and visible inventories for 12 of 16 regions at every required width. Four regions have a variant gap. Separate runtime observations are needed before claiming complete behavioral understanding of each interactive region.
 - **Conversion eligibility** is 3 of 16 with v0.12.18. The original preflight overlooked two scroll strips and the corrected v0.12.15 replay held both, leaving 1 of 16. The exact archived controls now qualify under the native scroll-strip contract. A run still requires recorded movement at every active width before Bossy planning.
-- **Current conversion eligibility** is 7 of 16 with v0.12.40. Neighborhood qualifies through archived pointer-state replay and a verified compact layout.
-- **Acceptance** is 7 of 16 as of v0.12.40. REF-000030 has verified Our Story, Exclusive Offers, SIP & DINE, Neighborhood, Through Our Lens, FAQ and brand strip at source positions 7, 8, 10, 11, 12, 14 and 15. The unpublished partial draft has 297 editor-verified blocks. Whole-page acceptance remains pending.
+- **Current conversion eligibility** is 8 of 16 with v0.12.41. Rooms qualifies through integrated replay of the desktop showcase and compact label strip.
+- **Acceptance** is 8 of 16 as of v0.12.41. REF-000030 has verified Our Story, Exclusive Offers, Rooms, SIP & DINE, Neighborhood, Through Our Lens, FAQ and brand strip at source positions 7, 8, 9, 10, 11, 12, 14 and 15. The unpublished partial draft has 400 editor-verified blocks. Whole-page acceptance remains pending.
 
 The five native FAQ blocks and their ordered answer text survived edit, save and reload in isolated draft 59. The source's second click could close the active panel, leaving all questions closed. Native grouped Details reproduced this behavior at 1440, 768 and 375 px. The source's Enter test opened no panel, while native Details opened the selected item. This capability proof did not use the production compiler or grant source visual approval.
 

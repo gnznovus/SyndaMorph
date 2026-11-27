@@ -111,6 +111,91 @@ async function checkRevealCards(page) {
     return {insidePage,cards:results,keyboard,closed};
 }
 
+async function checkRooms(page,width) {
+    const root=page.locator('.sm-rooms-layout');
+    if(await root.count()!==1||await root.locator('a[href],form').count())return null;
+    if(!await root.evaluate(()=>document.documentElement.scrollWidth<=innerWidth))return null;
+    if(width<1024){
+        const strip=root.locator('.sm-rooms-strip');
+        if(await root.locator('[data-sm-room-category]:visible,button:visible').count())return null;
+        const active=await strip.evaluate(el=>el.scrollWidth-el.clientWidth);
+        const offset=()=>strip.evaluate(el=>el.scrollLeft);
+        await strip.scrollIntoViewIfNeeded();
+        const box=await strip.boundingBox();
+        if(!box)return null;
+        await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+        await page.mouse.wheel(500,0);
+        await page.waitForTimeout(220);
+        const forward=await offset();
+        await page.mouse.wheel(-500,0);
+        await page.waitForTimeout(220);
+        const returned=await offset();
+        let keyboard=null;
+        if(active){
+            await page.evaluate(()=>{document.body.tabIndex=-1;document.body.focus();});
+            await page.keyboard.press('Tab');
+            if(!await strip.evaluate(el=>el===document.activeElement&&el.matches(':focus-visible')&&
+                parseFloat(getComputedStyle(el).outlineWidth)>=2))return null;
+            await page.keyboard.press('ArrowRight');
+            await page.waitForTimeout(240);
+            keyboard=await offset();
+        }
+        return {copy:await strip.locator('.sm-rooms-chip').allTextContents(),wheel:[0,forward,returned],keyboard};
+    }
+    const carousel=root.locator('.sm-rooms-carousel');
+    const previous=root.locator('[data-sm-room-previous]');
+    const next=root.locator('[data-sm-room-next]');
+    const pause=root.locator('[data-sm-room-pause]');
+    const dots=root.locator('[data-sm-room-dot]');
+    const categories=root.locator('[data-sm-room-category]');
+    const state=()=>root.evaluate(el=>{
+        const cards=[...el.querySelectorAll('.sm-rooms-category')];
+        const expanded=cards.filter(card=>card.dataset.smRoomActive==='true'&&
+            card.querySelector('[data-sm-room-category]').getAttribute('aria-expanded')==='true');
+        const room=cards.indexOf(expanded[0]);
+        const stage=el.querySelector('.sm-rooms-carousel');
+        const photos=[...stage.querySelectorAll('.sm-rooms-slide')];
+        const selected=photos.filter(slide=>slide.getAttribute('aria-hidden')==='false');
+        const photo=photos.indexOf(selected[0]);
+        if(expanded.length!==1||selected.length!==1||stage.dataset.smRoomPhoto!==String(photo)||
+            cards.some((card,index)=>card.querySelector('.sm-rooms-detail').hidden===(room===index)))return null;
+        return {photo,room,details:[...expanded[0].querySelectorAll('.sm-rooms-detail p')].map(p=>p.textContent.trim()),
+            title:stage.querySelector('.sm-rooms-photo-title').textContent.trim(),
+            offset:Math.round(selected[0].getBoundingClientRect().x-stage.getBoundingClientRect().x)};
+    });
+    const check=async(photo,room)=>{
+        const s=await state();
+        if(!s||s.photo!==photo||s.room!==room||s.offset!==0)throw Error('Room state mismatch');
+        return s;
+    };
+    try{
+        const startup=await check(0,0);
+        const steps=[[startup.photo,startup.room]];
+        if(width===1440){
+            await page.waitForFunction(()=>document.querySelector('.sm-rooms-carousel')?.dataset.smRoomPhoto==='1',{},{timeout:5000});
+            await carousel.scrollIntoViewIfNeeded();
+            await pause.focus();
+            await pause.press('Enter');
+            if(await pause.getAttribute('aria-pressed')!=='true')return null;
+        }else await page.emulateMedia({reducedMotion:'reduce'});
+        // Reduced motion keeps the functional samples independent of transitions.
+        await page.emulateMedia({reducedMotion:'reduce'});
+        await dots.nth(0).press('Enter');
+        for(const [control,key,photo,room] of [[previous,'Enter',2,0],[next,'Space',0,0],[dots.nth(2),'Enter',2,0],
+            [categories.nth(1),'Enter',0,1],[categories.nth(2),'Space',0,2],[categories.nth(3),'Enter',0,3],
+            [categories.nth(0),'Enter',0,0],[categories.nth(0),'Enter',0,0]]){
+            await control.focus();
+            await control.press(key);
+            const s=await check(photo,room);
+            const focus=await control.evaluate(el=>el===document.activeElement&&el.matches(':focus-visible')&&
+                parseFloat(getComputedStyle(el).outlineWidth)>=2);
+            if(!focus)return null;
+            steps.push([s.photo,s.room,s.title,s.details]);
+        }
+        return {steps,autoplay:width===1440,insidePage:true};
+    }catch{return null;}
+}
+
 async function boundedScreenshot(page, width, extent, sourceTop = null) {
     const session = extent ? await page.context().newCDPSession(page) : null;
     try {
@@ -307,13 +392,13 @@ process.stdin.on('end', async () => {
     let crashed = false;
     const evidence = [];
     try {
-        const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, disclosures, imageStrip, revealCards, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
+        const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, disclosures, imageStrip, revealCards, roomsRuntime, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
             headless: true, timeout: 10000,
             args: [ '--no-sandbox', '--disable-dev-shm-usage' ],
         });
         const context = await browser.newContext({
-            javaScriptEnabled: !inspect || Boolean(tabsRuntime),
+            javaScriptEnabled: !inspect || Boolean(tabsRuntime || roomsRuntime),
             serviceWorkers: 'block',
             acceptDownloads: false,
         });
@@ -332,6 +417,22 @@ process.stdin.on('end', async () => {
                 if(imageStrip)evidence.push({width,proof:await checkImageStrip(page)});
                 else if(revealCards)evidence.push({width,proof:await checkRevealCards(page)});
                 else evidence.push({width,checks:disclosures?await checkDisclosures(page):await checkScrollStrips(page,html)});
+            }
+            process.stdout.write(JSON.stringify({evidence}));
+            return;
+        }
+        if(roomsRuntime){
+            const fixture='https://functional.invalid/';
+            await page.route(fixture+'rooms',route=>route.fulfill({contentType:'text/html;charset=utf-8',
+                headers:{'content-security-policy':"default-src 'none'; script-src https://functional.invalid/rooms.js; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'"},
+                body:'<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1">'+html+'<script src="/rooms.js"></script>'}));
+            await page.route(fixture+'rooms.js',route=>route.fulfill({contentType:'application/javascript',body:roomsRuntime}));
+            for(const width of viewports){
+                await page.setViewportSize({width,height:HEIGHT});
+                await page.emulateMedia({reducedMotion:'no-preference'});
+                await page.goto(fixture+'rooms',{waitUntil:'domcontentloaded',timeout:5000});
+                await waitForInstalledFonts(page);
+                evidence.push({width,proof:await checkRooms(page,width)});
             }
             process.stdout.write(JSON.stringify({evidence}));
             return;
@@ -659,6 +760,18 @@ process.stdin.on('end', async () => {
                                 scrollContained=!innerClip&&card.matches('.wp-block-group,[data-sm-scroll-card]')&&
                                     getComputedStyle(card).scrollSnapAlign==='start'&&stripBox.left>=-2&&stripBox.right<=innerWidth+2&&
                                     cardBox.width<=strip.clientWidth+2&&textBox.left>=cardBox.left-2&&textBox.right<=cardBox.right+2;
+                            }
+                            if(textBox&&el.matches('.sm-rooms-slide-label,.sm-rooms-chip')){
+                                const viewport=el.closest('.sm-rooms-carousel,.sm-rooms-strip');
+                                const item=el.closest('.sm-rooms-slide')||el;
+                                if(viewport&&viewport.closest('.sm-rooms-layout')){
+                                    const area=viewport.getBoundingClientRect(),bounds=item.getBoundingClientRect();
+                                    const overflow=getComputedStyle(viewport).overflowX;
+                                    scrollContained=area.left>=-2&&area.right<=innerWidth+2&&bounds.width<=viewport.clientWidth+2&&
+                                        textBox.left>=bounds.left-2&&textBox.right<=bounds.right+2&&
+                                        (viewport.matches('.sm-rooms-carousel')?overflow==='hidden':
+                                            overflow==='auto'&&viewport.tabIndex===0);
+                                }
                             }
                             const backgroundImage=s.backgroundImage.replace(/url\([^)]*\)/g,'url([asset])');
                             const border=parseFloat(s.borderTopWidth)>0?{

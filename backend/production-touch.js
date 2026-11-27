@@ -493,4 +493,140 @@ async function inspectRevealCards(page,{width,sourceRef,copySha256},sealNetwork)
     return {...pending,status:'observed',modeAtWidth:'hover-reveal',prerequisite,cards,blockedRequestCount:0};
 }
 
-module.exports={ validateTouchActions,inspectTouch,touchTargetId,disclosureRef,inspectDisclosure,inspectImageStrip,inspectLinkedImage,inspectRevealCards };
+/** Replay the coupled desktop carousel and disclosure list, or its compact label strip. */
+async function inspectRooms(page,{width,sourceRef,copySha256},sealNetwork) {
+    if(!WIDTHS.includes(width)||page.viewportSize()?.width!==width||!disclosureRef(sourceRef))
+        throw new Error('Invalid room showcase evidence request.');
+    const denied=sealNetwork();
+    const sourceCopySha256=digest(await page.evaluate(()=>document.body.innerText.replace(/\s+/gu,' ').trim()));
+    const receipt={version:1,width,sourceRef,sourceCopySha256,status:'unknown'};
+    const unknown=reason=>({...receipt,reason});
+    if(sourceCopySha256!==copySha256)return unknown('live_source_changed');
+    const root=page.locator(sourceRef).filter({visible:true});
+    if(await root.count()!==1)return unknown('region_not_unique');
+    if(await root.locator('a[href],form,input,select,textarea,img,iframe,canvas,svg,embed,object').count())
+        return unknown('room_assets_or_destinations_unverified');
+    try{
+        if(width!==1440){
+            const strip=root.locator(':scope > div:nth-child(2)');
+            const before=await strip.evaluate(el=>({range:el.scrollWidth-el.clientWidth,offset:el.scrollLeft,
+                overflow:getComputedStyle(el).overflowX,
+                copy:[...el.children].map(label=>label.textContent.trim()),
+                plain:[...el.children].every(label=>label.tagName==='SPAN'&&typeof label.onclick!=='function'&&label.tabIndex<0)}));
+            if(before.range<0||before.range>400||before.offset!==0||!before.plain||before.copy.length!==4||
+                !['auto','scroll'].includes(before.overflow))return unknown('unsupported_compact_room_strip');
+            const url=page.url();
+            const state=()=>root.evaluate(node=>node.innerText.replace(/\s+/gu,' ').trim());
+            const initial=await state();
+            for(const label of [before.copy[1],'Book','View room']){
+                await root.getByText(label,{exact:true}).click({timeout:2000});
+                if(denied.length||page.url()!==url||await state()!==initial)return unknown('unexpected_compact_room_action');
+            }
+            await strip.scrollIntoViewIfNeeded({timeout:2000});
+            const box=await strip.boundingBox();
+            if(!box)return unknown('compact_room_strip_unavailable');
+            await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+            const offset=()=>strip.evaluate(el=>el.scrollLeft);
+            await page.mouse.wheel(500,0);
+            await page.waitForTimeout(350);
+            const forward=await offset();
+            await page.mouse.wheel(-500,0);
+            await page.waitForTimeout(350);
+            if(forward!==before.range||await offset()!==0)return unknown('compact_room_scroll_not_reproduced');
+            let key=null;
+            if(before.range){
+                await page.evaluate(()=>{document.body.tabIndex=-1;document.body.focus();});
+                for(let index=0;index<40;index++){
+                    await page.keyboard.press('Tab');
+                    if(await strip.evaluate(el=>el===document.activeElement)){
+                        await page.keyboard.press('ArrowRight');
+                        await page.waitForTimeout(350);
+                        key=await offset();
+                        break;
+                    }
+                }
+            }
+            if(denied.length||before.range&&!(key>0))return unknown('compact_room_keyboard_not_verified');
+            return {...receipt,status:'observed',modeAtWidth:'static-strip',strip:{copy:before.copy,wheel:[0,forward,0],keyboard:key},
+                inertLabels:[before.copy[1],'Book','View room'],blockedRequestCount:0};
+        }
+        const dismiss=page.locator('[role=button]').filter({hasText:/^Continue to website(?: →)?$/}).filter({visible:true});
+        let prerequisite=null;
+        if(await dismiss.count()===1&&await dismiss.evaluate(node=>{
+            if(node.closest('a[href],form,[inert]')||node.hasAttribute('formaction'))return false;
+            for(let parent=node.parentElement;parent;parent=parent.parentElement)
+                if(['absolute','fixed'].includes(getComputedStyle(parent).position))return true;
+            return false;
+        })){
+            await dismiss.click({timeout:2000});
+            await page.waitForTimeout(300);
+            if(await dismiss.isVisible()||denied.length)return unknown('overlay_not_dismissed');
+            prerequisite='dismissed-local-overlay';
+        }
+        const dots=root.locator('[role=button][aria-label="Go to photo"]');
+        const previous=root.locator('[role=button][aria-label="Previous photo"]');
+        const next=root.locator('[role=button][aria-label="Next photo"]');
+        if(await dots.count()!==3||await previous.count()!==1||await next.count()!==1||
+            await root.locator('[role=button],button').count()!==5)return unknown('room_carousel_shape_mismatch');
+        const list=root.locator(':scope > div:last-child > div:last-child');
+        const entries=list.locator(':scope > div');
+        if(await entries.count()!==4||!await entries.evaluateAll(nodes=>nodes.every(node=>typeof node.onclick==='function'&&
+            node.firstElementChild?.children.length===2)))return unknown('room_category_shape_mismatch');
+        const read=async()=>{
+            const rooms=await entries.evaluateAll(nodes=>nodes.map(node=>{
+                const word=el=>el.textContent.replace(/\s+/gu,' ').trim();
+                const head=node.firstElementChild;
+                const details=node.children[2];
+                return {header:[...head.children].map(word).concat(word(node.children[1])),active:getComputedStyle(node).backgroundColor==='rgb(248, 244, 244)',
+                    details:details?[...details.querySelectorAll('*')].filter(el=>!el.children.length).map(word).filter(Boolean):[]};
+            }));
+            const photo=await dots.evaluateAll(nodes=>nodes.findIndex(el=>getComputedStyle(el).backgroundColor==='rgb(17, 17, 17)'));
+            const slides=await root.evaluate(el=>[...el.querySelectorAll('*')].filter(node=>!node.children.length&&/^Photo [123] \/ 3$/.test(node.textContent.trim()))
+                .map(node=>[node.textContent.trim(),Math.round(node.getBoundingClientRect().x),Math.round(node.getBoundingClientRect().width)]));
+            return {rooms,photo,slides,room:rooms.findIndex(entry=>entry.active)};
+        };
+        const first=await read();
+        if(first.photo!==0||first.room!==0||first.slides.length!==3)return unknown('room_initial_state_mismatch');
+        const origin=first.slides[0][1];
+        const url=page.url(),steps=[['initial',0,0]],categories=first.rooms.map(entry=>({header:entry.header,details:entry.details}));
+        const observe=async(label,locator,photo,room)=>{
+            await locator.click({timeout:2500});
+            const end=Date.now()+2100;
+            let measured;
+            do{
+                await page.waitForTimeout(80);
+                measured=await read();
+            }while(Date.now()<end&&(measured.photo!==photo||measured.room!==room||measured.slides[photo]?.[1]!==origin));
+            if(denied.length||page.url()!==url||measured.photo!==photo||measured.room!==room||measured.slides[photo]?.[1]!==origin||
+                measured.rooms.filter(item=>item.active).length!==1||measured.rooms[room].details.length!==6)throw Error('Missing room state');
+            steps.push([label,photo,room]);
+            categories[room].details=measured.rooms[room].details;
+        };
+        await observe('previous-wrap',previous,2,0);
+        await observe('next-wrap',next,0,0);
+        await observe('direct-photo',dots.nth(2),2,0);
+        for(const room of [1,2,3,0,0])await observe('category-'+room,entries.nth(room).locator(':scope > div:first-child'),0,room);
+        for(const label of ['View all rooms →','Book','View room'])
+            await observe('label-'+label,root.getByText(label,{exact:true}),0,0);
+        await page.mouse.move(0,0);
+        const automatic=[];
+        const start=Date.now();
+        let current=0;
+        while(automatic.length<2&&Date.now()-start<9500){
+            await page.waitForTimeout(100);
+            const measured=await read();
+            if(measured.room!==0||denied.length||page.url()!==url)return unknown('unverified_room_autoplay');
+            if(measured.photo!==current){
+                current=measured.photo;
+                automatic.push([current,Date.now()-start]);
+            }
+        }
+        if(automatic.length!==2||automatic[0][0]!==1||automatic[1][0]!==2||
+            automatic[1][1]-automatic[0][1]<3650||automatic[1][1]-automatic[0][1]>4350)return unknown('room_autoplay_not_reproduced');
+        return {...receipt,status:'observed',modeAtWidth:'desktop-showcase',prerequisite,categories,steps,
+            slides:first.slides.map(slide=>slide[0]),slideWidth:first.slides[0][2],automatic,
+            externalNavigation:'absent',blockedRequestCount:0};
+    }catch{return unknown('room_showcase_replay_failed');}
+}
+
+module.exports={ validateTouchActions,inspectTouch,touchTargetId,disclosureRef,inspectDisclosure,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms };

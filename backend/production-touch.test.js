@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const test=require('node:test');
 const { createHash }=require('node:crypto');
 const { chromium }=require('playwright');
-const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef,inspectImageStrip,inspectLinkedImage,inspectRevealCards }=require('./production-touch');
+const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms }=require('./production-touch');
 const { recordedPng }=require('./production-reference');
 const { captureResponsiveViewport }=require('./responsive-capture');
 
@@ -117,6 +117,30 @@ test('recorded pointer reveals bind each card and hold a link inside revealed co
         assert.deepEqual(compact.cards,[]);
         const unsupported=await run(1440,markup.replace('<span>Discover</span>','<a href="/unverified">Discover</a>'));
         assert.equal(unsupported.reason,'unsupported_reveal_controls');
+    }finally{await browser.close();}
+});
+
+test('compact Rooms source proof distinguishes inert labels from actual scrolling',{
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const browser=await chromium.launch();
+    try{
+        const page=await browser.newPage({viewport:{width:375,height:900}});
+        const chips=['Standard','Premium','One Bedroom Suite','Thonglor Suite'];
+        const html='<!doctype html><style>body{margin:0}section>div:nth-child(2){display:flex;overflow:auto}'+
+            'section>div:nth-child(2)>span{flex:0 0 125px;width:125px}</style><section id="rooms">'+
+            '<div>Rooms</div><div>'+chips.map(label=>`<span>${label}</span>`).join('')+'</div>'+
+            '<div><span>Book</span> <span>View room</span></div></section>';
+        const run=async markup=>{
+            await page.setContent(markup);
+            const text=await page.locator('body').evaluate(body=>body.innerText.replace(/\s+/gu,' ').trim());
+            return inspectRooms(page,{width:375,sourceRef:'[id="rooms"]',copySha256:createHash('sha256').update(text).digest('hex')},()=>[]);
+        };
+        const result=await run(html);
+        assert.equal(result.status,'observed',JSON.stringify(result));
+        assert.deepEqual(result.strip,{copy:chips,wheel:[0,125,0],keyboard:40});
+        const link=await run(html.replace('<span>Book</span>','<a href="#unverified">Book</a>'));
+        assert.equal(link.reason,'room_assets_or_destinations_unverified');
     }finally{await browser.close();}
 });
 

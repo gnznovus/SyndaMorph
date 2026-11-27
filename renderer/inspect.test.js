@@ -125,6 +125,20 @@ test('existing DOM render endpoint remains available',async()=>{
     assert.match(result.html,/<p>Original mode<\/p>/);
 });
 
+test('compact Rooms proof measures wheel reversal and keyboard movement and holds destination links',async()=>{
+    const labels=['Standard','Premium','One Bedroom Suite','Thonglor Suite'];
+    const html='<style>body{margin:0}.sm-rooms-strip{display:flex;overflow-x:auto}'+
+        '.sm-rooms-chip{flex:0 0 125px;margin:0}.sm-rooms-strip:focus-visible{outline:2px solid black}</style>'+
+        '<section class="sm-rooms-layout"><div class="sm-rooms-strip" tabindex="0">'+
+        labels.map(label=>`<p class="sm-rooms-chip">${label}</p>`).join('')+'</div></section>';
+    const {evidence}=await request('/check-rooms',html,[768,375],{runtime:'/* Static compact layout. */'});
+    assert.deepEqual(evidence[0].proof,{copy:labels,wheel:[0,0,0],keyboard:null});
+    assert.deepEqual(evidence[1].proof,{copy:labels,wheel:[0,125,0],keyboard:40});
+    const invented=await request('/check-rooms',html.replace('>Premium<','><a href="#invented">Premium</a><'),[375],
+        {runtime:'/* Static compact layout. */'});
+    assert.equal(invented.evidence[0].proof,null);
+});
+
 test('native reveal cards need visible keyboard focus and stay inactive at compact widths',async()=>{
     const cards=[0,1].map(id=>`<div tabindex="0" role="group" aria-label="Card ${id}" data-sm-reveal-card="${id}">`+
         '<div class="sm-reveal-cover"><p>Cover</p><div class="sm-reveal-panel"><p>Copy</p><p class="sm-reveal-label">Discover</p></div></div>'+

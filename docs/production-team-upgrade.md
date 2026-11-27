@@ -397,6 +397,14 @@ Neighborhood matched pinned heights of 1253, 1140 and 824 px. Pixel differences 
 
 Local private unsynced Pattern 106 was placed at source position 11. Original draft 66 now has seven verified regions, with all 297 blocks editor-verified on an exact disposable copy. Whole-page QA remains pending with nine regions outstanding. This checkpoint used zero paid model calls.
 
+## v0.12.41 editable Rooms showcase
+
+Touch records the desktop carousel and its category disclosures together. The source starts on photo one, wraps in both directions, accepts a direct photo selection and resets to photo one when a different room category opens. All four categories carry their observed detail text, including the source's unconfirmed values. Sealed replay measured successive automatic advances at 3993 and 7990 ms and confirmed that the apparent booking labels had no destination or observable action. The compact label strip reproduced a 138 px forward and reverse wheel range and 40 px of keyboard movement at 375 px. At 768 px it had no overflow.
+
+The native Pattern stores its text and slide placeholders in editable Core blocks. WordPress adds keyboard-operable carousel and category controls, a pause control and reduced-motion behavior. The isolated renderer checks the actual script, focus, selected and expanded states, and compact wheel and keyboard movement. It compares the pinned desktop screenshot with the recorded second-photo state and separately verifies first-photo startup. Altered receipts and stale runtime fingerprints are held.
+
+Rooms passed visual QA at 0.917%, 0% and 0% for 1440, 768 and 375 px. All 11 responsive samples passed. Pattern 115 retained 103 blocks after Gutenberg edit, save and reload. The original unpublished draft 66 now contains eight verified regions and all 400 blocks passed a separate edit, save and reload. Whole-page QA remains pending with eight regions outstanding. This checkpoint used zero paid model calls.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens and GEN-000055 completed their original jobs. Verified BKKGO Full Page assembly and broader region acceptance remain open. [Design validation audit](bossy-validation-audit.md#v0128-verification)
