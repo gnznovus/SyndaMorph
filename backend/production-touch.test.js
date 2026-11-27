@@ -6,7 +6,7 @@ const { createHash }=require('node:crypto');
 const { chromium }=require('playwright');
 const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms,inspectRelocatedCopy }=require('./production-touch');
 const { recordedPng }=require('./production-reference');
-const { settleEntrancePaint,captureResponsiveViewport,captureOwnedRegion }=require('./responsive-capture');
+const { settleEntrancePaint,captureResponsiveViewport,captureOwnedRegion,captureSettledPair }=require('./responsive-capture');
 
 test('Touch actions are limited to server target identities and bounded gestures',()=>{
     assert.throws(()=>validateTouchActions([{type:'click',target:'#submit'}]));
@@ -37,6 +37,50 @@ test('fresh discovery waits for the visible hero entrance and leaves infinite an
             return [style.opacity,style.transform,document.querySelector('#ticker').getAnimations()[0].playState,scrollY];
         });
         assert.deepEqual(paint,['1','matrix(1, 0, 0, 1, 0, 0)','running',0]);
+    }finally{await browser.close();}
+});
+
+test('a settled pair replays only the pinned local dismissal and reproduces the original crop',{
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const browser=await chromium.launch();
+    try{
+        const width=1440;
+        const page=await browser.newPage({viewport:{width,height:900}});
+        const source='<style>body{margin:0}#hero,#intro{height:180px}#lead{opacity:0;transform:translateY(12px);'+
+            'transition:opacity 150ms,transform 150ms}#offer{position:fixed;inset:0;background:#444;z-index:2}</style>'+
+            '<div id="hero"><h1 id="lead">Hotel</h1></div><div id="intro">Intro</div>'+
+            '<div id="offer"><button type="button">Continue to website</button></div>'+
+            '<script>document.querySelector("button").onclick=()=>{document.querySelector("#offer").remove();'+
+            'const lead=document.querySelector("#lead");lead.style.opacity=1;lead.style.transform="none"};</script>';
+        await page.setContent(source);
+        const refs={ownerRef:'[id="hero"]',adjacentRef:'[id="intro"]',leadRef:'[id="lead"]',overlayRef:'[id="offer"]'};
+        const sections=[{kind:'content',geometryAvailable:true,sourceRef:refs.ownerRef,bounds:{y:0,height:180}},
+            {kind:'content',geometryAvailable:true,sourceRef:refs.adjacentRef,bounds:{y:180,height:180}},
+            {kind:'overlay',geometryAvailable:true,sourceRef:refs.overlayRef,bounds:{y:0,height:900}}];
+        const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
+        const original=await captureResponsiveViewport(page,sections,width,{contentReady:true});
+        const copySha256=sha((await page.locator('body').innerText()).replace(/\s+/gu,' ').trim());
+        const dismiss=(await inspectTouch(page,{width,copySha256,actions:[]},()=>[])).initial.targets[0];
+        const request={...refs,width,copySha256,dismissTargetId:dismiss.id,
+            pinnedHeroSha256:sha(Buffer.from(original.sections[0].screenshot,'base64'))};
+        assert.equal((await captureSettledPair(page,sections,{...request,pinnedHeroSha256:'0'.repeat(64)},()=>[])).reason,
+            'pinned_hero_mismatch');
+        assert.equal(await page.locator('#offer').isVisible(),true);
+        assert.equal((await captureSettledPair(page,sections,{...request,dismissTargetId:'0'.repeat(24)},()=>[])).reason,
+            'unverified_local_dismissal');
+        const proof=await captureSettledPair(page,sections,request,()=>[]);
+        assert.equal(proof.status,'observed',proof.reason);
+        assert.equal(proof.hero.extent,180);
+        assert.equal(proof.pair.extent,360);
+        assert.notEqual(proof.hero.sha256,request.pinnedHeroSha256);
+        assert.equal(proof.pair.sha256,sha(Buffer.from(proof.pair.image,'base64')));
+        assert.equal(proof.blockedRequestCount,0);
+        await page.setContent(source.replace('document.querySelector("#offer").remove()',
+            'document.querySelector("#offer button").remove()'));
+        const stillCovered=await captureSettledPair(page,sections,request,()=>[]);
+        assert.equal(stillCovered.reason,'post_dismissal_paint_unverified');
+        assert.equal(await page.locator('#offer').isVisible(),true);
     }finally{await browser.close();}
 });
 

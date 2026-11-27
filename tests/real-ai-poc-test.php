@@ -1126,7 +1126,7 @@ $paintPatch=array('id'=>'copy','changes'=>array(array('path'=>'style.fontSmoothi
 $paragraphPaint=syndamorph_surgery_apply($paragraphPaintPlan,$paintPatch,array('copy'));
 expect(is_array($paragraphPaint)&&$paragraphPaint['artifact']&&$paragraphPaint['touched']===array('copy')&&
     str_contains($paragraphPaint['artifact']['content'],'"className":"sm-text-wrap-pretty sm-font-smoothing-grayscale"')&&
-    str_contains($paragraphPaint['artifact']['preview'],syndamorph_native_paragraph_smoothing_css())&&
+    str_contains($paragraphPaint['artifact']['preview'],syndamorph_native_text_smoothing_css())&&
     str_contains($paragraphPaint['artifact']['preview'],syndamorph_native_paragraph_wrap_css())&&
     $paragraphPaint['plan']['blocks'][0]['children'][2]===$paragraphPaintPlan['blocks'][0]['children'][2],
     'Scoped paragraph paint surgery lost wrapping or changed unrelated content');
@@ -1134,7 +1134,13 @@ $paintPatch['changes'][0]['value']='brightness(0.5)';
 expect(syndamorph_surgery_apply($paragraphPaintPlan,$paintPatch)['artifact']===null,'Arbitrary paragraph paint accepted');
 $paintPatch['id']='title';
 $paintPatch['changes'][0]['value']='grayscale';
-expect(syndamorph_surgery_apply($paragraphPaintPlan,$paintPatch)['artifact']===null,'Paragraph paint escaped the supported leaf type');
+$headingPaint=syndamorph_surgery_apply($paragraphPaintPlan,$paintPatch,array('title'));
+expect($headingPaint['artifact']&&$headingPaint['touched']===array('title')&&
+    str_contains($headingPaint['artifact']['content'],'wp-block-heading sm-font-smoothing-grayscale')&&
+    $headingPaint['plan']['blocks'][0]['children'][1]===$paragraphPaintPlan['blocks'][0]['children'][1],
+    'Scoped heading paint surgery did not preserve unrelated copy');
+$paintPatch['id']='root';
+expect(syndamorph_surgery_apply($paragraphPaintPlan,$paintPatch)['artifact']===null,'Text paint escaped the supported leaves');
 
 $hardHeading=array('id'=>'hero-title','type'=>'heading','text'=>"Hotel Indigo\nBangkok & Thonglor",
     'preserveLineBreaks'=>true,'style'=>array('lineHeight'=>'0.95'));

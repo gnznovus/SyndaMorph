@@ -376,6 +376,65 @@ function syndamorph_source_owned_crop($crop,array $request,array $bounds,string 
         'cropSha256'=>$sha,'screenshot'=>$base64)+$request;
 }
 
+function syndamorph_source_settled_pair(array $owner,array $adjacent,array $overlay,array $archive,
+    string $leadRef,string $dismissTargetId) {
+    $fail=static fn(string $reason)=>new WP_Error('sm_settled_pair',
+        'The recorded desktop entrance has no verified settled evidence.',array('status'=>409,'reason'=>$reason));
+    $ref=static fn($value):bool=>is_string($value)&&
+        preg_match('/^(?:[a-z][a-z0-9-]{0,20})?\[(?:data-dc-tpl|id)="[a-zA-Z0-9_-]{1,64}"\]$/D',$value);
+    $a=$owner['variants'][1440]??array();
+    $b=$adjacent['variants'][1440]??array();
+    $overlayView=$overlay['variants'][1440]??array();
+    $overlayControls=$overlayView['inventory']['controls']??array();
+    $dismissLabel=$overlayControls[0]['name']??null;
+    $owners=array($a['sourceRef']??null,$b['sourceRef']??null,$overlayView['sourceRef']??null,$leadRef);
+    $pinned=is_string($a['screenshot']??null)?base64_decode($a['screenshot'],true):false;
+    if(($a['kind']??null)!=='content'||($b['kind']??null)!=='content'||($overlayView['kind']??null)!=='overlay'||
+        !is_array($overlayControls)||count($overlayControls)!==1||($overlayControls[0]['type']??null)!=='button'||
+        !is_string($dismissLabel)||!preg_match('/^Continue to website(?: →)?$/uD',$dismissLabel)||
+        count(array_filter($owners,$ref))!==4||count(array_unique($owners))!==4||
+        !preg_match('/^[a-f0-9]{24}$/D',$dismissTargetId)||!$pinned||
+        !syndamorph_production_reference_valid($archive,$archive['sourceUrl']??'')||empty($archive['runtimeSha256']))
+        return $fail('unbound_source');
+    $top=(int)round((float)($a['bounds']['y']??-1));
+    $hero=(int)round((float)($a['bounds']['height']??0));
+    $intro=(int)round((float)($b['bounds']['height']??0));
+    if($top<0||$hero<1||$intro<1||$hero+$intro>12000||$top+$hero!==(int)round((float)($b['bounds']['y']??-1)))
+        return $fail('unbound_region_geometry');
+    $pinnedSha=hash('sha256',$pinned);
+    $response=syndamorph_internal_request('backend','POST','/production-touch',array(
+        'timeout'=>45,'redirection'=>0,'limit_response_size'=>820000,'headers'=>array('Content-Type'=>'application/json'),
+        'body'=>wp_json_encode(array('kind'=>'settled-content-pair','width'=>1440,'archiveId'=>$archive['id'],
+            'sourceRef'=>$owners[0],'adjacentRef'=>$owners[1],'overlayRef'=>$owners[2],'leadRef'=>$leadRef,
+            'dismissTargetId'=>$dismissTargetId,'pinnedHeroSha256'=>$pinnedSha))));
+    $verified=is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200?null:
+        json_decode(wp_remote_retrieve_body($response),true);
+    $pageCopy=array_column($archive['views'],'copySha256','width')[1440]??null;
+    $identity=array('archiveId'=>$archive['id'],'mode'=>'recorded','status'=>'observed','version'=>1,'width'=>1440,
+        'ownerRef'=>$owners[0],'adjacentRef'=>$owners[1],'overlayRef'=>$owners[2],'leadRef'=>$leadRef,
+        'dismissTargetId'=>$dismissTargetId,'pinnedHeroSha256'=>$pinnedSha,'sourceCopySha256'=>$pageCopy,
+        'blockedRequestCount'=>0,'top'=>$top);
+    foreach($identity as $key=>$value){
+        if(($verified[$key]??null)!==$value){
+            $reason=$verified['reason']??'receipt_mismatch';
+            return $fail(is_string($reason)&&preg_match('/^[a-z_]{1,64}$/D',$reason)?$reason:'receipt_mismatch');
+        }
+    }
+    $images=array();
+    foreach(array('hero'=>$hero,'pair'=>$hero+$intro) as $key=>$extent){
+        $image=$verified[$key]['image']??null;
+        $bytes=is_string($image)&&strlen($image)<=400000?base64_decode($image,true):false;
+        $size=is_string($bytes)?@getimagesizefromstring($bytes):false;
+        if(!$size||$size['mime']!=='image/jpeg'||!str_ends_with($bytes,"\xFF\xD9")||
+            ($verified[$key]['extent']??null)!==$extent||
+            abs($size[0]-1440*min(1,900/$extent))>2||abs($size[1]-min(900,$extent))>2||
+            ($verified[$key]['sha256']??null)!==hash('sha256',$bytes)||
+            $verified[$key]['sha256']===$pinnedSha)return $fail('invalid_settled_image');
+        $images[$key]=array('image'=>$image,'sha256'=>$verified[$key]['sha256'],'extent'=>$extent);
+    }
+    return $identity+$images;
+}
+
 function syndamorph_scope_engine_source(array $source,string $url): array {
     $evidence=array();
     foreach(SYNDAMORPH_SOURCE_WIDTHS as $width) {

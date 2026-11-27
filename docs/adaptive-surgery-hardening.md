@@ -162,11 +162,13 @@ The renderer browser tests expect the isolated renderer at `127.0.0.1:3999` by d
 
 This engineering handoff executed zero paid AI jobs. Stable `v0.11.1` and `main` remain isolated from this checkpoint.
 
-## Evidence-based paragraph antialiasing
+## Evidence-based text antialiasing
 
-Developer surgery can set `style.fontSmoothing` to `grayscale` on a Paragraph when replay isolates a source text rasterization mismatch. The compiler serializes a paragraph class that works with the existing `pretty` wrapping class. The class applies a neutral brightness filter to request grayscale compositing in Chromium and preserves literal copy, layout, and installed font selection. The existing visual and editor gates still evaluate the resulting artifact.
+Developer surgery can set `style.fontSmoothing` to `grayscale` on a Paragraph or Heading when replay isolates a source text rasterization mismatch. The compiler serializes a class that works with the existing `pretty` wrapping class. The class applies a neutral brightness filter to request grayscale compositing in Chromium and preserves literal copy, layout, and installed font selection. The existing visual and editor gates evaluate the resulting artifact.
 
 The BKKGO intro replay measured a decrease from 1.231% to 0% on the exact Gutenberg-saved desktop section. See the recorded source and artifact hashes in the [BKKGO checkpoint](production-pilot-bkkgo.md#native-intro-paragraph-repair-v01246).
+
+The combined desktop hero and intro needed the same treatment on the hero text and intro Heading. The exact Gutenberg-saved pair measured 0.454% against the settled source, down from 0.701%. [BKKGO settled desktop replay](production-pilot-bkkgo.md#settled-desktop-hero-and-intro-checkpoint-v01250)
 
 ## Authored heading breaks and fixed native Grid
 

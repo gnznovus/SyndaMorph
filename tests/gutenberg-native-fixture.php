@@ -26,6 +26,7 @@ $wrap=static fn(array $child,array $style=array())=>array('type'=>'buttons','sty
 $add('GEN9 custom CTA font',array($heading,$wrap(array_merge($button,array('style'=>array('color'=>'#18283a','background'=>'#c9a86a','fontSize'=>'1rem','fontWeight'=>600,'lineHeight'=>1.25,'padding'=>array('top'=>'0.875rem','right'=>'1.5rem','bottom'=>'0.875rem','left'=>'1.5rem'),'borderRadius'=>'0.25rem'))))));
 $add('plain all types',array($heading,$paragraph,$wrap($button),array('type'=>'columns','children'=>array(array('type'=>'column','children'=>array($paragraph)),array('type'=>'column','children'=>array($heading))))));
 $add('scoped grayscale paragraph with pretty wrapping',array($heading,$paragraph+array('style'=>array('textWrap'=>'pretty','fontSmoothing'=>'grayscale')),$paragraph));
+$add('scoped grayscale heading',array($heading+array('style'=>array('fontSmoothing'=>'grayscale')),$paragraph));
 $compactRule=array('width'=>'1px','color'=>'#d7d3d3');
 $add('authored heading breaks and fixed Grid',array(
     array('type'=>'heading','level'=>1,'text'=>"Hotel Indigo\nBangkok Thonglor",'preserveLineBreaks'=>true,

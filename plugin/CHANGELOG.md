@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.50] - 2026-11-27
+
+### Added
+
+- Full Page Production Setup can record separate settled hero and adjacent region crops after a confirmed local dismissal. Recorded replay reproduces the original hero screenshot byte for byte before dismissal and verifies stable copy, geometry and screenshots afterward. The original screenshot and production gate remain in place.
+- Developer surgery supports measured grayscale text painting on an individual native Heading as well as a Paragraph.
+
+### Verified
+
+- The original BKKGO scope recorded both settled desktop crops. An unpublished Gutenberg-saved draft retained all 425 valid blocks and the existing booking controls. The settled 1440 px hero and combined hero and intro measured 0.439% and 0.454% difference. The original pinned hero still measured 1.811%, and initial-state and Full Page QA remain pending. No model calls were made.
+
 ## [0.12.49] - 2026-11-27
 
 ### Security

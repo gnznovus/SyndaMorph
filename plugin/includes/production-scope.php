@@ -1193,6 +1193,34 @@ function syndamorph_scope_verify_copy_placement(array $manifest,string $key,stri
     return syndamorph_scope_status($manifest);
 }
 
+/** Attach a separate settled screenshot receipt to the original Full Page scope. */
+function syndamorph_scope_verify_settled_pair(array $manifest,string $ownerKey,string $adjacentKey,
+    string $overlayKey,string $leadRef,string $dismissTargetId) {
+    $archive=$manifest['referenceArchive']??null;
+    if(($manifest['mode']??null)!=='page'||!is_array($archive)||($archive['sourceUrl']??null)!==$manifest['sourceUrl']||
+        count(array_unique(array($ownerKey,$adjacentKey,$overlayKey)))!==3)
+        return syndamorph_scope_error('settled_pair','Select three distinct regions from the same recorded Full Page scope.');
+    $sources=array();
+    $binding=array();
+    foreach(array('owner'=>$ownerKey,'adjacent'=>$adjacentKey,'overlay'=>$overlayKey) as $role=>$key){
+        $checkpoint=$manifest['regions'][$key]['checkpoint']??null;
+        $source=is_int($checkpoint)?syndamorph_scope_checkpoint($manifest['id'],$checkpoint):null;
+        if(($source['id']??null)!==$key)
+            return syndamorph_scope_error('settled_pair','An original region checkpoint is unavailable.');
+        $sources[$role]=$source;
+        $binding[$role]=array('region'=>$key,'checkpoint'=>$checkpoint);
+    }
+    $proof=syndamorph_source_settled_pair($sources['owner'],$sources['adjacent'],$sources['overlay'],$archive,
+        $leadRef,$dismissTargetId);
+    if(is_wp_error($proof))return $proof;
+    $event=syndamorph_history_append($manifest['id'],'source_settled_pair_verified',$proof+array('regions'=>$binding));
+    $summary=$proof;
+    unset($summary['hero']['image'],$summary['pair']['image']);
+    $manifest['regions'][$ownerKey]['settledPair']=$summary+array('event'=>$event,'regions'=>$binding);
+    syndamorph_history_append($manifest['id'],'scope_manifest',$manifest);
+    return syndamorph_scope_status($manifest);
+}
+
 function syndamorph_scope_verify_disclosure(array $manifest,string $key) {
     $region=$manifest['regions'][$key]??null;
     if(!$region||!empty($region['attempts'])||!empty($region['patternId'])||
@@ -1672,7 +1700,7 @@ add_action('rest_api_init',static function():void {
         }),
         array('methods'=>'POST','permission_callback'=>$permission,'callback'=>static function(WP_REST_Request $request) {
             $action=$request->get_param('action');
-            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_copy_placement','verify_image','stage_image_strip','stage_linked_editorial','stage_reveal_layout','stage_rooms','assemble','verify_page'),true))
+            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_copy_placement','verify_settled_pair','verify_image','stage_image_strip','stage_linked_editorial','stage_reveal_layout','stage_rooms','assemble','verify_page'),true))
                 return syndamorph_scope_error('action','Invalid scope action.',400);
             return syndamorph_scope_locked(static function()use($request,$action){
                 $manifest=syndamorph_history_latest((int)$request['id'],'scope_manifest');
@@ -1730,6 +1758,14 @@ add_action('rest_api_init',static function():void {
                             if(!is_string($destination)||!preg_match('/^[a-f0-9]{24}$/D',$destination))
                                 return syndamorph_scope_error('copy_placement','An exact destination region is required.',400);
                             return syndamorph_scope_verify_copy_placement($manifest,$region,$destination);
+                        case 'verify_settled_pair':
+                            $adjacent=$request->get_param('adjacentRegion');
+                            $overlay=$request->get_param('overlayRegion');
+                            $lead=$request->get_param('leadRef');
+                            $dismiss=$request->get_param('dismissTargetId');
+                            if(!is_string($adjacent)||!is_string($overlay)||!is_string($lead)||!is_string($dismiss))
+                                return syndamorph_scope_error('settled_pair','Exact source regions and a recorded dismissal target are required.',400);
+                            return syndamorph_scope_verify_settled_pair($manifest,$region,$adjacent,$overlay,$lead,$dismiss);
                         case 'verify_image': return syndamorph_scope_verify_image($manifest,$region);
                         case 'stage_image_strip': return syndamorph_scope_stage_asset($manifest,$region);
                         case 'stage_linked_editorial': return syndamorph_scope_stage_asset($manifest,$region,true);

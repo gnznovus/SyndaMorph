@@ -1,7 +1,7 @@
 'use strict';
 
 const { createHash } = require('node:crypto');
-const { touchTargetId } = require('./production-touch');
+const { inspectTouch, touchTargetId } = require('./production-touch');
 const VIEWPORTS = [1440, 768, 375];
 const HEIGHT = 900;
 
@@ -157,6 +157,87 @@ async function muteOverlayLayers(page, sections) {
         contentSelectors: sections.filter(s => s.kind !== 'overlay').map(s => s.sourceRef) });
 }
 
+/** Reproduce the pinned hero before replaying a confirmed, local dismissal. */
+async function captureSettledPair(page, sections, { width, ownerRef, adjacentRef, leadRef,
+    overlayRef, dismissTargetId, copySha256, pinnedHeroSha256 }, sealNetwork) {
+    const pending = reason => ({ version: 1, width, status: 'pending', reason });
+    const root = (ref, kind) => sections.find(section => section.sourceRef === ref && section.kind === kind);
+    if (width !== 1440 || page.viewportSize()?.width !== width ||
+        !root(ownerRef, 'content') || !root(adjacentRef, 'content') || !root(overlayRef, 'overlay'))
+        return pending('unverified_capture_regions');
+    const receipt = await inspectTouch(page, { width, actions: [], copySha256 }, sealNetwork);
+    const target = receipt.initial.targets.find(item => item.id === dismissTargetId && item.permitsClick &&
+        item.destination === null && /^Continue to website(?: →)?$/u.test(item.name));
+    const denied = sealNetwork();
+    if (receipt.status !== 'observed' || !target || denied.length) return pending('unverified_local_dismissal');
+    const dismiss = page.locator(target.selector);
+    if (await dismiss.count() !== 1 || !await dismiss.evaluate((element, selector) => {
+        const overlays = document.querySelectorAll(selector);
+        return overlays.length === 1 && overlays[0].contains(element) &&
+            element.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+    }, overlayRef)) return pending('dismissal_outside_overlay');
+    const overlayHidden = () => page.locator(overlayRef).evaluateAll(elements =>
+        elements.every(element => !element.checkVisibility({ opacityProperty: true, visibilityProperty: true })));
+
+    const measure = () => page.evaluate(({ ownerRef, adjacentRef, leadRef }) => {
+        const unique = ref => [...document.querySelectorAll(ref)].length === 1 ? document.querySelector(ref) : null;
+        const owner = unique(ownerRef), adjacent = unique(adjacentRef), lead = unique(leadRef);
+        if (!owner || !adjacent || !lead || !owner.contains(lead) ||
+            owner.contains(adjacent) || adjacent.contains(owner)) return null;
+        const bounds = element => {
+            const box = element.getBoundingClientRect();
+            return [Math.round(box.left + scrollX), Math.round(box.top + scrollY), Math.round(box.width), Math.round(box.height)];
+        };
+        const a = bounds(owner), b = bounds(adjacent), paint = getComputedStyle(lead);
+        if (scrollX || scrollY || a[0] !== 0 || b[0] !== 0 || a[2] !== innerWidth || b[2] !== innerWidth ||
+            a[1] < 0 || a[3] <= 0 || b[3] <= 0 || a[1] + a[3] !== b[1] || a[3] + b[3] > 12000)
+            return null;
+        return { geometry: [a, b], copy: [owner.innerText, adjacent.innerText],
+            leadOpacity: paint.opacity, leadTransform: paint.transform, url: location.href };
+    }, { ownerRef, adjacentRef, leadRef });
+    const before = await measure();
+    if (!before || before.leadOpacity !== '0') return pending('unverified_initial_paint');
+
+    const [, top, , heroHeight] = before.geometry[0];
+    const pairHeight = heroHeight + before.geometry[1][3];
+    const session = await page.context().newCDPSession(page);
+    const sha = base64 => createHash('sha256').update(Buffer.from(base64, 'base64')).digest('hex');
+    try {
+        const hidden = await muteOverlayLayers(page, sections);
+        let pinned;
+        try { pinned = await captureImage(session, width, top, heroHeight); }
+        finally {
+            await hidden.evaluate(state => state.restore());
+            await hidden.dispose();
+        }
+        if (!pinned || sha(pinned) !== pinnedHeroSha256 || denied.length) return pending('pinned_hero_mismatch');
+        await dismiss.click({ timeout: 2200 });
+        await settleEntrancePaint(page);
+        const after = await measure();
+        if (!after || after.leadOpacity !== '1' || after.leadTransform !== 'none' || !await overlayHidden() ||
+            denied.length || after.url !== before.url || JSON.stringify(after.copy) !== JSON.stringify(before.copy) ||
+            JSON.stringify(after.geometry) !== JSON.stringify(before.geometry))
+            return pending('post_dismissal_paint_unverified');
+
+        const capture = async extent => {
+            const image = await captureImage(session, width, top, extent);
+            return image && image === await captureImage(session, width, top, extent) ?
+                { image, sha256: sha(image), extent } : null;
+        };
+        const hero = await capture(heroHeight);
+        const pair = await capture(pairHeight);
+        if (!hero || !pair || denied.length || hero.sha256 === pinnedHeroSha256 || !await overlayHidden() ||
+            JSON.stringify(await measure()) !== JSON.stringify(after)) return pending('unstable_settled_paint');
+        return { version: 1, width, status: 'observed', ownerRef, adjacentRef, leadRef, overlayRef,
+            dismissTargetId, pinnedHeroSha256, sourceCopySha256: copySha256, blockedRequestCount: 0,
+            top, hero, pair };
+    } catch {
+        return pending('settled_paint_unavailable');
+    } finally {
+        await session.detach();
+    }
+}
+
 /** Capture the region itself after verifying the original composition and the adjacent owner's overhang. */
 async function captureOwnedRegion(page,sections,diagnostics,{width,sourceRef,destinationRef,overlapRef,compositedSha256}) {
     const target=sections.find(section=>section.kind==='content'&&section.sourceRef===sourceRef);
@@ -301,4 +382,4 @@ function reconcileResponsive(url, views) {
     return regions;
 }
 
-module.exports = { VIEWPORTS, settleEntrancePaint, captureResponsiveViewport, captureOwnedRegion, reconcileResponsive };
+module.exports = { VIEWPORTS, settleEntrancePaint, captureResponsiveViewport, captureOwnedRegion, captureSettledPair, reconcileResponsive };

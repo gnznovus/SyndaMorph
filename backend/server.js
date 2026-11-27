@@ -3,7 +3,7 @@ const http = require('node:http');
 const { timingSafeEqual } = require('node:crypto');
 const { capture, captureResponsive } = require('./capture');
 const { productionSource } = require('./production-source');
-const { captureOwnedRegion } = require('./responsive-capture');
+const { captureOwnedRegion, captureSettledPair } = require('./responsive-capture');
 const { enabled: referenceEnabled,readReference,recordedPng } = require('./production-reference');
 const { validateTouchActions,inspectTouch,disclosureRef,inspectDisclosure,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms,inspectRelocatedCopy } = require('./production-touch');
 const { createAnalyzeHandler } = require('./mvp/endpoint');
@@ -51,11 +51,18 @@ http.createServer(async (req, res) => {
             const revealCards=input.kind==='reveal-cards';
             const rooms=input.kind==='room-showcase';
             const relocation=input.kind==='responsive-copy-placement';
-            const scoped=disclosure||imageStrip||linkedImage||revealCards||rooms||relocation;
+            const settledPair=input.kind==='settled-content-pair';
+            const scoped=disclosure||imageStrip||linkedImage||revealCards||rooms||relocation||settledPair;
             if(scoped&&!disclosureRef(input.sourceRef))return respond(res,400,{error:'Invalid recorded region target.'});
             if(relocation&&(!disclosureRef(input.destinationRef)||input.sourceRef===input.destinationRef||
                 typeof input.copy!=='string'||input.copy.length<3||input.copy.length>160))
                 return respond(res,400,{error:'Invalid responsive placement target.'});
+            if(settledPair&&(input.width!==1440||
+                ![input.adjacentRef,input.leadRef,input.overlayRef].every(disclosureRef)||
+                new Set([input.sourceRef,input.adjacentRef,input.leadRef,input.overlayRef]).size!==4||
+                typeof input.dismissTargetId!=='string'||!/^[a-f0-9]{24}$/.test(input.dismissTargetId)||
+                typeof input.pinnedHeroSha256!=='string'||!/^[a-f0-9]{64}$/.test(input.pinnedHeroSha256)))
+                return respond(res,400,{error:'Invalid settled capture identity.'});
             const crop=input.ownedCrop;
             if(crop!==undefined&&(!relocation||input.width!==1440||!disclosureRef(crop?.overlapRef)||
                 typeof crop.compositedSha256!=='string'||!/^[a-f0-9]{64}$/.test(crop.compositedSha256)))
@@ -75,6 +82,11 @@ http.createServer(async (req, res) => {
                         linkedImage?inspectLinkedImage(page,{width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256},seal):
                         revealCards?inspectRevealCards(page,{width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256},seal):
                         rooms?inspectRooms(page,{width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256},seal):
+                        settledPair?captureSettledPair(page,_regions,{
+                            width:input.width,ownerRef:input.sourceRef,adjacentRef:input.adjacentRef,leadRef:input.leadRef,
+                            overlayRef:input.overlayRef,dismissTargetId:input.dismissTargetId,
+                            pinnedHeroSha256:input.pinnedHeroSha256,copySha256:pinned.copySha256,
+                        },seal):
                         relocation?(async()=>{
                             const placement=await inspectRelocatedCopy(page,{width:input.width,sourceRef:input.sourceRef,
                                 destinationRef:input.destinationRef,copy:input.copy,copySha256:pinned.copySha256},seal);
