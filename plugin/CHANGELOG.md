@@ -6,6 +6,12 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.54] - 2026-11-27
+
+### Security
+
+- The administrator transport check validates its nonce before WordPress starts page output. Invalid submissions return HTTP 403 without running service probes, including under PHP-FPM.
+
 ## [0.12.53] - 2026-11-27
 
 ### Security

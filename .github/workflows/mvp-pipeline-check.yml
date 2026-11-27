@@ -9,6 +9,7 @@ on:
       - 'compose.plesk-staging.yaml'
       - 'tests/plesk-compose-check.py'
       - 'tests/internal-transport-test.php'
+      - 'tests/transport-admin-browser.cjs'
       - 'plugin/includes/internal-transport.php'
       - 'plugin/includes/transport-status.php'
       - 'plugin/includes/production-team.php'
@@ -98,6 +99,7 @@ on:
       - 'compose.plesk-staging.yaml'
       - 'tests/plesk-compose-check.py'
       - 'tests/internal-transport-test.php'
+      - 'tests/transport-admin-browser.cjs'
       - 'plugin/includes/internal-transport.php'
       - 'plugin/includes/transport-status.php'
       - 'plugin/includes/production-team.php'
@@ -255,6 +257,8 @@ jobs:
           cd backend && npx playwright install --with-deps chromium && cd ..
           node tests/gutenberg-native-browser.cjs
           node tests/production-scope-browser.cjs
+          docker compose exec -T wordpress php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; $result = activate_plugin("syndamorph/syndamorph.php"); if (is_wp_error($result)) { exit(1); }'
+          node tests/transport-admin-browser.cjs
       - name: Backend runtime packaging
         run: |
           docker build -t syndamorph-mvp ./backend

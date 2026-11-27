@@ -58,14 +58,10 @@ function syndamorph_transport_self_test(): array {
 }
 
 add_action( 'admin_menu', static function(): void {
-    add_management_page( 'SyndaMorph Transport', 'SyndaMorph Transport', 'manage_options', 'syndamorph-transport',
-        static function(): void {
+    $results = array();
+    $page = add_management_page( 'SyndaMorph Transport', 'SyndaMorph Transport', 'manage_options', 'syndamorph-transport',
+        static function() use ( &$results ): void {
             if ( ! current_user_can( 'manage_options' ) ) { return; }
-            $results = array();
-            if ( isset( $_POST['syndamorph_check_transport'] ) ) {
-                check_admin_referer( 'syndamorph_check_transport' );
-                $results = syndamorph_transport_self_test();
-            }
             ?>
             <div class="wrap">
                 <h1>SyndaMorph Transport</h1>
@@ -86,4 +82,11 @@ add_action( 'admin_menu', static function(): void {
             <?php
         }
     );
+    if ( $page ) {
+        add_action( 'load-' . $page, static function() use ( &$results ): void {
+            if ( ! current_user_can( 'manage_options' ) || ! isset( $_POST['syndamorph_check_transport'] ) ) { return; }
+            check_admin_referer( 'syndamorph_check_transport' );
+            $results = syndamorph_transport_self_test();
+        } );
+    }
 } );
