@@ -39,6 +39,46 @@ async function verifyEditableTabs(page,post) {
  console.log('PASS: real Gutenberg tab edit, save, reload, and WordPress frontend interaction at all three widths.');
 }
 
+async function verifyBooking(page, post) {
+ assert.ok(post, 'Booking fixture did not save a draft');
+ await page.goto(origin+'/wp-admin/post.php?post='+post+'&action=edit');
+ const ready=()=>page.waitForFunction(()=>window.wp?.data?.select('core/block-editor')?.getBlocks().length===2);
+ await ready();
+ await page.evaluate(()=>{
+  const block=wp.data.select('core/block-editor').getBlocks()[0];
+  wp.data.dispatch('core/block-editor').updateBlockAttributes(block.clientId,{copy:{availability:'Edited availability'}});
+  return wp.data.dispatch('core/editor').savePost();
+ });
+ await page.waitForFunction(()=>!wp.data.select('core/editor').isSavingPost()&&wp.data.select('core/editor').didPostSaveRequestSucceed());
+ await page.reload();
+ await ready();
+ assert.equal(await page.evaluate(()=>wp.data.select('core/block-editor').getBlocks().every(b=>
+  b.isValid&&b.name==='syndamorph/booking-summary')),true);
+ assert.equal((await page.goto(origin+'/?page_id='+post+'&preview=true')).status(),200);
+ const bars=page.locator('[data-sm-booking]');
+ assert.equal(await bars.count(),2);
+ const first=bars.first(),second=bars.last();
+ assert.equal(await first.getByText('Edited availability',{exact:true}).isVisible(),true);
+ assert.equal(await first.locator('a[href],form,input').count(),0);
+ const guests=first.getByRole('button',{name:/Rooms & guests/});
+ await guests.press('Enter');
+ const adult=first.locator('[data-sm-counter=adults]');
+ for(let i=0;i<8;i++)await adult.getByRole('button',{name:'Increase Adults'}).press('Enter');
+ assert.equal(await adult.locator('output').innerText(),'8');
+ for(let i=0;i<9;i++)await adult.getByRole('button',{name:'Decrease Adults'}).press('Enter');
+ assert.equal(await adult.locator('output').innerText(),'1');
+ assert.equal(await first.locator('[data-sm-booking-guests]').innerText(),'1 room · 1 guest');
+ assert.equal(await second.locator('[data-sm-booking-guests]').innerText(),'1 room · 2 guests');
+ const rate=first.getByRole('button',{name:/Rate preference/});
+ await rate.press('Space');
+ assert.equal(await guests.getAttribute('aria-expanded'),'false');
+ await first.getByRole('button',{name:'Reward Nights',exact:true}).press('Enter');
+ assert.equal(await rate.getAttribute('aria-expanded'),'false');
+ assert.equal(await first.locator('[data-sm-booking-rate]').innerText(),'Reward Nights');
+ assert.equal(await second.locator('[data-sm-booking-rate]').innerText(),'Best Available');
+ console.log('PASS: Gutenberg booking edit, save, reload, local actions, and independent instances.');
+}
+
 async function verifySectionWidths(page, sections) {
  await page.setViewportSize({width:1440,height:900});
  await page.goto(origin+'/wp-admin/post-new.php?post_type=page');
@@ -138,7 +178,7 @@ async function verifySectionWidths(page, sections) {
    try{validate(gen9.replace(' has-custom-font-size',''));}catch(e){missingFontClassRejected=/serialization invalid/.test(e.message);}
    const tabBlocks=window.tabsPost?validate(window.tabsContent):0;
    return {initial,count,registered,expected:a.blockCount,rejected,cases,missingFontClassRejected,tabBlocks,
-    tabsPost:window.tabsPost,sections:window.nativeAlignments};
+    tabsPost:window.tabsPost,bookingPost:window.bookingPost,sections:window.nativeAlignments};
   });
   console.log({...result,sections:Object.keys(result.sections)});
   assert.ok(result.initial<=1,'Only the custom tabs block should be registered before the native validator sets up core.');
@@ -228,6 +268,7 @@ async function verifySectionWidths(page, sections) {
    }
   }
   await verifyEditableTabs(page,result.tabsPost);
+  await verifyBooking(page,result.bookingPost);
   await verifySectionWidths(page,result.sections);
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

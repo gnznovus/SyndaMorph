@@ -6,6 +6,20 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.48] - 2026-11-27
+
+### Added
+
+- Booking Summary is an editable Gutenberg block with local guest counters and rate selection. For the desktop hero, it supports a measured 44 px overlap. The archived date and availability labels remain display text. Automated booking placement remains pending.
+
+### Fixed
+
+- Fresh Full Page capture waits briefly for finite, visible opacity and position transitions after initial layout. Archived replay preserves the original screenshot path.
+
+### Verified
+
+- The Gutenberg-saved desktop BKKGO draft kept all 425 blocks valid and reproduced the three counter ranges, five rates and measured bar overlap without booking requests. Its hero passed the settled desktop crop at 0.459% difference. The combined crop remains pending at 0.701%. No model calls were made.
+
 ## [0.12.47] - 2026-11-27
 
 ### Added

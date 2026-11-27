@@ -5,6 +5,29 @@ const { touchTargetId } = require('./production-touch');
 const VIEWPORTS = [1440, 768, 375];
 const HEIGHT = 900;
 
+async function settleEntrancePaint(page) {
+    // Sample pending transitions after layout, without finishing animations,
+    // scrolling, changing styles, or waiting on a site's infinite effects.
+    await page.evaluate(async () => {
+        await Promise.race([
+            new Promise(resolve => setTimeout(resolve, 1200)),
+            (async () => {
+                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                const entrance = document.getAnimations().filter(animation => {
+                    const effect = animation.effect;
+                    const target = effect?.target;
+                    if (!(target instanceof Element) || !Number.isFinite(effect.getComputedTiming().endTime) ||
+                        (!animation.pending && animation.playState !== 'running')) return false;
+                    const rect = target.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < innerHeight &&
+                        effect.getKeyframes().some(frame => 'opacity' in frame || 'transform' in frame);
+                });
+                await Promise.allSettled(entrance.map(animation => animation.finished));
+            })(),
+        ]);
+    });
+}
+
 // Read the original DOM. The existing manual extractor's static annotations
 // are useful for display, but aren't a record of the source's behavior.
 function sourceInventory({ selectors }) {
@@ -278,4 +301,4 @@ function reconcileResponsive(url, views) {
     return regions;
 }
 
-module.exports = { VIEWPORTS, captureResponsiveViewport, captureOwnedRegion, reconcileResponsive };
+module.exports = { VIEWPORTS, settleEntrancePaint, captureResponsiveViewport, captureOwnedRegion, reconcileResponsive };

@@ -6,7 +6,7 @@ const { createHash }=require('node:crypto');
 const { chromium }=require('playwright');
 const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms,inspectRelocatedCopy }=require('./production-touch');
 const { recordedPng }=require('./production-reference');
-const { captureResponsiveViewport,captureOwnedRegion }=require('./responsive-capture');
+const { settleEntrancePaint,captureResponsiveViewport,captureOwnedRegion }=require('./responsive-capture');
 
 test('Touch actions are limited to server target identities and bounded gestures',()=>{
     assert.throws(()=>validateTouchActions([{type:'click',target:'#submit'}]));
@@ -16,6 +16,28 @@ test('Touch actions are limited to server target identities and bounded gestures
     assert.throws(()=>validateTouchActions(Array(6).fill({type:'scroll',dy:20})));
     assert.deepEqual(validateTouchActions([{type:'drag',target:'a'.repeat(24),dx:12}]),
         [{type:'drag',target:'a'.repeat(24),dx:12}]);
+});
+
+test('fresh discovery waits for the visible hero entrance and leaves infinite animation alone',{
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const browser=await chromium.launch();
+    try{
+        const page=await browser.newPage();
+        await page.setContent('<h1 id="title">Visible hero title</h1><p id="ticker">Unrelated animation</p>');
+        await page.evaluate(()=>{
+            document.querySelector('#ticker').animate([{opacity:.5},{opacity:1}],{duration:500,iterations:Infinity});
+            document.querySelector('#title').animate([
+                {opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'none'},
+            ],{duration:450,fill:'both'});
+        });
+        await settleEntrancePaint(page);
+        const paint=await page.evaluate(()=>{
+            const style=getComputedStyle(document.querySelector('#title'));
+            return [style.opacity,style.transform,document.querySelector('#ticker').getAnimations()[0].playState,scrollY];
+        });
+        assert.deepEqual(paint,['1','matrix(1, 0, 0, 1, 0, 0)','running',0]);
+    }finally{await browser.close();}
 });
 
 test('recorded responsive copy requires one exact placement per viewport',{

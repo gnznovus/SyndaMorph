@@ -5,7 +5,7 @@ const net = require('node:net');
 const { chromium } = require('playwright');
 const { extractSections } = require('./sections');
 const { inspectDocument } = require('./diagnostics');
-const { VIEWPORTS, captureResponsiveViewport, reconcileResponsive } = require('./responsive-capture');
+const { VIEWPORTS, settleEntrancePaint, captureResponsiveViewport, reconcileResponsive } = require('./responsive-capture');
 const { enabled: referenceEnabled, prepareReferencePage, captureReference, storeReferences } = require('./production-reference');
 const { referenceFetch } = require('./reference-fetch');
 
@@ -176,6 +176,7 @@ async function capture(urlValue, mode = 'auto', options = {}) {
         if (options.inspect) await page.evaluate(async () => {
             await Promise.race([document.fonts.ready, new Promise((resolve) => setTimeout(resolve, 2500))]);
         });
+        if (options.settleEntrancePaint) await settleEntrancePaint(page);
         const reference = archive ? await captureReference(page,options.width,{ network:{ ...responses,samples:requestFailures },browserErrors }) : null;
         const diagnostics = await page.evaluate(inspectDocument);
         const result = await page.evaluate(extractSections, { maxSections: MAX_SECTIONS + (options.includeRequiredRoots ? 1 : 0),
@@ -211,7 +212,8 @@ async function captureResponsive(url) {
     let canonical;
     for (const width of VIEWPORTS) {
         const { describeSource } = require('./production-source');
-        const captured = await capture(url, 'browser', { width, includeRequiredRoots: true, includeHtml: true, archive, archiveTransport,
+        const captured = await capture(url, 'browser', { width, includeRequiredRoots: true, includeHtml: true,
+            settleEntrancePaint: true, archive, archiveTransport,
             inspect: async (page, sections, diagnostics, reference) => ({ url: page.url(), reference,
                 evidence: await captureResponsiveViewport(page, sections, width, diagnostics, describeSource) }) });
         if (canonical && captured.url !== canonical) throw new Error('The capture resolved to different URLs across widths.');

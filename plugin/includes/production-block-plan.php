@@ -181,6 +181,14 @@ function syndamorph_native_core_preview(array $blocks,?array $ids=null,bool $pag
             }
             return $block;
         }
+        if($block['blockName']==='syndamorph/booking-summary'){
+            $types[$block['blockName']]=true;
+            if($ids!==null){
+                if(!isset($ids[$index]))throw new RuntimeException('Booking preview identity missing.');
+                $block['attrs']['previewComponent']=$ids[$index++];
+            }
+            return $block;
+        }
         if($ids!==null){
             $tag=new WP_HTML_Tag_Processor($block['innerContent'][0]??'');
             if(!$tag->next_tag()||!isset($ids[$index]))throw new RuntimeException('Native block preview identity missing.');
@@ -214,6 +222,10 @@ function syndamorph_native_core_preview(array $blocks,?array $ids=null,bool $pag
     foreach(array_keys($types) as $type) {
         if($type==='syndamorph/tabs'){
             $css.=syndamorph_tabs_asset('production-tabs.css');
+            continue;
+        }
+        if($type==='syndamorph/booking-summary'){
+            $css.=file_get_contents(dirname(__DIR__).'/assets/production-booking.css');
             continue;
         }
         $path=ABSPATH.WPINC.'/blocks/'.$type.'/style.min.css';

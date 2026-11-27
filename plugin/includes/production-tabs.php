@@ -232,6 +232,8 @@ function syndamorph_tabs_verify(array $artifact,array $widths,array $interaction
 }
 
 function syndamorph_functional_acceptance(array $final,string $checksum): bool {
+    // Booking needs an archive-bound verifier before automated placement can admit it.
+    if(str_contains($final['artifact']['content']??'','<!-- wp:syndamorph/booking-summary'))return false;
     $receipt=$final['quality']['functionalChecks']??null;
     if($receipt===null||($receipt['status']??null)==='not_applicable'){
         return !str_contains($final['artifact']['content']??'','<!-- wp:syndamorph/tabs ')&&

@@ -105,6 +105,14 @@ The compact native draft first measured 4.279% and 8.908% difference at 768 and 
 
 History event 23322 binds the compact plan and saved hero SHA-256 `eceebf0a83781a6aa1fc5da77e42c01fb889c28f798334ff575046abd08279e8` to source checkpoint 12133. Unpublished integration draft 155 preserved all 420 blocks through edit, save and reload. It showed one title and one `#rooms` anchor at 1440, 1280, 1024, 1023, 900, 768, 600, 450 and 375 px. The title appeared in the intro at desktop widths and in the compact hero below 1024 px. REF-000030 retains eight accepted placements while the desktop hero and combined visual QA are pending. The checkpoint made zero model calls.
 
+### Desktop booking and entrance paint checkpoint, v0.12.48
+
+Archived Touch verified room limits of 1–9, adult limits of 1–8 and child limits of 0–8. All five rate choices changed the summary and closed the panel. Corporate Special Rate, Group Rate and the travel-agent label had no observed actions. Four desktop date click targets produced no observable date state. The native Booking Summary keeps date and availability copy as text and implements the verified counters and rate selection. It also supports keyboard focus and Escape dismissal. External booking and automatic placement remain pending.
+
+History event 23329 binds unpublished draft 164 and its 425 Gutenberg-verified blocks to source checkpoint 12133. The bar measured 1120 by 88 px and extended 44 px across the next region at 1440 px. The counter and rate replay generated zero booking requests.
+
+The original hero JPEG captured the title while the entrance animation still had opacity zero and a 12 px translation. A sealed replay retained separate settled screenshots from the same archive. A native 160 px inset matched the settled position. The saved hero measured 0.459% difference against the supplemental settled crop, 1.839% against the original pinned crop, and 0.701% across the combined settled hero and intro. The original evidence and 0.5% gate were preserved. REF-000030 still holds eight accepted placements. Fresh Full Page discovery now waits up to 1.2 seconds for finite visible opacity or transform animations before collecting new evidence.
+
 ### SIP & DINE alignment checkpoint, v0.12.42
 
 The archived Pattern 79 omitted alignment on its outer Core Group. The Twenty Twenty-Five Page template constrained it to 645 px in a 1440 px viewport and to 315 px at 375 px. Fresh measurements of the approved Designer reference selected Full width. Recompiling the retained plan produced private unsynced Pattern 120 and preserved all 68 blocks and their inner layouts.
