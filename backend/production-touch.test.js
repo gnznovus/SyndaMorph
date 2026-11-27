@@ -6,7 +6,7 @@ const { createHash }=require('node:crypto');
 const { chromium }=require('playwright');
 const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms,inspectRelocatedCopy }=require('./production-touch');
 const { recordedPng }=require('./production-reference');
-const { captureResponsiveViewport }=require('./responsive-capture');
+const { captureResponsiveViewport,captureOwnedRegion }=require('./responsive-capture');
 
 test('Touch actions are limited to server target identities and bounded gestures',()=>{
     assert.throws(()=>validateTouchActions([{type:'click',target:'#submit'}]));
@@ -54,6 +54,53 @@ test('recorded responsive copy requires one exact placement per viewport',{
         assert.equal((await inspect(375,markup,[{}])).reason,'source_changed_during_replay');
         const changed=await inspectRelocatedCopy(page,{...input,width:375,copySha256:sha('Changed')},()=>[]);
         assert.equal(changed.reason,'live_source_changed');
+    }finally{await browser.close();}
+});
+
+test('owned region crops reproduce the composed image before hiding the adjacent overhang',{
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const browser=await chromium.launch();
+    try{
+        const width=1440;
+        const page=await browser.newPage({viewport:{width,height:900}});
+        await page.setContent('<style>body{margin:0}#owner{position:relative;height:120px}'+
+            '#bar{position:absolute;left:180px;bottom:-30px;width:300px;height:50px;background:black}'+
+            '#region{height:200px;background:#ff0}#other{position:absolute;top:130px;left:600px;width:60px;height:30px;background:red}</style>'+
+            '<div id="owner"><div id="bar"></div></div><div id="region"><div id="other"></div>Editorial text</div>');
+        const sourceRef='[id="region"]',destinationRef='[id="owner"]',overlapRef='[id="bar"]';
+        const sections=[
+            {kind:'content',sourceRef:destinationRef,geometryAvailable:true,bounds:{y:0,height:120},
+                overhangs:[{sourceRef:overlapRef,position:'absolute',edges:{bottom:30}}]},
+            {kind:'content',sourceRef,geometryAvailable:true,bounds:{y:120,height:200}},
+        ];
+        const diagnostics={contentReady:true};
+        const capture=async()=> (await captureResponsiveViewport(page,sections,width,diagnostics)).sections[1].screenshot;
+        const sha=encoded=>createHash('sha256').update(Buffer.from(encoded,'base64')).digest('hex');
+        const original=await capture();
+        const input={width,sourceRef,destinationRef,overlapRef,compositedSha256:sha(original)};
+        const isolated=await captureOwnedRegion(page,sections,diagnostics,input);
+        assert.equal(isolated.overlap,30);
+        assert.equal(isolated.top,120);
+        assert.equal(isolated.height,200);
+        assert.equal(isolated.cropSha256,sha(isolated.screenshot));
+        assert.notEqual(isolated.cropSha256,input.compositedSha256);
+        const sample=await page.evaluate(async base64=>{
+            const image=new Image();
+            image.src='data:image/jpeg;base64,'+base64;
+            await image.decode();
+            const canvas=document.createElement('canvas');
+            canvas.width=image.width;canvas.height=image.height;
+            const context=canvas.getContext('2d');
+            context.drawImage(image,0,0);
+            return [200,620].map(x=>[...context.getImageData(x,20,1,1).data]);
+        },isolated.screenshot);
+        assert.ok(sample[0][0]>240&&sample[0][1]>240,'the removed overhang exposes the yellow background');
+        assert.ok(sample[1][0]>240&&sample[1][1]<15,'the independent red rectangle remains visible');
+        assert.equal(await capture(),original);
+        assert.equal(await captureOwnedRegion(page,sections,diagnostics,{...input,compositedSha256:'0'.repeat(64)}),null);
+        assert.equal(await captureOwnedRegion(page,sections,diagnostics,{...input,overlapRef:'[id="other"]'}),null);
+        assert.equal(await capture(),original);
     }finally{await browser.close();}
 });
 

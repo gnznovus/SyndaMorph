@@ -2,6 +2,7 @@
 const http = require('node:http');
 const { capture, captureResponsive } = require('./capture');
 const { productionSource } = require('./production-source');
+const { captureOwnedRegion } = require('./responsive-capture');
 const { enabled: referenceEnabled,readReference,recordedPng } = require('./production-reference');
 const { validateTouchActions,inspectTouch,disclosureRef,inspectDisclosure,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms,inspectRelocatedCopy } = require('./production-touch');
 const { createAnalyzeHandler } = require('./mvp/endpoint');
@@ -49,6 +50,10 @@ http.createServer(async (req, res) => {
             if(relocation&&(!disclosureRef(input.destinationRef)||input.sourceRef===input.destinationRef||
                 typeof input.copy!=='string'||input.copy.length<3||input.copy.length>160))
                 return respond(res,400,{error:'Invalid responsive placement target.'});
+            const crop=input.ownedCrop;
+            if(crop!==undefined&&(!relocation||input.width!==1440||!disclosureRef(crop?.overlapRef)||
+                typeof crop.compositedSha256!=='string'||!/^[a-f0-9]{64}$/.test(crop.compositedSha256)))
+                return respond(res,400,{error:'Invalid owned desktop crop.'});
             const actions=scoped?[]:validateTouchActions(input.actions);
             responsiveInProgress=true;
             try {
@@ -64,8 +69,20 @@ http.createServer(async (req, res) => {
                         linkedImage?inspectLinkedImage(page,{width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256},seal):
                         revealCards?inspectRevealCards(page,{width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256},seal):
                         rooms?inspectRooms(page,{width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256},seal):
-                        relocation?inspectRelocatedCopy(page,{width:input.width,sourceRef:input.sourceRef,
-                            destinationRef:input.destinationRef,copy:input.copy,copySha256:pinned.copySha256},seal):
+                        relocation?(async()=>{
+                            const placement=await inspectRelocatedCopy(page,{width:input.width,sourceRef:input.sourceRef,
+                                destinationRef:input.destinationRef,copy:input.copy,copySha256:pinned.copySha256},seal);
+                            if(!crop||placement.status!=='observed')return placement;
+                            let ownedCrop;
+                            try{
+                                ownedCrop=await captureOwnedRegion(page,_regions,_diagnostics,{width:input.width,sourceRef:input.sourceRef,
+                                    destinationRef:input.destinationRef,overlapRef:crop.overlapRef,compositedSha256:crop.compositedSha256});
+                            }catch{
+                                return {...placement,ownedCrop:{status:'pending',reason:'owned_crop_capture_failed'}};
+                            }
+                            return ownedCrop&&seal().length===0?{...placement,ownedCrop}:
+                                {...placement,ownedCrop:{status:'pending',reason:'owned_crop_unverified'}};
+                        })():
                         inspectTouch(page,{width:input.width,actions,copySha256:pinned.copySha256},seal) });
                 let receipt=captured;
                 const artwork=imageStrip?receipt.initial:linkedImage?receipt.image:null;

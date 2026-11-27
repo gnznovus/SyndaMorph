@@ -124,6 +124,15 @@
                 const widths = row.sourceCopyPlacement.views.filter(view => view.placement === 'destination')
                     .map(view => view.width).join(', ');
                 if (target && widths) entry.append(node('p', 'Recorded title placement in ' + target.label + ' at ' + widths + ' px.'));
+                const crop = row.sourceCopyPlacement.ownedCrop;
+                if (crop?.status === 'verified') {
+                    entry.append(node('p', 'Verified desktop source crop. The original page capture retains the ' + crop.overlap + ' px overlap.'));
+                } else if (target && row.status === 'blocked') {
+                    if (crop?.status === 'pending') entry.append(node('p', 'Desktop source crop pending.'));
+                    entry.append(button('Recheck recorded source placement', async () => {
+                        manifest = await request(url(), {action:'verify_copy_placement',region:row.id,destinationRegion:target.id});
+                    }));
+                }
             } else if (manifest.mode === 'page' && manifest.referenceArchive?.runtimeSha256 && row.status === 'blocked' &&
                 row.kind === 'content' && Object.keys(row.variants).join(',') === '1440' && row.blockers.length === 2 &&
                 row.blockers.every(issue => issue.startsWith('No proven source variant'))) {

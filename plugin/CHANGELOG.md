@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.44] - 2026-11-27
+
+### Added
+
+- Full Page recorded replay can save a separate desktop region crop when a verified adjacent region paints across its boundary. It reproduces the original composed image byte for byte before hiding the recorded overhang and checks that the target copy and layout still match. The original capture remains the page-level visual reference.
+
+### Verified
+
+- The BKKGO intro crop reproduced the adjacent hero's 44 px booking bar overlap and recorded the 592 px intro crop separately in History. The unpublished five-block intro passed Gutenberg edit, save and reload. Native visual QA remains pending at 1.231% difference against the original 0.5% aggregate limit.
+
 ## [0.12.43] - 2026-11-27
 
 ### Added

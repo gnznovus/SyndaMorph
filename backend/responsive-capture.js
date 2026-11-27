@@ -134,6 +134,59 @@ async function muteOverlayLayers(page, sections) {
         contentSelectors: sections.filter(s => s.kind !== 'overlay').map(s => s.sourceRef) });
 }
 
+/** Capture the region itself after verifying the original composition and the adjacent owner's overhang. */
+async function captureOwnedRegion(page,sections,diagnostics,{width,sourceRef,destinationRef,overlapRef,compositedSha256}) {
+    const target=sections.find(section=>section.kind==='content'&&section.sourceRef===sourceRef);
+    const owner=sections.find(section=>section.kind==='content'&&section.sourceRef===destinationRef);
+    const overhang=owner?.overhangs?.find(entry=>entry.sourceRef===overlapRef&&entry.position==='absolute'&&entry.edges?.bottom>0);
+    const top=Math.round(target?.bounds?.y??-1);
+    const height=Math.round(target?.bounds?.height??0);
+    if(!diagnostics.contentReady||!target?.geometryAvailable||!overhang||top<0||height<1||height>12000||page.viewportSize()?.width!==width)
+        return null;
+    const measure=()=>page.evaluate(({sourceRef,destinationRef,overlapRef})=>{
+        const unique=selector=>{
+            const elements=document.querySelectorAll(selector);
+            return elements.length===1?elements[0]:null;
+        };
+        const source=unique(sourceRef), owner=unique(destinationRef), overhang=unique(overlapRef);
+        if(!source||!owner||!overhang||owner.contains(source)||source.contains(owner)||
+            !owner.contains(overhang)||getComputedStyle(overhang).position!=='absolute')return null;
+        const r=source.getBoundingClientRect(), a=owner.getBoundingClientRect(), b=overhang.getBoundingClientRect();
+        const intersection=Math.min(r.bottom,b.bottom)-Math.max(r.top,b.top);
+        if(a.bottom>r.top+1||b.top>=r.top||intersection<=0||Math.min(r.right,b.right)<=Math.max(r.left,b.left))return null;
+        return {rect:[r.x+scrollX,r.y+scrollY,r.width,r.height],overlap:Math.round(intersection*100)/100,
+            copy:source.textContent};
+    },{sourceRef,destinationRef,overlapRef});
+    const before=await measure();
+    if(!before||Math.round(before.rect[1])!==top||Math.round(before.rect[3])!==height||
+        Math.abs(before.overlap-overhang.edges.bottom)>1)return null;
+    const captureFrame=async()=>{
+        const rows=sections.filter(section=>section===target||section.kind==='overlay');
+        const capture=await captureResponsiveViewport(page,rows,width,diagnostics);
+        return capture.sections.find(section=>section.sourceRef===sourceRef)?.screenshot;
+    };
+    const original=await captureFrame();
+    const sha=base64=>createHash('sha256').update(Buffer.from(base64,'base64')).digest('hex');
+    if(!original||sha(original)!==compositedSha256)return null;
+    const restore=await page.locator(overlapRef).evaluateHandle(element=>{
+        const prior=element.style.getPropertyValue('visibility');
+        const priority=element.style.getPropertyPriority('visibility');
+        element.style.setProperty('visibility','hidden','important');
+        return ()=>prior?element.style.setProperty('visibility',prior,priority):element.style.removeProperty('visibility');
+    });
+    try{
+        const after=await measure();
+        if(JSON.stringify(after)!==JSON.stringify(before))return null;
+        const screenshot=await captureFrame();
+        if(!screenshot||sha(screenshot)===compositedSha256)return null;
+        return {width,top,height,overlap:before.overlap,sourceRef,destinationRef,overlapRef,
+            compositedSha256,cropSha256:sha(screenshot),screenshot};
+    }finally{
+        await restore.evaluate(undo=>undo());
+        await restore.dispose();
+    }
+}
+
 async function captureResponsiveViewport(page, sections, width, diagnostics, describeSource = null) {
     const session = await page.context().newCDPSession(page);
     try {
@@ -225,4 +278,4 @@ function reconcileResponsive(url, views) {
     return regions;
 }
 
-module.exports = { VIEWPORTS, captureResponsiveViewport, reconcileResponsive };
+module.exports = { VIEWPORTS, captureResponsiveViewport, captureOwnedRegion, reconcileResponsive };

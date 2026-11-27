@@ -306,13 +306,28 @@ function syndamorph_source_copy_placement(array $source,array $destination,array
             return $fail('unbound_destination',$width);
         $targets[$width]=$ref;
     }
+    $desktopBounds=$desktop['bounds']??array();
+    $top=$desktopBounds['y']??null;
+    $overhangs=array_values(array_filter($destination['variants'][1440]['overhangs']??array(),
+        static function(array $entry)use($top,$validRef):bool {
+            $bounds=$entry['bounds']??array();
+            return is_numeric($top)&&$validRef($entry['sourceRef']??null)&&($entry['position']??null)==='absolute'&&
+                ($entry['edges']['bottom']??0)>0&&is_numeric($bounds['y']??null)&&is_numeric($bounds['height']??null)&&
+                $bounds['y']<$top&&$bounds['y']+$bounds['height']>$top;
+        }));
+    $original=is_string($desktop['screenshot']??null)?base64_decode($desktop['screenshot'],true):false;
+    $cropRequest=count($overhangs)===1&&$original?array('overlapRef'=>$overhangs[0]['sourceRef'],
+        'compositedSha256'=>hash('sha256',$original)):null;
+    $ownedCrop=null;
     $views=array();
     $copySha=hash('sha256',$copy);
     foreach($targets as $width=>$ref){
+        $captureCrop=$width===1440&&$cropRequest!==null;
         $response=wp_remote_post('http://backend:3100/production-touch',array('timeout'=>35,'redirection'=>0,
-            'limit_response_size'=>16000,'headers'=>array('Content-Type'=>'application/json','X-SyndaMorph-Token'=>$token),
+            'limit_response_size'=>$captureCrop?436000:16000,'headers'=>array('Content-Type'=>'application/json','X-SyndaMorph-Token'=>$token),
             'body'=>wp_json_encode(array('archiveId'=>$archive['id'],'kind'=>'responsive-copy-placement',
-                'width'=>$width,'sourceRef'=>$sourceRef,'destinationRef'=>$ref,'copy'=>$copy))));
+                'width'=>$width,'sourceRef'=>$sourceRef,'destinationRef'=>$ref,'copy'=>$copy)+
+                ($captureCrop?array('ownedCrop'=>$cropRequest):array()))));
         $view=is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200?null:
             json_decode(wp_remote_retrieve_body($response),true);
         $box=$view['bounds']??null;
@@ -328,9 +343,39 @@ function syndamorph_source_copy_placement(array $source,array $destination,array
             $reason=$view['reason']??null;
             return $fail(is_string($reason)&&preg_match('/^[a-z_]{1,64}$/D',$reason)?$reason:'receipt_mismatch',$width);
         }
+        if($captureCrop){
+            $ownedCrop=syndamorph_source_owned_crop($view['ownedCrop']??null,$cropRequest,$desktopBounds,
+                $sourceRef,$ref,(float)$overhangs[0]['edges']['bottom']);
+        }
+        unset($view['ownedCrop']);
         $views[]=$view;
     }
-    return array('archiveId'=>$archive['id'],'copy'=>$copy,'copySha256'=>$copySha,'views'=>$views);
+    return array('archiveId'=>$archive['id'],'copy'=>$copy,'copySha256'=>$copySha,'views'=>$views)+
+        ($ownedCrop===null?array():array('ownedCrop'=>$ownedCrop));
+}
+
+function syndamorph_source_owned_crop($crop,array $request,array $bounds,string $sourceRef,string $destinationRef,float $overlap): array {
+    $pending=array('status'=>'pending','reason'=>'owned_crop_unverified');
+    if(($crop['status']??null)==='pending'&&($crop['reason']??null)==='owned_crop_capture_failed')
+        $pending['reason']='owned_crop_capture_failed';
+    $top=(int)round((float)($bounds['y']??-1));
+    $height=(int)round((float)($bounds['height']??0));
+    $base64=$crop['screenshot']??null;
+    $depth=$crop['overlap']??null;
+    if(($crop['width']??null)!==1440||($crop['top']??null)!==$top||($crop['height']??null)!==$height||
+        $top<0||$height<1||$height>12000||($crop['sourceRef']??null)!==$sourceRef||
+        ($crop['destinationRef']??null)!==$destinationRef||($crop['overlapRef']??null)!==$request['overlapRef']||
+        ($crop['compositedSha256']??null)!==$request['compositedSha256']||
+        (!is_int($depth)&&!is_float($depth))||!is_finite($depth)||$depth<=0||abs($depth-$overlap)>1||
+        !is_string($base64)||strlen($base64)>400000)return $pending;
+    $bytes=base64_decode($base64,true);
+    $size=is_string($bytes)?@getimagesizefromstring($bytes):false;
+    $sha=is_string($bytes)?hash('sha256',$bytes):null;
+    if(!$size||$size['mime']!=='image/jpeg'||!str_ends_with($bytes,"\xFF\xD9")||
+        abs($size[0]-1440*min(1,900/$height))>2||abs($size[1]-min(900,$height))>2||
+        ($crop['cropSha256']??null)!==$sha||$sha===$request['compositedSha256'])return $pending;
+    return array('status'=>'verified','width'=>1440,'top'=>$top,'height'=>$height,'overlap'=>$depth,
+        'cropSha256'=>$sha,'screenshot'=>$base64)+$request;
 }
 
 function syndamorph_scope_engine_source(array $source,string $url): array {

@@ -411,6 +411,10 @@ Full Page Production Setup can verify a blocked desktop-only title against a sep
 
 The receipt retains both region identities, their checkpoint IDs, the exact title digest, and the observed location and geometry at each required viewport. It is appended to History and shown on the scope row. Source placement is recorded independently from native visual, editor and page-level QA. REF-000030 still has eight verified regions, and the production budget and existing artifacts were preserved.
 
+## v0.12.44 desktop crops with adjacent overlap
+
+Recorded responsive title placement can save a separate desktop crop when the adjacent region owns a verified absolute overhang. Replay checks the owner's DOM relationship, the original composed JPEG digest and the target's copy and geometry. It hides the exact overhang for the auxiliary crop, then restores the original style. The auxiliary JPEG and digest are stored in a separate History event. Whole-page QA still uses the original composition. A crop failure leaves the separate title placement receipt available for follow-up.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens and GEN-000055 completed their original jobs. Verified BKKGO Full Page assembly and broader region acceptance remain open. [Design validation audit](bossy-validation-audit.md#v0128-verification)

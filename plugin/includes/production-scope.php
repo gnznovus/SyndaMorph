@@ -1181,6 +1181,12 @@ function syndamorph_scope_verify_copy_placement(array $manifest,string $key,stri
     if(is_wp_error($proof))return $proof;
     $proof+=array('region'=>$key,'checkpoint'=>$origin['checkpoint'],
         'destinationRegion'=>$destinationKey,'destinationCheckpoint'=>$destination['checkpoint']);
+    if(($proof['ownedCrop']['status']??null)==='verified'){
+        $identity=array_intersect_key($proof,array_flip(array('archiveId','region','checkpoint','destinationRegion','destinationCheckpoint')));
+        $proof['ownedCrop']['event']=syndamorph_history_append($manifest['id'],'source_owned_region_crop',
+            $identity+$proof['ownedCrop']);
+        unset($proof['ownedCrop']['screenshot']);
+    }
     syndamorph_history_append($manifest['id'],'source_copy_placement_verified',$proof);
     $manifest['regions'][$key]['sourceCopyPlacement']=$proof;
     syndamorph_history_append($manifest['id'],'scope_manifest',$manifest);
