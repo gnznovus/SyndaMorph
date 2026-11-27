@@ -26,7 +26,7 @@ test('renderer authenticates every job before parsing or running Chromium', asyn
     let launches = 0;
     const url = await serve(t, async () => { launches++; return []; });
     const routes = ['render','inspect','compare','crop','check-tabs','check-scroll-strips','check-disclosures',
-        'check-image-strip','check-reveal-cards','check-rooms'];
+        'check-image-strip','check-reveal-cards','check-rooms','check-compact-booking'];
     for (const path of routes) {
         for (const headers of [{}, {'x-syndamorph-renderer-token': 'x'.repeat(token.length)}]) {
             const refused = await fetch(url + '/' + path, { method: 'POST', headers, body: 'not JSON' });

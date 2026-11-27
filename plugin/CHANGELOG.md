@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.57] - 2026-11-27
+
+### Added
+
+- Full Page Production can verify and save an archived fixed compact booking strip as editable Groups and Paragraphs. Source replay proves both labels are inert, and isolated Chromium clips the fixed layer at its original viewport position and verifies its geometry while scrolling.
+
+### Verified
+
+- REF-000030 placed the private, unsynced booking Pattern at source position 6. Both compact crops measured 0% differing pixels, 11 responsive checks passed, and a five-block copy completed a Gutenberg edit, save and reload. The original 421-block partial draft now includes 10 of 16 regions. Full Page QA remains pending. No model calls were made.
+
 ## [0.12.56] - 2026-11-27
 
 ### Added

@@ -189,9 +189,10 @@
                     if (!row.patternId) await finishRegion(row.id);
                 }));
             }
-            if (row.compactGuaranteeReplayAvailable && ['blocked','uncompleted'].includes(row.status)) {
-                entry.append(button('Verify archived compact guarantee', async () => {
-                    manifest = await request(url(), {action:'stage_compact_guarantee',region:row.id});
+            if ((row.compactGuaranteeReplayAvailable || row.compactBookingReplayAvailable) && ['blocked','uncompleted'].includes(row.status)) {
+                const kind = row.compactBookingReplayAvailable ? 'booking' : 'guarantee';
+                entry.append(button('Verify archived compact ' + kind, async () => {
+                    manifest = await request(url(), {action:'stage_compact_' + kind,region:row.id});
                     if (!row.patternId) await finishRegion(row.id);
                 }));
             }

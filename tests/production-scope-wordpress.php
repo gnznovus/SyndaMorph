@@ -135,16 +135,19 @@ if($phase==='setup') {
             'inventory'=>array('position'=>'static','text'=>$guaranteeCopy,'assets'=>array_fill(0,3,array('type'=>'svg')),
                 'controls'=>array(),'links'=>array(),'anchors'=>array()));
     }
-    scope_expect(syndamorph_compact_guarantee_inventory($guarantee)===$guaranteeCopy,'The compact guarantee lost its literal source profile.');
+    scope_expect(syndamorph_compact_inventory($guarantee,'guarantee')===$guaranteeCopy,'The compact guarantee lost its literal source profile.');
     $badGuarantee=$guarantee;
     $badGuarantee['variants'][375]['inventory']['links'][]=array('href'=>'#terms');
-    scope_expect(syndamorph_compact_guarantee_inventory($badGuarantee)===null,'A linked guarantee was accepted as display only.');
+    scope_expect(syndamorph_compact_inventory($badGuarantee,'guarantee')===null,'A linked guarantee was accepted as display only.');
     $badGuarantee=$guarantee;
     $badGuarantee['variants'][375]['inventory']['text'][1]='Changed compact text';
-    scope_expect(syndamorph_compact_guarantee_inventory($badGuarantee)===null,'Different viewport copy was accepted as one native guarantee.');
+    scope_expect(syndamorph_compact_inventory($badGuarantee,'guarantee')===null,'Different viewport copy was accepted as one native guarantee.');
     $badGuarantee=$guarantee;
     $badGuarantee['variants'][1440]=$guarantee['variants'][768];
-    scope_expect(syndamorph_compact_guarantee_inventory($badGuarantee)===null,'A desktop variant was silently dropped.');
+    scope_expect(syndamorph_compact_inventory($badGuarantee,'guarantee')===null,'A desktop variant was silently dropped.');
+    $booking=syndamorph_compact_content(array('copy'=>array('Two guests','Edit','Check Availability')),'booking');
+    scope_expect(syndamorph_scope_block_count(parse_blocks($booking))===5&&!str_contains($booking,'<a ')&&!str_contains($booking,'<button'),
+        'Recorded booking labels must remain editable display text.');
     $pageDocument=syndamorph_scope_document(implode("\n\n",array_map(static fn($f)=>$f['artifact']['content'],$fixtures)),'Offline reference');
     $whole=scope_ok(syndamorph_scope_inspect($pageDocument,'page'));
     $fold=scope_ok(syndamorph_collab_inspect($pageDocument,SYNDAMORPH_SOURCE_WIDTHS));

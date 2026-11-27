@@ -362,6 +362,62 @@ async function captureCompactGuarantee(page, sections, diagnostics, {width,sourc
     } finally { await session.detach(); }
 }
 
+/** Observe the fixed strip and its apparent actions using sealed local replay. */
+async function captureCompactBooking(page, sections, diagnostics, {width,sourceRef,copySha256,pinnedSha256}, sealNetwork) {
+    const unknown = reason => ({version:1,width,sourceRef,status:'unknown',reason});
+    const denied = sealNetwork();
+    const hash = value => createHash('sha256').update(value).digest('hex');
+    const readCopy = () => page.evaluate(() => document.body.innerText.replace(/\s+/gu,' ').trim());
+    if (!diagnostics.contentReady || denied.length || hash(await readCopy()) !== copySha256)
+        return unknown('source_changed_during_replay');
+    const receipt = {version:1,width,sourceRef,status:'observed',sourceCopySha256:copySha256,blockedRequestCount:0};
+    const root = page.locator(sourceRef).filter({visible:true});
+    if (width === 1440) {
+        if (await root.count() !== 0) return unknown('visible_at_desktop');
+        return denied.length ? unknown('source_changed_during_replay') : {...receipt,present:false};
+    }
+    const target = sections.find(section => section.kind === 'content' && section.sourceRef === sourceRef);
+    if (!target?.geometryAvailable || await root.count() !== 1) return unknown('booking_not_unique');
+    const state = () => root.evaluate(element => {
+        const active = 'a,button,input,select,textarea,form,[role],[tabindex],[contenteditable],[onclick]';
+        const [details,label] = element.children;
+        if (element.children.length !== 2 || details.children.length !== 2 || label.children.length ||
+            element.matches(active) || element.querySelector(active) || element.closest('a,form,[inert]') ||
+            getComputedStyle(element).position !== 'fixed') return null;
+        const copy = [...details.children,label].map(node=>node.textContent.replace(/\s+/gu,' ').trim());
+        return copy.every(text=>text.length>0 && text.length<=150) ? copy : null;
+    });
+    const copy = await state();
+    if (!copy || await page.evaluate(()=>scrollY) !== 0) return unknown('unsupported_booking_markup');
+    const expected = {x:0,y:HEIGHT-68,width,height:68};
+    const fixed = async () => {
+        const actual = await root.boundingBox();
+        return actual && Object.keys(expected).every(key=>actual[key]===expected[key]);
+    };
+    if (!await fixed()) return unknown('unsupported_booking_geometry');
+    const original = await captureResponsiveViewport(page,sections.filter(section=>section===target||section.kind==='overlay'),
+        width,diagnostics);
+    const screenshot = original.sections.find(section=>section.sourceRef===sourceRef)?.screenshot;
+    if (!screenshot || hash(Buffer.from(screenshot,'base64'))!==pinnedSha256) return unknown('pinned_crop_changed');
+    const scrollPositions = [0,500,1400,3000];
+    for (const top of scrollPositions) {
+        await page.evaluate(top=>window.scrollTo({top,behavior:'instant'}),top);
+        if (await page.evaluate(()=>scrollY)!==top || !await fixed()) return unknown('fixed_scroll_unverified');
+    }
+    const url = page.url();
+    const markup = await root.innerHTML();
+    for (const label of copy.slice(1)) {
+        const target = root.getByText(label,{exact:true});
+        if (await target.count()!==1) return unknown('booking_label_ambiguous');
+        try { await target.click({timeout:1800}); }
+        catch { return unknown('booking_label_occluded'); }
+        if (page.url()!==url || await root.innerHTML()!==markup || !await fixed() ||
+            denied.length || hash(await readCopy())!==copySha256)
+            return unknown('booking_action_observed');
+    }
+    return {...receipt,present:true,copy,pinnedSha256,scrollPositions,controls:0,localActions:'inert'};
+}
+
 async function captureResponsiveViewport(page, sections, width, diagnostics, describeSource = null) {
     const session = await page.context().newCDPSession(page);
     try {
@@ -454,4 +510,4 @@ function reconcileResponsive(url, views) {
 }
 
 module.exports = { VIEWPORTS, settleEntrancePaint, captureResponsiveViewport, captureOwnedRegion, captureSettledPair,
-    captureCompactGuarantee, reconcileResponsive };
+    captureCompactGuarantee, captureCompactBooking, reconcileResponsive };

@@ -90,6 +90,7 @@ function runBrowserWorker(html, viewports, signal, options = {}) {
         });
         child.stdin.on('error', () => {});
         child.stdin.end(JSON.stringify({ html, inspect, viewports, extent:options.extent,sourceFrames:options.sourceFrames,
+            compactBooking:options.compactBooking,
             tabsRuntime:options.tabsRuntime,scrollStrips:options.scrollStrips,disclosures:options.disclosures,imageStrip:options.imageStrip,
             revealCards:options.revealCards,roomsRuntime:options.roomsRuntime }));
     });
@@ -131,7 +132,7 @@ function createRendererServer(render = runBrowserWorker, token = process.env.SYN
         function reply(status, payload, includeProtocol = true) {
             if (res.writableEnded || res.destroyed) return;
             const bytes = Buffer.from(JSON.stringify(payload));
-            if (req.url === '/inspect' && bytes.length > MAX_RESPONSE)
+            if (['/inspect','/check-compact-booking'].includes(req.url) && bytes.length > MAX_RESPONSE)
                 throw new RendererError('evidence_limit', 507);
             res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store',
                 'content-length': bytes.length, ...(includeProtocol ? { 'x-syndamorph-inspection-protocol': PROTOCOL,
@@ -143,7 +144,7 @@ function createRendererServer(render = runBrowserWorker, token = process.env.SYN
             if (req.headers['x-syndamorph-renderer-token'] === undefined) return reply(200, { status: 'ok' }, false);
             return authenticated(req) ? reply(200, diagnostic) : reply(401, { error: 'unauthorized' }, false);
         }
-        if (req.method !== 'POST' || !['/render','/inspect','/compare','/crop','/check-tabs','/check-scroll-strips','/check-disclosures','/check-image-strip','/check-reveal-cards','/check-rooms'].includes(req.url))
+        if (req.method !== 'POST' || !['/render','/inspect','/compare','/crop','/check-tabs','/check-scroll-strips','/check-disclosures','/check-image-strip','/check-reveal-cards','/check-rooms','/check-compact-booking'].includes(req.url))
             return reply(404, { error: 'not_found' }, authenticated(req));
         if (!authenticated(req)) return reply(401, { error: 'unauthorized' }, false);
         if (busy) {
@@ -181,6 +182,8 @@ function createRendererServer(render = runBrowserWorker, token = process.env.SYN
                 return reply(200,{evidence:await render(body.html,viewports,controller.signal,{imageStrip:true})});
             if(req.url==='/check-reveal-cards')
                 return reply(200,{evidence:await render(body.html,viewports,controller.signal,{revealCards:true})});
+            if(req.url==='/check-compact-booking')
+                return reply(200,{evidence:await render(body.html,viewports,controller.signal,{compactBooking:true})});
             if(req.url==='/check-rooms'){
                 if(typeof body.runtime!=='string'||!body.runtime||Buffer.byteLength(body.runtime)>16384)
                     throw new RendererError('invalid_html',400);

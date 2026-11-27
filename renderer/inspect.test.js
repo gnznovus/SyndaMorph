@@ -17,6 +17,25 @@ async function request(route, html, viewports, options = {}) {
     return payload;
 }
 
+test('fixed compact booking captures the viewport crop at origin and checks scrolling and control markup', async () => {
+    const html='<style>.is-style-sm-compact-booking{position:fixed;inset:auto 0 0;height:68px;background:#fff}'+
+        'p{margin:0}@media(min-width:1024px){.is-style-sm-compact-booking{display:none}}</style>'+
+        '<div class="wp-block-group is-style-sm-compact-booking"><p>Two guests</p><p>Edit</p><p>Check Availability</p></div>';
+    const {evidence}=await request('/check-compact-booking',html,[1440,1024,1023,768,375]);
+    assert.deepEqual(evidence.map(view=>view.proof.present),[false,false,true,true,true]);
+    for(const {width,proof} of evidence.slice(2)){
+        const bounds=[0,832,width,68];
+        assert.deepEqual(proof.bounds,bounds);
+        assert.deepEqual(proof.positions,[0,500,1400,3000].map(y=>({y,bounds})));
+        assert.equal(proof.fixed,true);
+        assert.equal(proof.controls,0);
+        assert.deepEqual(proof.copy,['Two guests','Edit','Check Availability']);
+        assert.ok(Buffer.from(proof.screenshot,'base64').subarray(0,2).equals(Buffer.from([255,216])));
+    }
+    const linked=await request('/check-compact-booking',html.replace('<p>Edit</p>','<p><a href="#edit">Edit</a></p>'),[375]);
+    assert.equal(linked.evidence[0].proof.controls,1);
+});
+
 test('actual Chromium inspection provides independent responsive screenshots and computed geometry', async () => {
     const html='<section style="background:#17384c;padding:24px"><h2 data-sm-node="heading" style="color:#fff">Inspect\n me</h2><a href="#more">Learn more</a><img src="about:blank"></section>';
     const result=await request('/inspect',html,[1440,768,375]);

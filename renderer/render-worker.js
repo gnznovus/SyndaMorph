@@ -245,6 +245,34 @@ async function sourceFrameScreenshot(page, width, extent, top) {
     }
 }
 
+async function checkCompactBooking(page, width) {
+    const root = page.locator('.wp-block-group.is-style-sm-compact-booking');
+    if (await root.count()!==1) throw new RendererError('missing_evidence',422);
+    if (!await root.isVisible()) return {present:false};
+    const state = await root.evaluate(element=>({
+        copy:[...element.querySelectorAll('p')].map(node=>node.textContent.replace(/\s+/gu,' ').trim()),
+        controls:element.querySelectorAll('a,button,input,select,textarea,form,[role],[tabindex],[contenteditable],[onclick]').length,
+        fixed:getComputedStyle(element).position==='fixed',
+        overflow:document.documentElement.scrollWidth>innerWidth||element.scrollWidth>element.clientWidth,
+    }));
+    const measure = async () => {
+        const box=await root.boundingBox();
+        return box ? [box.x,box.y,box.width,box.height] : null;
+    };
+    const bounds=await measure();
+    const expected=[0,HEIGHT-68,width,68];
+    if (await page.evaluate(()=>scrollY)!==0 || !bounds || bounds.some((value,index)=>value!==expected[index]))
+        throw new RendererError('source_frame_unavailable',422);
+    // Clip the fixed layer in place. Translating the document would change its viewport anchor.
+    const screenshot=await boundedScreenshot(page,width,68,HEIGHT-68);
+    const positions=[];
+    for(const top of [0,500,1400,3000]){
+        await page.evaluate(top=>window.scrollTo({top,behavior:'instant'}),top);
+        positions.push({y:await page.evaluate(()=>scrollY),bounds:await measure()});
+    }
+    return {present:true,...state,bounds,positions,screenshot};
+}
+
 async function checkScrollStrips(page,html) {
     const strips=page.locator('.wp-block-group.sm-scroll-strip,[data-sm-scroll-reference]');
     const count=await strips.count();
@@ -392,7 +420,8 @@ process.stdin.on('end', async () => {
     let crashed = false;
     const evidence = [];
     try {
-        const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, disclosures, imageStrip, revealCards, roomsRuntime, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
+        const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, disclosures, imageStrip, revealCards, roomsRuntime,
+            compactBooking, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
             headless: true, timeout: 10000,
             // Synthetic fixtures are fulfilled by Playwright. Other Chromium
@@ -415,6 +444,18 @@ process.stdin.on('end', async () => {
         const page = await context.newPage();
         page.on('crash', () => { crashed = true; });
         page.on('popup', (popup) => popup.close().catch(() => {}));
+        if(compactBooking){
+            for(const width of viewports){
+                await page.setViewportSize({width,height:HEIGHT});
+                await page.setContent('<!doctype html><style>html,body{margin:0;min-height:3900px}</style>'+html,
+                    {waitUntil:'domcontentloaded',timeout:5000});
+                await waitForInstalledFonts(page);
+                await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
+                evidence.push({width,proof:await checkCompactBooking(page,width)});
+            }
+            process.stdout.write(JSON.stringify({evidence}));
+            return;
+        }
         if(scrollStrips||disclosures||imageStrip||revealCards){
             for(const width of viewports){
                 await page.setViewportSize({width,height:HEIGHT});

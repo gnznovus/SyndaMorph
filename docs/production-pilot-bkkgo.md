@@ -78,8 +78,8 @@ The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593
 
 - **Discovery** has browser screenshots and visible inventories for 12 of 16 regions at every required width. Four regions have a variant gap. Separate runtime observations are needed before claiming complete behavioral understanding of each interactive region.
 - **Conversion eligibility** is 3 of 16 with v0.12.18. The original preflight overlooked two scroll strips and the corrected v0.12.15 replay held both, leaving 1 of 16. The exact archived controls now qualify under the native scroll-strip contract. A run still requires recorded movement at every active width before Bossy planning.
-- **Current conversion eligibility** is 9 of 16 with v0.12.56. Rooms qualifies through integrated replay of the desktop showcase and compact label strip. The compact guarantee qualifies through recorded desktop absence, exact compact crops and verified badge assets.
-- **Acceptance** is 9 of 16 as of v0.12.56. REF-000030 has verified the compact guarantee, Our Story, Exclusive Offers, Rooms, SIP & DINE, Neighborhood, Through Our Lens, FAQ and brand strip at source positions 5, 7, 8, 9, 10, 11, 12, 14 and 15. The unpublished partial draft has 416 editor-verified blocks. Whole-page acceptance remains pending.
+- **Current conversion eligibility** is 10 of 16 with v0.12.57. The compact guarantee qualifies through recorded desktop absence, exact compact crops and verified badge assets. The fixed booking strip adds recorded scroll and label behavior.
+- **Acceptance** is 10 of 16 as of v0.12.57. REF-000030 has verified the compact guarantee, compact booking strip, Our Story, Exclusive Offers, Rooms, SIP & DINE, Neighborhood, Through Our Lens, FAQ and brand strip at source positions 5, 6, 7, 8, 9, 10, 11, 12, 14 and 15. The unpublished partial draft has 421 editor-verified blocks. Whole-page acceptance remains pending.
 
 ### Responsive intro source checkpoint, v0.12.43
 
@@ -149,7 +149,15 @@ The archived source replay reproduced the original compact crops before moving t
 
 REF-000030 tied source checkpoint 12136 to replay receipt 23349, browser QA 23351 and Gutenberg receipt 23353. The editable 16-block Pattern 209 is private and unsynced. Its SHA-256 is `236d9df0bd9f87e4bec7d34667bd6282eb8469cba476ec3ac754991d9b09bb3d`. Both compact crops measured **0% differing pixels**, and all 14 native responsive checks passed. The existing assembly path placed it at source position 5 in unpublished draft 66. The other eight accepted Pattern identities remained intact.
 
-The 416-block partial draft passed Gutenberg validation. A byte-exact unpublished copy of Pattern 209 retained all 16 valid blocks and three original attachments through a Gutenberg title edit, save, reload and restoration. The fixed compact booking strip, other missing placements and full-page visual QA remain pending. Source History receipts 23347 and 23348 preserve the newsletter country-picker behavior and separate compact footer visual evidence. No model calls were made.
+The 416-block partial draft passed Gutenberg validation. A byte-exact unpublished copy of Pattern 209 retained all 16 valid blocks and three original attachments through a Gutenberg title edit, save, reload and restoration. Source History receipts 23347 and 23348 preserve the newsletter country-picker behavior and separate compact footer visual evidence. No model calls were made.
+
+### v0.12.57 fixed compact booking in Full Page Production
+
+Source checkpoint 12137 replayed the 68 px booking strip at 768 and 375 px and verified its absence at 1440 px. Both compact screenshots reproduced the original pinned hashes. The strip stayed fixed at four measured scroll positions. Clicks on Edit and Check Availability caused no DOM change, request or navigation in the sealed replay. The native Pattern preserves both labels as editable text.
+
+History stores source receipt 23360, browser QA 23362 and the exact Gutenberg save receipt 23364. Private unsynced Pattern 215 has five native blocks and SHA-256 `3221080b4a2f02007854f83b7a5beb66040a990a7a9dc35233fe3f24059f8143`. Chromium clipped the fixed layer directly at the source capture origin, measured **0% differing pixels** at both compact widths and passed 11 responsive checks. Round-trip receipt 23368 shows that an unpublished copy retained all five valid blocks through editing the availability label, saving, reloading and restoring it. The original unpublished draft 66 now places the booking strip at source position 6. Its frontend reproduced the fixed geometry and inert labels at 1023, 768 and 375 px.
+
+REF-000030 remains partial while the header, hero, offer, relocated intro, newsletter and footer still need production placement. The renderer and capture backend must be updated together with the plugin for this new replay. No model calls were made.
 
 History event 23342 binds draft 184 and its saved content SHA-256 `ed7bda9ee638f5b7850c01c87246a01efc2c7bb1bc93529c2368debbda2caa6e` to the native test. Event 23343 records compact source evidence against checkpoints 12136 and 12137.
 

@@ -3,7 +3,7 @@ const http = require('node:http');
 const { timingSafeEqual } = require('node:crypto');
 const { capture, captureResponsive } = require('./capture');
 const { productionSource } = require('./production-source');
-const { captureOwnedRegion, captureSettledPair, captureCompactGuarantee } = require('./responsive-capture');
+const { captureOwnedRegion, captureSettledPair, captureCompactGuarantee, captureCompactBooking } = require('./responsive-capture');
 const { enabled: referenceEnabled,readReference,recordedPng } = require('./production-reference');
 const { validateTouchActions,inspectTouch,disclosureRef,inspectDisclosure,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms,inspectRelocatedCopy } = require('./production-touch');
 const { createAnalyzeHandler } = require('./mvp/endpoint');
@@ -52,10 +52,11 @@ http.createServer(async (req, res) => {
             const rooms=input.kind==='room-showcase';
             const relocation=input.kind==='responsive-copy-placement';
             const settledPair=input.kind==='settled-content-pair';
-            const guarantee=input.kind==='compact-guarantee';
-            const scoped=disclosure||imageStrip||linkedImage||revealCards||rooms||relocation||settledPair||guarantee;
+            const compactReplay={'compact-guarantee':captureCompactGuarantee,'compact-booking':captureCompactBooking};
+            const compact=Object.hasOwn(compactReplay,input.kind)?compactReplay[input.kind]:null;
+            const scoped=disclosure||imageStrip||linkedImage||revealCards||rooms||relocation||settledPair||compact;
             if(scoped&&!disclosureRef(input.sourceRef))return respond(res,400,{error:'Invalid recorded region target.'});
-            if(guarantee&&(input.width===1440?input.pinnedSha256!==null:
+            if(compact&&(input.width===1440?input.pinnedSha256!==null:
                 ![768,375].includes(input.width)||typeof input.pinnedSha256!=='string'||!/^[a-f0-9]{64}$/.test(input.pinnedSha256)))
                 return respond(res,400,{error:'Invalid compact capture identity.'});
             if(relocation&&(!disclosureRef(input.destinationRef)||input.sourceRef===input.destinationRef||
@@ -91,7 +92,7 @@ http.createServer(async (req, res) => {
                             overlayRef:input.overlayRef,dismissTargetId:input.dismissTargetId,
                             pinnedHeroSha256:input.pinnedHeroSha256,copySha256:pinned.copySha256,
                         },seal):
-                        guarantee?captureCompactGuarantee(page,_regions,_diagnostics,{
+                        compact?compact(page,_regions,_diagnostics,{
                             width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256,pinnedSha256:input.pinnedSha256,
                         },seal):
                         relocation?(async()=>{

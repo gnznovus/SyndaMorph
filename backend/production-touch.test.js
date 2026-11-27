@@ -6,7 +6,8 @@ const { createHash }=require('node:crypto');
 const { chromium }=require('playwright');
 const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms,inspectRelocatedCopy }=require('./production-touch');
 const { recordedPng }=require('./production-reference');
-const { settleEntrancePaint,captureResponsiveViewport,captureOwnedRegion,captureSettledPair,captureCompactGuarantee }=require('./responsive-capture');
+const { settleEntrancePaint,captureResponsiveViewport,captureOwnedRegion,captureSettledPair,captureCompactGuarantee,
+    captureCompactBooking }=require('./responsive-capture');
 
 test('Touch actions are limited to server target identities and bounded gestures',()=>{
     assert.throws(()=>validateTouchActions([{type:'click',target:'#submit'}]));
@@ -73,6 +74,40 @@ test('compact guarantee replay requires desktop absence, the pinned crop and dec
         assert.equal((await run(desktop)).present,false);
         await page.locator('#guarantee').evaluate(root=>root.style.display='block');
         assert.equal((await run({...desktop,copySha256:await sourceCopy()})).reason,'visible_at_desktop');
+    }finally{await browser.close();}
+});
+
+test('compact booking verifies the pinned fixed strip and rejects an observed label action',{
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const browser=await chromium.launch();
+    try{
+        const width=375,sourceRef='div[id="booking"]';
+        const page=await browser.newPage({viewport:{width,height:900}});
+        const hash=value=>createHash('sha256').update(value).digest('hex');
+        await page.setContent('<style>body{margin:0;min-height:3900px}#booking{position:fixed;inset:auto 0 0;height:68px;background:#fff}'+
+            '@media(min-width:1024px){#booking{display:none}}</style>'+
+            '<div id="booking"><div><span>Two guests</span><div id="edit">Edit</div></div><span>Check Availability</span></div>');
+        const sections=[{kind:'content',geometryAvailable:true,sourceRef,bounds:{x:0,y:832,width,height:68}}];
+        const diagnostics={contentReady:true};
+        const original=await captureResponsiveViewport(page,sections,width,diagnostics);
+        const request={width,sourceRef,copySha256:hash((await page.locator('body').innerText()).replace(/\s+/gu,' ').trim()),
+            pinnedSha256:hash(Buffer.from(original.sections[0].screenshot,'base64'))};
+        const run=input=>captureCompactBooking(page,sections,diagnostics,input,()=>[]);
+        const accepted=await run(request);
+        assert.equal(accepted.status,'observed',accepted.reason);
+        assert.equal(accepted.localActions,'inert');
+        assert.deepEqual(accepted.scrollPositions,[0,500,1400,3000]);
+        await page.evaluate(()=>{
+            window.scrollTo(0,0);
+            const edit=document.getElementById('edit');
+            edit.addEventListener('click',()=>{edit.textContent='Changed';});
+        });
+        const changed=await run(request);
+        assert.equal(changed.status,'unknown');
+        assert.equal(changed.reason,'booking_action_observed');
+        await page.setViewportSize({width:1440,height:900});
+        assert.equal((await run({...request,width:1440,copySha256:hash(''),pinnedSha256:null})).present,false);
     }finally{await browser.close();}
 });
 
