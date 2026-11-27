@@ -1136,6 +1136,39 @@ $paintPatch['id']='title';
 $paintPatch['changes'][0]['value']='grayscale';
 expect(syndamorph_surgery_apply($paragraphPaintPlan,$paintPatch)['artifact']===null,'Paragraph paint escaped the supported leaf type');
 
+$hardHeading=array('id'=>'hero-title','type'=>'heading','text'=>"Hotel Indigo\nBangkok & Thonglor",
+    'preserveLineBreaks'=>true,'style'=>array('lineHeight'=>'0.95'));
+$edge=array('width'=>'1px','color'=>'#d7d3d3');
+$fixedGrid=array('id'=>'hero-summary','type'=>'group','gridColumns'=>2,'style'=>array('gap'=>'0px','borderBottom'=>$edge),
+    'children'=>array(
+        array('id'=>'date','type'=>'group','style'=>array('borderRight'=>$edge),
+            'children'=>array(array('id'=>'date-value','type'=>'paragraph','text'=>'12–14 Dec'))),
+        array('id'=>'guest','type'=>'paragraph','text'=>'1 room · 2'),
+    ));
+$compactPlan=array('version'=>1,'blocks'=>array(array('id'=>'hero','type'=>'group','children'=>array($hardHeading,$fixedGrid))));
+$compactArtifact=syndamorph_compile_block_plan(wp_json_encode($compactPlan));
+expect(!is_wp_error($compactArtifact)&&str_contains($compactArtifact['content'],'Hotel Indigo<br>Bangkok &amp; Thonglor')&&
+    str_contains($compactArtifact['content'],'line-height:0.95')&&
+    str_contains($compactArtifact['content'],'border-bottom-width:1px')&&str_contains($compactArtifact['content'],'border-right-width:1px')&&
+    str_contains($compactArtifact['preview'],'grid-template-columns:repeat(2,minmax(0,1fr))'),
+    'Native heading breaks and fixed grid geometry did not compile');
+$plainHeading=$hardHeading;
+unset($plainHeading['preserveLineBreaks']);
+expect(syndamorph_repair_content_signature($hardHeading)!==syndamorph_repair_content_signature($plainHeading),
+    'Dropping an authored heading break escaped content protection');
+$invalidCompact=$compactPlan;
+$invalidCompact['blocks'][0]['children'][0]['text']="Hotel Indigo\n\nBangkok Thonglor";
+expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($invalidCompact))),'Blank heading break line accepted');
+$invalidCompact=$compactPlan;
+$invalidCompact['blocks'][0]['children'][1]['style']['row']=true;
+expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($invalidCompact))),'Mixed native row and fixed Grid accepted');
+$invalidCompact=$compactPlan;
+$invalidCompact['blocks'][0]['children'][1]['children'][1]['style']['lineHeight']='0.95';
+expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($invalidCompact))),'Tight heading line height escaped the leaf type');
+$invalidCompact=$compactPlan;
+$invalidCompact['blocks'][0]['children'][1]['style']['borderRight']=$edge;
+expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($invalidCompact))),'Conflicting side borders accepted');
+
 expect(str_contains($styled['content'],'linear-gradient(135deg') && str_contains($styled['content'],'font-weight:700') &&
     str_contains($styled['content'],'border-radius:8px'),'Native styling was not serialized');
 $badStyle=$richPlan;

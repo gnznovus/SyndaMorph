@@ -97,6 +97,14 @@ History event 23320 binds unpublished draft 148 and Gutenberg-saved content SHA-
 
 The original composed crop is preserved. The compact hero still needs to contain the relocated title, and the combined hero and intro need page-level verification. REF-000030 retains eight accepted placements. This repair used zero model calls.
 
+### Compact hero and relocated title checkpoint, v0.12.47
+
+Sealed replay clicked the three compact booking labels at 375 and 768 px. All six actions preserved the crop, copy, URL and layout and attempted no requests. The native compact summary uses editable text. At 1440 px, dismissing the offer through its original control allowed Explore rooms to navigate to the unique `#rooms` anchor with zero requests. The saved desktop guest and rate panels remain verified local interactions. Date behavior and external booking remain pending.
+
+The compact native draft first measured 4.279% and 8.908% difference at 768 and 375 px. Equal-bound font clamps restored the measured sizes. Explicit source tracking removed the remaining theme-induced drift. The production compiler reproduced the authored heading break, 0.95 heading line height, two-track booking Grid and dividing borders. Exact Gutenberg-saved output measured **0.185% at 768 px** and **0.359% at 375 px** under the original visual gate. Both retained the 560 px source height and exact visible copy.
+
+History event 23322 binds the compact plan and saved hero SHA-256 `eceebf0a83781a6aa1fc5da77e42c01fb889c28f798334ff575046abd08279e8` to source checkpoint 12133. Unpublished integration draft 155 preserved all 420 blocks through edit, save and reload. It showed one title and one `#rooms` anchor at 1440, 1280, 1024, 1023, 900, 768, 600, 450 and 375 px. The title appeared in the intro at desktop widths and in the compact hero below 1024 px. REF-000030 retains eight accepted placements while the desktop hero and combined visual QA are pending. The checkpoint made zero model calls.
+
 ### SIP & DINE alignment checkpoint, v0.12.42
 
 The archived Pattern 79 omitted alignment on its outer Core Group. The Twenty Twenty-Five Page template constrained it to 645 px in a 1440 px viewport and to 315 px at 375 px. Fresh measurements of the approved Designer reference selected Full width. Recompiling the retained plan produced private unsynced Pattern 120 and preserved all 68 blocks and their inner layouts.

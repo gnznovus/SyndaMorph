@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.47] - 2026-11-27
+
+### Added
+
+- The native plan compiler preserves explicit plain-text heading breaks and measured heading line heights below 1. It supports editable fixed-track Groups and one right or bottom border on a Group. Surgery protects the authored breaks as part of the heading's content.
+
+### Verified
+
+- The exact Gutenberg-saved compact BKKGO hero passed the original visual gate at 768 and 375 px. An unpublished 420-block page proved that the intro title appears once across nine widths and that Rooms keeps one anchor. The original scope retains eight accepted placements while desktop booking and combined visual QA remain pending. No model calls were made.
+
 ## [0.12.46] - 2026-11-27
 
 ### Fixed

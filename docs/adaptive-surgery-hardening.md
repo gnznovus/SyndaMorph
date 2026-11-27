@@ -167,3 +167,9 @@ This engineering handoff executed zero paid AI jobs. Stable `v0.11.1` and `main`
 Developer surgery can set `style.fontSmoothing` to `grayscale` on a Paragraph when replay isolates a source text rasterization mismatch. The compiler serializes a paragraph class that works with the existing `pretty` wrapping class. The class applies a neutral brightness filter to request grayscale compositing in Chromium and preserves literal copy, layout, and installed font selection. The existing visual and editor gates still evaluate the resulting artifact.
 
 The BKKGO intro replay measured a decrease from 1.231% to 0% on the exact Gutenberg-saved desktop section. See the recorded source and artifact hashes in the [BKKGO checkpoint](production-pilot-bkkgo.md#native-intro-paragraph-repair-v01246).
+
+## Authored heading breaks and fixed native Grid
+
+Use `preserveLineBreaks:true` on a Heading only when the approved source contains an explicit break. Provide two to six plain-text lines in `text`. The compiler escapes each line and inserts native rich-text breaks. Heading line heights from 0.90 to 0.99 support measured tight leading. The surgery content signature protects the break flag and the original text.
+
+Use `gridColumns` from 2 to 4 on a Group when the source uses fixed equal tracks. The compiler emits core Group Grid layout and accepts one scoped dividing border on a Group. In compact BKKGO the equal Grid tracks preserve the two booking fields without the extra height introduced by the host Columns layout. Both captured compact widths passed after Gutenberg serialization. [BKKGO compiler and editor evidence](production-pilot-bkkgo.md#compact-hero-and-relocated-title-checkpoint-v01247)

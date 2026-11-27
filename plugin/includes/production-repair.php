@@ -291,7 +291,8 @@ function syndamorph_reference_unrealizable(array $samples,array $approvedScrollI
 
 function syndamorph_repair_content_signature(array $node): array {
     $result=array();
-    if(isset($node['text']))$result[]=array('text'=>$node['text'],'href'=>$node['href']??null,'type'=>$node['type']??null);
+    if(isset($node['text']))$result[]=array('text'=>$node['text'],'href'=>$node['href']??null,'type'=>$node['type']??null)+
+        (!empty($node['preserveLineBreaks'])?array('preserveLineBreaks'=>true):array());
     if(($node['type']??null)==='tabs')$result[]=array('type'=>'tabs','id'=>$node['id']??null,'panels'=>$node['panels']??null);
     foreach($node['children']??array() as $child)if(is_array($child))$result=array_merge($result,syndamorph_repair_content_signature($child));
     return $result;
