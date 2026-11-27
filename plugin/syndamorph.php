@@ -2,7 +2,7 @@
 /**
  * Plugin Name: SyndaMorph
  * Description: Transform static HTML into independently editable native Gutenberg blocks.
- * Version: 0.12.51
+ * Version: 0.12.52
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Update URI: https://github.com/gnznovus/SyndaMorph
@@ -22,6 +22,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/purr-poc.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/production-team.php';
 require_once __DIR__ . '/includes/production-booking.php';
 require_once __DIR__ . '/includes/production-offer.php';
+require_once __DIR__ . '/includes/production-header.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/gateway-admin.php';
 require_once __DIR__ . '/includes/transport-status.php';
 

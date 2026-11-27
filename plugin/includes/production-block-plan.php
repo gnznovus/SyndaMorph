@@ -232,6 +232,10 @@ function syndamorph_native_core_preview(array $blocks,?array $ids=null,bool $pag
             $css.=file_get_contents(dirname(__DIR__).'/assets/production-offer.css');
             continue;
         }
+        if($type==='syndamorph/recorded-header'){
+            $css.=file_get_contents(dirname(__DIR__).'/assets/production-header.css');
+            continue;
+        }
         $path=ABSPATH.WPINC.'/blocks/'.$type.'/style.min.css';
         if(is_readable($path))$css.=file_get_contents($path);
     }

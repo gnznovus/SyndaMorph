@@ -138,6 +138,70 @@ async function verifyDesktopOffer(page, post) {
  console.log('PASS: editable Desktop Offer retains its responsive lifecycle through Gutenberg save and reload.');
 }
 
+async function verifyRecordedHeader(page, post) {
+ if(!post)return;
+ await page.goto(origin+'/wp-admin/post.php?post='+post+'&action=edit');
+ const field=page.frameLocator('iframe[name="editor-canvas"]').getByRole('textbox',{name:'Compact booking display label'});
+ await field.waitFor();
+ await field.fill('Reservation label');
+ await page.waitForFunction(()=>wp.data.select('core/editor').isEditedPostDirty());
+ await page.evaluate(()=>wp.data.dispatch('core/editor').savePost());
+ await page.waitForFunction(()=>wp.data.select('core/editor').didPostSaveRequestSucceed());
+ await page.reload();
+ await field.waitFor();
+ assert.equal(await field.inputValue(),'Reservation label');
+ assert.equal(await page.evaluate(()=>wp.data.select('core/block-editor').getBlocks().every(block=>block.isValid)),true);
+ await page.setViewportSize({width:1440,height:900});
+ await page.goto(origin+'/?page_id='+post+'&preview=true');
+ const canvas=page.locator('.sm-production-canvas');
+ const header=canvas.locator('[data-sm-header]');
+ await header.waitFor();
+ assert.equal(await canvas.locator('header').count(),1);
+ assert.equal((await header.boundingBox()).height,141);
+ await page.evaluate(()=>window.scrollTo(0,250));
+ assert.equal((await header.boundingBox()).y,0);
+ await page.evaluate(()=>window.scrollTo(0,0));
+
+ const lead=canvas.locator('.sm-offer-entrance h2');
+ assert.equal(await lead.isVisible(),true);
+ const stay=header.getByRole('link',{name:'Stay',exact:true});
+ assert.equal(await stay.getAttribute('href'),'https://example.invalid/stay');
+ await stay.hover();
+ const flyout=header.locator('.sm-header-main .sm-header-flyout');
+ assert.deepEqual(await flyout.locator('a').evaluateAll(links=>links.map(link=>link.getAttribute('href'))),
+  ['https://example.invalid/stay#rooms','https://example.invalid/stay#suites']);
+ assert.equal(await flyout.locator('.sm-header-separator').count(),1);
+ assert.equal(await lead.isVisible(),false);
+ await page.mouse.move(10,300);
+ assert.equal(await flyout.isVisible(),false);
+ assert.equal(await lead.isVisible(),true);
+ const language=header.getByRole('button',{name:'EN'});
+ await language.press('Enter');
+ const choices=header.locator('.sm-header-language .sm-header-flyout');
+ assert.equal(await choices.isVisible(),true);
+ assert.equal(await choices.getByRole('link').count(),0);
+ await language.press('Escape');
+ assert.equal(await choices.isVisible(),false);
+
+ await page.setViewportSize({width:375,height:900});
+ assert.equal((await header.boundingBox()).height,72);
+ const compact=header.locator('.sm-header-compact');
+ await compact.getByText('Reservation label',{exact:true}).click();
+ assert.equal(await compact.getByRole('dialog').count(),0);
+ const opener=compact.getByRole('button',{name:'Open menu'});
+ await opener.click();
+ const drawer=compact.getByRole('dialog',{name:'Navigation'});
+ await drawer.waitFor();
+ assert.equal(await drawer.getByText('All Rooms',{exact:true}).isVisible(),true);
+ assert.equal(await drawer.getByRole('link',{name:'All Rooms'}).count(),0);
+ assert.equal(await drawer.getByRole('link',{name:'Check Rate'}).getAttribute('href'),'https://example.invalid/rates?a=1&b=2');
+ await drawer.getByRole('button',{name:'Close menu'}).click();
+ await drawer.waitFor({state:'hidden'});
+ await page.waitForFunction(()=>document.querySelector('.sm-header-open')?.getAttribute('aria-expanded')==='false');
+ assert.equal(await opener.evaluate(button=>document.activeElement===button),true);
+ console.log('PASS: the generated page canvas preserves the editable header, real hover links, and local compact drawer.');
+}
+
 async function verifySectionWidths(page, sections) {
  await page.setViewportSize({width:1440,height:900});
  await page.goto(origin+'/wp-admin/post-new.php?post_type=page');
@@ -237,7 +301,7 @@ async function verifySectionWidths(page, sections) {
    try{validate(gen9.replace(' has-custom-font-size',''));}catch(e){missingFontClassRejected=/serialization invalid/.test(e.message);}
    const tabBlocks=window.tabsPost?validate(window.tabsContent):0;
    return {initial,count,registered,expected:a.blockCount,rejected,cases,missingFontClassRejected,tabBlocks,
-    tabsPost:window.tabsPost,bookingPost:window.bookingPost,offerPost:window.offerPost,sections:window.nativeAlignments};
+    tabsPost:window.tabsPost,bookingPost:window.bookingPost,offerPost:window.offerPost,headerPost:window.headerPost,sections:window.nativeAlignments};
   });
   console.log({...result,sections:Object.keys(result.sections)});
   assert.ok(result.initial<=1,'Only the custom tabs block should be registered before the native validator sets up core.');
@@ -329,6 +393,7 @@ async function verifySectionWidths(page, sections) {
   await verifyEditableTabs(page,result.tabsPost);
   await verifyBooking(page,result.bookingPost);
   await verifyDesktopOffer(page,result.offerPost);
+  await verifyRecordedHeader(page,result.headerPost);
   await verifySectionWidths(page,result.sections);
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

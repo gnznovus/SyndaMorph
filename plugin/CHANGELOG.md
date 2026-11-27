@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.52] - 2026-11-27
+
+### Added
+
+- Recorded Header is an editable Gutenberg block for a sticky desktop header, desktop flyouts, and a compact drawer. It preserves declared links and keeps source placeholders inert. An opt-in block-theme canvas lets the draft supply its own page framing.
+
+### Verified
+
+- The local BKKGO candidate preserved 427 valid blocks through Gutenberg save and reload. The source-aligned desktop first fold measured 0.129% difference with the offer open and 0.367% after dismissal. Both compact drawers matched their archived screenshots byte for byte. Compact first-fold, automatic placement, and Full Page QA remain pending. No model calls were made.
+
 ## [0.12.51] - 2026-11-27
 
 ### Added
