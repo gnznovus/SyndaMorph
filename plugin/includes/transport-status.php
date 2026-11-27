@@ -33,12 +33,15 @@ function syndamorph_transport_self_test(): array {
         'limit_response_size' => SYNDAMORPH_INSPECTION_RESPONSE_BYTES + 1,
         'headers' => array( 'Content-Type' => 'application/json', 'Accept-Encoding' => 'identity' ),
         'body' => wp_json_encode( array( 'html' => '<section><h2>Private renderer check</h2></section>',
-            'viewports' => $widths, 'inspectionProtocol' => SYNDAMORPH_INSPECTION_PROTOCOL ) ),
+            'viewports' => $widths, 'inspectionProtocol' => SYNDAMORPH_INSPECTION_PROTOCOL,
+            'extent' => 'section', 'sourceFrames' => array( 375 => 12.5 ) ) ),
     ) );
     $renderer_status = syndamorph_transport_status( $renderer );
     if ( 'Verified' === $renderer_status ) {
-        $samples = syndamorph_inspection_validate( $renderer, $widths );
-        if ( is_wp_error( $samples ) || ( $samples[0]['snapshot']['copy'] ?? null ) !== 'Private renderer check' ) {
+        $samples = syndamorph_inspection_validate( $renderer, $widths, false, 'section' );
+        if ( is_wp_error( $samples ) || ( $samples[0]['snapshot']['copy'] ?? null ) !== 'Private renderer check' ||
+            ( $samples[0]['sourceFrame']['top'] ?? null ) !== 12.5 ||
+            ( $samples[0]['sourceFrame']['screenshotTop'] ?? null ) !== 13 ) {
             $renderer_status = 'The renderer protocol or Chromium evidence did not match.';
         }
     }

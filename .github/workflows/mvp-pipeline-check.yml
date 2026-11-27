@@ -6,6 +6,11 @@ on:
       - 'backend/**'
       - 'compose.yaml'
       - 'compose.reference.yaml'
+      - 'compose.plesk-staging.yaml'
+      - 'tests/plesk-compose-check.py'
+      - 'tests/internal-transport-test.php'
+      - 'plugin/includes/internal-transport.php'
+      - 'plugin/includes/transport-status.php'
       - 'plugin/includes/production-team.php'
       - 'plugin/includes/production-standards.php'
       - 'plugin/includes/production-job-memory.php'
@@ -90,6 +95,11 @@ on:
       - 'backend/**'
       - 'compose.yaml'
       - 'compose.reference.yaml'
+      - 'compose.plesk-staging.yaml'
+      - 'tests/plesk-compose-check.py'
+      - 'tests/internal-transport-test.php'
+      - 'plugin/includes/internal-transport.php'
+      - 'plugin/includes/transport-status.php'
       - 'plugin/includes/production-team.php'
       - 'plugin/includes/production-standards.php'
       - 'plugin/includes/production-job-memory.php'
@@ -204,7 +214,9 @@ jobs:
           npm install --prefix backend --ignore-scripts --no-audit --no-fund
           npm test --prefix backend
       - name: Docker Compose validation
-        run: docker compose config --quiet
+        run: |
+          docker compose config --quiet
+          python3 tests/plesk-compose-check.py
       - name: Opt-in offline archive verification
         run: |
           docker compose -f compose.yaml -f compose.reference.yaml config --quiet

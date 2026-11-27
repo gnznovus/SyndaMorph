@@ -6,6 +6,13 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.53] - 2026-11-27
+
+### Security
+
+- Renderer denials and unauthenticated routes omit inspection metadata. Authenticated inspection keeps its protocol and build headers.
+- The WordPress transport check verifies a real framed Chromium sample, including literal copy, response limits, and the exact source frame receipt. Staging Compose validation checks adjacent credential loading, fixed build contexts, and the opt-in loopback renderer port.
+
 ## [0.12.52] - 2026-11-27
 
 ### Added

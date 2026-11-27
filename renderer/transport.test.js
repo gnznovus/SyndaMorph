@@ -22,6 +22,7 @@ async function serve(t, worker) {
 
 test('renderer authenticates every job before parsing or running Chromium', async t => {
     assert.throws(() => createRendererServer(undefined, ''), /private renderer token/);
+    assert.throws(() => createRendererServer(undefined, token + '\n'), /private renderer token/);
     let launches = 0;
     const url = await serve(t, async () => { launches++; return []; });
     const routes = ['render','inspect','compare','crop','check-tabs','check-scroll-strips','check-disclosures',
@@ -30,7 +31,8 @@ test('renderer authenticates every job before parsing or running Chromium', asyn
         for (const headers of [{}, {'x-syndamorph-renderer-token': 'x'.repeat(token.length)}]) {
             const refused = await fetch(url + '/' + path, { method: 'POST', headers, body: 'not JSON' });
             assert.equal(refused.status, 401);
-            assert.equal(refused.headers.get('x-syndamorph-inspection-protocol'), '2');
+            assert.equal(refused.headers.get('x-syndamorph-inspection-protocol'), null);
+            assert.equal(refused.headers.get('x-syndamorph-renderer-build'), null);
             assert.deepEqual(await refused.json(), {error:'unauthorized'});
         }
     }
@@ -39,7 +41,12 @@ test('renderer authenticates every job before parsing or running Chromium', asyn
     assert.equal(health.headers.get('x-syndamorph-inspection-protocol'), null);
     assert.equal(health.headers.get('x-syndamorph-renderer-build'), null);
     assert.deepEqual(await health.json(), {status:'ok'});
-    assert.equal((await fetch(url + '/healthz', {headers:{'x-syndamorph-renderer-token':'wrong'}})).status, 401);
+    const wrongHealth = await fetch(url + '/healthz', {headers:{'x-syndamorph-renderer-token':'wrong'}});
+    assert.equal(wrongHealth.status, 401);
+    assert.equal(wrongHealth.headers.get('x-syndamorph-renderer-build'), null);
+    const unknown = await fetch(url + '/unknown');
+    assert.equal(unknown.status, 404);
+    assert.equal(unknown.headers.get('x-syndamorph-renderer-build'), null);
 });
 
 test('runtime handshake and viewport request validation happen before Chromium', async t => {
@@ -63,6 +70,8 @@ test('runtime handshake and viewport request validation happen before Chromium',
     }
     assert.equal(launches, 0);
     const explicit = await inspect(url, [375, 1680, 820]);
+    assert.equal(explicit.headers.get('x-syndamorph-inspection-protocol'), '2');
+    assert.equal(explicit.headers.get('x-syndamorph-renderer-build'), info.build);
     const raw = await explicit.text();
     assert.equal(Buffer.byteLength(raw), Number(explicit.headers.get('content-length')));
     assert.deepEqual(JSON.parse(raw).evidence.map(item => item.width), [375,1680,820]);

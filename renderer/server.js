@@ -118,7 +118,7 @@ async function readBody(req, limit) {
 }
 
 function createRendererServer(render = runBrowserWorker, token = process.env.SYNDAMORPH_RENDERER_TOKEN) {
-    if (typeof token !== 'string' || !/^[!-~]{32,256}$/.test(token))
+    if (typeof token !== 'string' || token.length < 32 || token.length > 256 || /[^!-~]/.test(token))
         throw new Error('A private renderer token of at least 32 printable characters is required.');
     const expected = Buffer.from(token);
     const authenticated = req => {
@@ -141,11 +141,11 @@ function createRendererServer(render = runBrowserWorker, token = process.env.SYN
         }
         if (req.method === 'GET' && req.url === '/healthz') {
             if (req.headers['x-syndamorph-renderer-token'] === undefined) return reply(200, { status: 'ok' }, false);
-            return authenticated(req) ? reply(200, diagnostic) : reply(401, { error: 'unauthorized' });
+            return authenticated(req) ? reply(200, diagnostic) : reply(401, { error: 'unauthorized' }, false);
         }
         if (req.method !== 'POST' || !['/render','/inspect','/compare','/crop','/check-tabs','/check-scroll-strips','/check-disclosures','/check-image-strip','/check-reveal-cards','/check-rooms'].includes(req.url))
-            return reply(404, { error: 'not_found' });
-        if (!authenticated(req)) return reply(401, { error: 'unauthorized' });
+            return reply(404, { error: 'not_found' }, authenticated(req));
+        if (!authenticated(req)) return reply(401, { error: 'unauthorized' }, false);
         if (busy) {
             req.resume();
             return reply(429, { error: 'renderer_busy' });
