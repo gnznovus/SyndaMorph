@@ -27,15 +27,14 @@ function syndamorph_reveal_layout_inventory(array $source): ?array {
 function syndamorph_reveal_layout_replay(array $source,array $archive) {
     $fail=static fn(string $message,array $data=array())=>new WP_Error('sm_source_reveal_evidence',$message,$data+array('status'=>409));
     $copy=syndamorph_reveal_layout_inventory($source);
-    $token=getenv('SYNDAMORPH_BACKEND_TOKEN');
     if(!$copy||!syndamorph_production_reference_valid($archive,$archive['sourceUrl']??'')||empty($archive['runtimeSha256'])||
-        getenv('SYNDAMORPH_BACKEND_URL')!=='http://backend:3100/capture'||!is_string($token)||$token==='')
+        !syndamorph_internal_configured('backend'))
         return $fail('The reveal layout needs a verified recorded source.');
     $pageCopy=array_column($archive['views'],'copySha256','width');$views=array();
     foreach(SYNDAMORPH_SOURCE_WIDTHS as $width){
         $ref=$source['variants'][$width]['sourceRef'];$desktop=$width===1440;
-        $response=wp_remote_post('http://backend:3100/production-touch',array('timeout'=>35,'redirection'=>0,'limit_response_size'=>32000,
-            'headers'=>array('Content-Type'=>'application/json','X-SyndaMorph-Token'=>$token),
+        $response=syndamorph_internal_request('backend','POST','/production-touch',array('timeout'=>35,'redirection'=>0,'limit_response_size'=>32000,
+            'headers'=>array('Content-Type'=>'application/json'),
             'body'=>wp_json_encode(array('archiveId'=>$archive['id'],'kind'=>'reveal-cards','width'=>$width,'sourceRef'=>$ref))));
         $view=is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200?null:json_decode(wp_remote_retrieve_body($response),true);
         if(($view['version']??null)!==1||($view['archiveId']??null)!==$archive['id']||($view['mode']??null)!=='recorded'||
@@ -135,7 +134,7 @@ function syndamorph_reveal_layout_quality(array $source,array $receipt,string $c
     $sha=hash('sha256',$content);
     $responsive=syndamorph_native_responsive_receipt($native,$widths,$views,$build,$sha);
     $probe=array(1440,1024,1023,768,375);
-    $response=wp_remote_post('http://renderer:3000/check-reveal-cards',array('timeout'=>60,'redirection'=>0,'limit_response_size'=>64000,
+    $response=syndamorph_internal_request('renderer','POST','/check-reveal-cards',array('timeout'=>60,'redirection'=>0,'limit_response_size'=>64000,
         'headers'=>array('Content-Type'=>'application/json'),'body'=>wp_json_encode(array('html'=>$native,'viewports'=>$probe))));
     $data=is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200?null:json_decode(wp_remote_retrieve_body($response),true);
     $checks=$data['evidence']??array();

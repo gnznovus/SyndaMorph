@@ -21,7 +21,7 @@ function syndamorph_scope_open(string $mode,array $capture) {
         !is_array($capture['sections']??null)||!$capture['sections']||count($capture['sections'])>180||
         array_column($capture['views']??array(),'width')!==SYNDAMORPH_SOURCE_WIDTHS)
         return syndamorph_scope_error('capture','Responsive discovery produced no usable manifest.',422);
-    if((getenv('SYNDAMORPH_REFERENCE_ARCHIVE')==='1'||array_key_exists('referenceArchive',$capture)) &&
+    if((syndamorph_internal_setting('SYNDAMORPH_REFERENCE_ARCHIVE')==='1'||array_key_exists('referenceArchive',$capture)) &&
         !syndamorph_production_reference_valid($capture['referenceArchive']??null,$capture['url']))
         return syndamorph_scope_error('reference','Rendered source reference failed verification.',422);
     $regions=array();

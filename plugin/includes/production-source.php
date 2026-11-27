@@ -4,12 +4,10 @@ if (!defined('ABSPATH')) exit;
 require_once __DIR__.'/production-reference.php';
 
 function syndamorph_production_source_capture(string $url,?string $sectionId,?array $variants=null) {
-    $endpoint=getenv('SYNDAMORPH_BACKEND_URL');
-    $token=getenv('SYNDAMORPH_BACKEND_TOKEN');
-    if($endpoint!=='http://backend:3100/capture'||!is_string($token)||$token==='')
+    if(!syndamorph_internal_configured('backend'))
         return new WP_Error('sm_source_config','Production capture backend is unavailable.',array('status'=>503));
     $parts=wp_parse_url($url);
-    $hosts=array_map('trim',explode(',',strtolower((string)getenv('SYNDAMORPH_CAPTURE_HOSTS'))));
+    $hosts=array_map('trim',explode(',',strtolower((string)syndamorph_internal_setting('SYNDAMORPH_CAPTURE_HOSTS'))));
     if(strlen($url)>2048 || !in_array(strtolower($parts['scheme']??''),array('http','https'),true) ||
         !in_array(strtolower($parts['host']??''),$hosts,true)||isset($parts['user'])||isset($parts['pass'])||
         ($sectionId!==null&&!preg_match('/^[a-f0-9]{24}$/D',$sectionId)))
@@ -21,8 +19,8 @@ function syndamorph_production_source_capture(string $url,?string $sectionId,?ar
                 return new WP_Error('sm_source_variants','Provide one captured section ID per viewport.',array('status'=>400));
         }
     }
-    $response=wp_remote_post('http://backend:3100/production-source',array(
-        'headers'=>array('Content-Type'=>'application/json','X-SyndaMorph-Token'=>$token),
+    $response=syndamorph_internal_request('backend','POST','/production-source',array(
+        'headers'=>array('Content-Type'=>'application/json'),
         'body'=>wp_json_encode(array('url'=>$url,'sectionId'=>$sectionId,'variants'=>$variants)),
         'timeout'=>120,'redirection'=>0,'limit_response_size'=>2400000));
     $body=is_wp_error($response)?null:json_decode(wp_remote_retrieve_body($response),true);
@@ -32,7 +30,7 @@ function syndamorph_production_source_capture(string $url,?string $sectionId,?ar
     $manifest=$body['manifest'];
     if($sectionId===null&&$variants===null)return array('manifest'=>$manifest);
     $source=array('url'=>$manifest['sourceURL']??null,'manifestSha256'=>$manifest['sha256']??null,'section'=>$body['section']??null);
-    if(getenv('SYNDAMORPH_REFERENCE_ARCHIVE')==='1'&&!array_key_exists('referenceArchive',$body))
+    if(syndamorph_internal_setting('SYNDAMORPH_REFERENCE_ARCHIVE')==='1'&&!array_key_exists('referenceArchive',$body))
         return new WP_Error('sm_source_reference','The capture service did not supply a verified reference archive.',array('status'=>422));
     if(array_key_exists('referenceArchive',$body))$source['referenceArchive']=$body['referenceArchive'];
     if(!syndamorph_production_source_valid($source)||

@@ -41,18 +41,16 @@ function syndamorph_linked_image_inventory(array $source,string $sourceUrl): ?ar
 function syndamorph_linked_image_replay(array $source,array $archive) {
     $fail=static fn(string $message,array $data=array())=>new WP_Error('sm_source_linked_image_evidence',$message,$data+array('status'=>409));
     $profile=syndamorph_linked_image_inventory($source,$archive['sourceUrl']??'');
-    $token=getenv('SYNDAMORPH_BACKEND_TOKEN');
     if(!$profile||!syndamorph_production_reference_valid($archive,$archive['sourceUrl']??'')||
-        empty($archive['runtimeSha256'])||getenv('SYNDAMORPH_BACKEND_URL')!=='http://backend:3100/capture'||
-        !is_string($token)||$token==='')return $fail('A verified recorded source with an exact image and link is required.');
+        empty($archive['runtimeSha256'])||!syndamorph_internal_configured('backend'))return $fail('A verified recorded source with an exact image and link is required.');
     $copy=array_column($archive['views'],'copySha256','width');
     $asset=null;$raw=null;$views=array();
     foreach(SYNDAMORPH_SOURCE_WIDTHS as $width){
         $ref=$source['variants'][$width]['sourceRef'];
         $withImage=in_array($width,$profile['assetWidths'],true);
-        $response=wp_remote_post('http://backend:3100/production-touch',array('timeout'=>45,'redirection'=>0,
+        $response=syndamorph_internal_request('backend','POST','/production-touch',array('timeout'=>45,'redirection'=>0,
             'limit_response_size'=>$withImage?710000:16000,
-            'headers'=>array('Content-Type'=>'application/json','X-SyndaMorph-Token'=>$token),
+            'headers'=>array('Content-Type'=>'application/json'),
             'body'=>wp_json_encode(array('archiveId'=>$archive['id'],'kind'=>'linked-image','width'=>$width,'sourceRef'=>$ref))));
         $view=is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200?null:
             json_decode(wp_remote_retrieve_body($response),true);

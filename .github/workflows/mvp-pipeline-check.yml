@@ -173,6 +173,7 @@ jobs:
           node --check renderer/render-worker.js
           node --check renderer/server.js
           php tests/real-ai-poc-test.php
+          php tests/internal-transport-test.php
           php tests/production-responsive-test.php
           php tests/production-design-evidence-test.php
           node --check plugin/assets/demo-dialogue.js
@@ -203,9 +204,11 @@ jobs:
           docker compose -f compose.yaml -f compose.reference.yaml run --rm --no-deps -T -e SYNDAMORPH_TEST_REFERENCE=1 -v "${{ github.workspace }}/backend/production-reference.test.js:/app/production-reference.test.js:ro" backend node --test production-reference.test.js
           docker compose -f compose.yaml -f compose.reference.yaml run --rm --no-deps -T -e SYNDAMORPH_TEST_REFERENCE=1 -v "${{ github.workspace }}/backend/production-touch.test.js:/app/production-touch.test.js:ro" backend node --test production-touch.test.js
       - name: Real Playwright inspection smoke test
+        env:
+          SYNDAMORPH_RENDERER_TOKEN: renderer-ci-smoke-test-token-fixture
         run: |
           docker build -t syndamorph-inspection ./renderer
-          docker run -d --rm --init --read-only --tmpfs /tmp:size=256m --memory 768m --pids-limit 128 --shm-size 256m --cap-drop ALL --security-opt no-new-privileges --name syndamorph-inspection-test -p 127.0.0.1:3999:3000 syndamorph-inspection
+          docker run -d --rm --init --read-only --tmpfs /tmp:size=256m --memory 768m --pids-limit 128 --shm-size 256m --cap-drop ALL --security-opt no-new-privileges -e SYNDAMORPH_RENDERER_TOKEN --name syndamorph-inspection-test -p 127.0.0.1:3999:3000 syndamorph-inspection
           trap 'docker rm -f syndamorph-inspection-test >/dev/null 2>&1 || true' EXIT
           for i in $(seq 1 30); do if curl -fsS -o /dev/null http://127.0.0.1:3999/healthz 2>/dev/null; then break; fi; sleep 1; done
           docker exec -i syndamorph-inspection-test node < renderer/transport.test.js

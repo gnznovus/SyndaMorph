@@ -182,9 +182,8 @@ function syndamorph_tabs_verify(array $artifact,array $widths,array $interaction
         elseif(!$receipt['blockers'])$receipt['status']='passed';
         return $receipt;
     }
-    $url=getenv('SYNDAMORPH_RENDERER_URL');
     $script=syndamorph_tabs_asset('production-tabs-view.js');
-    if($url!=='http://renderer:3000/render'||$script===''){
+    if(!syndamorph_internal_configured('renderer')||$script===''){
         $receipt['blockers'][]=array('reason'=>'functional_renderer_unavailable','widths'=>$widths);
         return $receipt;
     }
@@ -197,7 +196,7 @@ function syndamorph_tabs_verify(array $artifact,array $widths,array $interaction
     $passed=!$nativeFailed;
     foreach(array_chunk($widths,5) as $batch){
         $payload=wp_json_encode(array('html'=>$frame['html'],'runtime'=>$script,'viewports'=>$batch),JSON_UNESCAPED_SLASHES);
-        $response=wp_remote_post('http://renderer:3000/check-tabs',array('timeout'=>65,'redirection'=>0,
+        $response=syndamorph_internal_request('renderer','POST','/check-tabs',array('timeout'=>65,'redirection'=>0,
             'limit_response_size'=>64000,'headers'=>array('Content-Type'=>'application/json'),'body'=>$payload));
         $status=is_wp_error($response)?null:wp_remote_retrieve_response_code($response);
         $data=$status===200?json_decode(wp_remote_retrieve_body($response),true):null;

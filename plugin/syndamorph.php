@@ -2,13 +2,14 @@
 /**
  * Plugin Name: SyndaMorph
  * Description: Transform static HTML into independently editable native Gutenberg blocks.
- * Version: 0.12.44
+ * Version: 0.12.45
  * Requires at least: 6.5
  * Requires PHP: 8.1
  * Update URI: https://github.com/gnznovus/SyndaMorph
  * Text Domain: syndamorph
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
+require_once __DIR__ . '/includes/internal-transport.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/render-endpoint.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/capture-endpoint.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/package-import.php';
@@ -20,6 +21,7 @@ require_once plugin_dir_path( __FILE__ ) . 'includes/production-scope.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/purr-poc.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/production-team.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/gateway-admin.php';
+require_once __DIR__ . '/includes/transport-status.php';
 
 /**
  * The legacy Source Importer screen has been retired. Keep the converter and

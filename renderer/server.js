@@ -2,7 +2,7 @@
 
 const http = require('node:http');
 const { spawn } = require('node:child_process');
-const { createHash } = require('node:crypto');
+const { createHash, timingSafeEqual } = require('node:crypto');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { compareScreenshots, cropScreenshots } = require('./compare');
@@ -24,8 +24,10 @@ const workerErrors = {
 function runBrowserWorker(html, viewports, signal, options = {}) {
     const inspect = viewports !== null;
     return new Promise((resolve, reject) => {
+        const env = { ...process.env };
+        delete env.SYNDAMORPH_RENDERER_TOKEN;
         const child = spawn(process.execPath, options.workerArgs ?? [join(__dirname, 'render-worker.js')], {
-            detached: true, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
+            detached: true, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], env,
         });
         let failure;
         let forceKill;
@@ -115,7 +117,15 @@ async function readBody(req, limit) {
     catch (_) { throw new RendererError('invalid_request_json', 400); }
 }
 
-function createRendererServer(render = runBrowserWorker) {
+function createRendererServer(render = runBrowserWorker, token = process.env.SYNDAMORPH_RENDERER_TOKEN) {
+    if (typeof token !== 'string' || !/^[!-~]{32,256}$/.test(token))
+        throw new Error('A private renderer token of at least 32 printable characters is required.');
+    const expected = Buffer.from(token);
+    const authenticated = req => {
+        const supplied = req.headers['x-syndamorph-renderer-token'];
+        if (typeof supplied !== 'string' || Buffer.byteLength(supplied) !== expected.length) return false;
+        return timingSafeEqual(expected, Buffer.from(supplied));
+    };
     let busy = false;
     return http.createServer({ requestTimeout: 30000, headersTimeout: 10000 }, async (req, res) => {
         function reply(status, payload) {
@@ -125,12 +135,17 @@ function createRendererServer(render = runBrowserWorker) {
                 throw new RendererError('evidence_limit', 507);
             res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store',
                 'content-length': bytes.length, 'x-syndamorph-inspection-protocol': PROTOCOL,
-                'x-syndamorph-renderer-build': build, ...(status === 429 ? { 'retry-after': '1' } : {}) });
+                'x-syndamorph-renderer-build': build, ...(status === 429 ? { 'retry-after': '1' } : {}),
+                ...(status === 401 ? { connection: 'close' } : {}) });
             res.end(bytes);
         }
-        if (req.method === 'GET' && req.url === '/healthz') return reply(200, diagnostic);
+        if (req.method === 'GET' && req.url === '/healthz') {
+            if (req.headers['x-syndamorph-renderer-token'] === undefined) return reply(200, { status: 'ok' });
+            return authenticated(req) ? reply(200, diagnostic) : reply(401, { error: 'unauthorized' });
+        }
         if (req.method !== 'POST' || !['/render','/inspect','/compare','/crop','/check-tabs','/check-scroll-strips','/check-disclosures','/check-image-strip','/check-reveal-cards','/check-rooms'].includes(req.url))
             return reply(404, { error: 'not_found' });
+        if (!authenticated(req)) return reply(401, { error: 'unauthorized' });
         if (busy) {
             req.resume();
             return reply(429, { error: 'renderer_busy' });

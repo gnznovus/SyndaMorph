@@ -398,6 +398,7 @@ function wp_remote_post($url,$args) {
     )));
 }
 putenv('SYNDAMORPH_RENDERER_URL=http://renderer:3000/render');
+putenv('SYNDAMORPH_RENDERER_TOKEN=offline-renderer-transport-fixture');
 require dirname(__DIR__) . '/plugin/includes/ai-models.php';
 require dirname(__DIR__) . '/plugin/includes/ai-team-real.php';
 function expect($ok,$message) { if(!$ok) throw new RuntimeException($message); }

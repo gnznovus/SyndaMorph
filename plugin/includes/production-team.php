@@ -311,7 +311,7 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
         'previewFontFamily' => is_string( $preview_font_family ) ? $preview_font_family : '',
         'patternUrl' => rest_url( 'syndamorph/v1/patterns' ),
         'renderUrl' => rest_url( 'syndamorph/v1/render-dom' ),
-        'rendererAvailable' => 'http://renderer:3000/render' === getenv( 'SYNDAMORPH_RENDERER_URL' ),
+        'rendererAvailable' => syndamorph_internal_configured( 'renderer' ),
     ) ) . ';', 'before' );
     wp_enqueue_script( 'syndamorph-team', plugin_dir_url( __DIR__ ) . 'assets/production-team.js', array( 'syndamorph-import' ), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/production-team.js' ), true );
     wp_add_inline_script( 'syndamorph-team', 'window.SyndaMorphTeam=' . wp_json_encode( array(

@@ -1,0 +1,100 @@
+services:
+  backend:
+    image: syndamorph-playground-backend:${SYNDAMORPH_BUILD_SHA:?Set the exact source SHA}
+    build:
+      context: ./backend
+      args:
+        SYNDAMORPH_INSTALL_SINGLEFILE: ${SYNDAMORPH_INSTALL_SINGLEFILE:-0}
+      labels:
+        org.opencontainers.image.revision: ${SYNDAMORPH_BUILD_SHA:?Set the exact source SHA}
+    restart: unless-stopped
+    init: true
+    user: pwuser
+    environment:
+      SYNDAMORPH_BACKEND_TOKEN: ${SYNDAMORPH_BACKEND_TOKEN:?Set the capture service token}
+      SYNDAMORPH_CAPTURE_HOSTS: ${SYNDAMORPH_CAPTURE_HOSTS:?Set the approved source hosts}
+      SYNDAMORPH_RESOURCE_HOSTS: ${SYNDAMORPH_RESOURCE_HOSTS:-}
+      SYNDAMORPH_REFERENCE_ARCHIVE: ${SYNDAMORPH_INSTALL_SINGLEFILE:-0}
+      SYNDAMORPH_REFERENCE_DIR: /var/lib/syndamorph-references
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - reference_archives:/var/lib/syndamorph-references
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    cpus: 1.5
+    mem_limit: 768m
+    shm_size: 256mb
+
+  renderer:
+    profiles: [authenticated-renderer]
+    image: syndamorph-playground-renderer:${SYNDAMORPH_BUILD_SHA:?Set the exact source SHA}
+    build:
+      context: ./renderer
+      labels:
+        org.opencontainers.image.revision: ${SYNDAMORPH_BUILD_SHA:?Set the exact source SHA}
+    restart: unless-stopped
+    init: true
+    user: pwuser
+    environment:
+      SYNDAMORPH_RENDERER_TOKEN: ${SYNDAMORPH_RENDERER_TOKEN:?Set the renderer service token}
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [renderer_private]
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    cpus: 1.5
+    mem_limit: 768m
+    shm_size: 256mb
+
+  gateway:
+    image: syndamorph-playground-gateway:${SYNDAMORPH_BUILD_SHA:?Set the exact source SHA}
+    build:
+      context: ./backend
+      dockerfile: gateway/Dockerfile
+      labels:
+        org.opencontainers.image.revision: ${SYNDAMORPH_BUILD_SHA:?Set the exact source SHA}
+    restart: unless-stopped
+    init: true
+    environment:
+      SYNDAMORPH_GATEWAY_HOST: "0.0.0.0"
+      SYNDAMORPH_GATEWAY_PORT: "3200"
+      SYNDAMORPH_GATEWAY_PEPPER: ${SYNDAMORPH_GATEWAY_PEPPER:?Set the separate gateway storage pepper}
+      SYNDAMORPH_GATEWAY_ADMIN_TOKEN: ${SYNDAMORPH_GATEWAY_ADMIN_TOKEN:?Set the gateway admin token}
+      SYNDAMORPH_GATEWAY_DATA: /data/state.json
+      SYNDAMORPH_GATEWAY_ARTIFACTS: /artifacts
+    ports:
+      - "127.0.0.1:3200:3200"
+    networks: [gateway_private]
+    volumes:
+      - gateway_data:/data
+      - gateway_artifacts:/artifacts
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 96
+    cpus: 0.5
+    mem_limit: 128m
+
+networks:
+  # Docker suppresses published ports on internal-only networks. Keep separate
+  # bridges with host-loopback publication and without outbound masquerading.
+  renderer_private:
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+  gateway_private:
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+
+volumes:
+  reference_archives:
+  gateway_data:
+  gateway_artifacts:

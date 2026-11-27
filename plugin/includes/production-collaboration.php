@@ -243,8 +243,7 @@ function syndamorph_collab_viewports(string $brief) {
 }
 /** Deterministic visual comparison reuses already captured screenshots. */
 function syndamorph_collab_compare(array $reference,array $native,bool $fitExtent=false,bool $localize=false) {
-    $url=getenv('SYNDAMORPH_RENDERER_URL');
-    if ($url !== 'http://renderer:3000/render') return new WP_Error('sm_compare_config','Isolated visual comparison service not configured.');
+    if (!syndamorph_internal_configured('renderer')) return new WP_Error('sm_compare_config','Isolated visual comparison service not configured.');
     if(array_column($reference,'width')!==array_column($native,'width'))
         return new WP_Error('sm_compare_invalid','Visual comparison requires matching viewport widths.');
     if(count($reference)>5){
@@ -258,7 +257,7 @@ function syndamorph_collab_compare(array $reference,array $native,bool $fitExten
     }
     $pick=static fn(array $samples):array=>array_map(static fn($s)=>array('width'=>$s['width'],'screenshot'=>$s['screenshot'])
         +($fitExtent?array('extent'=>$s['extent']??null):array()),$samples);
-    $response=wp_remote_post('http://renderer:3000/compare',array('timeout'=>20,'redirection'=>0,
+    $response=syndamorph_internal_request('renderer','POST','/compare',array('timeout'=>20,'redirection'=>0,
         'headers'=>array('Content-Type'=>'application/json'),'body'=>wp_json_encode(array('reference'=>$pick($reference),'native'=>$pick($native))+
             ($fitExtent?array('fitExtent'=>true):array())+($localize?array('localize'=>true):array())),
         'limit_response_size'=>50000));
@@ -454,7 +453,7 @@ function syndamorph_collab_scoped_images(array $reference,array $native,array $t
         $items[]=array('screenshot'=>$sample['screenshot'],'rect'=>array($left,$top,$right-$left,$bottom-$top));
     }
     if(count($items)!==count($full))return array('images'=>$full,'mode'=>'full');
-    $response=wp_remote_post('http://renderer:3000/crop',array('timeout'=>20,'redirection'=>0,'headers'=>array('Content-Type'=>'application/json'),'body'=>wp_json_encode(array('items'=>$items)),'limit_response_size'=>2000000));
+    $response=syndamorph_internal_request('renderer','POST','/crop',array('timeout'=>20,'redirection'=>0,'headers'=>array('Content-Type'=>'application/json'),'body'=>wp_json_encode(array('items'=>$items)),'limit_response_size'=>2000000));
     if(is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200)return array('images'=>$full,'mode'=>'full');
     $data=json_decode(wp_remote_retrieve_body($response),true);
     if(count($data['images']??array())!==count($full))return array('images'=>$full,'mode'=>'full');

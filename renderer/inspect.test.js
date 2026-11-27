@@ -3,11 +3,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const url = process.env.SYNDA_RENDER_TEST_URL || 'http://127.0.0.1:3999';
+const headers = { 'Content-Type':'application/json', 'X-SyndaMorph-Renderer-Token': process.env.SYNDAMORPH_RENDERER_TOKEN };
 
 async function request(route, html, viewports, options = {}) {
     const response = await fetch(url + route, {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        headers,
         body:JSON.stringify({html,viewports,...options}),
         signal:AbortSignal.timeout(40000),
     });
@@ -34,12 +35,12 @@ test('actual Chromium inspection provides independent responsive screenshots and
         assert.ok(Array.isArray(e.a11y));
         assert.ok(e.a11y.some(v=>v.id==='image-alt'));
     }
-    const compared=await fetch(url+'/compare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reference:result.evidence,native:result.evidence}),signal:AbortSignal.timeout(10000)});
+    const compared=await fetch(url+'/compare',{method:'POST',headers,body:JSON.stringify({reference:result.evidence,native:result.evidence}),signal:AbortSignal.timeout(10000)});
     assert.equal(compared.status,200);
     const metrics=(await compared.json()).comparison;
     assert.deepEqual(metrics.map(x=>x.width),[1440,768,375]);
     assert.ok(metrics.every(x=>x.pixelDifferenceRatio===0 && x.meanChannelDifference===0));
-    const crop=await fetch(url+'/crop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:[{screenshot:result.evidence[0].screenshot,rect:[24,24,180,40]}]})});
+    const crop=await fetch(url+'/crop',{method:'POST',headers,body:JSON.stringify({items:[{screenshot:result.evidence[0].screenshot,rect:[24,24,180,40]}]})});
     assert.equal(crop.status,200);
     const images=(await crop.json()).images;
     assert.equal(images.length,1);

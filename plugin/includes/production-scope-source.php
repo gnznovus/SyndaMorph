@@ -102,16 +102,15 @@ function syndamorph_source_disclosure_touch(array $source,array $archive) {
     if(!syndamorph_disclosures_supported()||!syndamorph_production_reference_valid($archive,$archive['sourceUrl']??'')||
         empty($archive['runtimeSha256']))
         return new WP_Error('sm_disclosure_source','Details on this host requires the verified recorded source runtime.');
-    $token=getenv('SYNDAMORPH_BACKEND_TOKEN');
-    if(getenv('SYNDAMORPH_BACKEND_URL')!=='http://backend:3100/capture'||!is_string($token)||$token==='')
+    if(!syndamorph_internal_configured('backend'))
         return new WP_Error('sm_disclosure_source','Recorded source replay is unavailable.');
     $receipt=array('archiveId'=>$archive['id'],'sourceSha256'=>hash('sha256',wp_json_encode($source)),'views'=>array());
     foreach(SYNDAMORPH_SOURCE_WIDTHS as $width){
         $ref=$source['variants'][$width]['sourceRef']??'';
         if(!preg_match('/^(?:[a-z][a-z0-9-]{0,20})?\[(?:data-dc-tpl|id)="[a-zA-Z0-9_-]{1,64}"\]$/D',$ref))
             return new WP_Error('sm_disclosure_source','The exact disclosure region identity is unsupported.',array('width'=>$width));
-        $response=wp_remote_post('http://backend:3100/production-touch',array('timeout'=>45,'redirection'=>0,
-            'limit_response_size'=>64000,'headers'=>array('Content-Type'=>'application/json','X-SyndaMorph-Token'=>$token),
+        $response=syndamorph_internal_request('backend','POST','/production-touch',array('timeout'=>45,'redirection'=>0,
+            'limit_response_size'=>64000,'headers'=>array('Content-Type'=>'application/json'),
             'body'=>wp_json_encode(array('archiveId'=>$archive['id'],'width'=>$width,'sourceRef'=>$ref,'kind'=>'disclosure-group'))));
         $view=is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200?null:
             json_decode(wp_remote_retrieve_body($response),true);
@@ -283,7 +282,6 @@ function syndamorph_source_copy_placement(array $source,array $destination,array
     $sourceRef=$desktop['sourceRef']??'';
     $inventory=$desktop['inventory']??array();
     $lines=$inventory['text']??array();
-    $token=getenv('SYNDAMORPH_BACKEND_TOKEN');
     $validRef=static fn($ref):bool=>is_string($ref)&&
         preg_match('/^(?:[a-z][a-z0-9-]{0,20})?\[(?:data-dc-tpl|id)="[a-zA-Z0-9_-]{1,64}"\]$/D',$ref);
     if(array_keys($source['variants']??array())!==array(1440)||($desktop['kind']??null)!=='content'||
@@ -291,7 +289,7 @@ function syndamorph_source_copy_placement(array $source,array $destination,array
         ($inventory['controls']??null)!==array()||!is_array($lines)||!array_is_list($lines)||count($lines)<3||
         !is_string($lines[0])||!is_string($lines[1])||
         !syndamorph_production_reference_valid($archive,$archive['sourceUrl']??'')||empty($archive['runtimeSha256'])||
-        getenv('SYNDAMORPH_BACKEND_URL')!=='http://backend:3100/capture'||!is_string($token)||$token==='')
+        !syndamorph_internal_configured('backend'))
         return $fail('unbound_source');
     $copy=syndamorph_source_text($lines[0].' '.$lines[1]);
     if(mb_strlen($copy)<3||mb_strlen($copy)>160)return $fail('unbound_copy');
@@ -323,8 +321,8 @@ function syndamorph_source_copy_placement(array $source,array $destination,array
     $copySha=hash('sha256',$copy);
     foreach($targets as $width=>$ref){
         $captureCrop=$width===1440&&$cropRequest!==null;
-        $response=wp_remote_post('http://backend:3100/production-touch',array('timeout'=>35,'redirection'=>0,
-            'limit_response_size'=>$captureCrop?436000:16000,'headers'=>array('Content-Type'=>'application/json','X-SyndaMorph-Token'=>$token),
+        $response=syndamorph_internal_request('backend','POST','/production-touch',array('timeout'=>35,'redirection'=>0,
+            'limit_response_size'=>$captureCrop?436000:16000,'headers'=>array('Content-Type'=>'application/json'),
             'body'=>wp_json_encode(array('archiveId'=>$archive['id'],'kind'=>'responsive-copy-placement',
                 'width'=>$width,'sourceRef'=>$sourceRef,'destinationRef'=>$ref,'copy'=>$copy)+
                 ($captureCrop?array('ownedCrop'=>$cropRequest):array()))));

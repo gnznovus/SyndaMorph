@@ -33,8 +33,7 @@ function syndamorph_production_touch(array $request,array $archive,?callable $on
     if(!is_string($archive['sourceUrl']??null)||
         !syndamorph_production_reference_valid($archive,$archive['sourceUrl']))
         return new WP_Error('sm_touch_reference','Touch requires a verified source receipt.');
-    $token=getenv('SYNDAMORPH_BACKEND_TOKEN');
-    if(getenv('SYNDAMORPH_BACKEND_URL')!=='http://backend:3100/capture'||!is_string($token)||$token===''){
+    if(!syndamorph_internal_configured('backend')){
         return new WP_Error('sm_touch_config','The capture service is unavailable.');
     }
     $input=array('archiveId'=>$archive['id'],'width'=>$width,'actions'=>$normalized);
@@ -47,9 +46,9 @@ function syndamorph_production_touch(array $request,array $archive,?callable $on
         $count=(int)($GLOBALS['syndamorph_production_tool_count']??0);
         if($count>=12)return new WP_Error('sm_tool_budget','Job diagnostic tool-call ceiling reached.');
         $GLOBALS['syndamorph_production_tool_count']=$count+1;
-        $response=wp_remote_post('http://backend:3100/production-touch',array('timeout'=>70,'redirection'=>0,
+        $response=syndamorph_internal_request('backend','POST','/production-touch',array('timeout'=>70,'redirection'=>0,
             'limit_response_size'=>2600000,'body'=>wp_json_encode($input),
-            'headers'=>array('Content-Type'=>'application/json','X-SyndaMorph-Token'=>$token)));
+            'headers'=>array('Content-Type'=>'application/json')));
         $data=is_wp_error($response)?null:json_decode(wp_remote_retrieve_body($response),true);
         if(!is_array($data)||wp_remote_retrieve_response_code($response)!==200||
             ($data['version']??null)!==1||($data['archiveId']??null)!==$archive['id']||

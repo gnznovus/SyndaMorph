@@ -49,11 +49,11 @@ if(function_exists('add_filter'))add_filter('render_block_core/group',static fun
 /** Exact ordered copy and interaction proof from isolated Chromium. */
 function syndamorph_disclosures_measure(string $html,array $widths,array $expected): array {
     $result=array_fill_keys(array_keys($expected),array('status'=>'uncertain','viewports'=>array()));
-    if(!$expected||getenv('SYNDAMORPH_RENDERER_URL')!=='http://renderer:3000/render')return $result;
+    if(!$expected||!syndamorph_internal_configured('renderer'))return $result;
     $frame=syndamorph_production_font_frame($html);
     if(is_wp_error($frame))return $result;
     foreach(array_chunk($widths,5) as $batch){
-        $response=wp_remote_post('http://renderer:3000/check-disclosures',array('timeout'=>65,'redirection'=>0,
+        $response=syndamorph_internal_request('renderer','POST','/check-disclosures',array('timeout'=>65,'redirection'=>0,
             'limit_response_size'=>128000,'headers'=>array('Content-Type'=>'application/json'),
             'body'=>wp_json_encode(array('html'=>$frame['html'],'viewports'=>$batch))));
         $data=is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200?null:

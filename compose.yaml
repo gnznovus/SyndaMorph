@@ -32,6 +32,7 @@ services:
       # Enables an in-process mock provider only when WP_DEBUG is also true.
       SYNDAMORPH_MOCK_AI_ENABLED: "1"
       SYNDAMORPH_RENDERER_URL: "http://renderer:3000/render"
+      SYNDAMORPH_RENDERER_TOKEN: ${SYNDAMORPH_RENDERER_TOKEN:-local-renderer-transport-test-fixture-v1}
       SYNDAMORPH_BACKEND_URL: "http://backend:3100/capture"
       SYNDAMORPH_BACKEND_TOKEN: "local-poc-token-change-before-deployment"
       SYNDAMORPH_CAPTURE_HOSTS: "www.syndacast.com"
@@ -139,6 +140,8 @@ services:
     restart: unless-stopped
     init: true
     user: pwuser
+    environment:
+      SYNDAMORPH_RENDERER_TOKEN: ${SYNDAMORPH_RENDERER_TOKEN:-local-renderer-transport-test-fixture-v1}
     networks:
       - render_net
     read_only: true

@@ -1,5 +1,6 @@
 'use strict';
 const http = require('node:http');
+const { timingSafeEqual } = require('node:crypto');
 const { capture, captureResponsive } = require('./capture');
 const { productionSource } = require('./production-source');
 const { captureOwnedRegion } = require('./responsive-capture');
@@ -10,6 +11,7 @@ const { runCommunicationPoc } = require('./purr-poc');
 
 const TOKEN = process.env.SYNDAMORPH_BACKEND_TOKEN;
 if (!TOKEN || !process.env.SYNDAMORPH_CAPTURE_HOSTS) throw new Error('Backend token and approved host list are required.');
+const backendToken = Buffer.from(TOKEN);
 const analyze = createAnalyzeHandler({ capture });
 let responsiveInProgress = false;
 
@@ -18,10 +20,14 @@ const respond = (res, status, value) => {
     res.end(JSON.stringify(value));
 };
 http.createServer(async (req, res) => {
-    if (!['/capture','/production-source','/production-touch','/mvp/analyze','/purr/communication-poc'].includes(req.url) || req.method !== 'POST') {
+    const health = req.method === 'GET' && req.url === '/healthz';
+    if (!health && (!['/capture','/production-source','/production-touch','/mvp/analyze','/purr/communication-poc'].includes(req.url) || req.method !== 'POST')) {
         return respond(res, 404, { error: 'Not found.' });
     }
-    if (req.headers['x-syndamorph-token'] !== TOKEN) return respond(res, 403, { error: 'Forbidden.' });
+    const supplied = req.headers['x-syndamorph-token'];
+    if (typeof supplied !== 'string' || Buffer.byteLength(supplied) !== backendToken.length ||
+        !timingSafeEqual(backendToken, Buffer.from(supplied))) return respond(res, 403, { error: 'Forbidden.' });
+    if (health) return respond(res, 200, { service: 'syndamorph-backend', protocol: 1 });
     let total = 0;
     const parts = [];
     try {

@@ -5,24 +5,22 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 function syndamorph_capture_page( string $url, string $mode, bool $responsive = false ) {
-    $endpoint = getenv( 'SYNDAMORPH_BACKEND_URL' );
-    $token = getenv( 'SYNDAMORPH_BACKEND_TOKEN' );
-    if ( 'http://backend:3100/capture' !== $endpoint || ! is_string( $token ) || '' === $token ) {
+    if ( ! syndamorph_internal_configured( 'backend' ) ) {
         return new WP_Error( 'syndamorph_backend_disabled', 'Capture backend is not configured.', array( 'status' => 503 ) );
     }
     $url = esc_url_raw( $url );
     $parts = wp_parse_url( $url );
-    $hosts = array_filter( array_map( 'trim', explode( ',', (string) getenv( 'SYNDAMORPH_CAPTURE_HOSTS' ) ) ) );
+    $hosts = array_filter( array_map( 'trim', explode( ',', (string) syndamorph_internal_setting( 'SYNDAMORPH_CAPTURE_HOSTS' ) ) ) );
     if ( ! is_array( $parts ) || ! isset( $parts['scheme'], $parts['host'] ) ||
         ! in_array( strtolower( $parts['scheme'] ), array( 'https', 'http' ), true ) ||
         ! in_array( strtolower( $parts['host'] ), $hosts, true ) ||
         isset( $parts['user'] ) || isset( $parts['pass'] ) || strlen( $url ) > 2048 ) {
         return new WP_Error( 'syndamorph_invalid_url', 'URL must use an approved capture host.', array( 'status' => 400 ) );
     }
-    $response = wp_remote_post( $endpoint, array(
+    $response = syndamorph_internal_request( 'backend', 'POST', '/capture', array(
         'timeout' => $responsive ? 105 : 45,
         'redirection' => 0,
-        'headers' => array( 'Content-Type' => 'application/json', 'X-SyndaMorph-Token' => $token ),
+        'headers' => array( 'Content-Type' => 'application/json' ),
         'body' => wp_json_encode( array( 'url' => $url, 'mode' => $mode, 'responsive' => $responsive ) ),
         'limit_response_size' => 24000001,
     ) );
@@ -32,8 +30,7 @@ function syndamorph_capture_page( string $url, string $mode, bool $responsive = 
     $raw = wp_remote_retrieve_body( $response );
     $body = strlen($raw)<=24000000 ? json_decode($raw,true) : null;
     if ( 200 !== wp_remote_retrieve_response_code( $response ) || ! is_array( $body['sections'] ?? null ) ) {
-        $message = is_string($body['error']??null) ? sanitize_text_field( $body['error'] ) : 'Capture failed.';
-        return new WP_Error( 'syndamorph_capture_failed', $message, array( 'status' => 422 ) );
+        return new WP_Error( 'syndamorph_capture_failed', 'Capture failed.', array( 'status' => 422 ) );
     }
     return $body;
 }

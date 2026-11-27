@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.45] - 2026-11-27
+
+### Security
+
+- WordPress uses one private HTTP transport for capture, production source, rendering, inspection, recovery, and Gateway administration. It accepts only the existing Docker service origins or their fixed IPv4 loopback ports, disables redirects and proxies for these calls, and keeps credentials out of WordPress HTTP diagnostics.
+- Renderer jobs require a dedicated server credential across all Chromium and image-processing routes. The unauthenticated health probe returns a bounded status. Authenticated inspection retains its protocol, framing, and evidence limits.
+
+### Added
+
+- A services-only Plesk staging Compose file and an administrator-only WordPress transport check support an existing host-installed WordPress. The renderer's port uses an opt-in Compose profile.
+
 ## [0.12.44] - 2026-11-27
 
 ### Added

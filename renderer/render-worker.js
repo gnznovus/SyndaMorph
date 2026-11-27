@@ -395,7 +395,13 @@ process.stdin.on('end', async () => {
         const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, disclosures, imageStrip, revealCards, roomsRuntime, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
             headless: true, timeout: 10000,
-            args: [ '--no-sandbox', '--disable-dev-shm-usage' ],
+            // Synthetic fixtures are fulfilled by Playwright. Other Chromium
+            // traffic, including implicit loopback bypass and WebRTC UDP, stays blocked.
+            args: [
+                '--no-sandbox', '--disable-dev-shm-usage',
+                '--proxy-server=http://127.0.0.1:1', '--proxy-bypass-list=<-loopback>',
+                '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
+            ],
         });
         const context = await browser.newContext({
             javaScriptEnabled: !inspect || Boolean(tabsRuntime || roomsRuntime),

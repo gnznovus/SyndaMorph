@@ -123,11 +123,11 @@ The existing SyndaMorph WordPress plugin now includes **Tools → SyndaMorph →
 Configure **server-side** in WordPress `wp-config.php`:
 
 ```php
-define( 'SYNDAMORPH_GATEWAY_URL', 'https://gateway.example.com' );
+define( 'SYNDAMORPH_GATEWAY_URL', 'http://127.0.0.1:3200' );
 define( 'SYNDAMORPH_GATEWAY_ADMIN_TOKEN', getenv( 'SYNDAMORPH_GATEWAY_ADMIN_TOKEN' ) ?: '' );
 ```
 
-Keep the token in a server-secret store or environment variable, not JavaScript or source control. The Gateway must be reachable from PHP over HTTPS. HTTP is permitted **only** for explicitly configured `localhost` / `127.0.0.1` during local development. Protect the administrator API using network restrictions in addition to the configured token.
+The WordPress administration transport accepts the fixed loopback origin above or the private Compose origin `http://gateway:3200`. Keep the admin token in server-only configuration and restrict network access to the management API. The Gateway's customer-facing leasing and download routes have their own transport and authentication contract. See [host WordPress staging](plesk-staging.md).
 
 Supported operations in the UI:
 

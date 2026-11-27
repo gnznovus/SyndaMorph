@@ -5,18 +5,40 @@ const assert = require('node:assert/strict');
 const { readdirSync, readFileSync } = require('node:fs');
 const { createRendererServer, runBrowserWorker } = require('./server');
 const { MAX_RESPONSE, MAX_COMPARE_REQUEST } = require('./inspection-contract');
+const token = 'renderer-transport-http-test-token-v1';
+const auth = { 'x-syndamorph-renderer-token': token };
 
 const inspect = (url, widths = [1440, 768, 375], protocol = 2) => fetch(url + '/inspect', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
+    method: 'POST', headers: { 'content-type': 'application/json', ...auth },
     body: JSON.stringify({ html: '<section>fixture</section>', viewports: widths, inspectionProtocol: protocol }),
 });
 
 async function serve(t, worker) {
-    const server = createRendererServer(worker);
+    const server = createRendererServer(worker, token);
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     t.after(() => new Promise(resolve => server.close(resolve)));
     return 'http://127.0.0.1:' + server.address().port;
 }
+
+test('renderer authenticates every job before parsing or running Chromium', async t => {
+    assert.throws(() => createRendererServer(undefined, ''), /private renderer token/);
+    let launches = 0;
+    const url = await serve(t, async () => { launches++; return []; });
+    const routes = ['render','inspect','compare','crop','check-tabs','check-scroll-strips','check-disclosures',
+        'check-image-strip','check-reveal-cards','check-rooms'];
+    for (const path of routes) {
+        for (const headers of [{}, {'x-syndamorph-renderer-token': 'x'.repeat(token.length)}]) {
+            const refused = await fetch(url + '/' + path, { method: 'POST', headers, body: 'not JSON' });
+            assert.equal(refused.status, 401);
+            assert.equal(refused.headers.get('x-syndamorph-inspection-protocol'), '2');
+            assert.deepEqual(await refused.json(), {error:'unauthorized'});
+        }
+    }
+    assert.equal(launches, 0);
+    const health = await fetch(url + '/healthz');
+    assert.deepEqual(await health.json(), {status:'ok'});
+    assert.equal((await fetch(url + '/healthz', {headers:{'x-syndamorph-renderer-token':'wrong'}})).status, 401);
+});
 
 test('runtime handshake and viewport request validation happen before Chromium', async t => {
     let launches = 0;
@@ -24,7 +46,7 @@ test('runtime handshake and viewport request validation happen before Chromium',
         launches++;
         return widths.map(width => ({ width }));
     });
-    const health = await fetch(url + '/healthz');
+    const health = await fetch(url + '/healthz', {headers:auth});
     const info = await health.json();
     assert.equal(health.headers.get('x-syndamorph-inspection-protocol'), '2');
     assert.match(info.build, /^[a-f0-9]{64}$/);
@@ -90,7 +112,7 @@ test('worker timeout, process exit, output cap and malformed evidence are distin
 test('comparison has its own bounded upload limit and rejects oversized requests', async t => {
     const url = await serve(t);
     const response = await fetch(url + '/compare', {
-        method:'POST',body:' '.repeat(MAX_COMPARE_REQUEST+1),
+        method:'POST',headers:auth,body:' '.repeat(MAX_COMPARE_REQUEST+1),
     });
     assert.equal(response.status, 413);
     assert.deepEqual(await response.json(), {error:'request_limit'});
@@ -103,6 +125,21 @@ test('worker can return verified-width subsets for client recovery', async t => 
     const response = await inspect(url);
     assert.equal(response.status,200);
     assert.deepEqual((await response.json()).evidence.map(sample=>sample.width),[768,1440]);
+});
+
+test('the renderer credential is not inherited by the browser worker', async t => {
+    const previous = process.env.SYNDAMORPH_RENDERER_TOKEN;
+    process.env.SYNDAMORPH_RENDERER_TOKEN = token;
+    t.after(() => {
+        if (previous === undefined) delete process.env.SYNDAMORPH_RENDERER_TOKEN;
+        else process.env.SYNDAMORPH_RENDERER_TOKEN = previous;
+    });
+    const url = await serve(t, (html, widths, signal) => runBrowserWorker(html, widths, signal, {
+        workerArgs:['-e', 'console.log(JSON.stringify({evidence:[{width:375,hasToken:"SYNDAMORPH_RENDERER_TOKEN" in process.env}]}))'],
+    }));
+    const result = await inspect(url, [375]);
+    assert.equal(result.status, 200);
+    assert.deepEqual((await result.json()).evidence, [{width:375,hasToken:false}]);
 });
 
 test('aborting a real Chromium inspection releases its browser processes', {skip:process.platform!=='linux'}, async () => {

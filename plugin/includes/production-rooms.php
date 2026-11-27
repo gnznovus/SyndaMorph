@@ -25,15 +25,14 @@ function syndamorph_rooms_inventory(array $source): ?array {
 function syndamorph_rooms_replay(array $source,array $archive) {
     $fail=static fn(string $reason,array $data=array())=>new WP_Error('sm_source_rooms_evidence',$reason,$data+array('status'=>409));
     $copy=syndamorph_rooms_inventory($source);
-    $token=getenv('SYNDAMORPH_BACKEND_TOKEN');
     if(!$copy||!syndamorph_production_reference_valid($archive,$archive['sourceUrl']??'')||empty($archive['runtimeSha256'])||
-        getenv('SYNDAMORPH_BACKEND_URL')!=='http://backend:3100/capture'||!is_string($token)||$token==='')
+        !syndamorph_internal_configured('backend'))
         return $fail('The Rooms showcase needs a verified recorded source.');
     $pageCopy=array_column($archive['views'],'copySha256','width');$views=array();
     foreach(SYNDAMORPH_SOURCE_WIDTHS as $width){
         $ref=$source['variants'][$width]['sourceRef'];$desktop=$width===1440;
-        $response=wp_remote_post('http://backend:3100/production-touch',array('timeout'=>45,'redirection'=>0,'limit_response_size'=>32000,
-            'headers'=>array('Content-Type'=>'application/json','X-SyndaMorph-Token'=>$token),
+        $response=syndamorph_internal_request('backend','POST','/production-touch',array('timeout'=>45,'redirection'=>0,'limit_response_size'=>32000,
+            'headers'=>array('Content-Type'=>'application/json'),
             'body'=>wp_json_encode(array('archiveId'=>$archive['id'],'kind'=>'room-showcase','width'=>$width,'sourceRef'=>$ref))));
         $view=is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200?null:json_decode(wp_remote_retrieve_body($response),true);
         if(($view['version']??null)!==1||($view['archiveId']??null)!==$archive['id']||($view['mode']??null)!=='recorded'||
@@ -183,7 +182,7 @@ function syndamorph_rooms_quality(array $source,array $receipt,string $content) 
     $probe=array(1440,1024,1023,768,375);
     $frame=syndamorph_production_font_frame($native);
     if(is_wp_error($frame))return $frame;
-    $response=wp_remote_post('http://renderer:3000/check-rooms',array('timeout'=>65,'redirection'=>0,'limit_response_size'=>64000,
+    $response=syndamorph_internal_request('renderer','POST','/check-rooms',array('timeout'=>65,'redirection'=>0,'limit_response_size'=>64000,
         'headers'=>array('Content-Type'=>'application/json'),'body'=>wp_json_encode(array('html'=>$frame['html'],
             'runtime'=>syndamorph_rooms_asset('production-rooms-view.js'),'viewports'=>$probe))));
     $status=is_wp_error($response)?null:wp_remote_retrieve_response_code($response);

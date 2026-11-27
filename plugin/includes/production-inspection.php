@@ -1,6 +1,7 @@
 <?php
 /** Versioned transport for the isolated renderer. */
 if (!defined('ABSPATH')) exit;
+require_once __DIR__.'/internal-transport.php';
 require_once __DIR__.'/production-fonts.php';
 
 const SYNDAMORPH_INSPECTION_PROTOCOL = 2;
@@ -9,15 +10,16 @@ const SYNDAMORPH_INSPECTION_RESPONSE_BYTES = 3602048;
 const SYNDAMORPH_INSPECTION_ATTEMPTS = 3;
 
 function syndamorph_inspection_endpoint() {
-    $endpoint=defined('SYNDAMORPH_RENDERER_INSPECT_URL')?SYNDAMORPH_RENDERER_INSPECT_URL:'http://renderer:3000/inspect';
-    if(!is_string($endpoint)||!preg_match('~^http://[a-zA-Z0-9.-]+:[0-9]{2,5}/inspect$~D',$endpoint))
+    $base=syndamorph_internal_base('renderer');
+    if($base===null||syndamorph_internal_token('renderer')===null)
         return new WP_Error('sm_inspect_config','Invalid isolated renderer endpoint.');
-    return $endpoint;
+    return $base.'/inspect';
 }
 
 function syndamorph_inspection_failure(string $category,array $details=array()): WP_Error {
     $messages=array(
         'unavailable'=>'The isolated renderer is unavailable.',
+        'unauthorized'=>'The isolated renderer rejected its server credential.',
         'busy'=>'The isolated renderer is busy.',
         'transport_timeout'=>'The request to the isolated renderer timed out.',
         'browser_timeout'=>'Chromium inspection exceeded its time limit.',
@@ -77,7 +79,7 @@ function syndamorph_inspection_envelope($response,int $limit,array $widths) {
             'screenshot_limit'=>'response_limit','evidence_limit'=>'response_limit','protocol_mismatch'=>'protocol_mismatch',
             'missing_evidence'=>'missing_evidence','viewport_mismatch'=>'viewport_mismatch',
             'source_frame_unavailable'=>'source_frame_unavailable',
-            'request_limit'=>'rejected','invalid_viewports'=>'rejected','invalid_request_json'=>'rejected',
+            'unauthorized'=>'unauthorized','request_limit'=>'rejected','invalid_viewports'=>'rejected','invalid_request_json'=>'rejected',
             'invalid_html'=>'rejected','not_found'=>'protocol_mismatch','invalid_renderer_input'=>'rejected');
         $rendererCode=$data['error']??null;
         if(is_string($rendererCode)&&isset($codes[$rendererCode]))$details['rendererCode']=$rendererCode;
@@ -173,8 +175,8 @@ function syndamorph_inspection_retry(callable $request) {
 function syndamorph_inspection_ready(array $viewports) {
     $endpoint=syndamorph_inspection_endpoint();
     if(is_wp_error($endpoint))return $endpoint;
-    return syndamorph_inspection_retry(static function()use($endpoint,$viewports) {
-        $response=wp_remote_get(substr($endpoint,0,-strlen('/inspect')).'/healthz',
+    return syndamorph_inspection_retry(static function()use($viewports) {
+        $response=syndamorph_internal_request('renderer','GET','/healthz',
             array('timeout'=>5,'redirection'=>0,'limit_response_size'=>2049));
         $result=syndamorph_inspection_envelope($response,2048,$viewports);
         if(is_wp_error($result))return $result;
@@ -240,7 +242,7 @@ function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,
             ($sourceFrames===null?array():array('sourceFrames'=>array_intersect_key($sourceFrames,array_flip($missing)))),
             JSON_UNESCAPED_SLASHES);
         if(!is_string($payload))return syndamorph_inspection_failure('request_invalid');
-        $response=wp_remote_post($endpoint,array('timeout'=>75,'redirection'=>0,
+        $response=syndamorph_internal_request('renderer','POST','/inspect',array('timeout'=>75,'redirection'=>0,
             'headers'=>array('Content-Type'=>'application/json','Accept-Encoding'=>'identity'),
             'body'=>$payload,'limit_response_size'=>SYNDAMORPH_INSPECTION_RESPONSE_BYTES+1));
         $result=syndamorph_inspection_validate($response,$missing,true,$extent);

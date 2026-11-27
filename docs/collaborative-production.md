@@ -34,7 +34,7 @@ Archived jobs are private to administrators; image evidence is not served by an 
 
 ## Deployment and acceptance
 
-Use `compose.yaml` with `SYNDAMORPH_RENDERER_URL=http://renderer:3000/render` for the private WordPress-to-renderer link. The native collaborative branch requires the same renderer service to handle `/inspect` and `/compare`; if unavailable it must not report QA success.
+Use `compose.yaml` with `SYNDAMORPH_RENDERER_URL=http://renderer:3000/render` and the same server-only `SYNDAMORPH_RENDERER_TOKEN` in WordPress and the renderer. The native collaborative branch requires the same renderer service to handle `/inspect` and `/compare`; if unavailable it must not report QA success. See [host WordPress staging](plesk-staging.md) for the fixed loopback configuration.
 
 - Run `php tests/real-ai-poc-test.php` and `node --check` on changed JS, plus `php -l` on PHP.
 - Build the renderer Docker image; run `node --test renderer/inspect.test.js` against port 3999 in CI to exercise real Chromium, axe-core, pixel comparisons and the legacy /render endpoint.

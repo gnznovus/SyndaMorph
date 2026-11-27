@@ -8,9 +8,7 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 function syndamorph_gateway_admin_configured(): bool {
-    return defined( 'SYNDAMORPH_GATEWAY_URL' ) && defined( 'SYNDAMORPH_GATEWAY_ADMIN_TOKEN' )
-        && is_string( SYNDAMORPH_GATEWAY_URL ) && is_string( SYNDAMORPH_GATEWAY_ADMIN_TOKEN )
-        && strlen( SYNDAMORPH_GATEWAY_ADMIN_TOKEN ) >= 32;
+    return syndamorph_internal_configured( 'gateway' );
 }
 
 function syndamorph_gateway_render_tab(): void {
@@ -87,19 +85,6 @@ function syndamorph_gateway_admin_ajax(): void {
     if ( ! syndamorph_gateway_admin_configured() ) {
         wp_send_json_error( array( 'error' => 'gateway_not_configured' ), 503 );
     }
-    $base = untrailingslashit( SYNDAMORPH_GATEWAY_URL );
-    $scheme = wp_parse_url( $base, PHP_URL_SCHEME );
-    $host = wp_parse_url( $base, PHP_URL_HOST );
-    // HTTP is allowed only to the fixed, internal Docker Compose service in local WP environments.
-    $local_gateway = 'http://gateway:3200' === $base && 'local' === wp_get_environment_type();
-    $local_loopback = 'http' === $scheme && in_array( strtolower( (string) $host ), array( 'localhost', '127.0.0.1' ), true );
-    if ( ! is_string( $host ) || ! is_string( $scheme ) ||
-        ( 'https' !== $scheme && ! $local_gateway && ! $local_loopback ) ||
-        wp_parse_url( $base, PHP_URL_QUERY ) || wp_parse_url( $base, PHP_URL_FRAGMENT ) ||
-        wp_parse_url( $base, PHP_URL_USER ) || wp_parse_url( $base, PHP_URL_PASS ) ) {
-        wp_send_json_error( array( 'error' => 'invalid_gateway_configuration' ), 503 );
-    }
-
     $operation = isset( $_POST['operation'] ) && is_string( $_POST['operation'] ) ? sanitize_key( wp_unslash( $_POST['operation'] ) ) : '';
     $raw = isset( $_POST['payload'] ) && is_string( $_POST['payload'] ) ? wp_unslash( $_POST['payload'] ) : '{}';
     $body = json_decode( $raw, true );
@@ -141,13 +126,11 @@ function syndamorph_gateway_admin_ajax(): void {
             $payload = array( 'status' => $body['status'] ?? '', 'expiresAt' => $body['expiresAt'] ?? null ); break;
     }
     if ( '' === $route ) { wp_send_json_error( array( 'error' => 'invalid_operation' ), 400 ); }
-    $response = wp_remote_request( $base . $route, array(
-        'method' => $method,
+    $response = syndamorph_internal_request( 'gateway', $method, $route, array(
         'timeout' => 8,
         'redirection' => 0,
         'sslverify' => true,
         'headers' => array(
-            'X-SyndaMorph-Admin-Token' => SYNDAMORPH_GATEWAY_ADMIN_TOKEN,
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
         ),
