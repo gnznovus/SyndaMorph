@@ -43,12 +43,12 @@ function syndamorph_transport_self_test(): array {
         }
     }
 
-    $gateway = syndamorph_internal_request( 'gateway', 'GET', '/admin/v1/overview',
-        array( 'timeout' => 4, 'limit_response_size' => 262144 ) );
+    $gateway = syndamorph_internal_request( 'gateway', 'GET', '/admin/v1/healthz',
+        array( 'timeout' => 4, 'limit_response_size' => 2048 ) );
     $gateway_status = syndamorph_transport_status( $gateway );
-    if ( 'Verified' === $gateway_status ) {
-        $overview = json_decode( wp_remote_retrieve_body( $gateway ), true );
-        if ( ! is_array( $overview['customers'] ?? null ) ) { $gateway_status = 'The gateway overview did not match.'; }
+    if ( 'Verified' === $gateway_status && json_decode( wp_remote_retrieve_body( $gateway ), true ) !==
+        array( 'service' => 'syndamorph-gateway', 'protocol' => 1 ) ) {
+        $gateway_status = 'The gateway protocol did not match.';
     }
 
     return array( 'Capture' => $backend_status, 'Renderer' => $renderer_status, 'Gateway' => $gateway_status );

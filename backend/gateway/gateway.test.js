@@ -107,6 +107,14 @@ test('HTTP admin separation, bearer auth, version publication, and authorized ZI
         res = await request('/admin/v1/customers', 'POST', admin, { name: 'A' });
         assert.equal(res.status, 201);
         const a = await res.json();
+        for (const headers of [{}, { 'x-syndamorph-admin-token': 'x'.repeat(admin['x-syndamorph-admin-token'].length) }]) {
+            const denied = await request('/admin/v1/healthz', 'GET', headers);
+            assert.equal(denied.status, 401);
+            assert.deepEqual(await denied.json(), { error: 'unauthorized' });
+        }
+        res = await request('/admin/v1/healthz', 'GET', admin);
+        assert.equal(res.status, 200);
+        assert.deepEqual(await res.json(), { service: 'syndamorph-gateway', protocol: 1 });
         assert.equal((await request('/admin/v1/overview')).status, 401);
         res = await request('/admin/v1/overview', 'GET', admin);
         assert.equal(res.status, 200);

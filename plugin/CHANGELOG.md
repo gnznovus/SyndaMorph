@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.49] - 2026-11-27
+
+### Security
+
+- The host WordPress transport check verifies Gateway authentication and protocol through a bounded response without reading customer records. The renderer's public liveness probe exposes only a status. Authenticated inspection retains its protocol and build headers.
+
+### Fixed
+
+- The private HTTP allowlist accepts the existing Gateway lease update route, restoring status changes from WordPress administration.
+
 ## [0.12.48] - 2026-11-27
 
 ### Added

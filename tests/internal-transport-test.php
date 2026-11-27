@@ -10,6 +10,7 @@ function wp_remote_post( $url, $args ) {
     return array();
 }
 function wp_remote_get( $url, $args ) { return wp_remote_post( $url, $args ); }
+function wp_remote_request( $url, $args ) { return wp_remote_post( $url, $args ); }
 require dirname( __DIR__ ) . '/plugin/includes/internal-transport.php';
 
 function transport_expect( bool $ok, string $label ): void {
@@ -50,12 +51,18 @@ transport_expect( ! syndamorph_internal_configured( 'renderer' ), 'Shared tokens
 putenv( 'SYNDAMORPH_RENDERER_TOKEN=renderer-transport-test-fixture-v1' );
 transport_expect( syndamorph_internal_request( 'renderer', 'POST', '//other.invalid/inspect' ) instanceof WP_Error, 'Arbitrary route accepted' );
 transport_expect( syndamorph_internal_request( 'backend', 'POST', '/check-tabs' ) instanceof WP_Error, 'Cross-service route accepted' );
+$customer = '/admin/v1/customers/cus_' . str_repeat( 'a', 24 );
+$lease = 'lease_' . str_repeat( 'b', 24 );
+transport_expect( syndamorph_internal_request( 'gateway', 'PATCH', $customer . '/packages/pkg_' . str_repeat( 'c', 24 ) . '/leases/' . $lease ) instanceof WP_Error,
+    'A nonexistent nested lease update route was accepted' );
 transport_expect( ! $requests, 'Invalid request reached WordPress' );
 syndamorph_internal_request( 'backend', 'POST', '/production-source', array( 'redirection' => 10, 'limit_response_size' => 1234 ) );
 syndamorph_internal_request( 'renderer', 'POST', '/check-tabs' );
 syndamorph_internal_request( 'gateway', 'GET', '/admin/v1/overview' );
+syndamorph_internal_request( 'gateway', 'PATCH', $customer . '/leases/' . $lease );
 transport_expect( array_column( $requests, 0 ) === array( 'http://127.0.0.1:3100/production-source',
-    'http://127.0.0.1:3000/check-tabs', 'http://127.0.0.1:3200/admin/v1/overview' ), 'Fixed routes used the wrong origins' );
+    'http://127.0.0.1:3000/check-tabs', 'http://127.0.0.1:3200/admin/v1/overview',
+    'http://127.0.0.1:3200' . $customer . '/leases/' . $lease ), 'Fixed routes used the wrong origins' );
 transport_expect( $requests[0][1]['redirection'] === 0 && $requests[0][1]['limit_response_size'] === 1234,
     'Redirect or response limit policy changed' );
 transport_expect( ! str_contains( json_encode( $requests ), '-transport-test-fixture' ), 'Private tokens reached WordPress HTTP arguments' );

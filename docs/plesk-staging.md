@@ -26,6 +26,6 @@ PHP curl is required. If `WP_HTTP_BLOCK_EXTERNAL` is active, add the exact host 
 
 ### Check the application handshake
 
-From **Tools → SyndaMorph Transport**, a WordPress administrator can run the nonce-protected check. It calls authenticated capture health, performs a bounded Chromium inspection of a generated 375 px fixture, and checks authenticated Gateway overview. The page reports status for each service without returning credentials, customer records, or the inspected document.
+From **Tools → SyndaMorph Transport**, a WordPress administrator can run the nonce-protected check. It calls authenticated capture health, performs a bounded Chromium inspection of a generated 375 px fixture, and checks the authenticated Gateway protocol at `/admin/v1/healthz`. The Gateway probe never reads customer records. The page reports status for each service without returning credentials or the inspected document.
 
-An approved staging check should show three **Verified** results. From the private host, confirm missing and wrong credentials return HTTP 401 from renderer jobs and Gateway admin overview, and HTTP 403 from capture health. The renderer's unauthenticated health route can return its minimal status. Keep this preflight and the local regressions with the matching checkpoint record.
+An approved staging check should show three **Verified** results. From the private host, confirm missing and wrong credentials return HTTP 401 from renderer jobs and Gateway admin health, and HTTP 403 from capture health. The renderer's unauthenticated health route returns only its liveness status. Keep this preflight and the local regressions with the matching checkpoint record.

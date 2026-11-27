@@ -33,6 +33,8 @@ function makeServer({ gateway, adminToken, artifactDir }) {
             if (req.method === 'GET' && pathname === '/healthz') return json(res, 200, { status: 'ok' });
             const admin = pathname.startsWith('/admin/v1/');
             if (admin) verifyAdmin(req);
+            if (req.method === 'GET' && pathname === '/admin/v1/healthz')
+                return json(res, 200, { service: 'syndamorph-gateway', protocol: 1 });
             const client = !admin && pathname.startsWith('/v1/') && pathname !== '/v1/downloads';
             const owner = client && !pathname.startsWith('/v1/downloads/') ? gateway.authenticate(req.headers.authorization) : null;
             let body = {};

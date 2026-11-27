@@ -36,6 +36,8 @@ test('renderer authenticates every job before parsing or running Chromium', asyn
     }
     assert.equal(launches, 0);
     const health = await fetch(url + '/healthz');
+    assert.equal(health.headers.get('x-syndamorph-inspection-protocol'), null);
+    assert.equal(health.headers.get('x-syndamorph-renderer-build'), null);
     assert.deepEqual(await health.json(), {status:'ok'});
     assert.equal((await fetch(url + '/healthz', {headers:{'x-syndamorph-renderer-token':'wrong'}})).status, 401);
 });

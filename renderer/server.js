@@ -128,19 +128,19 @@ function createRendererServer(render = runBrowserWorker, token = process.env.SYN
     };
     let busy = false;
     return http.createServer({ requestTimeout: 30000, headersTimeout: 10000 }, async (req, res) => {
-        function reply(status, payload) {
+        function reply(status, payload, includeProtocol = true) {
             if (res.writableEnded || res.destroyed) return;
             const bytes = Buffer.from(JSON.stringify(payload));
             if (req.url === '/inspect' && bytes.length > MAX_RESPONSE)
                 throw new RendererError('evidence_limit', 507);
             res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store',
-                'content-length': bytes.length, 'x-syndamorph-inspection-protocol': PROTOCOL,
-                'x-syndamorph-renderer-build': build, ...(status === 429 ? { 'retry-after': '1' } : {}),
+                'content-length': bytes.length, ...(includeProtocol ? { 'x-syndamorph-inspection-protocol': PROTOCOL,
+                    'x-syndamorph-renderer-build': build } : {}), ...(status === 429 ? { 'retry-after': '1' } : {}),
                 ...(status === 401 ? { connection: 'close' } : {}) });
             res.end(bytes);
         }
         if (req.method === 'GET' && req.url === '/healthz') {
-            if (req.headers['x-syndamorph-renderer-token'] === undefined) return reply(200, { status: 'ok' });
+            if (req.headers['x-syndamorph-renderer-token'] === undefined) return reply(200, { status: 'ok' }, false);
             return authenticated(req) ? reply(200, diagnostic) : reply(401, { error: 'unauthorized' });
         }
         if (req.method !== 'POST' || !['/render','/inspect','/compare','/crop','/check-tabs','/check-scroll-strips','/check-disclosures','/check-image-strip','/check-reveal-cards','/check-rooms'].includes(req.url))
