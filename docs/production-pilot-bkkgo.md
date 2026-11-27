@@ -89,6 +89,14 @@ The captured desktop hero owns the booking bar overhang at `div[data-dc-tpl="99"
 
 v0.12.44 runs the owned crop through Production Setup. The original composed JPEG hash `71905dc87c79993417b817dfa626198df2992e83a7fae0738f92e4bc4ccef3b2` reproduced byte for byte before the replay hid the booking bar. WordPress saved the region-only JPEG `e3c4a0cda1be6ef14e143f30c1978b751eeb681d6a4daa9d68054faeb690ca9b` in History event 23316. The heading matched pixel for pixel. All three paragraphs used the original font bytes and matched per-character positions, but the raster difference remained at 1.231%. History event 23319 records the five-block Gutenberg edit, save and reload in local unpublished draft 141. Its intro filled desktop widths and was hidden below 1024 px. This proof leaves native visual acceptance pending and retains the original assembled draft and its eight Patterns.
 
+### Native intro paragraph repair, v0.12.46
+
+In the saved PNG replay, the source paragraphs had grayscale glyph edges. Chromium painted the same font at the same character positions with colored subpixel edges in the native preview. The source's `-webkit-font-smoothing` declaration alone left the measured difference at 1.231%. A neutral compositing filter on the three native Paragraph blocks reproduced the source paint without changing the font, wrapping, or measured height.
+
+History event 23320 binds unpublished draft 148 and Gutenberg-saved content SHA-256 `57eacb45500668f277648172408fc252d31971b22ea685627ba5f8bbb1b209ef` to source checkpoint 12135 and its region-only crop. Rendering the saved block stream measured 0% difference at 1440 px and reproduced the 592 px extent. All five blocks remained valid through edit, save and reload. The actual editor and frontend applied the paragraph style. The frontend filled 1440, 1280 and 1024 px and hid the standalone intro at 1023, 768 and 375 px.
+
+The original composed crop is preserved. The compact hero still needs to contain the relocated title, and the combined hero and intro need page-level verification. REF-000030 retains eight accepted placements. This repair used zero model calls.
+
 ### SIP & DINE alignment checkpoint, v0.12.42
 
 The archived Pattern 79 omitted alignment on its outer Core Group. The Twenty Twenty-Five Page template constrained it to 645 px in a 1440 px viewport and to 315 px at 375 px. Fresh measurements of the approved Designer reference selected Full width. Recompiling the retained plan produced private unsynced Pattern 120 and preserved all 68 blocks and their inner layouts.

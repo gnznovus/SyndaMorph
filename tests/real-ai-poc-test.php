@@ -1117,6 +1117,25 @@ expect(is_wp_error(syndamorph_surgery_apply($resolved['plan'],array('id'=>$targe
 $invalid=syndamorph_surgery_apply($resolved['plan'],array('id'=>$target['id'],'changes'=>array(array('path'=>'style.fontSize','value'=>'url(javascript:evil)'))));
 expect(is_array($invalid)&&is_wp_error($invalid['error'])&&$invalid['artifact']===null,'Invalid surgery candidate passed compilation');
 
+$paragraphPaintPlan=array('version'=>1,'blocks'=>array(array('id'=>'root','type'=>'group','children'=>array(
+    array('id'=>'title','type'=>'heading','text'=>'Intro'),
+    array('id'=>'copy','type'=>'paragraph','text'=>'Editable copy.','style'=>array('textWrap'=>'pretty')),
+    array('id'=>'sibling','type'=>'paragraph','text'=>'Unchanged copy.'),
+))));
+$paintPatch=array('id'=>'copy','changes'=>array(array('path'=>'style.fontSmoothing','value'=>'grayscale')));
+$paragraphPaint=syndamorph_surgery_apply($paragraphPaintPlan,$paintPatch,array('copy'));
+expect(is_array($paragraphPaint)&&$paragraphPaint['artifact']&&$paragraphPaint['touched']===array('copy')&&
+    str_contains($paragraphPaint['artifact']['content'],'"className":"sm-text-wrap-pretty sm-font-smoothing-grayscale"')&&
+    str_contains($paragraphPaint['artifact']['preview'],syndamorph_native_paragraph_smoothing_css())&&
+    str_contains($paragraphPaint['artifact']['preview'],syndamorph_native_paragraph_wrap_css())&&
+    $paragraphPaint['plan']['blocks'][0]['children'][2]===$paragraphPaintPlan['blocks'][0]['children'][2],
+    'Scoped paragraph paint surgery lost wrapping or changed unrelated content');
+$paintPatch['changes'][0]['value']='brightness(0.5)';
+expect(syndamorph_surgery_apply($paragraphPaintPlan,$paintPatch)['artifact']===null,'Arbitrary paragraph paint accepted');
+$paintPatch['id']='title';
+$paintPatch['changes'][0]['value']='grayscale';
+expect(syndamorph_surgery_apply($paragraphPaintPlan,$paintPatch)['artifact']===null,'Paragraph paint escaped the supported leaf type');
+
 expect(str_contains($styled['content'],'linear-gradient(135deg') && str_contains($styled['content'],'font-weight:700') &&
     str_contains($styled['content'],'border-radius:8px'),'Native styling was not serialized');
 $badStyle=$richPlan;

@@ -161,3 +161,9 @@ The renderer browser tests expect the isolated renderer at `127.0.0.1:3999` by d
 4. Review that one authorized job before any additional trial. Require a reviewed, clean Gutenberg round-trip and verified viewports before promoting any retained artifact.
 
 This engineering handoff executed zero paid AI jobs. Stable `v0.11.1` and `main` remain isolated from this checkpoint.
+
+## Evidence-based paragraph antialiasing
+
+Developer surgery can set `style.fontSmoothing` to `grayscale` on a Paragraph when replay isolates a source text rasterization mismatch. The compiler serializes a paragraph class that works with the existing `pretty` wrapping class. The class applies a neutral brightness filter to request grayscale compositing in Chromium and preserves literal copy, layout, and installed font selection. The existing visual and editor gates still evaluate the resulting artifact.
+
+The BKKGO intro replay measured a decrease from 1.231% to 0% on the exact Gutenberg-saved desktop section. See the recorded source and artifact hashes in the [BKKGO checkpoint](production-pilot-bkkgo.md#native-intro-paragraph-repair-v01246).

@@ -84,7 +84,7 @@ function syndamorph_surgery_apply(array $plan,array $proposal,?array $authorized
     $scope=syndamorph_collab_find($plan['blocks'],$owner);
     if($scope===null)return new WP_Error('sm_surgery_target','Assigned repair component not found.');
     $allowed=array('color','background','gradient','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing',
-        'textTransform','textDecoration','textWrap','padding','margin','gap','minHeight','contentWidth','contentAlignment','flow','row','justifyContent','verticalAlignment','align','borderRadius','width');
+        'textTransform','textDecoration','textWrap','fontSmoothing','padding','margin','gap','minHeight','contentWidth','contentAlignment','flow','row','justifyContent','verticalAlignment','align','borderRadius','width');
     $touches=array();
     foreach($changes as $change){
         if(!is_array($change)||!is_string($change['path']??null)||
@@ -353,7 +353,7 @@ function syndamorph_surgery_normalize(array $plan,array $diagnostic): ?array {
     if(isset($target['style'])&&!is_array($target['style']))return null;
     $key=$focus['property'];
     $normalization=null;
-    $nativeStyle=array('color','background','gradient','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','textTransform','textWrap','width',
+    $nativeStyle=array('color','background','gradient','fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','textTransform','textWrap','fontSmoothing','width',
         'padding','margin','gap','minHeight','contentWidth','contentAlignment','justifyContent','verticalAlignment','align','borderRadius');
     // Unsupported node-level style properties can be moved without changing their values.
     if(in_array($key,$nativeStyle,true)&&array_key_exists($key,$target)&&!array_key_exists($key,$target['style']??array())){

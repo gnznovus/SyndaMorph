@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.46] - 2026-11-27
+
+### Fixed
+
+- Developer Adaptive Surgery can select grayscale glyph rendering on an individual native Paragraph when replay shows a source antialiasing mismatch. The saved block retains its original text, wrapping and identity. The compiler applies the same scoped style in preview, editor and frontend.
+
+### Verified
+
+- The exact Gutenberg-saved BKKGO intro measured 0% difference against its pinned 1440 px region-only crop, down from 1.231% under the existing gate. All five blocks survived edit, save and reload. The compact hero and combined page QA still hold placement pending. No model calls were made.
+
 ## [0.12.45] - 2026-11-27
 
 ### Security
