@@ -4,6 +4,7 @@ const { spawnSync } = require('node:child_process');
 const { join } = require('node:path');
 
 const renderer = process.env.SYNDA_RENDER_TEST_URL || 'http://127.0.0.1:3999';
+const rendererToken = process.env.SYNDAMORPH_RENDERER_TOKEN;
 const php = process.env.SYNDA_PHP || 'php';
 const phpArgs = JSON.parse(process.env.SYNDA_PHP_ARGS || '[]');
 const trials = Number(process.env.SYNDA_BENCHMARK_TRIALS || 2);
@@ -21,7 +22,8 @@ function runPhp(mode, data) {
 
 async function request(route, data) {
     const response = await fetch(renderer + route, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-SyndaMorph-Renderer-Token': rendererToken },
         body: JSON.stringify(data), signal: AbortSignal.timeout(60000),
     });
     const output = await response.json();
@@ -30,6 +32,7 @@ async function request(route, data) {
 }
 
 (async () => {
+    assert.ok(rendererToken, 'Set SYNDAMORPH_RENDERER_TOKEN to the local renderer fixture credential');
     assert.ok(Number.isInteger(trials) && trials >= 1 && trials <= 5, 'Expected one to five trials');
     const fixtures = runPhp('prepare');
     let previous;
