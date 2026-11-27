@@ -212,7 +212,7 @@ function syndamorph_collab_patch(array $plan, array $patch) {
     $unique=syndamorph_collab_validate_ids($plan);
     if(is_wp_error($unique)){$target=$before;return $unique;}
     // Shared transactional verifier is also used by compiler/schema surgery.
-    $verified=syndamorph_surgery_verify(array('blocks'=>array($before)),$plan);
+    $verified=syndamorph_surgery_verify(array_replace($plan,array('blocks'=>array($before))),$plan);
     if(is_wp_error($verified)){$target=$before;return $verified;}
     return array('plan'=>$verified['plan'],'artifact'=>$verified['artifact']);
 }
@@ -1297,6 +1297,18 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         'bossApproval'=>$approval,'productionSpecification'=>$specification,'specificationReceipt'=>$specificationReceipt,
         'continuousResponsive'=>$responsive,'requirementResults'=>$requirementResults,
         'tabPanelSpecification'=>syndamorph_tabs_design_copy($reference,$interactions))+$touchContext;
+    if($nativeReview===null){
+        $alignment=syndamorph_design_section_alignment($inspectReference,$viewports);
+        if($alignment['basis']==='unmatched_theme_width'&&function_exists('wp_get_global_stylesheet')){
+            $widthProbe='<style>'.wp_get_global_stylesheet().'*{box-sizing:border-box}</style>'.
+                syndamorph_native_page_width_body().'<div id="sm-width-content">Content</div>'.
+                '<div id="sm-width-wide" class="alignwide">Wide</div>';
+            $host=syndamorph_collab_inspect($widthProbe,$viewports);
+            if(is_wp_error($host))$alignment['hostInspection']=syndamorph_inspection_diagnostic($host);
+            else $alignment=syndamorph_design_section_alignment($inspectReference,$viewports,$host);
+        }
+        $designMemo['sectionAlignment']=$alignment;
+    }
     if($standardTabs)$designMemo['standardTabs']=$standardTabs;
     $handoffs[]=array('from'=>'boss','to'=>'developer','type'=>'approved_design',
         'referenceSha256'=>$designMemo['referenceSha256'],'reviewRounds'=>$designReviews,'agentPayload'=>$approval,
@@ -1323,6 +1335,12 @@ function syndamorph_collab_run(string $brief,bool $stream,?callable $on_event,bo
         return new WP_Error('sm_block_plan_invalid','Developer did not return a native JSON plan.');
     if($jsonRecovery!==null&&$on_event)$on_event('schema_json_recovery',$jsonRecovery);
     $plan=syndamorph_collab_ids($plan);
+    if($nativeReview===null){
+        // Placement belongs to approved browser evidence. A model cannot set it.
+        unset($plan['sectionAlignment']);
+        if($designMemo['sectionAlignment']['alignment']!==null)
+            $plan['sectionAlignment']=$designMemo['sectionAlignment']['alignment'];
+    }
     foreach($standardTabs as $id){
         $tabs=syndamorph_collab_find($plan['blocks'],$id);
         if(($tabs['type']??null)!=='tabs'||($tabs['appearance']??null)!=='standard')

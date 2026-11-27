@@ -429,6 +429,8 @@ function syndamorph_compiler_auto_repair(array $plan,array $diagnostic) {
 }
 /** Both compiler and QA submit to an identical transactional validation boundary. */
 function syndamorph_surgery_verify(array $before,array $candidate,?callable $visualGate=null) {
+    if(($before['sectionAlignment']??null)!==($candidate['sectionAlignment']??null))
+        return new WP_Error('sm_surgery_alignment','Repair changed the approved section alignment.');
     $compile=syndamorph_compile_block_plan(wp_json_encode($candidate));
     if(is_wp_error($compile))return $compile;
     if(is_wp_error(syndamorph_collab_validate_ids($candidate)))return new WP_Error('sm_surgery_identity','Identity regression.');

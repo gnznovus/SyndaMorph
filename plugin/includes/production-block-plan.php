@@ -158,7 +158,7 @@ function syndamorph_block_plan_expected(string $reason,string $field,string $blo
  * Inspect the same block rendering and per-instance styles WordPress uses on the front end.
  * Diagnostic node attributes are added to the parsed copy only.
  */
-function syndamorph_native_core_preview(array $blocks,?array $ids=null): string {
+function syndamorph_native_core_preview(array $blocks,?array $ids=null,bool $pageWidth=false): string {
     $index=0;$types=array();
     $annotate=static function(array $block)use(&$annotate,&$index,&$types,$ids):array {
         if($block['blockName']==='syndamorph/tabs'){
@@ -218,9 +218,14 @@ function syndamorph_native_core_preview(array $blocks,?array $ids=null): string 
     if(isset($classes['sm-text-wrap-pretty']))$css.=syndamorph_native_paragraph_wrap_css();
     if(isset($classes['sm-aspect-4-3'])||isset($classes['sm-aspect-3-4']))$css.=syndamorph_native_tile_aspect_css();
     $css.='*,*::before,*::after{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;line-height:1.5}';
-    return '<style>'.$css.'</style>'.$html;
+    return '<style>'.$css.'</style>'.($pageWidth?syndamorph_native_page_width_body():'').$html;
 }
 
+/** Apply core's Post Content layout in isolated width measurements only. */
+function syndamorph_native_page_width_body(): string {
+    $padding=!empty(wp_get_global_settings()['useRootPaddingAwareAlignments'])?' has-global-padding':'';
+    return '<body class="wp-block-post-content is-layout-constrained'.$padding.'">';
+}
 
 function syndamorph_native_visibility_css(): string {
     return '@media(max-width:1023px){.sm-view-desktop{display:none!important}}'.
@@ -233,9 +238,20 @@ function syndamorph_compile_block_plan( string $raw ) {
         if ( strlen( $raw ) > 120000 ) { throw new InvalidArgumentException( 'Plan too large.' ); }
         $raw=syndamorph_native_json_text($raw);
         $plan = json_decode( $raw, true, 32, JSON_THROW_ON_ERROR );
-        if ( ! is_array( $plan ) || array_diff( array_keys( $plan ), array( 'version', 'blocks' ) ) || ( $plan['version'] ?? null ) !== 1 ||
+        if ( ! is_array( $plan ) || array_diff( array_keys( $plan ), array( 'version', 'blocks', 'sectionAlignment' ) ) || ( $plan['version'] ?? null ) !== 1 ||
             ! is_array( $plan['blocks'] ?? null ) || ! array_is_list( $plan['blocks'] ) || count( $plan['blocks'] ) !== 1 || ( $plan['blocks'][0]['type'] ?? '' ) !== 'group' ) {
             throw new InvalidArgumentException( 'Expected one root group in a version 1 plan.' );
+        }
+        $sectionAlignment=$plan['sectionAlignment']??null;
+        if(array_key_exists('sectionAlignment',$plan)&&!in_array($sectionAlignment,array('content','wide','full'),true)){
+            $field='sectionAlignment';
+            throw new InvalidArgumentException('Invalid section alignment.');
+        }
+        $groupAlignment=in_array($sectionAlignment,array('wide','full'),true)?$sectionAlignment:null;
+        if($groupAlignment!==null&&class_exists('WP_Block_Type_Registry')&&
+            !in_array($groupAlignment,(array)(WP_Block_Type_Registry::get_instance()->get_registered('core/group')->supports['align']??array()),true)){
+            $field='sectionAlignment';
+            throw new InvalidArgumentException('Core Group does not support the approved section alignment.');
         }
         $count = 0; $headings = 0; $field = 'blocks[0]'; $previewIds = array(); $layoutFacts=array(); $schemaFacts=array();
         $tabs=array();$scrollStrips=array();$disclosures=array();$block='';$fonts=syndamorph_production_font_families();
@@ -246,7 +262,7 @@ function syndamorph_compile_block_plan( string $raw ) {
             if ( ! is_string( $v ) || ! preg_match( '~^(?:0|' . $unit . '|clamp\(\s*' . $unit . '\s*,\s*' . $unit . '(?:\s+[+-]\s+' . $unit . ')?\s*,\s*' . $unit . '\s*\))$~D', $v ) ) { throw new InvalidArgumentException( 'Invalid length.' ); }
             return $v === '0' ? '0px' : $v;
         };
-        $build = static function ( $node, string $parent, int $depth, string $path, ?string $disclosureGroup=null ) use ( &$build, &$count, &$headings, &$field, &$previewIds, &$layoutFacts, &$schemaFacts, &$tabs, &$scrollStrips, &$disclosures, &$block, $escape, $length, $fonts ): string {
+        $build = static function ( $node, string $parent, int $depth, string $path, ?string $disclosureGroup=null ) use ( &$build, &$count, &$headings, &$field, &$previewIds, &$layoutFacts, &$schemaFacts, &$tabs, &$scrollStrips, &$disclosures, &$block, $escape, $length, $fonts, $groupAlignment ): string {
             $field = $path;$block='';
             if ( ! is_array( $node ) || ++$count > 120 || $depth > 12 ) { throw new InvalidArgumentException( 'Invalid node or plan limit exceeded.' ); }
             $type = $node['type'] ?? '';
@@ -303,6 +319,10 @@ function syndamorph_compile_block_plan( string $raw ) {
             }
             $attrs = array(); $css = array(); $classes = array(); $borderCss=array();
             if ( $type !== 'paragraph' ) { $classes[] = 'wp-block-' . $type; }
+            if($parent==='root'&&$groupAlignment!==null){
+                $attrs['align']=$groupAlignment;
+                $classes[]='align'.$groupAlignment;
+            }
             if($type==='columns'&&array_key_exists('isStackedOnMobile',$node)){
                 $field=$path.'.isStackedOnMobile';
                 if(!is_bool($node['isStackedOnMobile']))throw new InvalidArgumentException('Column stacking must be boolean.');
@@ -501,11 +521,13 @@ function syndamorph_compile_block_plan( string $raw ) {
                     'blockGap'=>$attrs['style']['spacing']['blockGap']??null);
                 if(isset($attrs['isStackedOnMobile']))
                     $layoutFacts[$node['id']??$path]['isStackedOnMobile']=$attrs['isStackedOnMobile'];
+                if($parent==='root'&&$groupAlignment!==null)
+                    $layoutFacts[$node['id']??$path]['align']=$groupAlignment;
             }
             // Keep core support classes in the order emitted by Gutenberg.
             $classes = array_values(array_unique($classes));
             $base = array_values(array_filter($classes,static fn($c)=>strpos($c,'wp-block-')===0 || strpos($c,'has-text-align-')===0 ||
-                strpos($c,'is-vertically-aligned-')===0||in_array($c,array('is-layout-flex','is-layout-constrained','is-layout-grid','is-not-stacked-on-mobile'),true)));
+                strpos($c,'is-vertically-aligned-')===0||in_array($c,array('alignwide','alignfull','is-layout-flex','is-layout-constrained','is-layout-grid','is-not-stacked-on-mobile'),true)));
             foreach(array('has-text-color','has-background','has-border-color') as $c) { if(in_array($c,$classes,true))$base[]=$c; }
             if(isset($attrs['fontFamily']))$base[]='has-'.$attrs['fontFamily'].'-font-family';
             if(isset($attrs['className']))$base[]=$attrs['className'];
@@ -629,7 +651,8 @@ function syndamorph_compile_block_plan( string $raw ) {
         $layoutCss.='[data-sm-button-full]{flex-basis:100%;width:100%;max-width:none}[data-sm-button-full] .wp-block-button__link{width:100%;text-align:center}';
         $corePreview=$parsedBlocks!==null && function_exists('render_block') && class_exists('WP_Style_Engine') &&
             class_exists('WP_HTML_Tag_Processor');
-        $preview=$corePreview?syndamorph_native_core_preview($parsedBlocks,$previewIds):'<style>'.$layoutCss.'</style>'.$preview;
+        $preview=$corePreview?syndamorph_native_core_preview($parsedBlocks,$previewIds,
+            in_array($sectionAlignment,array('wide','content'),true)):'<style>'.$layoutCss.'</style>'.$preview;
         if(!$corePreview&&$tabs)$preview='<style>'.syndamorph_tabs_asset('production-tabs.css').'</style>'.$preview;
         if(!$corePreview&&$scrollStrips)$preview='<style>'.syndamorph_scroll_strip_css().'</style>'.$preview;
         if(!$corePreview&&$disclosures)$preview='<style>'.syndamorph_disclosures_css().'</style>'.$preview;

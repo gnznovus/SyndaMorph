@@ -76,6 +76,17 @@ $add('empty decorated Group',array(
     array('type'=>'heading','id'=>'decorative-heading','text'=>'Welcome'),
     array('type'=>'group','id'=>'decorative-panel','style'=>array(
         'minHeight'=>'clamp(12rem,30vw,26rem)','gradient'=>'linear-gradient(200deg,#2f4f70,#14263a)'))));
+$alignments=array();
+foreach(array('full','wide','content') as $alignment){
+    $planned=array('version'=>1,'sectionAlignment'=>$alignment,'blocks'=>array(array('type'=>'group',
+        'style'=>array('flow'=>true,'background'=>'#123456','color'=>'#ffffff'),
+        'children'=>array(array('type'=>'group','style'=>array('contentWidth'=>'20rem','padding'=>0),
+            'children'=>array(array('type'=>'heading','text'=>'Section width '.$alignment)))))));
+    $case=syndamorph_compile_block_plan(wp_json_encode($planned));
+    if(is_wp_error($case)){http_response_code(500);exit($case->get_error_message());}
+    $fixtures['section width '.$alignment]=$case;
+    $alignments[$alignment]=array('content'=>$case['content'],'preview'=>$case['preview']);
+}
 $parity=$fixtures['constrained layout geometry'];
 $nativeHtml=do_blocks($parity['content']);
 $baseCss='*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,sans-serif}.wp-block-button__link{display:inline-block}.has-text-align-center{text-align:center}';
@@ -118,4 +129,4 @@ header('Content-Type: text/html; charset=utf-8');
 ?><!doctype html><html><head><meta charset="utf-8"><?php
 wp_enqueue_script('wp-block-library');
 wp_print_scripts(array('wp-block-library','syndamorph-tabs-editor'));
-?></head><body><script src="/wp-content/plugins/syndamorph/assets/production-ai-export.js"></script><script>window.nativeFixture=<?php echo wp_json_encode($artifact,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeFixtures=<?php echo wp_json_encode($fixtures,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeParity=<?php echo wp_json_encode($parity,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.tabsPost=<?php echo (int)($tabsPost->ID??0); ?>;window.tabsContent=<?php echo wp_json_encode($tabsPost->post_content??'',JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;</script></body></html>
+?></head><body><script src="/wp-content/plugins/syndamorph/assets/production-ai-export.js"></script><script>window.nativeFixture=<?php echo wp_json_encode($artifact,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeFixtures=<?php echo wp_json_encode($fixtures,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeParity=<?php echo wp_json_encode($parity,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.tabsPost=<?php echo (int)($tabsPost->ID??0); ?>;window.tabsContent=<?php echo wp_json_encode($tabsPost->post_content??'',JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeAlignments=<?php echo wp_json_encode($alignments,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;</script></body></html>

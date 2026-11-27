@@ -98,9 +98,12 @@ function wp_remote_post($url,$args) {
             static fn($width)=>array('width'=>$width,'screenshot'=>inspection_fixture_jpeg($width),'a11y'=>array(),'snapshot'=>(isset($GLOBALS['source_fixture_copy'])?array('copy'=>$GLOBALS['source_fixture_copy']):array())+array(
                 'overflow'=>$designProbe&&$width===900&&(str_contains($input['html'],'--test-overflow:1')||
                     ($native&&($GLOBALS['native_responsive_test']??null)==='overflow')),
-                'elements'=>array(array('tag'=>'H2','id'=>'','text'=>'Welcome & enjoy',
+                'elements'=>array_merge(!empty($GLOBALS['section_alignment_fixture'])?array(
+                    array('tag'=>$native?'DIV':'SECTION','visible'=>true,'parent'=>null,'rect'=>array(0,0,$width,120),
+                        'styles'=>array())
+                ):array(),array(array('tag'=>'H2','id'=>'','text'=>'Welcome & enjoy',
                 'rect'=>array(0,0,300,70),'wrapChangesGeometry'=>str_contains($input['html'],'text-wrap:balance'),
-                'styles'=>array('textWrapStyle'=>'balance','fontSize'=>'32px','fontWeight'=>'700','color'=>'rgb(0, 0, 0)','letterSpacing'=>'normal'))))),
+                'styles'=>array('textWrapStyle'=>'balance','fontSize'=>'32px','fontWeight'=>'700','color'=>'rgb(0, 0, 0)','letterSpacing'=>'normal')))))),
             $input['viewports'])));
     }
     if ($url !== 'https://api.anthropic.com/v1/messages') throw new RuntimeException('Unexpected generation endpoint');
@@ -546,11 +549,29 @@ $GLOBALS['team_specification_fixture']=array('version'=>1,'title'=>'Premium hote
     'requirements'=>array(array('id'=>'editable-heading','target'=>'heading','dimension'=>'implementation',
         'basis'=>'brief','requirement'=>'An editable native heading','acceptance'=>'Heading block survives editor round-trip',
         'status'=>'verified')));
+$fixture=$GLOBALS['native_fixture'];
+$GLOBALS['native_fixture']=wp_json_encode(json_decode($fixture,true)+array('sectionAlignment'=>'wide'));
+$GLOBALS['section_alignment_fixture']=true;
 $native=syndamorph_team_real_run('Create a native premium hotel hero.',false,null,'gutenberg');
-unset($GLOBALS['team_specification_fixture']);
+$GLOBALS['native_fixture']=$fixture;
+unset($GLOBALS['team_specification_fixture'],$GLOBALS['section_alignment_fixture']);
 expect(is_array($native) && $native['outputType']==='gutenberg','Native pipeline failed: '.(is_wp_error($native) ? $native->get_error_code().' · '.$native->get_error_message() : gettype($native)));
-expect($native['artifact']['blockCount']===5 && $native['checks']['contains_heading'],'Native compilation failed');
+expect(($native['artifact']['blockCount']??null)===5 && !empty($native['checks']['contains_heading']),
+    'Native compilation failed: '.wp_json_encode($native['quality']['inspection']??$native['quality']['issues']??array()));
 expect(str_contains($native['artifact']['content'],'<!-- wp:group') && str_contains($native['artifact']['content'],'Welcome &amp; enjoy'),'Native serialization failed');
+$aligned=json_decode($native['outputs']['developer'],true);
+expect(($aligned['sectionAlignment']??null)==='full'&&
+    ($native['designApproval']['sectionAlignment']['alignment']??null)==='full'&&
+    str_contains($native['artifact']['content'],'"align":"full"')&&
+    substr_count($native['artifact']['content'],'alignfull')===1,
+    'Measured Designer alignment did not reach the compiled section or the model overrode it.');
+$dropped=$aligned;
+unset($dropped['sectionAlignment']);
+expect(syndamorph_surgery_verify($aligned,$dropped)->get_error_code()==='sm_surgery_alignment',
+    'Repair dropped the measured alignment.');
+$nested=$aligned;
+$nested['blocks'][0]['children'][0]['sectionAlignment']='full';
+expect(is_wp_error(syndamorph_compile_block_plan(wp_json_encode($nested))),'A nested block accepted outer section alignment.');
 expect(count($GLOBALS['generations'])===5,'Native job must execute five initial calls');
 expect($GLOBALS['inspection_calls']===array('reference','native'),'Both browser artifacts must be inspected');
 expect(count($GLOBALS['generations'][3]['messages'][0]['content'])===3,'Initial native Developer lacks reference screenshots');

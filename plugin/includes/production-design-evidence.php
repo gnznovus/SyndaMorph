@@ -134,6 +134,39 @@ function syndamorph_design_wordpress_page_context(): ?array {
         'scope'=>'Default local WordPress Page template settings. Verify the final draft in its actual insertion context.');
 }
 
+/** Map the approved outer box to native Page widths using the exact inspected viewports. */
+function syndamorph_design_section_alignment(array $samples,array $widths,array $host=array()): array {
+    $views=array();
+    if(!$widths||array_column($samples,'width')!==$widths)
+        return array('alignment'=>null,'basis'=>'missing_viewports','views'=>$views);
+    foreach($samples as $sample){
+        $roots=array_values(array_filter($sample['snapshot']['elements']??array(),static fn($element)=>
+            array_key_exists('parent',$element)&&$element['parent']===null&&($element['visible']??false)));
+        $box=$roots[0]['rect']??null;
+        if(count($roots)!==1||!in_array($roots[0]['tag']??null,array('SECTION','ARTICLE','MAIN','DIV','HEADER','FOOTER'),true)||
+            !is_array($box)||!array_is_list($box)||count($box)!==4||
+            array_filter($box,static fn($value)=>(!is_int($value)&&!is_float($value))||!is_finite($value))||
+            $box[2]<=0||($sample['snapshot']['overflow']??null)!==false)
+            return array('alignment'=>null,'basis'=>'unidentified_root','views'=>$views);
+        $views[]=array('viewport'=>$sample['width'],'left'=>$box[0],'width'=>$box[2]);
+    }
+    if(!array_filter($views,static fn($view)=>abs($view['left'])>2||
+        abs($view['left']+$view['width']-$view['viewport'])>2))
+        return array('alignment'=>'full','basis'=>'measured_viewport_edges','views'=>$views);
+    if(array_column($host,'width')===$widths){
+        foreach(array('content','wide') as $alignment){
+            foreach($views as $index=>$view){
+                $elements=array_column($host[$index]['snapshot']['elements']??array(),null,'id');
+                $box=$elements['sm-width-'.$alignment]['rect']??null;
+                if(!is_numeric($box[0]??null)||!is_numeric($box[2]??null)||
+                    abs($view['left']-$box[0])>2||abs($view['width']-$box[2])>2)continue 2;
+            }
+            return array('alignment'=>$alignment,'basis'=>'measured_theme_width','views'=>$views);
+        }
+    }
+    return array('alignment'=>null,'basis'=>'unmatched_theme_width','views'=>$views);
+}
+
 function syndamorph_design_host_checks(array $specification): array {
     $checks=array();
     foreach($specification['requirements']??array() as $item){

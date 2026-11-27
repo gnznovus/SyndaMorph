@@ -39,11 +39,79 @@ async function verifyEditableTabs(page,post) {
  console.log('PASS: real Gutenberg tab edit, save, reload, and WordPress frontend interaction at all three widths.');
 }
 
+async function verifySectionWidths(page, sections) {
+ await page.setViewportSize({width:1440,height:900});
+ await page.goto(origin+'/wp-admin/post-new.php?post_type=page');
+ await page.waitForFunction(()=>wp?.data?.select('core/editor')?.getCurrentPostId()>0);
+ const id=await page.evaluate(sections=>{
+  const editor=wp.data.select('core/editor');
+  const blocks=Object.values(sections).flatMap(section=>wp.blocks.parse(section.content));
+  wp.data.dispatch('core/editor').editPost({title:'Generated section alignment regression'});
+  wp.data.dispatch('core/block-editor').resetBlocks(blocks);
+  return editor.getCurrentPostId();
+ },sections);
+ const read=()=>page.evaluate(()=>{
+  const blocks=wp.data.select('core/block-editor').getBlocks();
+  return blocks.map(({isValid,attributes,innerBlocks})=>[
+   isValid,attributes.align??null,innerBlocks[0]?.attributes.align??null,innerBlocks[0]?.attributes.layout?.contentSize
+  ]);
+ });
+ const expected=[[true,'full',null,'20rem'],[true,'wide',null,'20rem'],[true,null,null,'20rem']];
+ assert.deepEqual(await read(),expected);
+ await page.evaluate(()=>wp.data.dispatch('core/editor').savePost());
+ await page.waitForFunction(()=>!wp.data.select('core/editor').isSavingPost()&&
+  wp.data.select('core/editor').didPostSaveRequestSucceed());
+ await page.goto(origin+'/wp-admin/post.php?post='+id+'&action=edit');
+ await page.waitForFunction(()=>wp?.data?.select('core/block-editor')?.getBlocks().length===3);
+ assert.deepEqual(await read(),expected);
+ const rootSelector=await page.evaluate(()=>wp.data.select('core/block-editor').getBlocks()
+  .map(block=>'[data-block="'+block.clientId+'"]').join(','));
+ const canvas=page.frameLocator('iframe[name="editor-canvas"]');
+ const inspect=elements=>elements.map(element=>{
+  const box=element.getBoundingClientRect();
+  return {x:box.x,width:box.width,viewport:element.ownerDocument.documentElement.clientWidth,
+   child:element.querySelector('h2').getBoundingClientRect().width};
+ });
+ const frontend=await page.context().newPage();
+ const preview=await page.context().newPage();
+ const report=[];
+ try {
+  for(const width of [1440,768,375]){
+   await page.setViewportSize({width,height:900});
+   const roots=canvas.locator(rootSelector);
+   await roots.first().waitFor();
+   const edit=await roots.evaluateAll(inspect);
+   await frontend.setViewportSize({width,height:900});
+   assert.equal((await frontend.goto(origin+'/?page_id='+id+'&preview=true')).status(),200);
+   const live=await frontend.locator('.wp-block-post-content > .wp-block-group').evaluateAll(inspect);
+   assert.equal(live.length,3);
+   assert.equal(edit.length,3);
+   await preview.setViewportSize({width,height:900});
+   for(const [index,section] of Object.values(sections).entries()){
+    await preview.setContent(section.preview);
+    const [box]=await preview.locator('body > .wp-block-group').evaluateAll(inspect);
+    assert.ok(Math.abs(box.x-live[index].x)<2&&Math.abs(box.width-live[index].width)<2,
+     'The isolated section width must match the real Page template');
+   }
+   assert.ok(Math.abs(live[0].x)<2&&Math.abs(live[0].width-width)<2,'The frontend full section must reach both edges');
+   assert.ok(edit[0].width>=edit[1].width&&edit[1].width>=edit[2].width,'The editor must honor the width hierarchy');
+   if(width===1440){
+    assert.ok(live[0].width>live[1].width&&live[1].width>live[2].width);
+    assert.ok(edit[0].width>edit[2].width,'The editor full section must exceed the content cap');
+   }
+   assert.ok([...live,...edit].every(box=>box.child<=321&&box.child<=box.width));
+   report.push({width,editor:edit.map(box=>box.width),frontend:live.map(box=>box.width)});
+  }
+ } finally { await Promise.all([frontend.close(),preview.close()]); }
+ console.log('PASS: exact full, wide and content widths after Gutenberg save and reload.',report);
+}
+
 (async()=>{
  const channel=process.env.SM_BROWSER_CHANNEL;
  const browser=await chromium.launch({headless:true,args:['--no-sandbox'],...(channel?{channel}:{})});
  try {
-  const page=await browser.newPage();
+  const context=await browser.newContext();
+  const page=await context.newPage();
   page.on('console',m=>{if(m.type()==='error'||m.type()==='warning')console.log(m.text());});
   page.on('pageerror',e=>console.error(e));
   const response=await page.goto(origin+'/sm-native-fixture.php');
@@ -69,9 +137,10 @@ async function verifyEditableTabs(page,post) {
    let missingFontClassRejected=false;
    try{validate(gen9.replace(' has-custom-font-size',''));}catch(e){missingFontClassRejected=/serialization invalid/.test(e.message);}
    const tabBlocks=window.tabsPost?validate(window.tabsContent):0;
-   return {initial,count,registered,expected:a.blockCount,rejected,cases,missingFontClassRejected,tabBlocks,tabsPost:window.tabsPost};
+   return {initial,count,registered,expected:a.blockCount,rejected,cases,missingFontClassRejected,tabBlocks,
+    tabsPost:window.tabsPost,sections:window.nativeAlignments};
   });
-  console.log(result);
+  console.log({...result,sections:Object.keys(result.sections)});
   assert.ok(result.initial<=1,'Only the custom tabs block should be registered before the native validator sets up core.');
   assert.equal(result.count,result.expected);
   assert.ok(result.registered>=7);
@@ -159,5 +228,6 @@ async function verifyEditableTabs(page,post) {
    }
   }
   await verifyEditableTabs(page,result.tabsPost);
+  await verifySectionWidths(page,result.sections);
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

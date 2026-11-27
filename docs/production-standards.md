@@ -23,6 +23,12 @@ The deliverable remains an embeddable section with scoped CSS, not a standalone 
 
 These are prompt-level requirements, not proof that a criterion passed. The existing four structural checks remain independent and unchanged. For native Gutenberg jobs, three-width browser snapshots, axe-core accessibility checks, screenshot similarity and vision reviews are collected by the collaborative engine; only affected components receive revision-specific AI reviews. WordPress registered-block validation is an independent client-side gate before completion. HTML-only jobs retain the original four-agent sequential flow and static checks.
 
+## Native section width
+
+After Designer approval, the orchestrator uses the measured outer section box at every requested viewport to choose its WordPress placement. A box that reaches both viewport edges maps to Full width. Other sections are compared with the active WordPress content and wide layouts in Chromium, including theme gutters at narrow widths. Ambiguous or unmatched evidence keeps the default alignment. The approval record includes the measurements.
+
+The compiler writes the placement on the outer Core Group. Inner blocks keep their original layouts and content widths. The isolated native preview applies the active theme's bounded width for content and wide sections. A saved Pattern or draft still needs a check in its WordPress template. A template with a fixed outer container can limit Full width to that container.
+
 ## Shared report renderer
 
 `plugin/assets/production-rich-content.js` is used in both the live feed and Results. It renders headings, emphasis, inline code, lists, blockquotes, tables and fenced code. Raw mode preserves the original text. Code blocks include copy controls. Developer HTML remains inspectable source, separate from the isolated HTML preview.

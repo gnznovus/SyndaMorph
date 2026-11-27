@@ -70,3 +70,33 @@ $approval=array('requirementChecks'=>array(array('id'=>'footer','status'=>'verif
 expect(syndamorph_design_requirements($specification,array($sample),$facts,$approval,array())['blocking']===array(),
     'A visible-tail evidence ID was not accepted by the checklist.');
 echo "PASS: measured element, literal copy, link semantics, colors and requirement-level evidence authority\n";
+
+$widths=array(1440,768,375);
+$sections=static function(array $measured,int $offset=0)use($widths):array {
+    return array_map(static function(int $viewport,float $width)use($offset):array {
+        return array('width'=>$viewport,'snapshot'=>array('overflow'=>false,'elements'=>array(
+            array('tag'=>'SECTION','visible'=>true,'parent'=>null,'rect'=>array(($viewport-$width)/2+$offset,0,$width,500)),
+            array('tag'=>'DIV','visible'=>true,'parent'=>0,'rect'=>array(20,32,345,160)),
+        )));
+    },$widths,$measured);
+};
+$sizes=array('full'=>$widths,'wide'=>array(1340,691.2,315),'content'=>array(645,645,315));
+$host=array_map(static fn($width,$wide,$content)=>array('width'=>$width,'snapshot'=>array('elements'=>array(
+    array('id'=>'sm-width-wide','rect'=>array(($width-$wide)/2,0,$wide,20)),
+    array('id'=>'sm-width-content','rect'=>array(($width-$content)/2,20,$content,20)),
+))),$widths,$sizes['wide'],$sizes['content']);
+foreach($sizes as $alignment=>$measured){
+    $result=syndamorph_design_section_alignment($sections($measured),$widths,$host);
+    expect($result['alignment']===$alignment&&array_column($result['views'],'viewport')===$widths,
+        'The Designer outer box was classified incorrectly for '.$alignment);
+}
+expect(syndamorph_design_section_alignment($sections(array(1100,768,375)),$widths,$host)['alignment']===null&&
+    syndamorph_design_section_alignment($sections($sizes['wide'],12),$widths,$host)['alignment']===null,
+    'An unmatched limit or off-center section became a native alignment');
+expect(syndamorph_design_section_alignment(array_reverse($sections($widths)),$widths,$host)['basis']==='missing_viewports',
+    'The width contract accepted unbound viewport evidence');
+$ambiguous=$sections($widths);
+$ambiguous[0]['snapshot']['elements'][]=$ambiguous[0]['snapshot']['elements'][0];
+expect(syndamorph_design_section_alignment($ambiguous,$widths,$host)['basis']==='unidentified_root',
+    'More than one visible outer box must not produce alignment');
+echo "PASS: exact Designer evidence maps the outer box to full, wide or content width\n";

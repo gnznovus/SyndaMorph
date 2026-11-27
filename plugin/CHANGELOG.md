@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.42] - 2026-11-27
+
+### Fixed
+
+- Native section generation now uses the approved Designer measurements to choose the outer Group's WordPress alignment. Edge-to-edge sections save with Full width, theme-wide sections use Wide width, and theme-content sections keep their normal alignment. Inner layouts retain their own widths.
+- The alignment travels with the working plan through compilation, repair and WordPress serialization. Isolated native QA respects the selected theme width for bounded sections.
+
+### Verified
+
+- The revised BKKGO SIP & DINE Pattern opened at Full width and retained all 68 editable blocks through Gutenberg save and reload. Its normal WordPress draft matched the approved section width at 1440, 768 and 375 px. Source visual, responsive and scroll checks passed without paid model calls.
+
 ## [0.12.41] - 2026-11-28
 
 ### Added
