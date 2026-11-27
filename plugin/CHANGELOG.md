@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.55] - 2026-11-27
+
+### Added
+
+- Native Groups support editable compact guarantee badges and a fixed compact booking summary. The source's booking labels remain display text. The editor keeps both Groups available at desktop widths.
+- Approved native typography can retain straight apostrophes through WordPress rendering and select regular Paragraph wrapping without changing saved copy.
+
+### Verified
+
+- The unpublished BKKGO candidate retained 448 valid blocks after a badge title edit, save, reload and restoration. The 768 and 375 px first folds, guarantee crops and booking crops measured 0% differing pixels. Desktop first folds measured 0.129% before dismissal and 0.190% after it. Original Full Page placement and acceptance remain pending. No model calls were made.
+
 ## [0.12.54] - 2026-11-27
 
 ### Security

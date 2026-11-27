@@ -72,6 +72,17 @@ $add('GEN9 custom CTA font',array($heading,$wrap(array_merge($button,array('styl
 $add('plain all types',array($heading,$paragraph,$wrap($button),array('type'=>'columns','children'=>array(array('type'=>'column','children'=>array($paragraph)),array('type'=>'column','children'=>array($heading))))));
 $add('scoped grayscale paragraph with pretty wrapping',array($heading,$paragraph+array('style'=>array('textWrap'=>'pretty','fontSmoothing'=>'grayscale')),$paragraph));
 $add('scoped grayscale heading',array($heading+array('style'=>array('fontSmoothing'=>'grayscale')),$paragraph));
+$straight="Live Thonglor's rhythm.";
+$add('literal source apostrophe and wrapping',array(
+    array('type'=>'paragraph','text'=>$straight,'style'=>array('textWrap'=>'wrap','literalApostrophes'=>true)),
+    array('type'=>'paragraph','text'=>"It's standard typography."),
+));
+$savedTypography=str_replace('&#039;',"'",$fixtures['literal source apostrophe and wrapping']['content']);
+$styledParagraphs=wptexturize(do_blocks($savedTypography));
+if(!str_contains($styledParagraphs,'sm-text-wrap-wrap sm-literal-apostrophes')||
+    !str_contains($styledParagraphs,'Thonglor&#039;s')||!str_contains($styledParagraphs,'It&#8217;s')){
+    http_response_code(500);exit('Literal apostrophe changed unrelated WordPress typography');
+}
 $compactRule=array('width'=>'1px','color'=>'#d7d3d3');
 $add('authored heading breaks and fixed Grid',array(
     array('type'=>'heading','level'=>1,'text'=>"Hotel Indigo\nBangkok Thonglor",'preserveLineBreaks'=>true,

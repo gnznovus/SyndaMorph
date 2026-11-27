@@ -1141,6 +1141,20 @@ expect($headingPaint['artifact']&&$headingPaint['touched']===array('title')&&
     'Scoped heading paint surgery did not preserve unrelated copy');
 $paintPatch['id']='root';
 expect(syndamorph_surgery_apply($paragraphPaintPlan,$paintPatch)['artifact']===null,'Text paint escaped the supported leaves');
+$literalPlan=$paragraphPaintPlan;
+$literalPlan['blocks'][0]['children'][1]['text']="Live Thonglor's rhythm.";
+$literalPatch=array('id'=>'copy','changes'=>array(
+    array('path'=>'style.textWrap','value'=>'wrap'),
+    array('path'=>'style.literalApostrophes','value'=>true),
+));
+$literal=syndamorph_surgery_apply($literalPlan,$literalPatch,array('copy'));
+expect($literal['artifact']&&$literal['touched']===array('copy')&&
+    str_contains($literal['artifact']['content'],'"className":"sm-text-wrap-wrap sm-literal-apostrophes"')&&
+    $literal['plan']['blocks'][0]['children'][1]['text']===$literalPlan['blocks'][0]['children'][1]['text']&&
+    $literal['plan']['blocks'][0]['children'][2]===$literalPlan['blocks'][0]['children'][2],
+    'Source typography correction changed copy or unrelated blocks');
+$literalPatch['changes'][1]['value']='true';
+expect(syndamorph_surgery_apply($literalPlan,$literalPatch)['artifact']===null,'An invalid literal apostrophe marker passed');
 
 $hardHeading=array('id'=>'hero-title','type'=>'heading','text'=>"Hotel Indigo\nBangkok & Thonglor",
     'preserveLineBreaks'=>true,'style'=>array('lineHeight'=>'0.95'));
