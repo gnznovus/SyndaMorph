@@ -61,4 +61,8 @@ transport_expect( $requests[0][1]['redirection'] === 0 && $requests[0][1]['limit
 transport_expect( ! str_contains( json_encode( $requests ), '-transport-test-fixture' ), 'Private tokens reached WordPress HTTP arguments' );
 define( 'SYNDAMORPH_BACKEND_URL', 'http://backend:3100/capture' );
 transport_expect( syndamorph_internal_base( 'backend' ) === 'http://backend:3100', 'wp-config did not take precedence over environment' );
+define( 'SYNDAMORPH_GATEWAY_URL', false );
+define( 'SYNDAMORPH_RENDERER_INSPECT_URL', false );
+transport_expect( syndamorph_internal_base( 'gateway' ) === null, 'An invalid endpoint constant fell back to the Docker default' );
+transport_expect( syndamorph_internal_base( 'renderer' ) === null, 'An invalid inspection override was ignored' );
 echo "PASS: fixed endpoint origins and routes, wp-config precedence, separate credentials, redirect and response limits\n";

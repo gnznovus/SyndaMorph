@@ -22,12 +22,13 @@ function syndamorph_internal_base( string $service ): ?string {
     $docker = 'http://' . $service . ':' . $port;
     $loopback = 'http://127.0.0.1:' . $port;
     $value = syndamorph_internal_setting( $setting );
-    if ( $value === false ) { $value = $docker; }
+    if ( $value === false && ! defined( $setting ) ) { $value = $docker; }
     foreach ( array( $docker, $loopback ) as $base ) {
         if ( ! in_array( $value, array( $base, $base . '/', $base . $legacy ), true ) ) { continue; }
         if ( 'renderer' === $service ) {
             $inspect = syndamorph_internal_setting( 'SYNDAMORPH_RENDERER_INSPECT_URL' );
-            if ( $inspect !== false && $inspect !== $base . '/inspect' ) { return null; }
+            if ( ( $inspect !== false || defined( 'SYNDAMORPH_RENDERER_INSPECT_URL' ) ) &&
+                $inspect !== $base . '/inspect' ) { return null; }
         }
         return $base;
     }
