@@ -629,4 +629,42 @@ async function inspectRooms(page,{width,sourceRef,copySha256},sealNetwork) {
     }catch{return unknown('room_showcase_replay_failed');}
 }
 
-module.exports={ validateTouchActions,inspectTouch,touchTargetId,disclosureRef,inspectDisclosure,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms };
+/** Prove that one literal moves between two pinned regions without a second visible copy. */
+async function inspectRelocatedCopy(page,{width,sourceRef,destinationRef,copy,copySha256},sealNetwork) {
+    if(!WIDTHS.includes(width)||page.viewportSize()?.width!==width||!disclosureRef(sourceRef)||
+        !disclosureRef(destinationRef)||sourceRef===destinationRef||typeof copy!=='string'||copy.length<3||copy.length>160)
+        throw new Error('Invalid responsive placement evidence request.');
+    const denied=sealNetwork();
+    const receipt={version:1,width,sourceRef,destinationRef,status:'unknown'};
+    const sourceCopySha256=digest(await page.evaluate(()=>document.body.innerText.replace(/\s+/gu,' ').trim()));
+    if(sourceCopySha256!==copySha256)return {...receipt,reason:'live_source_changed'};
+    const state=await page.evaluate(({sourceRef,destinationRef,copy})=>{
+        const normalize=value=>value.replace(/\s+/gu,' ').trim();
+        const box=element=>{
+            const r=element.getBoundingClientRect();
+            return [r.x,r.y,r.width,r.height].map(value=>Math.round(value*10)/10);
+        };
+        const visible=element=>element.getBoundingClientRect().width>0&&element.getBoundingClientRect().height>0&&
+            element.checkVisibility({opacityProperty:true,visibilityProperty:true});
+        const origins=[...document.querySelectorAll(sourceRef)];
+        const destinations=[...document.querySelectorAll(destinationRef)];
+        if(origins.length>1||destinations.length!==1||!visible(destinations[0]))return null;
+        const origin=origins[0],destination=destinations[0];
+        if(origin&&(origin.contains(destination)||destination.contains(origin)))return null;
+        const matches=[...document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,div')].filter(element=>
+            element.textContent.replace(/\s+/gu,'')===copy.replace(/\s+/gu,'')&&visible(element)&&normalize(element.innerText)===copy);
+        const leaves=matches.filter(element=>!matches.some(child=>element!==child&&element.contains(child)));
+        if(leaves.length!==1)return null;
+        const element=leaves[0];
+        return {placement:origin?.contains(element)?'source':destination.contains(element)?'destination':'other',
+            originVisible:origin?visible(origin):false,tag:element.localName,bounds:box(element),
+            pageWidth:document.documentElement.scrollWidth};
+    },{sourceRef,destinationRef,copy});
+    if(denied.length)return {...receipt,reason:'source_changed_during_replay'};
+    const desktop=width===1440;
+    if(!state||state.placement!==(desktop?'source':'destination')||state.originVisible!==desktop)
+        return {...receipt,reason:'responsive_copy_not_relocated'};
+    return {...receipt,...state,status:'observed',copySha256:digest(copy),sourceCopySha256,blockedRequestCount:0};
+}
+
+module.exports={ validateTouchActions,inspectTouch,touchTargetId,disclosureRef,inspectDisclosure,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms,inspectRelocatedCopy };

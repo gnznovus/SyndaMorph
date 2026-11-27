@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const test=require('node:test');
 const { createHash }=require('node:crypto');
 const { chromium }=require('playwright');
-const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms }=require('./production-touch');
+const { inspectTouch,validateTouchActions,inspectDisclosure,disclosureRef,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms,inspectRelocatedCopy }=require('./production-touch');
 const { recordedPng }=require('./production-reference');
 const { captureResponsiveViewport }=require('./responsive-capture');
 
@@ -16,6 +16,45 @@ test('Touch actions are limited to server target identities and bounded gestures
     assert.throws(()=>validateTouchActions(Array(6).fill({type:'scroll',dy:20})));
     assert.deepEqual(validateTouchActions([{type:'drag',target:'a'.repeat(24),dx:12}]),
         [{type:'drag',target:'a'.repeat(24),dx:12}]);
+});
+
+test('recorded responsive copy requires one exact placement per viewport',{
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const browser=await chromium.launch();
+    try{
+        const page=await browser.newPage({viewport:{width:1440,height:900}});
+        const markup='<style>@media(max-width:1023px){#standalone{display:none}}'+
+            '@media(min-width:1024px){#hero p{display:none}}</style>'+
+            '<section id="hero"><h1>Hotel</h1><p>From sunrise to skyline</p></section>'+
+            '<section id="standalone"><div>From sunrise<br>to skyline</div><p>Long description.</p></section>';
+        const sha=value=>createHash('sha256').update(value).digest('hex');
+        const input={sourceRef:'[id="standalone"]',destinationRef:'[id="hero"]',copy:'From sunrise to skyline'};
+        const inspect=async(width,html,denied=[])=>{
+            await page.setViewportSize({width,height:900});
+            await page.setContent(html);
+            const copySha256=sha(await page.locator('body').innerText()
+                .then(value=>value.replace(/\s+/gu,' ').trim()));
+            return inspectRelocatedCopy(page,{...input,width,copySha256},()=>denied);
+        };
+        const desktop=await inspect(1440,markup);
+        assert.equal(desktop.placement,'source');
+        assert.equal(desktop.originVisible,true);
+        assert.equal(desktop.copySha256,sha(input.copy));
+        for(const width of [768,375]){
+            const compact=await inspect(width,markup);
+            assert.equal(compact.placement,'destination');
+            assert.equal(compact.originVisible,false);
+            assert.equal(compact.tag,'p');
+        }
+        const duplicate=await inspect(375,markup+'<p>From sunrise to skyline</p>');
+        assert.equal(duplicate.reason,'responsive_copy_not_relocated');
+        const absent=await inspect(768,markup.replace('<p>From sunrise to skyline</p>',''));
+        assert.equal(absent.reason,'responsive_copy_not_relocated');
+        assert.equal((await inspect(375,markup,[{}])).reason,'source_changed_during_replay');
+        const changed=await inspectRelocatedCopy(page,{...input,width:375,copySha256:sha('Changed')},()=>[]);
+        assert.equal(changed.reason,'live_source_changed');
+    }finally{await browser.close();}
 });
 
 const fixturePng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ioAAAAASUVORK5CYII=','base64');

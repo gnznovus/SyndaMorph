@@ -405,6 +405,12 @@ The native Pattern stores its text and slide placeholders in editable Core block
 
 Rooms passed visual QA at 0.917%, 0% and 0% for 1440, 768 and 375 px. All 11 responsive samples passed. Pattern 115 retained 103 blocks after Gutenberg edit, save and reload. The original unpublished draft 66 now contains eight verified regions and all 400 blocks passed a separate edit, save and reload. Whole-page QA remains pending with eight regions outstanding. This checkpoint used zero paid model calls.
 
+## v0.12.43 recorded responsive title placement
+
+Full Page Production Setup can verify a blocked desktop-only title against a separate region in the same pinned scope. The source and destination selectors come from their saved checkpoints. Recorded Touch verifies the page copy digest before checking that the standalone title appears once on desktop and only in the destination at the two compact widths. A repeated title, an unrelated destination, a changed page digest or an attempted network request holds the proof.
+
+The receipt retains both region identities, their checkpoint IDs, the exact title digest, and the observed location and geometry at each required viewport. It is appended to History and shown on the scope row. Source placement is recorded independently from native visual, editor and page-level QA. REF-000030 still has eight verified regions, and the production budget and existing artifacts were preserved.
+
 ## Remaining acceptance
 
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens and GEN-000055 completed their original jobs. Verified BKKGO Full Page assembly and broader region acceptance remain open. [Design validation audit](bossy-validation-audit.md#v0128-verification)

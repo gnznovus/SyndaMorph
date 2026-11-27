@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.43] - 2026-11-27
+
+### Added
+
+- Full Page Production Setup can verify when a desktop region's title moves to a different source region at compact widths. Recorded Touch checks for one visible copy and binds each observation to the archive and both source checkpoints. The native conversion gate stays pending.
+
+### Verified
+
+- The original BKKGO scope recorded the standalone intro title at 1440 px and the same title inside the hero at 768 and 375 px. The scope kept eight accepted Patterns, and the unpublished page and recorded model usage were preserved.
+
 ## [0.12.42] - 2026-11-27
 
 ### Fixed

@@ -275,6 +275,64 @@ function syndamorph_source_text(string $text): string {
     return trim(preg_replace('/\s+/u',' ',$text)??'');
 }
 
+/** An absent region needs a separate receipt when its leading copy moves to a captured sibling. */
+function syndamorph_source_copy_placement(array $source,array $destination,array $archive) {
+    $fail=static fn(string $reason,?int $width=null)=>new WP_Error('sm_source_copy_placement',
+        'Responsive copy placement has no verified recorded proof.',array('status'=>409,'reason'=>$reason,'width'=>$width));
+    $desktop=$source['variants'][1440]??array();
+    $sourceRef=$desktop['sourceRef']??'';
+    $inventory=$desktop['inventory']??array();
+    $lines=$inventory['text']??array();
+    $token=getenv('SYNDAMORPH_BACKEND_TOKEN');
+    $validRef=static fn($ref):bool=>is_string($ref)&&
+        preg_match('/^(?:[a-z][a-z0-9-]{0,20})?\[(?:data-dc-tpl|id)="[a-zA-Z0-9_-]{1,64}"\]$/D',$ref);
+    if(array_keys($source['variants']??array())!==array(1440)||($desktop['kind']??null)!=='content'||
+        !$validRef($sourceRef)||($inventory['assets']??null)!==array()||($inventory['links']??null)!==array()||
+        ($inventory['controls']??null)!==array()||!is_array($lines)||!array_is_list($lines)||count($lines)<3||
+        !is_string($lines[0])||!is_string($lines[1])||
+        !syndamorph_production_reference_valid($archive,$archive['sourceUrl']??'')||empty($archive['runtimeSha256'])||
+        getenv('SYNDAMORPH_BACKEND_URL')!=='http://backend:3100/capture'||!is_string($token)||$token==='')
+        return $fail('unbound_source');
+    $copy=syndamorph_source_text($lines[0].' '.$lines[1]);
+    if(mb_strlen($copy)<3||mb_strlen($copy)>160)return $fail('unbound_copy');
+    $pageDigests=array_column($archive['views'],'copySha256','width');
+    $targets=array();
+    foreach(SYNDAMORPH_SOURCE_WIDTHS as $width){
+        $view=$destination['variants'][$width]??array();
+        $ref=$view['sourceRef']??null;
+        $text=$view['inventory']['text']??array();
+        if(!$validRef($ref)||$ref===$sourceRef||($view['kind']??null)!=='content'||!is_array($text)||
+            count(array_keys($text,$copy,true))!==(int)($width!==1440))
+            return $fail('unbound_destination',$width);
+        $targets[$width]=$ref;
+    }
+    $views=array();
+    $copySha=hash('sha256',$copy);
+    foreach($targets as $width=>$ref){
+        $response=wp_remote_post('http://backend:3100/production-touch',array('timeout'=>35,'redirection'=>0,
+            'limit_response_size'=>16000,'headers'=>array('Content-Type'=>'application/json','X-SyndaMorph-Token'=>$token),
+            'body'=>wp_json_encode(array('archiveId'=>$archive['id'],'kind'=>'responsive-copy-placement',
+                'width'=>$width,'sourceRef'=>$sourceRef,'destinationRef'=>$ref,'copy'=>$copy))));
+        $view=is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200?null:
+            json_decode(wp_remote_retrieve_body($response),true);
+        $box=$view['bounds']??null;
+        if(($view['version']??null)!==1||($view['status']??null)!=='observed'||($view['mode']??null)!=='recorded'||
+            ($view['archiveId']??null)!==$archive['id']||($view['width']??null)!==$width||
+            ($view['sourceRef']??null)!==$sourceRef||($view['destinationRef']??null)!==$ref||
+            ($view['sourceCopySha256']??null)!==($pageDigests[$width]??null)||($view['copySha256']??null)!==$copySha||
+            ($view['originVisible']??null)!==($width===1440)||($view['placement']??null)!==($width===1440?'source':'destination')||
+            !is_array($box)||!array_is_list($box)||count($box)!==4||
+            array_filter($box,static fn($value)=>(!is_int($value)&&!is_float($value))||!is_finite($value))||
+            $box[2]<=0||$box[3]<=0||!is_int($view['pageWidth']??null)||$view['pageWidth']<$width||
+            ($view['blockedRequestCount']??null)!==0){
+            $reason=$view['reason']??null;
+            return $fail(is_string($reason)&&preg_match('/^[a-z_]{1,64}$/D',$reason)?$reason:'receipt_mismatch',$width);
+        }
+        $views[]=$view;
+    }
+    return array('archiveId'=>$archive['id'],'copy'=>$copy,'copySha256'=>$copySha,'views'=>$views);
+}
+
 function syndamorph_scope_engine_source(array $source,string $url): array {
     $evidence=array();
     foreach(SYNDAMORPH_SOURCE_WIDTHS as $width) {

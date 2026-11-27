@@ -1166,6 +1166,27 @@ function syndamorph_scope_reuse_section(array $page,int $sectionId,string $key) 
 }
 
 /** Add a replay receipt without replacing the captured browser evidence or any job. */
+function syndamorph_scope_verify_copy_placement(array $manifest,string $key,string $destinationKey) {
+    $origin=$manifest['regions'][$key]??null;
+    $destination=$manifest['regions'][$destinationKey]??null;
+    $archive=$manifest['referenceArchive']??null;
+    if($manifest['mode']!=='page'||$key===$destinationKey||($origin['status']??null)!=='blocked'||
+        !$destination||!is_array($archive)||($archive['sourceUrl']??null)!==$manifest['sourceUrl'])
+        return syndamorph_scope_error('copy_placement','Select the blocked source and a separate destination from the pinned page.');
+    $source=syndamorph_scope_checkpoint($manifest['id'],$origin['checkpoint']);
+    $target=syndamorph_scope_checkpoint($manifest['id'],$destination['checkpoint']);
+    if(($source['id']??null)!==$key||($target['id']??null)!==$destinationKey)
+        return syndamorph_scope_error('copy_placement','The original region checkpoints are unavailable.');
+    $proof=syndamorph_source_copy_placement($source,$target,$archive);
+    if(is_wp_error($proof))return $proof;
+    $proof+=array('region'=>$key,'checkpoint'=>$origin['checkpoint'],
+        'destinationRegion'=>$destinationKey,'destinationCheckpoint'=>$destination['checkpoint']);
+    syndamorph_history_append($manifest['id'],'source_copy_placement_verified',$proof);
+    $manifest['regions'][$key]['sourceCopyPlacement']=$proof;
+    syndamorph_history_append($manifest['id'],'scope_manifest',$manifest);
+    return syndamorph_scope_status($manifest);
+}
+
 function syndamorph_scope_verify_disclosure(array $manifest,string $key) {
     $region=$manifest['regions'][$key]??null;
     if(!$region||!empty($region['attempts'])||!empty($region['patternId'])||
@@ -1645,7 +1666,7 @@ add_action('rest_api_init',static function():void {
         }),
         array('methods'=>'POST','permission_callback'=>$permission,'callback'=>static function(WP_REST_Request $request) {
             $action=$request->get_param('action');
-            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_image','stage_image_strip','stage_linked_editorial','stage_reveal_layout','stage_rooms','assemble','verify_page'),true))
+            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_copy_placement','verify_image','stage_image_strip','stage_linked_editorial','stage_reveal_layout','stage_rooms','assemble','verify_page'),true))
                 return syndamorph_scope_error('action','Invalid scope action.',400);
             return syndamorph_scope_locked(static function()use($request,$action){
                 $manifest=syndamorph_history_latest((int)$request['id'],'scope_manifest');
@@ -1698,6 +1719,11 @@ add_action('rest_api_init',static function():void {
                             'valid'=>$request->get_param('valid'),'checksum'=>$request->get_param('checksum'),
                             'blockCount'=>$request->get_param('blockCount')));
                         case 'verify_disclosure': return syndamorph_scope_verify_disclosure($manifest,$region);
+                        case 'verify_copy_placement':
+                            $destination=$request->get_param('destinationRegion');
+                            if(!is_string($destination)||!preg_match('/^[a-f0-9]{24}$/D',$destination))
+                                return syndamorph_scope_error('copy_placement','An exact destination region is required.',400);
+                            return syndamorph_scope_verify_copy_placement($manifest,$region,$destination);
                         case 'verify_image': return syndamorph_scope_verify_image($manifest,$region);
                         case 'stage_image_strip': return syndamorph_scope_stage_asset($manifest,$region);
                         case 'stage_linked_editorial': return syndamorph_scope_stage_asset($manifest,$region,true);

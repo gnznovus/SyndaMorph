@@ -119,6 +119,35 @@
                 for (const issue of [...row.blockers, row.issue].filter(Boolean)) details.append(node('p',issue));
                 entry.append(details);
             }
+            if (row.sourceCopyPlacement) {
+                const target = manifest.regions[row.sourceCopyPlacement.destinationRegion];
+                const widths = row.sourceCopyPlacement.views.filter(view => view.placement === 'destination')
+                    .map(view => view.width).join(', ');
+                if (target && widths) entry.append(node('p', 'Recorded title placement in ' + target.label + ' at ' + widths + ' px.'));
+            } else if (manifest.mode === 'page' && manifest.referenceArchive?.runtimeSha256 && row.status === 'blocked' &&
+                row.kind === 'content' && Object.keys(row.variants).join(',') === '1440' && row.blockers.length === 2 &&
+                row.blockers.every(issue => issue.startsWith('No proven source variant'))) {
+                const id = 'sm-placement-' + row.id;
+                const label = node('label', 'Responsive title destination');
+                label.htmlFor = id;
+                const select = node('select');
+                select.id = id;
+                const empty = node('option', 'Choose a region');
+                empty.value = '';
+                select.append(empty);
+                for (const target of Object.values(manifest.regions)) {
+                    if (target.kind !== 'content' || ![1440,768,375].every(width => target.variants[width])) continue;
+                    const option = node('option', target.label);
+                    option.value = target.id;
+                    select.append(option);
+                }
+                const verify = button('Verify title placement', async () => {
+                    manifest = await request(url(), {action:'verify_copy_placement',region:row.id,destinationRegion:select.value});
+                });
+                verify.disabled = true;
+                select.addEventListener('change', () => { verify.disabled = !select.value || running; });
+                entry.append(label,select,verify);
+            }
             if (!row.patternId && ['needs_review','completed'].includes(row.status)) entry.append(button('Validate and save pattern', () => finishRegion(row.id)));
             if (row.status === 'blocked' && row.imageReplayAvailable) {
                 if (row.imageEvidence) entry.append(button('Verify native image strip', async () => {

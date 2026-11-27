@@ -62,7 +62,7 @@ The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593
 | Site header | 1440, 768, 375 | Sticky navigation, compact menu and desktop language controls need reusable navigation behavior. The logo, SVGs and declared destinations need asset and link resolution. The booking destination is external. |
 | Hotel Indigo Bangkok Thonglor | 1440, 768, 375 | The desktop variant includes date, guest and rate controls, icons and `#rooms`. A booking handoff and the exact fragment destination must be proven. Compact and desktop contain different content. |
 | Overlay · SPECIAL OFFER | 1440 | Desktop overlay and dismiss behavior were observed. Compact has no standalone captured variant. Visibility, overlay and dismissal need a reusable contract. |
-| Live Thonglor’s rhythm from sunrise to skyline. | 1440 | No standalone compact variant. The title moves into the compact hero and the longer desktop introduction has no verified compact equivalent. Preserve the responsive transformation explicitly. |
+| Live Thonglor’s rhythm from sunrise to skyline. | 1440 | Recorded replay verified one title in the desktop intro and one in the hero at 768 and 375 px. The standalone compact region is absent. Native integration remains pending. |
 | Best Rate Guarantee | 768, 375 | No standalone desktop variant. Compact badges require the three captured SVGs and a verified mapping for their visibility. |
 | 12–14 DEC · 2 GUESTS | 768, 375 | No standalone desktop variant. Compact sticky placement needs a responsive behavior contract. Booking effects remain external or unverified. |
 | OUR STORY | 1440, 768, 375 | Private unsynced Pattern 100 retains the original PNG at desktop and the exact Brand History link at all widths. It passed independent native QA and occupies source position 7. |
@@ -80,6 +80,12 @@ The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593
 - **Conversion eligibility** is 3 of 16 with v0.12.18. The original preflight overlooked two scroll strips and the corrected v0.12.15 replay held both, leaving 1 of 16. The exact archived controls now qualify under the native scroll-strip contract. A run still requires recorded movement at every active width before Bossy planning.
 - **Current conversion eligibility** is 8 of 16 with v0.12.41. Rooms qualifies through integrated replay of the desktop showcase and compact label strip.
 - **Acceptance** is 8 of 16 as of v0.12.41. REF-000030 has verified Our Story, Exclusive Offers, Rooms, SIP & DINE, Neighborhood, Through Our Lens, FAQ and brand strip at source positions 7, 8, 9, 10, 11, 12, 14 and 15. The unpublished partial draft has 400 editor-verified blocks. Whole-page acceptance remains pending.
+
+### Responsive intro source checkpoint, v0.12.43
+
+REF-000030 retains the source placement receipt against desktop intro checkpoint 12135 and hero checkpoint 12133. The pinned archive showed exactly one visible title at every required width. It belongs to the standalone intro at 1440 px and to the hero at 768 and 375 px. The compact browser showed no standalone intro. Scope validation rejected an unrelated destination, and browser regressions rejected repeated or missing copy.
+
+The captured desktop hero owns the booking bar overhang at `div[data-dc-tpl="99"]`. It starts at y=857 px and extends 44 px into the adjacent intro at y=901 px. Recorded replay reproduced the original composited crop byte for byte. The five-block intro trial retained the exact desktop copy, matched the 592 px source height and was absent below 1024 px. A typography correction and the pinned screenshot frame reduced desktop difference from 7.038% to 2.694% against the original crop. A separate region-only crop with the verified overhang hidden measured 1.231% and still exceeded the aggregate 0.5% limit. The trial is retained as pending in local History event 23305. The paired hero and intro require native integration and page-level visual QA. The original page kept its eight accepted placements. No paid model calls were used.
 
 ### SIP & DINE alignment checkpoint, v0.12.42
 

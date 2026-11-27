@@ -3,7 +3,7 @@ const http = require('node:http');
 const { capture, captureResponsive } = require('./capture');
 const { productionSource } = require('./production-source');
 const { enabled: referenceEnabled,readReference,recordedPng } = require('./production-reference');
-const { validateTouchActions,inspectTouch,disclosureRef,inspectDisclosure,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms } = require('./production-touch');
+const { validateTouchActions,inspectTouch,disclosureRef,inspectDisclosure,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms,inspectRelocatedCopy } = require('./production-touch');
 const { createAnalyzeHandler } = require('./mvp/endpoint');
 const { runCommunicationPoc } = require('./purr-poc');
 
@@ -43,8 +43,12 @@ http.createServer(async (req, res) => {
             const linkedImage=input.kind==='linked-image';
             const revealCards=input.kind==='reveal-cards';
             const rooms=input.kind==='room-showcase';
-            const scoped=disclosure||imageStrip||linkedImage||revealCards||rooms;
+            const relocation=input.kind==='responsive-copy-placement';
+            const scoped=disclosure||imageStrip||linkedImage||revealCards||rooms||relocation;
             if(scoped&&!disclosureRef(input.sourceRef))return respond(res,400,{error:'Invalid recorded region target.'});
+            if(relocation&&(!disclosureRef(input.destinationRef)||input.sourceRef===input.destinationRef||
+                typeof input.copy!=='string'||input.copy.length<3||input.copy.length>160))
+                return respond(res,400,{error:'Invalid responsive placement target.'});
             const actions=scoped?[]:validateTouchActions(input.actions);
             responsiveInProgress=true;
             try {
@@ -60,6 +64,8 @@ http.createServer(async (req, res) => {
                         linkedImage?inspectLinkedImage(page,{width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256},seal):
                         revealCards?inspectRevealCards(page,{width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256},seal):
                         rooms?inspectRooms(page,{width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256},seal):
+                        relocation?inspectRelocatedCopy(page,{width:input.width,sourceRef:input.sourceRef,
+                            destinationRef:input.destinationRef,copy:input.copy,copySha256:pinned.copySha256},seal):
                         inspectTouch(page,{width:input.width,actions,copySha256:pinned.copySha256},seal) });
                 let receipt=captured;
                 const artwork=imageStrip?receipt.initial:linkedImage?receipt.image:null;
