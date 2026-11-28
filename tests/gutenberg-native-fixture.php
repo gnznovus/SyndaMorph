@@ -24,6 +24,20 @@ $tabsPost=get_post((int)get_option('syndamorph_test_tabs_post',0));
 $offerCopy=array('placeholder'=>'4:5','eyebrow'=>'Special offer','title'=>'Original offer title',
     'description'=>'An edited promotion with literal <local> copy.','offerLabel'=>'View offer','dismissLabel'=>'Continue to website');
 $offerBlock=get_comment_delimited_block_content('syndamorph/desktop-offer',array('copy'=>$offerCopy),'');
+$newsletterProfile=array(
+    'desktop'=>array('Original newsletter heading','Name','Email address','TH +66','Tel.','Consent copy','Subscribe'),
+    'compact'=>array('Compact newsletter heading','Name','Email address','+66','Tel.','Consent copy','Subscribe'),
+    'choices'=>array(array('name'=>'Thailand','dial'=>'+66','label'=>'TH +66'),
+        array('name'=>'United Kingdom','dial'=>'+44','label'=>'UK +44')));
+$newsletterBlock=syndamorph_newsletter_content($newsletterProfile);
+$newsletterDraft=wp_insert_post(array('post_type'=>'page','post_status'=>'draft','post_title'=>'Recorded Newsletter fixture',
+    'post_content'=>wp_slash($newsletterBlock),'meta_input'=>array('_syndamorph_scope_key'=>'2:page')),true);
+if(is_wp_error($newsletterDraft)||!$newsletterDraft||
+    syndamorph_scope_block_count(parse_blocks($newsletterBlock))!==1||
+    syndamorph_scope_block_count(parse_blocks($newsletterBlock.$newsletterBlock))!==-1||
+    syndamorph_newsletter_profile($newsletterProfile+array('submission'=>'/subscribe'))!==null){
+    http_response_code(500);exit('Recorded Newsletter contract failed.');
+}
 if(!syndamorph_offer_copy($offerCopy)||syndamorph_offer_copy($offerCopy+array('href'=>'/unsupported'))||
     syndamorph_offer_copy(array_diff_key($offerCopy,array('dismissLabel'=>true)))||
     !str_contains(syndamorph_offer_render(array('copy'=>$offerCopy)),'&lt;local&gt;')){
@@ -241,7 +255,9 @@ if(is_wp_error($artifact)){http_response_code(500);exit($artifact->get_error_mes
 header('Content-Type: text/html; charset=utf-8');
 ?><!doctype html><html><head><meta charset="utf-8"><?php
 wp_enqueue_script('wp-block-library');
-wp_print_scripts(array('wp-block-library','syndamorph-tabs-editor','syndamorph-header-editor','syndamorph-offer-editor','syndamorph-booking-editor'));
+wp_print_scripts(array('wp-block-library','syndamorph-tabs-editor','syndamorph-header-editor','syndamorph-offer-editor','syndamorph-booking-editor','syndamorph-newsletter-editor'));
+printf('<script>window.nativeScopeNewsletter=%s;window.newsletterPost=%d;</script>',
+    wp_json_encode($newsletterBlock,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT),$newsletterDraft);
 printf('<script>window.nativeScopeHeader=%s;</script>',wp_json_encode($scopeContent??'',JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT));
 printf('<script>window.nativeScopeOffer=%s;</script>',wp_json_encode($offerBlock,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT));
 printf('<script>window.nativeScopeBooking=%s;window.nativeBookingBlock=%s;window.scopeBookingPost=%d;</script>',

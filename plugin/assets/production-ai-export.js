@@ -46,6 +46,9 @@
                 const recorded=recordedComponents&&!seen.has(block?.name)&&!block.innerBlocks?.length&&(
                     (root&&block?.name==='syndamorph/recorded-header'&&/^[a-f0-9]{64}$/.test(block.attributes?.logoSha256 ?? ''))||
                     (root&&block?.name==='syndamorph/desktop-offer'&&typeof block.attributes?.copy?.dismissLabel==='string')||
+                    (root&&block?.name==='syndamorph/recorded-newsletter'&&block.attributes?.align==='full'&&
+                        Array.isArray(block.attributes?.profile?.choices)&&
+                        block.attributes.profile.desktop?.length===7&&block.attributes.profile.compact?.length===7)||
                     (desktopGroup&&block?.name==='syndamorph/booking-summary'&&block.attributes?.overlap===true));
                 const supported = block?.name?.startsWith('core/') || block?.name === 'syndamorph/tabs' || recorded;
                 if (count>limit || !supported || !api.getBlockType(block.name))

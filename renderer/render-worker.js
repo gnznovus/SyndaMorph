@@ -7,6 +7,7 @@ const { checkHeader } = require('./check-header');
 const { checkOffer } = require('./check-offer');
 const { checkFirstFold } = require('./check-first-fold');
 const { checkFooter } = require('./check-footer');
+const { checkNewsletter } = require('./check-newsletter');
 const { HEIGHT, MAX_JPEG, MAX_METADATA, DEFAULT_VIEWPORTS, RendererError } = require('./inspection-contract');
 
 async function waitForInstalledFonts(page) {
@@ -425,7 +426,7 @@ process.stdin.on('end', async () => {
     const evidence = [];
     try {
         const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, disclosures, imageStrip, revealCards, roomsRuntime,
-            compactBooking, header, offer, firstFold, footer, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
+            compactBooking, header, offer, firstFold, footer, newsletter, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
             headless: true, timeout: 10000,
             // Synthetic fixtures are fulfilled by Playwright. Other Chromium
@@ -437,7 +438,7 @@ process.stdin.on('end', async () => {
             ],
         });
         const context = await browser.newContext({
-            javaScriptEnabled: !inspect || Boolean(tabsRuntime || roomsRuntime || header || offer || firstFold),
+            javaScriptEnabled: !inspect || Boolean(tabsRuntime || roomsRuntime || header || offer || firstFold || newsletter),
             ...(firstFold ? {reducedMotion:'reduce'} : {}),
             serviceWorkers: 'block',
             acceptDownloads: false,
@@ -469,15 +470,15 @@ process.stdin.on('end', async () => {
             process.stdout.write(JSON.stringify({evidence}));
             return;
         }
-        if(header||offer||firstFold){
+        if(header||offer||firstFold||newsletter){
             const fixture='https://functional.invalid/';
-            const name=header?'header':offer?'offer':'first-fold';
+            const name=header?'header':offer?'offer':firstFold?'first-fold':'newsletter';
             const document=fixture+name, script=document+'.js';
             await page.route(document,route=>route.fulfill({contentType:'text/html;charset=utf-8',
                 headers:{'content-security-policy':"default-src 'none'; script-src "+script+"; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'"},
-                body:(firstFold ? html : '<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1">'+html+
+                body:(firstFold||newsletter ? html : '<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1">'+html+
                     '<style>html,body,#syndamorph-page{margin:0;min-height:3900px}</style>')+'<script src="/'+name+'.js"></script>'}));
-            await page.route(script,route=>route.fulfill({contentType:'application/javascript',body:(header??offer??firstFold).runtime}));
+            await page.route(script,route=>route.fulfill({contentType:'application/javascript',body:(header??offer??firstFold??newsletter).runtime}));
             for(const width of viewports){
                 await page.setViewportSize({width,height:HEIGHT});
                 const other=[];
@@ -487,7 +488,8 @@ process.stdin.on('end', async () => {
                     await page.goto(document,{waitUntil:'domcontentloaded',timeout:5000});
                     await waitForInstalledFonts(page);
                     const proof=header?await checkHeader(page,width,header.frames[width]):offer?await checkOffer(page,width,offer.frame):
-                        await checkFirstFold(page,width,firstFold);
+                        firstFold?await checkFirstFold(page,width,firstFold):
+                            await checkNewsletter(page,width,newsletter,sourceFrameScreenshot);
                     const finalUrl=new URL(page.url());
                     if(firstFold&&finalUrl.hash===firstFold.anchor)finalUrl.hash='';
                     evidence.push({width,proof:{...proof,offline:other.length===0&&finalUrl.href===document}});

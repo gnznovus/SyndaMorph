@@ -213,6 +213,18 @@ Private unsynced Pattern 249 was placed last in the original draft. Production S
 
 Newsletter source replay event 25769 verified all ten country choices and restored the original desktop selection. The other newsletter labels stayed inert at all required widths, and the archive exposed no form or submission endpoint. Newsletter conversion and whole-page QA remain pending. No model calls were made.
 
+### v0.12.66 source-bound newsletter placement and whole-page comparison
+
+Source checkpoint 12144 and History event 25776 bind the closed crops, original arrow, ten desktop country choices, and the open menu crop. The local picker retains the observed selections with keyboard access and focus restoration. The other labels remain display text, consistent with the archived prototype.
+
+Authenticated renderer QA event 25778 passed at ten widths. The closed newsletter measured 0% differing pixels at 1440, 768 and 375 px. The open desktop country-menu crop also measured 0%. Private Pattern 254 occupies source position 13. Draft 255 preserved the editable heading through edit, save, reload and restoration. Gutenberg reserialized the draft, and the exact new bytes passed independent source QA again in History event 25785.
+
+All 16 regions are placed in draft 66 with 501 valid Gutenberg blocks and SHA-256 `c66c8ad973b1349d4955c4c64a622ec8dbf96547832bc314612570edae94636b`. The fifteen earlier Patterns retained their IDs and checksums. The assembled newsletter repeated desktop and compact geometry at ten widths and the ten desktop selections with zero external requests.
+
+The first-fold comparisons passed at 1440, 768 and 375 px, with respective pixel differences of 0.180%, 0.177% and 0.337%. Whole-page heights matched exactly at all three widths. Full-height difference measured 0.137%, 1.346% and 2.409%. The responsive scan reported horizontal overflow at 1200, 1025 and 1024 px, plus out-of-viewport header text at 1025 and 1024 px. All 16 regions have source-backed placements, and the Full Page job remains uncompleted while these whole-page gates are open.
+
+A separate diagnostic used the source's JPEG quality 58 in place of the renderer's quality 65. It reduced 375 px full-height difference to 2.070%, which still exceeds the visual gate. The retained comparison localized differences across multiple regions. None of the changed sample pixels at 375 px fell within the newsletter bounds. No model calls were made.
+
 History event 23342 binds draft 184 and its saved content SHA-256 `ed7bda9ee638f5b7850c01c87246a01efc2c7bb1bc93529c2368debbda2caa6e` to the native test. Event 23343 records compact source evidence against checkpoints 12136 and 12137.
 
 ### SIP & DINE alignment checkpoint, v0.12.42

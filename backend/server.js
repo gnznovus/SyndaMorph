@@ -5,6 +5,7 @@ const { capture, captureResponsive } = require('./capture');
 const { productionSource } = require('./production-source');
 const { captureOwnedRegion, captureSettledPair, captureCompactGuarantee, captureCompactBooking, replayDesktopOffer } = require('./responsive-capture');
 const { replayRecordedFooter } = require('./recorded-footer');
+const { replayRecordedNewsletter } = require('./recorded-newsletter');
 const { replayRecordedHeader } = require('./production-header');
 const { enabled: referenceEnabled,readReference,recordedPng } = require('./production-reference');
 const { validateTouchActions,inspectTouch,disclosureRef,inspectDisclosure,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms,inspectRelocatedCopy } = require('./production-touch');
@@ -57,14 +58,17 @@ http.createServer(async (req, res) => {
             const header=input.kind==='recorded-header';
             const offer=input.kind==='desktop-offer';
             const footer=input.kind==='recorded-footer';
+            const newsletter=input.kind==='recorded-newsletter';
             const compactReplay={'compact-guarantee':captureCompactGuarantee,'compact-booking':captureCompactBooking};
             const compact=Object.hasOwn(compactReplay,input.kind)?compactReplay[input.kind]:null;
-            const scoped=disclosure||imageStrip||linkedImage||revealCards||rooms||relocation||settledPair||compact||header||offer||footer;
+            const scoped=disclosure||imageStrip||linkedImage||revealCards||rooms||relocation||settledPair||compact||header||offer||footer||newsletter;
             if(scoped&&!disclosureRef(input.sourceRef))return respond(res,400,{error:'Invalid recorded region target.'});
             if(header&&(![1440,768,375].includes(input.width)||typeof input.pinnedSha256!=='string'||
                 !/^[a-f0-9]{64}$/.test(input.pinnedSha256)))return respond(res,400,{error:'Invalid recorded header identity.'});
             if(footer&&(![1440,768,375].includes(input.width)||typeof input.pinnedSha256!=='string'||
                 !/^[a-f0-9]{64}$/.test(input.pinnedSha256)))return respond(res,400,{error:'Invalid recorded footer identity.'});
+            if(newsletter&&(![1440,768,375].includes(input.width)||typeof input.pinnedSha256!=='string'||
+                !/^[a-f0-9]{64}$/.test(input.pinnedSha256)))return respond(res,400,{error:'Invalid recorded newsletter identity.'});
             if(offer&&(![1440,768,375].includes(input.width)||typeof input.dismissLabel!=='string'||
                 !input.dismissLabel.trim()||input.dismissLabel.length>80||(input.width===1440?
                     typeof input.pinnedSha256!=='string'||!/^[a-f0-9]{64}$/.test(input.pinnedSha256):input.pinnedSha256!==null)))
@@ -110,6 +114,7 @@ http.createServer(async (req, res) => {
                         offer?replayDesktopOffer(page,_regions,_diagnostics,{width:input.width,sourceRef:input.sourceRef,
                             pinnedSha256:input.pinnedSha256,copySha256:pinned.copySha256,dismissLabel:input.dismissLabel},seal):
                         footer?replayRecordedFooter(page,_regions,_diagnostics,input,pinned,seal):
+                        newsletter?replayRecordedNewsletter(page,_regions,_diagnostics,input,pinned,seal):
                         compact?compact(page,_regions,_diagnostics,{
                             width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256,pinnedSha256:input.pinnedSha256,
                         },seal):

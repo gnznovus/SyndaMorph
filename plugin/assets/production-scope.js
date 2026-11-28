@@ -214,6 +214,12 @@
                     if(!row.patternId)await finishRegion(row.id);
                 }));
             }
+            if (row.newsletterReplayAvailable && ['blocked','uncompleted'].includes(row.status)) {
+                entry.append(button('Verify archived newsletter',async()=>{
+                    manifest=await request(url(),{action:'stage_recorded_newsletter',region:row.id});
+                    if(!row.patternId)await finishRegion(row.id);
+                }));
+            }
             if (manifest.mode==='page' && row.settledPair?.regions?.adjacent) {
                 const partner=row.settledPair.regions.adjacent.region;
                 if (manifest.regions[partner]?.sourceCopyPlacement && ['blocked','uncompleted'].includes(row.status)) {
@@ -284,7 +290,7 @@
         if (!candidate.eligible) throw new Error('This section is still pending source or production QA.');
         if (candidate.assetKind || candidate.verifiedLayout) {
             const count = window.SyndaMorphAIExport.validateNative(candidate.content, 200,
-                ['recordedHeader','desktopOffer','firstFold'].includes(candidate.verifiedLayout));
+                ['recordedHeader','desktopOffer','firstFold','recordedNewsletter'].includes(candidate.verifiedLayout));
             manifest = await request(url(), {action:'save_pattern',region:id,checksum:candidate.checksum,blockCount:count,valid:true});
             return;
         }

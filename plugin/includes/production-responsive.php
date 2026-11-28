@@ -73,14 +73,14 @@ function syndamorph_design_responsive_findings(array $samples): array {
     return $findings;
 }
 
-function syndamorph_design_responsive_measure(string $html,array $mandatory,array $baseline,string $rendererBuild) {
+function syndamorph_design_responsive_measure(string $html,array $mandatory,array $baseline,string $rendererBuild,?string $extent=null) {
     if(array_column($baseline,'width')!==$mandatory||array_filter($baseline,static fn($view)=>empty($view['snapshot']['elements'])))
         return syndamorph_inspection_failure('snapshot_incomplete',array('expectedWidths'=>$mandatory));
     $widths=syndamorph_design_probe_widths($html,$mandatory);
     if(is_wp_error($widths))return $widths;
     $samples=$baseline;
     foreach(array_chunk(array_values(array_diff($widths,$mandatory)),5) as $batch){
-        $extra=syndamorph_collab_inspect($html,$batch,$build);
+        $extra=syndamorph_collab_inspect($html,$batch,$build,$extent);
         if(is_wp_error($extra))return $extra;
         if($build!==$rendererBuild)return syndamorph_inspection_failure('protocol_mismatch',
             array('expectedWidths'=>$widths,'rendererBuild'=>$build,'previousRendererBuild'=>$rendererBuild));
@@ -98,8 +98,8 @@ function syndamorph_design_responsive_measure(string $html,array $mandatory,arra
 }
 
 /** The same browser checks are run afresh on the retained native artifact. */
-function syndamorph_native_responsive_receipt(string $html,array $widths,array $baseline,string $build,string $checksum): array {
-    $result=syndamorph_design_responsive_measure($html,$widths,$baseline,$build);
+function syndamorph_native_responsive_receipt(string $html,array $widths,array $baseline,string $build,string $checksum,?string $extent=null): array {
+    $result=syndamorph_design_responsive_measure($html,$widths,$baseline,$build,$extent);
     return array('artifactSha256'=>$checksum,'previewSha256'=>hash('sha256',$html))+
         (is_wp_error($result)?array('status'=>'pending','inspection'=>syndamorph_inspection_diagnostic($result)):
             array('status'=>$result['passed']?'passed':'failed')+$result);

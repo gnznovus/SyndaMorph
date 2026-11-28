@@ -6,6 +6,21 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.66] - 2026-11-28
+
+### Added
+
+- Production Setup recovers the recorded newsletter as an editable full-width Pattern. It verifies the closed and open layouts, all ten desktop country choices, and the compact display-only variant.
+
+### Fixed
+
+- Whole-page responsive inspection now uses the page request limit at intermediate viewport widths, consistent with the three required widths.
+- Assembled draft verification now checks that the hero and intro, footer, and newsletter still have current source QA.
+
+### Verified
+
+- REF-000030 placed all 16 regions in its original unpublished draft with 501 verified Gutenberg blocks. The exact newsletter copy passed source QA after Gutenberg edit and reload. The whole-page mobile visual and intermediate desktop responsive checks remain open.
+
 ## [0.12.65] - 2026-11-28
 
 ### Added

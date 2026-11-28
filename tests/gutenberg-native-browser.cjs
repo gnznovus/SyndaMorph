@@ -79,6 +79,34 @@ async function verifyBooking(page, post) {
  console.log('PASS: Gutenberg booking edit, save, reload, local actions, and independent instances.');
 }
 
+async function verifyNewsletter(page,post){
+ await page.setViewportSize({width:1440,height:900});
+ await page.goto(origin+'/wp-admin/post.php?post='+post+'&action=edit');
+ const heading=page.frameLocator('iframe[name="editor-canvas"]').getByRole('group',{name:'Desktop copy'})
+  .getByRole('textbox',{name:'Heading',exact:true});
+ await heading.fill('Edited newsletter heading');
+ await page.waitForFunction(()=>wp.data.select('core/editor').isEditedPostDirty());
+ await page.evaluate(()=>wp.data.dispatch('core/editor').savePost());
+ await page.waitForFunction(()=>wp.data.select('core/editor').didPostSaveRequestSucceed());
+ await page.reload();
+ assert.equal(await heading.inputValue(),'Edited newsletter heading');
+ assert.equal((await page.goto(origin+'/?page_id='+post+'&preview=true')).status(),200);
+ const root=page.locator('#syndamorph-page .wp-block-syndamorph-recorded-newsletter');
+ assert.equal(await root.getByRole('heading',{name:'Edited newsletter heading'}).isVisible(),true);
+ assert.equal(await root.locator('form,input,a[href]').count(),0);
+ const picker=root.getByRole('button',{name:'TH +66',exact:true});
+ await picker.press('Enter');
+ await root.getByRole('button',{name:/United Kingdom/}).press('Enter');
+ const uk=root.getByRole('button',{name:'UK +44',exact:true});
+ await uk.click();
+ await uk.press('Escape');
+ assert.equal(await uk.getAttribute('aria-expanded'),'false');
+ await page.setViewportSize({width:375,height:900});
+ assert.equal(await uk.isVisible(),false);
+ assert.equal(await root.getByRole('heading',{name:'Compact newsletter heading'}).isVisible(),true);
+ console.log('PASS: recorded newsletter remains editable, with desktop-only local country selection.');
+}
+
 async function verifyScopeBooking(page, post) {
  await page.setViewportSize({width:1440,height:900});
  assert.equal((await page.goto(origin+'/?page_id='+post+'&preview=true')).status(),200);
@@ -331,6 +359,11 @@ async function verifySectionWidths(page, sections) {
    }
    const scopeOffer=window.nativeScopeOffer;
    const offerBlocks=validate(scopeOffer,200,true);
+   const newsletter=window.nativeScopeNewsletter;
+   const newsletterBlocks=validate(newsletter,200,true);
+   let ordinaryNewsletterRejected=false,duplicateNewsletterRejected=false;
+   try{validate(newsletter);}catch(e){ordinaryNewsletterRejected=/unsupported Gutenberg block/.test(e.message);}
+   try{validate(newsletter+'\n\n'+newsletter,200,true);}catch(e){duplicateNewsletterRejected=/unsupported Gutenberg block/.test(e.message);}
    let offerRejected=false,duplicateOfferRejected=false;
    try{validate(scopeOffer);}catch(e){offerRejected=/unsupported Gutenberg block/.test(e.message);}
    try{validate(scopeOffer+'\n\n'+scopeOffer,200,true);}catch(e){duplicateOfferRejected=/unsupported Gutenberg block/.test(e.message);}
@@ -350,11 +383,15 @@ async function verifySectionWidths(page, sections) {
     tabsPost:window.tabsPost,bookingPost:window.bookingPost,offerPost:window.offerPost,headerPost:window.headerPost,
     scopeHeaderPost:window.scopeHeaderPost,headerBlocks,headerRejected,duplicateHeaderRejected,
     offerBlocks,offerRejected,duplicateOfferRejected,bookingBlocks,invalidBookings,scopeBookingPost:window.scopeBookingPost,
+    newsletterBlocks,ordinaryNewsletterRejected,duplicateNewsletterRejected,newsletterPost:window.newsletterPost,
     sections:window.nativeAlignments};
   });
   console.log({...result,sections:Object.keys(result.sections)});
-  assert.ok(result.initial<=4,'Only the custom production blocks should be registered before the validator sets up core.');
+  assert.ok(result.initial<=5,'Only the custom production blocks should be registered before the validator sets up core.');
   assert.equal(result.offerBlocks,1);
+  assert.equal(result.newsletterBlocks,1);
+  assert.equal(result.ordinaryNewsletterRejected,true);
+  assert.equal(result.duplicateNewsletterRejected,true);
   assert.equal(result.offerRejected,true);
   assert.equal(result.duplicateOfferRejected,true);
   assert.equal(result.bookingBlocks,2);
@@ -452,6 +489,7 @@ async function verifySectionWidths(page, sections) {
   await verifyEditableTabs(page,result.tabsPost);
   await verifyBooking(page,result.bookingPost);
   await verifyScopeBooking(page,result.scopeBookingPost);
+  await verifyNewsletter(page,result.newsletterPost);
   await verifyDesktopOffer(page,result.offerPost);
   await verifyRecordedHeader(page,result.headerPost);
   await verifyRecordedHeader(page,result.scopeHeaderPost,'#syndamorph-page');

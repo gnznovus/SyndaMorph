@@ -26,7 +26,7 @@ test('renderer authenticates every job before parsing or running Chromium', asyn
     let launches = 0;
     const url = await serve(t, async () => { launches++; return []; });
     const routes = ['render','inspect','compare','crop','check-tabs','check-scroll-strips','check-disclosures',
-        'check-image-strip','check-reveal-cards','check-rooms','check-compact-booking','check-header','check-offer','check-first-fold','check-footer'];
+        'check-image-strip','check-reveal-cards','check-rooms','check-compact-booking','check-header','check-offer','check-first-fold','check-footer','check-newsletter'];
     for (const path of routes) {
         for (const headers of [{}, {'x-syndamorph-renderer-token': 'x'.repeat(token.length)}]) {
             const refused = await fetch(url + '/' + path, { method: 'POST', headers, body: 'not JSON' });
@@ -138,6 +138,21 @@ test('footer inspection rejects absent, extra and unbounded pinned frames', asyn
     assert.equal((await post({375:frame,1024:frame})).status,400);
     assert.equal(launches,0);
     assert.equal((await post({375:frame})).status,200);
+    assert.equal(launches,1);
+});
+
+test('newsletter replay requires the exact closed and open source frames',async t=>{
+    let launches=0;
+    const url=await serve(t,async(_html,widths)=>{launches++;return widths.map(width=>({width}));});
+    const image='/9j/aaaa',top=8713.171875;
+    const frames={1440:{image,top,extent:451}},open={x:620,y:top-104,width:280,height:320,image};
+    const post=overrides=>fetch(url+'/check-newsletter',{method:'POST',headers:auth,
+        body:JSON.stringify({html:'<section>Newsletter</section>',viewports:[1440],runtime:'void 0;',frames,open,...overrides})});
+    assert.equal((await post({open:null})).status,400);
+    assert.equal((await post({open:{...open,y:open.y+1}})).status,400);
+    assert.equal((await post({viewports:[375],frames:{375:{image,top:6672.421875,extent:411}}})).status,400);
+    assert.equal(launches,0);
+    assert.equal((await post({})).status,200);
     assert.equal(launches,1);
 });
 
