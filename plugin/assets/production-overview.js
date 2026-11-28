@@ -21,18 +21,6 @@
         if (target) target.textContent = value;
     }
 
-    // Show exactly three complete rows; their heights vary with wrapped titles.
-    function sizeActivity() {
-        const container = $('sm-overview-jobs');
-        const rows = [...container.querySelectorAll('.sm-overview-job')];
-        container.style.maxHeight = 'none';
-        if (rows.length <= 3) return;
-        const css = getComputedStyle(container);
-        const inset = parseFloat(css.paddingTop) + parseFloat(css.paddingBottom);
-        const height = rows.slice(0, 3).reduce((sum, row) => sum + row.getBoundingClientRect().height, inset);
-        container.style.maxHeight = Math.ceil(height) + 'px';
-    }
-
     function activity(jobs) {
         const container = $('sm-overview-jobs');
         container.replaceChildren();
@@ -45,6 +33,7 @@
             const information = element('div', undefined, 'sm-overview-job-info');
             const title = element('a', job.jobId + ' · ' + job.title, 'sm-overview-job-id');
             title.href = 'admin.php?page=syndamorph&tab=production&view=history&inspect=' + encodeURIComponent(job.id);
+            title.title = job.jobId + ' · ' + job.title;
             const detail = element('div', job.category + ' · ' + job.createdAt, 'sm-overview-job-detail');
             information.append(title, detail);
             const raw = String(job.status || '').toLowerCase();
@@ -54,7 +43,6 @@
             container.append(row);
         }
         container.scrollTop = 0;
-        requestAnimationFrame(sizeActivity);
     }
 
     async function load() {
@@ -94,6 +82,5 @@
             void load();
         });
     }
-    window.addEventListener('resize', () => requestAnimationFrame(sizeActivity));
     void load();
 })();
