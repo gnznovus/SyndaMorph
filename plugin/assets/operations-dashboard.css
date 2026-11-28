@@ -1130,3 +1130,12 @@
 @media(max-width:1220px){#syndamorph-overview .sm-overview-metrics {grid-template-columns:repeat(2,minmax(0,1fr));}#syndamorph-overview .sm-overview-main-grid {grid-template-columns:1fr;}#syndamorph-overview .sm-overview-main-grid > .sm-card:nth-child(2) {height:320px;min-height:0;}}
 @media(max-width:780px){#syndamorph-overview .sm-overview-bottom-grid {grid-template-columns:1fr;}}
 @media(max-width:600px){#syndamorph-overview .sm-overview-metrics {grid-template-columns:1fr;}#syndamorph-overview .sm-overview-stage-grid {grid-template-columns:repeat(3,minmax(0,1fr));}#syndamorph-overview .sm-overview-qa-grid {gap:8px;padding:15px;}#syndamorph-overview .sm-overview-filters {width:100%;justify-content:space-between;}#syndamorph-overview .sm-overview-filters button {padding:9px 7px;}#syndamorph-overview .sm-overview-card-header {flex-wrap:wrap;}}
+
+/* Provider billing context belongs to Model Configuration, not Overview. */
+#syndamorph-ai-integration .sm-provider-budget-panel {padding:19px 20px;border:1px solid var(--sm-border);border-radius:13px;background:#fcfdff;display:grid;gap:14px;}
+#syndamorph-ai-integration .sm-provider-budget-header {display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
+#syndamorph-ai-integration .sm-provider-budget-header h3 {font-size:14px;font-weight:770;margin:0 0 5px;}
+#syndamorph-ai-integration .sm-provider-budget-header .sm-hint {margin:0;}
+#syndamorph-ai-integration .sm-provider-budget-metrics {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px;}
+#syndamorph-ai-integration .sm-provider-budget-panel > .sm-hint {margin:0;}
+@media(max-width:600px){#syndamorph-ai-integration .sm-provider-budget-metrics {grid-template-columns:1fr;}}
