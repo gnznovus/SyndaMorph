@@ -25,6 +25,7 @@ require_once __DIR__ . '/includes/production-offer.php';
 require_once __DIR__ . '/includes/production-header.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/gateway-admin.php';
 require_once __DIR__ . '/includes/transport-status.php';
+require_once __DIR__ . '/includes/production-overview.php';
 
 /**
  * The legacy Source Importer screen has been retired. Keep the converter and
@@ -69,9 +70,13 @@ function syndamorph_render_operations_page(): void {
         syndamorph_ai_render_tab();
         return;
     }
-    // The default route and bookmarked legacy/old team URLs all open the
-    // Production Team, without exposing the obsolete Importer interface.
-    syndamorph_team_render_tab();
+    if ( in_array( $tab, array( 'production', 'team' ), true ) ) {
+        syndamorph_team_render_tab();
+        return;
+    }
+    // Overview is the Operations landing page; unknown and legacy tab
+    // values retain a safe workspace destination.
+    syndamorph_overview_render_tab();
 }
 
 /**
