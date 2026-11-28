@@ -26,48 +26,72 @@ function syndamorph_overview_render_tab(): void {
                 <div class="sm-overview-heading">
                     <div>
                         <p class="sm-kicker">Operations workspace</p>
-                        <h1 class="sm-page-title">Overview</h1>
-                        <p class="sm-page-description">Production activity and outcomes from the local job archive.</p>
-                    </div>
-                    <div class="sm-overview-filters">
-                        <label for="sm-overview-period">Reporting period</label>
-                        <select id="sm-overview-period" class="sm-control">
-                            <option value="today">Today</option>
-                            <option value="7d" selected>Last 7 days</option>
-                            <option value="30d">Last 30 days</option>
-                            <option value="all">All time</option>
-                        </select>
-                        <button type="button" class="sm-team-secondary" id="sm-overview-refresh">Refresh</button>
+                        <h1 class="sm-page-title">Operations Overview</h1>
+                        <p class="sm-page-description">Manage production workflows, agent performance, and model operations.</p>
                     </div>
                 </div>
-                <p class="sm-overview-status" role="status" aria-live="polite" id="sm-overview-status">Loading recorded activity…</p>
-                <div class="sm-overview-metrics" aria-label="Production metrics">
-                    <div class="sm-stat"><span class="sm-stat-label">Total jobs</span><strong class="sm-stat-value" data-overview-stat="total">—</strong></div>
-                    <div class="sm-stat"><span class="sm-stat-label">Completed</span><strong class="sm-stat-value" data-overview-stat="completed">—</strong></div>
-                    <div class="sm-stat"><span class="sm-stat-label">Needs attention</span><strong class="sm-stat-value" data-overview-stat="attention">—</strong></div>
-                    <div class="sm-stat"><span class="sm-stat-label">Completion rate</span><strong class="sm-stat-value" data-overview-stat="rate">—</strong></div>
+                <div class="sm-overview-headline">
+                    <h2>Operations Overview</h2>
+                    <div class="sm-overview-filters" role="group" aria-label="Reporting period">
+                        <button type="button" data-range="today" aria-pressed="true" class="is-active">Today</button>
+                        <button type="button" data-range="7d" aria-pressed="false">7 days</button>
+                        <button type="button" data-range="30d" aria-pressed="false">30 days</button>
+                        <button type="button" data-range="all" aria-pressed="false">All time</button>
+                    </div>
                 </div>
-                <div class="sm-overview-grid">
+                <p class="sm-overview-status" id="sm-overview-status" role="status" aria-live="polite">Loading recorded activity…</p>
+                <div class="sm-overview-metrics" aria-label="Production summary">
+                    <div class="sm-card sm-overview-metric"><div class="sm-overview-metric-label">Total Jobs <span aria-hidden="true">▤</span></div><strong class="sm-overview-metric-value" data-overview-stat="total">—</strong><div class="sm-overview-metric-foot">Recorded production jobs</div></div>
+                    <div class="sm-card sm-overview-metric"><div class="sm-overview-metric-label">Completed <span aria-hidden="true">✓</span></div><strong class="sm-overview-metric-value" data-overview-stat="completed">—</strong><div class="sm-overview-metric-foot"><span class="sm-overview-positive" data-overview-stat="rate">—</span> completion rate</div></div>
+                    <div class="sm-card sm-overview-metric"><div class="sm-overview-metric-label">Pending / Blocked <span aria-hidden="true">◷</span></div><strong class="sm-overview-metric-value" data-overview-stat="attention">—</strong><div class="sm-overview-metric-foot">Requires verification or repair</div></div>
+                    <div class="sm-card sm-overview-metric"><div class="sm-overview-metric-label">AI Usage Cost <span aria-hidden="true">$</span></div><strong class="sm-overview-metric-value" data-overview-stat="cost">—</strong><div class="sm-overview-metric-foot">Awaiting verified usage aggregation</div></div>
+                </div>
+                <div class="sm-overview-main-grid">
                     <section class="sm-card" aria-labelledby="sm-overview-pipeline-title">
-                        <div class="sm-card-header"><h2 class="sm-card-title" id="sm-overview-pipeline-title">Pipeline status</h2><p class="sm-card-caption">Recorded job states, including paused and incomplete work.</p></div>
-                        <div class="sm-card-body" id="sm-overview-pipeline"><p class="sm-overview-empty">Loading…</p></div>
-                    </section>
-                    <section class="sm-card" aria-labelledby="sm-overview-modes-title">
-                        <div class="sm-card-header"><h2 class="sm-card-title" id="sm-overview-modes-title">Source modes</h2><p class="sm-card-caption">History-level REF and GEN counts. REF source subtypes are not yet tracked separately.</p></div>
-                        <div class="sm-card-body" id="sm-overview-modes"><p class="sm-overview-empty">Loading…</p></div>
-                    </section>
-                    <section class="sm-card sm-overview-recent" aria-labelledby="sm-overview-recent-title">
-                        <div class="sm-card-header"><h2 class="sm-card-title" id="sm-overview-recent-title">Recent production jobs</h2><p class="sm-card-caption">Latest archived activity within the selected period.</p></div>
-                        <div class="sm-card-body"><div id="sm-overview-jobs"></div><a class="sm-overview-link" href="<?php echo esc_url( admin_url( 'admin.php?page=syndamorph&tab=production#sm-team-panel-history' ) ); ?>">Open Production History</a></div>
-                    </section>
-                    <section class="sm-card" aria-labelledby="sm-overview-evidence-title">
-                        <div class="sm-card-header"><h2 class="sm-card-title" id="sm-overview-evidence-title">Agent performance &amp; API spending</h2><p class="sm-card-caption">Metrics require verified, job-bound usage and agent receipts.</p></div>
-                        <div class="sm-card-body">
-                            <p class="sm-overview-empty">Agent latency, token usage, model costs and visual QA trends are not yet aggregated by this reporting endpoint. No estimates are shown without verified evidence.</p>
-                            <a class="sm-overview-link" href="<?php echo esc_url( admin_url( 'admin.php?page=syndamorph&tab=production' ) ); ?>">Open AI Production Team</a>
+                        <div class="sm-overview-card-header">
+                            <div><h3 id="sm-overview-pipeline-title">Production pipeline</h3><small>Work in progress by stage</small></div>
+                            <span class="sm-overview-chip">Stage receipts pending</span>
                         </div>
+                        <div class="sm-overview-stage-grid">
+                            <div class="sm-overview-stage"><span>Bossy</span><strong data-overview-stage="boss">—</strong><small>Classification</small></div>
+                            <div class="sm-overview-stage"><span>Designer</span><strong data-overview-stage="designer">—</strong><small>HTML + surgery</small></div>
+                            <div class="sm-overview-stage"><span>Review</span><strong data-overview-stage="review">—</strong><small>Bossy validation</small></div>
+                            <div class="sm-overview-stage"><span>Developer</span><strong data-overview-stage="developer">—</strong><small>Native blocks</small></div>
+                            <div class="sm-overview-stage"><span>QA</span><strong data-overview-stage="qa">—</strong><small>Independent proof</small></div>
+                        </div>
+                        <p class="sm-overview-pipeline-note">Stage counters require verified, currently active checkpoint receipts. No stages are inferred from historical job status.</p>
+                        <div class="sm-overview-progress-label"><span>Acceptance rate</span><strong data-overview-stat="acceptance">—</strong></div>
+                        <div class="sm-overview-progress-track"><div class="sm-overview-progress-fill" data-overview-acceptance-bar></div></div>
+                        <div class="sm-overview-legend"><span><i class="accepted"></i>Accepted</span><span><i class="pending"></i>Pending</span><span><i class="blocked"></i>Blocked</span></div>
+                    </section>
+                    <section class="sm-card" aria-labelledby="sm-overview-recent-title">
+                        <div class="sm-overview-card-header"><div><h3 id="sm-overview-recent-title">Recent production activity</h3><small>Recorded jobs and checkpoints</small></div></div>
+                        <div class="sm-overview-job-list" id="sm-overview-jobs"></div>
+                        <a class="sm-overview-link sm-overview-recent-link" href="<?php echo esc_url( admin_url( 'admin.php?page=syndamorph&tab=production&view=history' ) ); ?>">Open Production History</a>
                     </section>
                 </div>
+                <div class="sm-overview-bottom-grid">
+                    <section class="sm-card" aria-labelledby="sm-overview-agents-title">
+                        <div class="sm-overview-card-header"><div><h3 id="sm-overview-agents-title">Agent workload</h3><small>Share of verified model activity</small></div></div>
+                        <div class="sm-overview-bars">
+                            <?php foreach ( array( 'Bossy', 'Designer', 'Developer', 'QA' ) as $role ) : ?>
+                                <div class="sm-overview-bar-row"><span><?php echo esc_html( $role ); ?></span><div class="sm-overview-bar-track"><div class="sm-overview-bar-fill"></div></div><strong>—</strong></div>
+                            <?php endforeach; ?>
+                        </div>
+                        <p class="sm-overview-evidence-note">Awaiting per-agent usage receipts.</p>
+                    </section>
+                    <section class="sm-card" aria-labelledby="sm-overview-quality-title">
+                        <div class="sm-overview-card-header"><div><h3 id="sm-overview-quality-title">Quality &amp; recovery</h3><small>Verified acceptance metrics</small></div></div>
+                        <div class="sm-overview-qa-grid">
+                            <div class="sm-overview-qa-item"><strong>—</strong><small>Functional QA pass rate</small></div>
+                            <div class="sm-overview-qa-item"><strong>—</strong><small>Visual QA pass rate</small></div>
+                            <div class="sm-overview-qa-item"><strong>—</strong><small>Responsive QA pass rate</small></div>
+                            <div class="sm-overview-qa-item"><strong>—</strong><small>Surgical recovery success</small></div>
+                        </div>
+                        <p class="sm-overview-evidence-note">Awaiting independently verified QA and repair aggregations.</p>
+                    </section>
+                </div>
+                <p class="sm-overview-footnote">Operational values use the archived History source of truth. Stage, agent, and quality metrics appear only when supporting receipts are available; no demo data is presented as live.</p>
             </main>
         </div>
     </div>
