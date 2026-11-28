@@ -31,12 +31,14 @@ require_once __DIR__ . '/includes/transport-status.php';
  * REST endpoints intact: the Production Team uses them directly.
  */
 add_action( 'admin_menu', static function (): void {
-    add_management_page(
+    add_menu_page(
         'SyndaMorph',
         'SyndaMorph',
         'manage_options',
         'syndamorph',
-        'syndamorph_render_operations_page'
+        'syndamorph_render_operations_page',
+        'dashicons-layout',
+        58
     );
 } );
 
