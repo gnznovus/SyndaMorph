@@ -42,6 +42,22 @@ add_action( 'admin_menu', static function (): void {
     );
 } );
 
+/**
+ * Keep the approved SVG intrinsically small and size it within the
+ * WordPress admin menu's reserved icon slot.
+ */
+add_action( 'admin_head', static function (): void {
+    if ( ! current_user_can( 'manage_options' ) ) { return; }
+    echo '<style id="syndamorph-admin-menu-icon">
+        #adminmenu #toplevel_page_syndamorph .wp-menu-image img {
+            width: 26px;
+            height: 26px;
+            padding: 4px 0 0;
+            box-sizing: content-box;
+        }
+    </style>';
+} );
+
 function syndamorph_render_operations_page(): void {
     if ( ! current_user_can( 'manage_options' ) ) { return; }
     $tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
