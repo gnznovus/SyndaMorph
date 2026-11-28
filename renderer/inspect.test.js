@@ -26,6 +26,18 @@ test('full-height inspection uses the archived source encoding', async () => {
     assert.equal(page.screenshot,pinnedPage.screenshot);
 });
 
+test('Chromium reports the matched raster profile for full-height and first-fold evidence', async () => {
+    const html='<main style="height:1200px;background:#fff;color:#333"><h1>Raster profile</h1><p>Stable text</p></main>';
+    const rasterProfile='grayscale-text-v1';
+    const page=(await request('/inspect',html,[375],{extent:'page',rasterProfile})).evidence[0];
+    const fold=(await request('/inspect',html,[375],{extent:'page-fold',rasterProfile})).evidence[0];
+    assert.equal(page.extent,1200);
+    assert.equal(fold.extent,undefined);
+    assert.equal(page.rasterProfile,rasterProfile);
+    assert.equal(fold.rasterProfile,rasterProfile);
+    assert.equal(page.snapshot.copy,fold.snapshot.copy);
+});
+
 test('fixed compact booking captures the viewport crop at origin and checks scrolling and control markup', async () => {
     const html='<style>.is-style-sm-compact-booking{position:fixed;inset:auto 0 0;height:68px;background:#fff}'+
         'p{margin:0}@media(min-width:1024px){.is-style-sm-compact-booking{display:none}}</style>'+

@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.68] - 2026-11-28
+
+### Fixed
+
+- Full Page QA can retry a visual comparison with matching Chromium text rasterization after an offline replay verifies the original sealed screenshots. The audit retains both comparisons and the source and native screenshot hashes.
+
+### Verified
+
+- Draft 66 retained all 16 BKKGO placements and 501 valid Gutenberg blocks. The full-height and first-fold visual checks passed under the verified replay profile. Intermediate desktop overflow and clipped header controls still block full-page acceptance.
+
 ## [0.12.67] - 2026-11-28
 
 ### Fixed

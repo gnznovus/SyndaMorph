@@ -1692,9 +1692,18 @@ function syndamorph_scope_page_qa(array $manifest,WP_Post $page): array {
     $foldQa=syndamorph_source_visual(array_map(static fn($view)=>array('width'=>$view['width'],'screenshot'=>$view['fold']),$source),$fold,false,$layoutWidths);
     $issues=syndamorph_collab_evidence($whole,$whole);
     $responsive=syndamorph_native_responsive_receipt($html,SYNDAMORPH_SOURCE_WIDTHS,$whole,$build,hash('sha256',$page->post_content),'page');
+    $raster=array();
+    if(!$issues&&(!$wholeQa['passed']||!$foldQa['passed'])&&isset($wholeQa['views'],$foldQa['views'], $manifest['referenceArchive']['runtimeSha256'])){
+        $replay=syndamorph_scope_page_raster_qa($manifest,$source,$html,$build,$whole,$fold,$layoutWidths);
+        $raster['visualRasterReplay']=$replay+array('ordinary'=>array('fullExtent'=>$wholeQa,'firstFold'=>$foldQa));
+        if($replay['status']==='passed'){
+            $wholeQa=$replay['fullExtent'];
+            $foldQa=$replay['firstFold'];
+        }
+    }
     return array('passed'=>$wholeQa['passed']&&$foldQa['passed']&&!$issues&&$responsive['status']==='passed',
         'fullExtent'=>$wholeQa,'firstFold'=>$foldQa,'browserIssues'=>$issues,'continuousResponsive'=>$responsive,
-        'renderSha256'=>hash('sha256',$html))+
+        'renderSha256'=>hash('sha256',$html))+$raster+
         ($layoutWidths?array('layoutAuthorization'=>$manifest['layoutAuthorization']):array());
 }
 

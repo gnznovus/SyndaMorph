@@ -8,7 +8,7 @@ const { checkOffer } = require('./check-offer');
 const { checkFirstFold } = require('./check-first-fold');
 const { checkFooter } = require('./check-footer');
 const { checkNewsletter } = require('./check-newsletter');
-const { HEIGHT, MAX_JPEG, MAX_METADATA, DEFAULT_VIEWPORTS, RendererError } = require('./inspection-contract');
+const { HEIGHT, MAX_JPEG, MAX_METADATA, DEFAULT_VIEWPORTS, PAGE_RASTER_PROFILE, RendererError } = require('./inspection-contract');
 
 async function waitForInstalledFonts(page) {
     await page.evaluate(() => {
@@ -425,8 +425,9 @@ process.stdin.on('end', async () => {
     let crashed = false;
     const evidence = [];
     try {
-        const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, disclosures, imageStrip, revealCards, roomsRuntime,
+        const { html, inspect, extent, sourceFrames, rasterProfile, tabsRuntime, scrollStrips, disclosures, imageStrip, revealCards, roomsRuntime,
             compactBooking, header, offer, firstFold, footer, newsletter, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
+        const matchedRaster = rasterProfile === PAGE_RASTER_PROFILE;
         browser = await chromium.launch({
             headless: true, timeout: 10000,
             // Synthetic fixtures are fulfilled by Playwright. Other Chromium
@@ -435,11 +436,13 @@ process.stdin.on('end', async () => {
                 '--no-sandbox', '--disable-dev-shm-usage',
                 '--proxy-server=http://127.0.0.1:1', '--proxy-bypass-list=<-loopback>',
                 '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
+                ...(matchedRaster ? ['--disable-lcd-text'] : []),
             ],
         });
         const context = await browser.newContext({
             javaScriptEnabled: !inspect || Boolean(tabsRuntime || roomsRuntime || header || offer || firstFold || newsletter),
             ...(firstFold ? {reducedMotion:'reduce'} : {}),
+            ...(matchedRaster ? {colorScheme:'light',reducedMotion:'reduce',locale:'en-US',timezoneId:'Asia/Bangkok',deviceScaleFactor:1} : {}),
             serviceWorkers: 'block',
             acceptDownloads: false,
         });
@@ -949,9 +952,10 @@ process.stdin.on('end', async () => {
                 if (height > 36000) throw new RendererError('screenshot_limit', 507);
                 // Compare full-height evidence using the archive's crop and JPEG settings.
                 const screenshot = top!==null ? await sourceFrameScreenshot(page,width,height,top) :
-                    extent==='page' ? await boundedScreenshot(page,width,height,0) :
+                    extent==='page'||matchedRaster ? await boundedScreenshot(page,width,height??HEIGHT,0) :
                     await boundedScreenshot(page,width,height);
                 evidence.push({width,snapshot,screenshot,a11y,...(height === null ? {} : { extent: height }),
+                    ...(matchedRaster ? {rasterProfile} : {}),
                     ...(top===null?{}:{sourceFrame:{top,screenshotTop:Math.round(top)}})});
             }
             process.stdout.write(JSON.stringify({ evidence }));

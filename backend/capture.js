@@ -2,6 +2,7 @@
 
 const dns = require('node:dns').promises;
 const net = require('node:net');
+const { createHash } = require('node:crypto');
 const { chromium } = require('playwright');
 const { extractSections } = require('./sections');
 const { inspectDocument } = require('./diagnostics');
@@ -15,6 +16,7 @@ const MAX_REQUESTS = 250;
 const hosts = (value) => new Set((value || '').split(',').map((item) => item.trim().toLowerCase()).filter(Boolean));
 const ALLOWED_HOSTS = hosts(process.env.SYNDAMORPH_CAPTURE_HOSTS);
 const RESOURCE_HOSTS = hosts(process.env.SYNDAMORPH_RESOURCE_HOSTS);
+const PAGE_RASTER_PROFILE = 'grayscale-text-v1';
 
 
 function publicIPv4(ip) {
@@ -65,7 +67,8 @@ async function capture(urlValue, mode = 'auto', options = {}) {
     try {
         browser = await chromium.launch(guarded ? { headless:true,
             proxy:{ server:'http://127.0.0.1:9',bypass:'<-loopback>' },
-            args:['--disable-web-security','--force-webrtc-ip-handling-policy=disable_non_proxied_udp'] } : { headless:true });
+            args:['--disable-web-security','--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
+                ...(touch && options.recordedResponses && options.rasterProfile === PAGE_RASTER_PROFILE ? ['--disable-lcd-text'] : [])] } : { headless:true });
         const context = await browser.newContext({
             viewport: { width: options.width || 1440, height: 900 }, deviceScaleFactor: 1,
             serviceWorkers: 'block', acceptDownloads: false,
@@ -227,4 +230,29 @@ async function captureResponsive(url) {
             order: sections.map(section => section.sourceRef) })) };
 }
 
-module.exports = { capture, captureResponsive, validateURL, validateResourceURL, publicIPv4 };
+async function replayFullPageRaster(reference, width) {
+    if (!reference.runtime.size) return null;
+    const frames = rasterProfile => capture(reference.sourceUrl, 'browser', {
+        width, touch: true, recordedResponses: reference.runtime, rasterProfile,
+        inspect: async (page, sections, diagnostics, _reference, seal) => {
+            const denied = seal();
+            const { height, whole, fold, ready } = await captureResponsiveViewport(page, [], width, diagnostics);
+            const content = await page.evaluate(() => [
+                document.body.innerText,
+                [...document.links].map(link => link.getAttribute('href')),
+                document.documentElement.scrollWidth,
+            ]);
+            const geometry = sections.map(section => [section.sourceRef, section.bounds]);
+            const stateSha256 = createHash('sha256').update(JSON.stringify([content, geometry])).digest('hex');
+            return ready && whole && fold && denied.length === 0 ? { height, whole, fold, stateSha256 } : null;
+        },
+    });
+    const original = await frames();
+    const matched = original && await frames(PAGE_RASTER_PROFILE);
+    if (!matched || matched.height !== original.height || matched.stateSha256 !== original.stateSha256) return null;
+    return { profile: PAGE_RASTER_PROFILE, width, copySha256: reference.copySha256, height: original.height,
+        stateSha256: original.stateSha256,
+        original: { whole: original.whole, fold: original.fold }, matched: { whole: matched.whole, fold: matched.fold } };
+}
+
+module.exports = { capture, captureResponsive, replayFullPageRaster, validateURL, validateResourceURL, publicIPv4 };

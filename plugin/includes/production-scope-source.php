@@ -458,6 +458,83 @@ function syndamorph_scope_inspect(string $html,string $extent,?array $sourceFram
     return syndamorph_collab_inspect($html,SYNDAMORPH_SOURCE_WIDTHS,$build,$extent,$sourceFrames);
 }
 
+/** Verify the ordinary sealed replay before using the paired raster profile. */
+function syndamorph_scope_page_raster_source(array $manifest,array $views): array {
+    $archive=$manifest['referenceArchive']??null;
+    if(empty($archive['runtimeSha256'])||!syndamorph_production_reference_valid($archive,$manifest['sourceUrl']))
+        return array('status'=>'pending','reason'=>'recorded_archive_unavailable');
+    $profile=SYNDAMORPH_PAGE_RASTER_PROFILE;
+    $digests=array_column($archive['views'],'copySha256','width');
+    $frames=array('pinned'=>array('whole'=>array(),'fold'=>array()),'original'=>array('whole'=>array(),'fold'=>array()),
+        'matched'=>array('whole'=>array(),'fold'=>array()));
+    $hashes=array();
+    $states=array();
+    foreach($views as $view){
+        $width=$view['width'];$height=$view['height']??null;
+        $response=syndamorph_internal_request('backend','POST','/production-touch',array('timeout'=>45,
+            'headers'=>array('Content-Type'=>'application/json','Accept-Encoding'=>'identity'),'limit_response_size'=>1604096,
+            'body'=>wp_json_encode(array('kind'=>'full-page-raster','archiveId'=>$archive['id'],'width'=>$width))));
+        $body=is_wp_error($response)?'':wp_remote_retrieve_body($response);
+        if(is_wp_error($response)||wp_remote_retrieve_response_code($response)!==200||strlen($body)>=1604096)
+            return array('status'=>'pending','reason'=>'recorded_page_replay_unavailable','width'=>$width);
+        $replay=json_decode($body,true,16);
+        if(!is_int($height)||($replay['height']??null)!==$height||($replay['profile']??null)!==$profile||
+            ($replay['width']??null)!==$width||($replay['archiveId']??null)!==$archive['id']||
+            ($replay['copySha256']??null)!==($digests[$width]??null)||
+            !is_string($replay['stateSha256']??null)||!preg_match('/^[a-f0-9]{64}$/D',$replay['stateSha256']))
+            return array('status'=>'pending','reason'=>'recorded_page_replay_identity','width'=>$width);
+        $states[$width]=$replay['stateSha256'];
+        foreach(array('whole'=>$height,'fold'=>900) as $kind=>$extent){
+            $images=array('pinned'=>$view[$kind],'original'=>$replay['original'][$kind]??null,'matched'=>$replay['matched'][$kind]??null);
+            foreach($images as $role=>$image){
+                if(!syndamorph_source_screenshot_valid($image,$width,$extent))
+                    return array('status'=>'pending','reason'=>'recorded_page_replay_frame','width'=>$width);
+                $frames[$role][$kind][]=array('width'=>$width,'extent'=>$extent,'screenshot'=>$image,
+                    'snapshot'=>array('overflow'=>false));
+                $hashes[$width][$kind][$role]=hash('sha256',base64_decode($image,true));
+            }
+        }
+    }
+    $witness=array(
+        'fullExtent'=>syndamorph_source_visual($frames['pinned']['whole'],$frames['original']['whole']),
+        'firstFold'=>syndamorph_source_visual($frames['pinned']['fold'],$frames['original']['fold'],false),
+    );
+    $receipt=array('profile'=>$profile,'archiveId'=>$archive['id'],'sourceFrameSha256'=>$hashes,'sourceStateSha256'=>$states,
+        'sourceWitness'=>$witness);
+    if(!$witness['fullExtent']['passed']||!$witness['firstFold']['passed'])
+        return array('status'=>'pending','reason'=>'recorded_page_replay_drift')+$receipt;
+    return array('status'=>'verified','frames'=>$frames['matched'])+$receipt;
+}
+
+function syndamorph_scope_page_raster_qa(array $manifest,array $source,string $html,string $build,array $whole,array $fold,array $layoutWidths): array {
+    $receipt=syndamorph_scope_page_raster_source($manifest,$source);
+    if($receipt['status']!=='verified')return $receipt;
+    $frames=$receipt['frames'];
+    unset($receipt['frames']);
+    $profile=$receipt['profile'];
+    $qa=array();
+    $geometry=static fn(array $views)=>array_map(static fn($view)=>array(
+        $view['snapshot']['overflow']??null,$view['snapshot']['literal']['links']??null,
+        array_column($view['snapshot']['elements'],'rect')
+    ),$views);
+    foreach(array('fullExtent'=>array('page','whole',$whole),'firstFold'=>array('page-fold','fold',$fold)) as $key=>$settings){
+        list($extent,$kind,$ordinary)=$settings;
+        $currentBuild=null;
+        $matched=syndamorph_collab_inspect($html,SYNDAMORPH_SOURCE_WIDTHS,$currentBuild,$extent,null,$profile);
+        if(is_wp_error($matched))return array('status'=>'pending','reason'=>'native_page_replay_unavailable',
+            'inspection'=>syndamorph_inspection_diagnostic($matched))+array_diff_key($receipt,array('status'=>true));
+        if($build!==$currentBuild||array_column($ordinary,'extent')!==array_column($matched,'extent')||
+            $geometry($ordinary)!==$geometry($matched)||
+            syndamorph_collab_evidence($ordinary,$matched))
+            return array('status'=>'pending','reason'=>'native_page_replay_identity')+array_diff_key($receipt,array('status'=>true));
+        foreach($matched as $view)
+            $receipt['nativeFrameSha256'][$view['width']][$kind]=hash('sha256',base64_decode($view['screenshot'],true));
+        $qa[$key]=syndamorph_source_visual($frames[$kind],$matched,$kind==='whole',$layoutWidths);
+    }
+    return array('status'=>$qa['fullExtent']['passed']&&$qa['firstFold']['passed']?'passed':'failed',
+        'rendererBuild'=>$build)+$qa+$receipt;
+}
+
 /** Compare both entire rendered extents and absolute heights at their original widths. */
 function syndamorph_source_visual(array $reference,array $native,bool $extent=true,array $layoutWidths=array()): array {
     $comparison=syndamorph_collab_compare($reference,$native,$extent,$extent);

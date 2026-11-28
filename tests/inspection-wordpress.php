@@ -71,6 +71,7 @@ $inject=static function($response,$args,$url)use(&$fault,&$receivedRequests){
     elseif($fault==='missing')array_pop($payload['evidence']);
     elseif($fault==='unrecoverable')$payload['evidence']=array_values(array_filter($payload['evidence'],
         static fn($sample)=>$sample['width']!==375));
+    elseif($fault==='raster')unset($payload['evidence'][0]['rasterProfile']);
     if($fault!=='unrecoverable')$fault=null;
     $response['body']=wp_json_encode($payload);
     $response['headers']['content-length']=(string)strlen($response['body']);
@@ -88,7 +89,60 @@ $fault='unrecoverable';$receivedRequests=array();
 $pending=syndamorph_collab_inspect($ordinary,$default);
 inspection_assert(is_wp_error($pending)&&syndamorph_inspection_diagnostic($pending)['missingWidths']===array(375)&&
     $receivedRequests===array($default,array(375),array(375)),'Unrecoverable viewport was accepted or substituted');
+$fault=null;
+$profile=SYNDAMORPH_PAGE_RASTER_PROFILE;
+$matched=inspection_require_result(syndamorph_collab_inspect($ordinary,$default,$rasterBuild,'page',null,$profile));
+inspection_assert(array_column($matched,'rasterProfile')===array_fill(0,count($default),$profile),
+    'Full-page raster retry did not prove its requested capture profile.');
+$fault='raster';
+$wrongRaster=syndamorph_collab_inspect($ordinary,array(375),$rasterBuild,'page-fold',null,$profile);
+inspection_assert(is_wp_error($wrongRaster)&&$wrongRaster->get_error_code()==='sm_inspect_protocol_mismatch',
+    'An unattested raster profile passed as equivalent browser evidence.');
 remove_filter('http_response',$inject,10);
+
+$replayUrl='https://recorded-page.invalid/';
+$archive=array('version'=>1,'format'=>'singlefile-2.27.3','sourceUrl'=>$replayUrl,'runtimeSha256'=>str_repeat('a',64),'views'=>array());
+$identity=array(1,$archive['format'],$replayUrl);
+$pinned=array();
+$folds=inspection_require_result(syndamorph_collab_inspect($ordinary,$default,$rasterBuild,'page-fold',null,$profile));
+$dark=inspection_require_result(syndamorph_collab_inspect(
+    '<style>html,body{background:#111;color:#fff}</style><main><h1>Different source replay</h1></main>',
+    array(375),$rasterBuild,'page-fold',null,$profile))[0]['screenshot'];
+foreach($matched as $i=>$sample){
+    $width=$sample['width'];
+    $view=array('width'=>$width,'viewportHeight'=>900,'scrollWidth'=>$width,'pageHeight'=>$sample['extent'],
+        'pixelDifferenceRatio'=>0,'javascriptEnabled'=>false,'externalRequests'=>0,'verified'=>true,'copySha256'=>str_repeat('b',64));
+    $entry=array($width);
+    foreach(array('sourceDOMSha256','sourceScreenshotSha256','archiveSha256','replayScreenshotSha256') as $key)
+        $entry[]=$view[$key]=hash('sha256',$key.$width);
+    $archive['views'][]=$view;
+    $identity[]=$entry;
+    $pinned[$width]=array('width'=>$width,'height'=>$sample['extent'],'whole'=>$sample['screenshot'],'fold'=>$folds[$i]['screenshot']);
+}
+$identity[]=$archive['runtimeSha256'];
+$archive['id']=hash('sha256',wp_json_encode($identity,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE));
+$drift=false;
+$sourceReply=static function($pre,$args,$url)use(&$drift,$pinned,$archive,$profile,$dark){
+    if(!str_ends_with($url,'/production-touch'))return $pre;
+    $input=json_decode($args['body'],true);
+    $width=$input['width'];
+    $screens=array_intersect_key($pinned[$width],array('whole'=>true,'fold'=>true));
+    $original=$screens;
+    if($drift&&$width===375)$original['fold']=$dark;
+    return array('response'=>array('code'=>200),'body'=>wp_json_encode(array(
+        'profile'=>$profile,'archiveId'=>$archive['id'],'copySha256'=>str_repeat('b',64),'stateSha256'=>str_repeat('c',64),
+        'width'=>$width,'height'=>$pinned[$width]['height'],'original'=>$original,'matched'=>$screens)));
+};
+add_filter('pre_http_request',$sourceReply,10,3);
+try{
+    $manifest=array('referenceArchive'=>$archive,'sourceUrl'=>$replayUrl);
+    $comparison=syndamorph_scope_page_raster_source($manifest,array_values($pinned));
+    inspection_assert($comparison['status']==='verified','A matching sealed source witness was rejected.');
+    $drift=true;
+    $comparison=syndamorph_scope_page_raster_source($manifest,array_values($pinned));
+    inspection_assert($comparison['status']==='pending'&&$comparison['reason']==='recorded_page_replay_drift'&&
+        !isset($comparison['frames']),'A matched raster frame bypassed a drifting ordinary source replay.');
+}finally{remove_filter('pre_http_request',$sourceReply,10);}
 
 $origin=array(1440=>7681.890625,768=>6643.0625,375=>5662.25);
 $section='<section style="height:1050.4px;background:#fff"><h2 style="margin:0;padding:40px">Captured paint</h2></section>';

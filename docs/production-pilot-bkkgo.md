@@ -235,6 +235,14 @@ History event 25793 records full-height pixel differences of 0.137%, 1.118% and 
 
 Full-resolution 375 px crops localized the strongest remaining differences around FAQ, Neighborhood and SIP & DINE copy. All six embedded font binaries matched archived OpenType files by SHA-256. Chromium reported identical loaded faces and text bounds for the sampled strings in those regions. Applying the source's font-smoothing declaration changed zero pixels in the local Chromium run. The sealed source reproduces the same intermediate desktop overflow and header clipping under its 1280 px minimum width. The strict responsive gate remains failed at 1200, 1025 and 1024 px. The full page remains uncompleted and unpublished. This checkpoint used zero paid model calls.
 
+### v0.12.68 matched Full Page rasterization
+
+Lossless replays of the 375 px archive identified RGB subpixel text rasterization as the primary visual difference. With LCD text disabled in the source replay, sampled Neighborhood and SIP & DINE crops differed from the native draft by zero and one pixel, respectively. History event 25794 records the initial two-run diagnostic.
+
+Full Page QA retries a failed visual comparison only when the verified archive contains recorded responses. It first reproduces the original full-height and first-fold screenshots against the existing strict thresholds. The capture service must then observe the same content, links and section geometry under the versioned raster profile. The renderer must attest to that profile, retain the review build, and reproduce the native geometry, links and browser checks. QA records the two comparisons, state and screenshot hashes, archive identity and renderer build. Missing or drifting evidence leaves the original QA result in place.
+
+The ordinary source replay had 0% pixel difference at every width for both screenshot extents. The verified raster comparison measured 0.022%, 0.601% and 0.363% full-height difference at 1440, 768 and 375 px, for a 0.329% mean. First-fold differences measured 0.138%, 0.003% and 0.002%. Both visual checks passed using the existing thresholds. The original draft retained its content and all 16 placements. Full Page remains uncompleted because the responsive desktop check still fails. This checkpoint used zero paid model calls.
+
 ### SIP & DINE alignment checkpoint, v0.12.42
 
 The archived Pattern 79 omitted alignment on its outer Core Group. The Twenty Twenty-Five Page template constrained it to 645 px in a 1440 px viewport and to 315 px at 375 px. Fresh measurements of the approved Designer reference selected Full width. Recompiling the retained plan produced private unsynced Pattern 120 and preserved all 68 blocks and their inner layouts.

@@ -77,6 +77,26 @@ test('runtime handshake and viewport request validation happen before Chromium',
     assert.deepEqual(JSON.parse(raw).evidence.map(item => item.width), [375,1680,820]);
 });
 
+test('matched rasterization only accepts its fixed profile on full-page inspections', async t => {
+    const calls = [];
+    const url = await serve(t, async (_html, widths, _signal, options) => {
+        calls.push(options);
+        return widths.map(width => ({ width }));
+    });
+    const profile = 'grayscale-text-v1';
+    const post = (route, options) => fetch(url + route, { method:'POST',headers:auth,
+        body:JSON.stringify({html:'<main>Fixture</main>',viewports:[375],rasterProfile:profile,...options}) });
+    for (const [route, options] of [['/render',{extent:'page'}], ['/inspect',{extent:'section'}],
+        ['/inspect',{extent:'page',rasterProfile:'arbitrary'}], ['/inspect',{extent:'page',sourceFrames:{375:0}}]]) {
+        const response = await post(route, options);
+        assert.equal(response.status, 400);
+        assert.deepEqual(await response.json(), {error:'invalid_raster_profile'});
+    }
+    assert.equal(calls.length, 0);
+    assert.equal((await post('/inspect',{extent:'page-fold'})).status, 200);
+    assert.equal(calls[0].rasterProfile, profile);
+});
+
 test('Recorded Header rejects missing or mismatched source screenshots before launching Chromium', async t => {
     let launches = 0;
     const url = await serve(t, async (_html, widths) => {

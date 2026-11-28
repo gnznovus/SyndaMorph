@@ -1,7 +1,7 @@
 'use strict';
 const http = require('node:http');
 const { timingSafeEqual } = require('node:crypto');
-const { capture, captureResponsive } = require('./capture');
+const { capture, captureResponsive, replayFullPageRaster } = require('./capture');
 const { productionSource } = require('./production-source');
 const { captureOwnedRegion, captureSettledPair, captureCompactGuarantee, captureCompactBooking, replayDesktopOffer } = require('./responsive-capture');
 const { replayRecordedFooter } = require('./recorded-footer');
@@ -48,6 +48,18 @@ http.createServer(async (req, res) => {
         if(req.url==='/production-touch'){
             if(!referenceEnabled())return respond(res,503,{ error:'Touch requires a verified source archive.' });
             if(responsiveInProgress)return respond(res,429,{ error:'Responsive capture is already running.' });
+            if(input.kind==='full-page-raster'){
+                if(typeof input.archiveId!=='string'||!/^[a-f0-9]{64}$/.test(input.archiveId)||
+                    ![1440,768,375].includes(input.width))
+                    return respond(res,400,{error:'Invalid full-page replay identity.'});
+                responsiveInProgress=true;
+                try {
+                    const pinned=await readReference(input.archiveId,input.width);
+                    const replay=await replayFullPageRaster(pinned,input.width);
+                    return replay ? respond(res,200,{archiveId:input.archiveId,...replay}) :
+                        respond(res,422,{error:'Full-page replay could not verify both capture profiles.'});
+                } finally { responsiveInProgress=false; }
+            }
             const disclosure=input.kind==='disclosure-group';
             const imageStrip=input.kind==='single-image-strip';
             const linkedImage=input.kind==='linked-image';

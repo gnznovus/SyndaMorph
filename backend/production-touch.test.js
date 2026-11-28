@@ -19,6 +19,27 @@ test('Touch actions are limited to server target identities and bounded gestures
         [{type:'drag',target:'a'.repeat(24),dx:12}]);
 });
 
+test('matched full-page raster evidence comes from two sealed replays at the same width',{
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const {replayFullPageRaster}=require('./capture');
+    const sourceUrl='https://'+process.env.SYNDAMORPH_CAPTURE_HOSTS.split(',')[0].trim()+'/';
+    const reference={sourceUrl,copySha256:'a'.repeat(64),runtime:new Map()};
+    assert.equal(await replayFullPageRaster(reference,375),null);
+    reference.runtime.set('GET '+sourceUrl,{status:200,headers:{'content-type':'text/html; charset=utf-8'},
+        body:Buffer.from('<!doctype html><style>body{margin:0;background:white}main{height:1300px;display:flow-root}</style>'+
+            '<main><h1>Recorded page</h1><p>First visible paragraph of the recorded page.</p>'+
+            '<p>Second test paragraph.</p><p>Third test paragraph.</p></main>')});
+    const replay=await replayFullPageRaster(reference,375);
+    assert.equal(replay.profile,'grayscale-text-v1');
+    assert.equal(replay.width,375);
+    assert.equal(replay.height,1300);
+    assert.equal(replay.copySha256,reference.copySha256);
+    assert.match(replay.stateSha256,/^[a-f0-9]{64}$/);
+    for(const frames of [replay.original,replay.matched])for(const image of [frames.whole,frames.fold])
+        assert.ok(image.startsWith('/9j/') && image.length<=400000);
+});
+
 test('fresh discovery waits for the visible hero entrance and leaves infinite animation alone',{
     skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
 },async()=>{

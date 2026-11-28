@@ -12,7 +12,7 @@ const { validFirstFold } = require('./check-first-fold');
 const { validFooterFrames } = require('./check-footer');
 const { validNewsletterFrames } = require('./check-newsletter');
 const { PROTOCOL, DEFAULT_VIEWPORTS, MAX_RESPONSE, MAX_COMPARE_REQUEST,
-    MAX_SCREENSHOT, RendererError, validViewports } = require('./inspection-contract');
+    MAX_SCREENSHOT, PAGE_RASTER_PROFILE, RendererError, validViewports } = require('./inspection-contract');
 
 const MAX_HTML = 2 * 1024 * 1024;
 const MAX_JSON_REQUEST = MAX_HTML + 1024;
@@ -95,6 +95,7 @@ function runBrowserWorker(html, viewports, signal, options = {}) {
         });
         child.stdin.on('error', () => {});
         child.stdin.end(JSON.stringify({ html, inspect, viewports, extent:options.extent,sourceFrames:options.sourceFrames,
+            rasterProfile:options.rasterProfile,
             compactBooking:options.compactBooking,header:options.header,offer:options.offer,firstFold:options.firstFold,
             footer:options.footer,newsletter:options.newsletter,
             tabsRuntime:options.tabsRuntime,scrollStrips:options.scrollStrips,disclosures:options.disclosures,imageStrip:options.imageStrip,
@@ -165,6 +166,10 @@ function createRendererServer(render = runBrowserWorker, token = process.env.SYN
                 req.url === '/crop' ? 4 * MAX_SCREENSHOT + 4096 : MAX_JSON_REQUEST;
             const body = await readBody(req, limit);
             if (!body || typeof body !== 'object' || Array.isArray(body)) throw new RendererError('invalid_request_json', 400);
+            const rasterProfile = body.rasterProfile;
+            if (rasterProfile !== undefined && (req.url !== '/inspect' || rasterProfile !== PAGE_RASTER_PROFILE ||
+                !['page', 'page-fold'].includes(body.extent) || body.sourceFrames !== undefined))
+                throw new RendererError('invalid_raster_profile', 400);
             if (req.url === '/crop') return reply(200, { images: cropScreenshots(body.items) });
             if (req.url === '/compare') return reply(200,{ comparison:compareScreenshots(
                 body.reference,body.native,body.fitExtent===true,body.includeOverlay===true,body.localize===true) });
@@ -228,7 +233,7 @@ function createRendererServer(render = runBrowserWorker, token = process.env.SYN
             if(frames!==undefined&&(body.extent!=='section'||!frames||typeof frames!=='object'||Array.isArray(frames)||
                 Object.keys(frames).length!==viewports.length||viewports.some(width=>!Number.isFinite(frames[width])||
                     frames[width]<0||frames[width]>36000)))throw new RendererError('source_frame_unavailable',422);
-            reply(200, { evidence: await render(body.html, viewports, controller.signal, { extent: body.extent,sourceFrames:frames }) });
+            reply(200, { evidence: await render(body.html, viewports, controller.signal, { extent: body.extent,sourceFrames:frames,rasterProfile }) });
         } catch (error) {
             const known = error instanceof RendererError;
             // Only server-owned categories cross the response boundary.

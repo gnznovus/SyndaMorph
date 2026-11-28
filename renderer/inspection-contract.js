@@ -4,6 +4,7 @@ const PROTOCOL = 2;
 const DEFAULT_VIEWPORTS = [1440, 768, 375];
 const MAX_VIEWPORTS = 5;
 const HEIGHT = 900;
+const PAGE_RASTER_PROFILE = 'grayscale-text-v1';
 // 300,000 JPEG bytes become at most 400,000 base64 bytes. Reserve a
 // separate per-view allowance for serialized DOM and accessibility data.
 const MAX_JPEG = 300000;
@@ -25,5 +26,5 @@ function validViewports(widths) {
         new Set(widths).size === widths.length && widths.every(width => Number.isInteger(width) && width >= 320 && width <= 1920);
 }
 
-module.exports = { PROTOCOL, DEFAULT_VIEWPORTS, HEIGHT, MAX_JPEG, MAX_SCREENSHOT, MAX_METADATA,
+module.exports = { PROTOCOL, DEFAULT_VIEWPORTS, HEIGHT, PAGE_RASTER_PROFILE, MAX_JPEG, MAX_SCREENSHOT, MAX_METADATA,
     MAX_RESPONSE, MAX_COMPARE_REQUEST, RendererError, validViewports };

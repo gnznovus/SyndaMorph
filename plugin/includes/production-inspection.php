@@ -193,8 +193,10 @@ function syndamorph_inspection_ready(array $viewports) {
     });
 }
 
+const SYNDAMORPH_PAGE_RASTER_PROFILE = 'grayscale-text-v1';
+
 function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,375),?string &$rendererBuild=null,
-    ?string $extent=null,?array $sourceFrames=null) {
+    ?string $extent=null,?array $sourceFrames=null,?string $rasterProfile=null) {
     $endpoint=syndamorph_inspection_endpoint();
     if(is_wp_error($endpoint))return $endpoint;
     $htmlLimit=in_array($extent,array('page','page-fold'),true)?2*1024*1024:120000;
@@ -202,6 +204,8 @@ function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,
         count(array_filter($viewports,static fn($width)=>is_int($width)&&$width>=320&&$width<=1920))!==count($viewports)||
         count(array_unique($viewports))!==count($viewports))
         return syndamorph_inspection_failure('request_invalid');
+    if($rasterProfile!==null&&($rasterProfile!==SYNDAMORPH_PAGE_RASTER_PROFILE||$sourceFrames!==null||
+        !in_array($extent,array('page','page-fold'),true)))return syndamorph_inspection_failure('request_invalid');
     if($sourceFrames!==null&&($extent!=='section'||array_diff($viewports,array_keys($sourceFrames))||
         count($sourceFrames)!==count($viewports)||array_filter($sourceFrames,static fn($top)=>
             (!is_int($top)&&!is_float($top))||!is_finite($top)||$top<0||$top>36000)))
@@ -210,7 +214,7 @@ function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,
         $evidence=array();$build=null;
         foreach(array_chunk($viewports,5) as $batch) {
             $batchFrames=$sourceFrames===null?null:array_intersect_key($sourceFrames,array_flip($batch));
-            $samples=syndamorph_collab_inspect($html,$batch,$batchBuild,$extent,$batchFrames);
+            $samples=syndamorph_collab_inspect($html,$batch,$batchBuild,$extent,$batchFrames,$rasterProfile);
             if(is_wp_error($samples))return $samples;
             if($build!==null && $build!==$batchBuild)
                 return syndamorph_inspection_failure('protocol_mismatch',array('expectedWidths'=>$viewports,
@@ -239,6 +243,7 @@ function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,
         $requests[]=$missing;
         $payload=wp_json_encode(array('html'=>$frame['html'],'viewports'=>$missing,'inspectionProtocol'=>SYNDAMORPH_INSPECTION_PROTOCOL)
             +($extent===null?array():array('extent'=>$extent))+
+            ($rasterProfile===null?array():array('rasterProfile'=>$rasterProfile))+
             ($sourceFrames===null?array():array('sourceFrames'=>array_intersect_key($sourceFrames,array_flip($missing)))),
             JSON_UNESCAPED_SLASHES);
         if(!is_string($payload))return syndamorph_inspection_failure('request_invalid');
@@ -277,6 +282,8 @@ function syndamorph_collab_inspect(string $html,array $viewports=array(1440,768,
         $missingFrames=false;
         foreach($result['evidence'] as $sample){
             $width=$sample['width'];
+            if(($sample['rasterProfile']??null)!==$rasterProfile)
+                return syndamorph_inspection_failure('protocol_mismatch',$details+array('viewport'=>$width));
             if($sourceFrames!==null){
                 if(!array_key_exists('sourceFrame',$sample)){
                     $missingFrames=true;
