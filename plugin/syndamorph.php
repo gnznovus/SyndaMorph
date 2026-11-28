@@ -27,6 +27,7 @@ require_once __DIR__ . '/includes/production-header.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/gateway-admin.php';
 require_once __DIR__ . '/includes/transport-status.php';
 require_once __DIR__ . '/includes/production-overview.php';
+require_once __DIR__ . '/includes/ai-provider-budget.php';
 
 /**
  * The legacy Source Importer screen has been retired. Keep the converter and
