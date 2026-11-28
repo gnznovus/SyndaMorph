@@ -291,7 +291,7 @@ function syndamorph_team_render_tab(): void {
 }
 
 add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
-    if ( 'tools_page_syndamorph' !== $hook || ! current_user_can( 'manage_options' ) ) { return; }
+    if ( 'toplevel_page_syndamorph' !== $hook || ! current_user_can( 'manage_options' ) ) { return; }
     $tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
     if ( 'ai' === $tab ) { return; }
     wp_enqueue_style( 'syndamorph-operations', plugin_dir_url( __DIR__ ) . 'assets/operations-dashboard.css', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/operations-dashboard.css' ) );
