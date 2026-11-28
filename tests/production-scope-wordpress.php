@@ -457,6 +457,7 @@ if($phase==='setup') {
         'Incomplete evidence, a different style target, or an actual captured link permitted a revision.');
     $hostJob=scope_ok(syndamorph_history_create('GEN','Offline host QA checkpoint',array()));
     $hostArtifact=$fixtures[$keys[0]]['artifact'];
+    $hostArtifact['contentSha256']=hash('sha256',$hostArtifact['content']);
     $hostArchive=array('status'=>'completed','artifact'=>$hostArtifact,
         'quality'=>array('viewportWidths'=>SYNDAMORPH_SOURCE_WIDTHS),
         'designApproval'=>array('productionSpecification'=>array('requirements'=>array(
