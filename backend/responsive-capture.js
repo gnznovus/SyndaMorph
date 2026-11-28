@@ -418,6 +418,70 @@ async function captureCompactBooking(page, sections, diagnostics, {width,sourceR
     return {...receipt,present:true,copy,pinnedSha256,scrollPositions,controls:0,localActions:'inert'};
 }
 
+async function replayDesktopOffer(page,sections,diagnostics,{width,sourceRef,pinnedSha256,copySha256,dismissLabel},sealNetwork) {
+    const unknown=reason=>({version:1,width,sourceRef,status:'unknown',reason});
+    const copy=await inspectTouch(page,{width,actions:[],copySha256},sealNetwork);
+    if(copy.status!=='observed'||sealNetwork().length)return unknown('source_copy_changed');
+    const card=page.locator(sourceRef).filter({visible:true});
+    const dismissers=page.getByRole('button',{name:dismissLabel,exact:true});
+    const receipt={version:1,width,sourceRef,status:'observed',sourceCopySha256:copySha256,blockedRequestCount:0};
+    if(width!==1440){
+        return await card.count()===0&&await dismissers.count()===0?
+            {...receipt,present:false}:unknown('compact_offer_present');
+    }
+    const target=sections.find(row=>row.kind==='overlay'&&row.sourceRef===sourceRef);
+    const verified=copy.initial.targets.filter(item=>item.name===dismissLabel&&item.permitsClick&&!item.destination);
+    if(!target?.geometryAvailable||await card.count()!==1||await dismissers.count()!==1||
+        verified.length!==1||!await dismissers.evaluate((button,selector)=>button===document.querySelector(selector),
+            verified[0].selector)||!await card.evaluate((el,selector)=>el.contains(document.querySelector(selector)),
+            verified[0].selector))return unknown('offer_target_unverified');
+    const closed=await captureResponsiveViewport(page,sections.filter(section=>section.kind==='overlay'),width,diagnostics);
+    const screenshot=closed.sections.find(section=>section.sourceRef===sourceRef)?.screenshot;
+    if(!screenshot||createHash('sha256').update(Buffer.from(screenshot,'base64')).digest('hex')!==pinnedSha256)
+        return unknown('pinned_offer_changed');
+    const facts=await card.evaluate(el=>{
+        const {x,y,width,height}=el.getBoundingClientRect();
+        const [image,content]=el.children;
+        const clean=node=>node.innerText.replace(/\s+/gu,' ').trim();
+        const interactive='a,button,input,select,textarea,form,[role],[tabindex],[contenteditable],[onclick]';
+        if(el.children.length!==2||content.children.length!==5||el.querySelector('img,video,iframe,svg')||
+            el.closest('a,form')||image.getBoundingClientRect().width!==320||
+            image.getBoundingClientRect().height!==400||getComputedStyle(el).position!=='absolute')return null;
+        const [eyebrow,title,description,label,dismiss]=content.children;
+        if([image,eyebrow,title,description,label].some(node=>node.matches(interactive)||node.querySelector(interactive))||
+            dismiss.getAttribute('role')!=='button'&&dismiss.tagName!=='BUTTON')return null;
+        const shade=document.elementFromPoint(5,5);
+        const shadeBox=shade?.getBoundingClientRect();
+        if(!shadeBox||shadeBox.x!==0||shadeBox.y!==0||shadeBox.width!==innerWidth||
+            shadeBox.height<document.documentElement.scrollHeight-1||shade.closest(interactive)||
+            getComputedStyle(shade).backgroundColor!=='rgba(17, 17, 17, 0.55)')return null;
+        return {clip:{x,y,width,height:Math.ceil(height)},copy:{
+            placeholder:clean(image),eyebrow:eyebrow.textContent.replace(/\s+/gu,' ').trim(),title:clean(title),description:clean(description),
+            offerLabel:clean(label),dismissLabel:clean(dismiss)
+        },shade:'document'};
+    });
+    if(!facts||facts.clip.x!==380||facts.clip.y!==200||facts.clip.width!==680||facts.clip.height!==411||
+        facts.copy.dismissLabel!==dismissLabel||Object.values(facts.copy).some(value=>!value||value.length>240))
+        return unknown('unsupported_offer_shape');
+    const url=page.url();
+    const markup=await card.innerHTML();
+    const shot=(await page.screenshot({type:'jpeg',quality:75,clip:facts.clip,timeout:3000})).toString('base64');
+    const holds=async()=>page.url()===url&&await card.count()===1&&await card.innerHTML()===markup&&sealNetwork().length===0;
+    const label=card.getByText(facts.copy.offerLabel,{exact:true});
+    if(await label.count()!==1)return unknown('offer_label_ambiguous');
+    await label.click({timeout:2000});
+    if(!await holds())return unknown('offer_label_action_observed');
+    await page.mouse.click(5,5);
+    if(!await holds())return unknown('offer_shade_action_observed');
+    await page.keyboard.press('Escape');
+    if(!await holds())return unknown('offer_escape_action_observed');
+    await dismissers.click({timeout:2000});
+    await card.waitFor({state:'hidden',timeout:2000});
+    if(page.url()!==url||sealNetwork().length)return unknown('offer_dismissal_unverified');
+    return {...receipt,present:true,pinnedSha256,...facts,screenshot:shot,dismissal:'pointer',
+        labelKeepsOpen:true,shadeKeepsOpen:true,escapeKeepsOpen:true};
+}
+
 async function captureResponsiveViewport(page, sections, width, diagnostics, describeSource = null) {
     const session = await page.context().newCDPSession(page);
     try {
@@ -509,5 +573,5 @@ function reconcileResponsive(url, views) {
     return regions;
 }
 
-module.exports = { VIEWPORTS, settleEntrancePaint, captureResponsiveViewport, captureOwnedRegion, captureSettledPair,
+module.exports = { VIEWPORTS, settleEntrancePaint, captureResponsiveViewport, captureOwnedRegion, captureSettledPair, replayDesktopOffer,
     captureCompactGuarantee, captureCompactBooking, reconcileResponsive };

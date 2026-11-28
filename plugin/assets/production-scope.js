@@ -202,6 +202,12 @@
                     if (!row.patternId) await finishRegion(row.id);
                 }));
             }
+            if (row.desktopOfferReplayAvailable && ['blocked','uncompleted'].includes(row.status)) {
+                entry.append(button('Verify archived desktop offer', async () => {
+                    manifest = await request(url(), {action:'stage_desktop_offer',region:row.id});
+                    if (!row.patternId) await finishRegion(row.id);
+                }));
+            }
             if (row.checkpointAvailable) entry.append(button('Recheck browser', () => recheck(row)));
             if (checkpoint && manifest.costBounded &&
                 Number(manifest.spentUsd) + Number(manifest.unmeteredReserveUsd) < budget() * 0.8) {
@@ -254,7 +260,8 @@
         const candidate = await request(url(), null, {region: id});
         if (!candidate.eligible) throw new Error('This section is still pending source or production QA.');
         if (candidate.assetKind || candidate.verifiedLayout) {
-            const count = window.SyndaMorphAIExport.validateNative(candidate.content, 200, candidate.verifiedLayout === 'recordedHeader');
+            const count = window.SyndaMorphAIExport.validateNative(candidate.content, 200,
+                ['recordedHeader','desktopOffer'].includes(candidate.verifiedLayout));
             manifest = await request(url(), {action:'save_pattern',region:id,checksum:candidate.checksum,blockCount:count,valid:true});
             return;
         }

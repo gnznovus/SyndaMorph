@@ -26,7 +26,7 @@ test('renderer authenticates every job before parsing or running Chromium', asyn
     let launches = 0;
     const url = await serve(t, async () => { launches++; return []; });
     const routes = ['render','inspect','compare','crop','check-tabs','check-scroll-strips','check-disclosures',
-        'check-image-strip','check-reveal-cards','check-rooms','check-compact-booking','check-header'];
+        'check-image-strip','check-reveal-cards','check-rooms','check-compact-booking','check-header','check-offer'];
     for (const path of routes) {
         for (const headers of [{}, {'x-syndamorph-renderer-token': 'x'.repeat(token.length)}]) {
             const refused = await fetch(url + '/' + path, { method: 'POST', headers, body: 'not JSON' });
@@ -94,6 +94,18 @@ test('Recorded Header rejects missing or mismatched source screenshots before la
     }
     assert.equal(launches,0);
     assert.equal((await post([1024,1023],{})).status,200);
+    assert.equal(launches,1);
+});
+
+test('Desktop Offer requires its pinned state only on the observed desktop viewport', async t => {
+    let launches=0;
+    const url=await serve(t,async (_html,widths)=>{launches++;return widths.map(width=>({width}));});
+    const post=(viewports,frame)=>fetch(url+'/check-offer',{method:'POST',headers:auth,
+        body:JSON.stringify({html:'<section>Offer fixture</section>',runtime:'void 0;',viewports,frame})});
+    assert.equal((await post([1440],null)).status,400);
+    assert.equal((await post([375],'/9j/')).status,400);
+    assert.equal(launches,0);
+    assert.equal((await post([1023,375],null)).status,200);
     assert.equal(launches,1);
 });
 

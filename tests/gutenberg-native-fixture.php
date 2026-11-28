@@ -35,6 +35,10 @@ $offerEntrance='<!-- wp:group {"className":"sm-offer-entrance","layout":{"type":
 $offerPost=wp_insert_post(array('post_type'=>'page','post_status'=>'draft','post_title'=>'Desktop Offer fixture',
     'post_content'=>wp_slash($offerBlock."\n\n".$offerEntrance)),true);
 if(is_wp_error($offerPost)||!$offerPost){http_response_code(500);exit('Desktop Offer draft was not created');}
+if(syndamorph_scope_block_count(parse_blocks($offerBlock))!==1||
+    syndamorph_scope_block_count(parse_blocks($offerBlock."\n\n".$offerBlock))!==-1){
+    http_response_code(500);exit('Full Page Desktop Offer identity was not enforced.');
+}
 $headerPost=0;$scopeHeaderPost=0;
 if(function_exists('register_block_template')&&wp_is_block_theme()){
     $uploaded=array();
@@ -215,6 +219,7 @@ if(is_wp_error($artifact)){http_response_code(500);exit($artifact->get_error_mes
 header('Content-Type: text/html; charset=utf-8');
 ?><!doctype html><html><head><meta charset="utf-8"><?php
 wp_enqueue_script('wp-block-library');
-wp_print_scripts(array('wp-block-library','syndamorph-tabs-editor','syndamorph-header-editor'));
+wp_print_scripts(array('wp-block-library','syndamorph-tabs-editor','syndamorph-header-editor','syndamorph-offer-editor'));
 printf('<script>window.nativeScopeHeader=%s;</script>',wp_json_encode($scopeContent??'',JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT));
+printf('<script>window.nativeScopeOffer=%s;</script>',wp_json_encode($offerBlock,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT));
 ?></head><body><script src="/wp-content/plugins/syndamorph/assets/production-ai-export.js"></script><script>window.nativeFixture=<?php echo wp_json_encode($artifact,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeFixtures=<?php echo wp_json_encode($fixtures,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeParity=<?php echo wp_json_encode($parity,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.tabsPost=<?php echo (int)($tabsPost->ID??0); ?>;window.tabsContent=<?php echo wp_json_encode($tabsPost->post_content??'',JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeAlignments=<?php echo wp_json_encode($alignments,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.bookingPost=<?php echo (int)get_option('syndamorph_test_booking_post',0); ?>;window.offerPost=<?php echo (int)$offerPost; ?>;window.headerPost=<?php echo (int)$headerPost; ?>;window.scopeHeaderPost=<?php echo (int)$scopeHeaderPost; ?>;</script></body></html>

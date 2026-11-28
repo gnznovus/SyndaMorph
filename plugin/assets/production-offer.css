@@ -25,6 +25,15 @@
     background: rgb(17 17 17 / 55%);
 }
 
+@media (width >= 1024px) {
+    #syndamorph-page:has(> .sm-offer) {
+        display: flow-root;
+        position: relative;
+        min-height: 100vh;
+    }
+    #syndamorph-page > .sm-offer .sm-offer-shade { position: absolute; }
+}
+
 .sm-offer .sm-offer-card {
     position: absolute;
     top: calc(200px - var(--sm-offer-origin-y, 0px));

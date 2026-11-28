@@ -24,7 +24,7 @@
         if (!response.ok) throw new Error(result.message || 'Save failed (HTTP '+response.status+').');
         return result;
     }
-    function validateNative(content, limit = 200, recordedHeader = false) {
+    function validateNative(content, limit = 200, recordedComponents = false) {
         const api=window.wp?.blocks;
         if (!api || typeof api.parse!=='function' || typeof api.getBlockType!=='function' || typeof api.validateBlock!=='function')
             throw new Error('WordPress block validation API unavailable. Cannot verify native Gutenberg content.');
@@ -38,17 +38,18 @@
         if(missing.length)throw new Error('Gutenberg registry incomplete: '+missing.join(', '));
         const parsed=api.parse(content);
         if (!Array.isArray(parsed) || !parsed.length) throw new Error('Gutenberg parser returned no native blocks.');
-        let count=0, seenHeader=false;
+        let count=0;
+        const seen=new Set();
         function visit(blocks, root = false) {
             for(const block of blocks) {
                 count++;
-                const header=block?.name==='syndamorph/recorded-header';
-                const verifiedHeader=header&&recordedHeader&&root&&!seenHeader&&!block.innerBlocks?.length&&
-                    /^[a-f0-9]{64}$/.test(block.attributes?.logoSha256 ?? '');
-                const supported = block?.name?.startsWith('core/') || block?.name === 'syndamorph/tabs' || verifiedHeader;
+                const recorded=recordedComponents&&root&&!seen.has(block?.name)&&!block.innerBlocks?.length&&(
+                    (block?.name==='syndamorph/recorded-header'&&/^[a-f0-9]{64}$/.test(block.attributes?.logoSha256 ?? ''))||
+                    (block?.name==='syndamorph/desktop-offer'&&typeof block.attributes?.copy?.dismissLabel==='string'));
+                const supported = block?.name?.startsWith('core/') || block?.name === 'syndamorph/tabs' || recorded;
                 if (count>limit || !supported || !api.getBlockType(block.name))
                     throw new Error('Unknown or unsupported Gutenberg block.');
-                if(verifiedHeader)seenHeader=true;
+                if(recorded)seen.add(block.name);
                 const check=api.validateBlock(block);
                 const valid=Array.isArray(check) ? check[0] === true : check?.isValid === true;
                 if(!valid || block.isValid===false) throw new Error('Gutenberg serialization invalid for '+block.name+' (block '+count+'). Inspect console for expected and actual save markup.');

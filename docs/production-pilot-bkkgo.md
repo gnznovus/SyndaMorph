@@ -10,7 +10,7 @@ Playwright Chromium waited for rendered visible content and document fonts at 14
 | --- | --- | --- | --- |
 | Navigation | Site header with navigation and rate CTA | Compact header with Book and menu | Verified private Recorded Header Pattern with the pinned logo, measured menu states and original destinations. |
 | Hero and booking | Hotel hero with an overlapping booking bar | Hero with booking controls, a Best Rate Guarantee panel and a sticky booking bar | Discovery only. Booking needs action, state and responsive-placement verification. |
-| Offer overlay | Separate SPECIAL OFFER overlay | Absent in captured initial state | Dismissal verified in Chromium. It needs its own lifecycle and accessibility checks. |
+| Offer overlay | Separate SPECIAL OFFER overlay | Absent in captured initial state | Verified private Desktop Offer Pattern with local dismissal and measured compact absence. |
 | Introductory story | Live Thonglor's rhythm ? | Headline moves into the hero and the separate prose is absent | Discovery only. Responsive copy varies by template. |
 | Our story | OUR STORY | OUR STORY | Verified Core Pattern with the original desktop illustration and exact link. |
 | Offers | EXCLUSIVE OFFERS | EXCLUSIVE OFFERS | Discovery only. Visible content differs by template. |
@@ -78,8 +78,8 @@ The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593
 
 - **Discovery** has browser screenshots and visible inventories for 12 of 16 regions at every required width. Four regions have a variant gap. Separate runtime observations are needed before claiming complete behavioral understanding of each interactive region.
 - **Conversion eligibility** is 3 of 16 with v0.12.18. The original preflight overlooked two scroll strips and the corrected v0.12.15 replay held both, leaving 1 of 16. The exact archived controls now qualify under the native scroll-strip contract. A run still requires recorded movement at every active width before Bossy planning.
-- **Current conversion eligibility** is 11 of 16 with v0.12.61. Verified archive replay now binds the site header and its native interaction, alongside the earlier compact guarantee and fixed booking strip.
-- **Acceptance** is 11 of 16 as of v0.12.61. REF-000030 has verified the site header, compact guarantee, compact booking strip, Our Story, Exclusive Offers, Rooms, SIP & DINE, Neighborhood, Through Our Lens, FAQ and brand strip. The original unpublished partial draft has 422 editor-verified blocks at source positions 1, 5, 6, 7, 8, 9, 10, 11, 12, 14 and 15. Whole-page acceptance remains pending.
+- **Current conversion eligibility** is 12 of 16 with v0.12.62. Recorded replay now also binds the desktop-only offer, its six editable fields, and its local dismissal.
+- **Acceptance** is 12 of 16 as of v0.12.62. REF-000030 has verified the site header, desktop offer, compact guarantee, compact booking strip, Our Story, Exclusive Offers, Rooms, SIP & DINE, Neighborhood, Through Our Lens, FAQ and brand strip. The original unpublished partial draft has 423 editor-verified blocks at source positions 1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 14 and 15. Whole-page acceptance remains pending.
 
 ### Responsive intro source checkpoint, v0.12.43
 
@@ -174,6 +174,14 @@ Production Setup binds the sticky header to source checkpoint 12132 and verifies
 The authenticated renderer verified closed and open states, exact navigation and responsive geometry at eight widths. The closed crops measured 0.097%, 0.043% and 0.015% differing pixels at 1440, 768 and 375 px. All desktop panel crops and compact drawer screens measured 0% differing pixels. Changed source crops, missing state screenshots, unauthorized probes and an incorrect Gutenberg block count were rejected.
 
 History events 23376 and 23382 retain the recorded source and independent QA. Private unsynced Pattern 223 was saved and placed first in draft 66. Separate editor draft 224 returned to the exact Pattern bytes after edit, save, reload and restoration, recorded in event 23388. The original ten placements and their content hashes were preserved. Draft 66 has SHA-256 `8f51c6cf5f062c34a72e39ba6750c9773b964b4ed24e44bf5d0714a36c042b65` and 422 verified blocks. Hero, offer, relocated intro, newsletter and footer still need placement. Whole-page QA remains pending. No model calls were made.
+
+### v0.12.62 Desktop Offer production binding and placement
+
+Source checkpoint 12134 and History event 25739 bind the desktop overlay to its original crop and literal copy. Its promotional label, document scrim and Escape leave it open. The observed pointer dismissal sends no requests. The 768 and 375 px source replays confirm the overlay's absence.
+
+Independent authenticated renderer QA checked the card, document-height scrim, local dismissal, and the existing hero lead visibility contract. The isolated card measured 0.243% differing pixels at 1440 px. All ten responsive widths passed, including 1024 and 1023 px. The native button also supports Enter and Space with visible keyboard focus. A changed pinned crop, interactive promotional label, unauthenticated renderer request and incorrect Gutenberg block count were rejected.
+
+Private unsynced Pattern 228 was placed at source position 3 in draft 66. The separate edit-test draft 229 returned to the exact Pattern bytes after save, reload and restoration. History events 25743 and 25749 retain independent QA and the exact round-trip. The assembled draft preserved the eleven prior Patterns and has 423 validated blocks and SHA-256 `0ee1a4942dd95fc8d908648e6e363fbf48b4db874a6ecfe45e475b65b9f60bd7`. The assembled preview repeated desktop visibility, compact absence and dismissal with zero requests. Hero, relocated intro, newsletter, footer and whole-page QA remain pending. No model calls were made.
 
 History event 23342 binds draft 184 and its saved content SHA-256 `ed7bda9ee638f5b7850c01c87246a01efc2c7bb1bc93529c2368debbda2caa6e` to the native test. Event 23343 records compact source evidence against checkpoints 12136 and 12137.
 

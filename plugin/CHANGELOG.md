@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.62] - 2026-11-28
+
+### Added
+
+- Full Page Production can recover the recorded Desktop Offer, verify compact absence and the original local dismissal, and save its editable block as a private unsynced Pattern. The assembled canvas preserves the original document-height scrim.
+
+### Verified
+
+- REF-000030 placed the Desktop Offer in the original unpublished draft. Its desktop card measured 0.243% differing pixels and the native behavior passed ten viewport checks. The draft has 423 verified blocks across 12 of 16 regions. Whole-page QA remains pending. No model calls were made.
+
 ## [0.12.61] - 2026-11-28
 
 ### Added

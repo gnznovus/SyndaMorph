@@ -111,6 +111,46 @@ test('compact booking verifies the pinned fixed strip and rejects an observed la
     }finally{await browser.close();}
 });
 
+test('desktop offer archive verifies crop, compact absence and local dismissal only',{
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const {replayDesktopOffer}=require('./responsive-capture');
+    const browser=await chromium.launch();
+    try{
+        const width=1440,sourceRef='div[id="offer"]',dismissLabel='Continue to website';
+        const page=await browser.newPage({viewport:{width,height:900}});
+        const html='<style>body{margin:0;min-height:3900px}#shade{position:absolute;inset:0;height:3900px;'+
+            'background:rgba(17,17,17,.55)}#offer{position:absolute;top:200px;left:380px;width:680px;height:410.45px;'+
+            'background:white;display:grid;grid-template-columns:320px 360px}#offer>div:first-child{width:320px;height:400px}'+
+            '@media(max-width:1023px){#shade,#offer{display:none}}</style>'+
+            '<div id="shade"></div><div id="offer"><div>4:5</div><div><div>Special offer</div><div>Stay More, Save More</div>'+
+            '<p>Offer description</p><span id="promo">View offer</span><button type="button" id="dismiss">Continue to website</button>'+
+            '</div></div><script>dismiss.addEventListener("click",()=>{offer.remove();shade.remove()});</script>';
+        const sections=[{kind:'overlay',geometryAvailable:true,sourceRef,bounds:{x:380,y:200,width:680,height:410.45}}];
+        const diagnostics={contentReady:true};
+        const sha=value=>createHash('sha256').update(value).digest('hex');
+        const request=async width=>{
+            const copySha256=sha((await page.locator('body').innerText()).replace(/\s+/gu,' ').trim());
+            const pin=width===1440?await captureResponsiveViewport(page,sections,width,diagnostics):null;
+            return {width,sourceRef,dismissLabel,copySha256,
+                pinnedSha256:pin?sha(Buffer.from(pin.sections[0].screenshot,'base64')):null};
+        };
+        const run=input=>replayDesktopOffer(page,sections,diagnostics,input,()=>[]);
+        await page.setContent(html);
+        const pinned=await request(width);
+        assert.equal((await run({...pinned,pinnedSha256:'0'.repeat(64)})).reason,'pinned_offer_changed');
+        const accepted=await run(pinned);
+        assert.equal(accepted.status,'observed',accepted.reason);
+        assert.equal(accepted.dismissal,'pointer');
+        assert.equal(await page.locator('#offer').count(),0);
+        await page.setContent(html);
+        await page.evaluate(()=>document.querySelector('#promo').addEventListener('click',event=>{event.target.textContent='Changed';}));
+        assert.equal((await run(await request(width))).reason,'offer_label_action_observed');
+        await page.setViewportSize({width:375,height:900});
+        assert.equal((await run(await request(375))).present,false);
+    }finally{await browser.close();}
+});
+
 test('a settled pair replays only the pinned local dismissal and reproduces the original crop',{
     skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
 },async()=>{

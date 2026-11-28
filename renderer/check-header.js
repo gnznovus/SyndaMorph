@@ -1,5 +1,5 @@
 'use strict';
-const { compareHeaderImage } = require('./compare');
+const { compareExactCrop } = require('./compare');
 
 const scrollPositions=[0,500,1400,3000];
 const pinWidths=[1440,768,375];
@@ -98,7 +98,7 @@ async function checkHeader(page,width,frame) {
         ({data}=await session.send('Page.captureScreenshot',{format:'jpeg',quality:58,captureBeyondViewport:true,
             clip:{...expected,scale:1}}));
     }finally{await session.detach();}
-    const visual={closed:compareHeaderImage(frame.closed,data,width,expected.height),panels:[]};
+    const visual={closed:compareExactCrop(frame.closed,data,width,expected.height),panels:[]};
     const screen=async clip=>(await page.screenshot({type:'jpeg',quality:75,timeout:3000,...(clip?{clip}:{})})).toString('base64');
     if(desktop){
         let actions=true;
@@ -113,7 +113,7 @@ async function checkHeader(page,width,frame) {
             if(!box||clip.x<box.x-2||clip.y<box.y-2||
                 clip.x+clip.width>box.x+box.width+2||clip.y+clip.height>box.y+box.height+2)return {geometry,assetLoaded,actions:false};
             visual.panels.push({label:panel.label,language:panel.language===true,ratio:
-                compareHeaderImage(panel.screenshot,await screen(clip),clip.width,clip.height)});
+                compareExactCrop(panel.screenshot,await screen(clip),clip.width,clip.height)});
             await page.mouse.move(8,650);
             actions=await flyout.isHidden()&&actions;
             if(panel.language===true){
@@ -136,7 +136,7 @@ async function checkHeader(page,width,frame) {
     await drawer.waitFor({timeout:2000});
     const navigation=await header.evaluate(compactNavigation);
     await drawer.locator('.sm-header-logo img').evaluate(img=>img.decode());
-    visual.open=compareHeaderImage(frame.open,await screen(),width,900);
+    visual.open=compareExactCrop(frame.open,await screen(),width,900);
     await drawer.getByRole('button',{name:'Close menu'}).click({timeout:2000});
     await drawer.waitFor({state:'hidden',timeout:2000});
     await page.waitForFunction(()=>document.querySelector('.sm-header-open')?.getAttribute('aria-expanded')==='false');

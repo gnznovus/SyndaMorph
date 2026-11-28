@@ -308,12 +308,21 @@ async function verifySectionWidths(page, sections) {
     try{validate(scopeHeader);}catch(e){headerRejected=/unsupported Gutenberg block/.test(e.message);}
     try{validate(scopeHeader+'\n\n'+scopeHeader,200,true);}catch(e){duplicateHeaderRejected=/unsupported Gutenberg block/.test(e.message);}
    }
+   const scopeOffer=window.nativeScopeOffer;
+   const offerBlocks=validate(scopeOffer,200,true);
+   let offerRejected=false,duplicateOfferRejected=false;
+   try{validate(scopeOffer);}catch(e){offerRejected=/unsupported Gutenberg block/.test(e.message);}
+   try{validate(scopeOffer+'\n\n'+scopeOffer,200,true);}catch(e){duplicateOfferRejected=/unsupported Gutenberg block/.test(e.message);}
    return {initial,count,registered,expected:a.blockCount,rejected,cases,missingFontClassRejected,tabBlocks,
     tabsPost:window.tabsPost,bookingPost:window.bookingPost,offerPost:window.offerPost,headerPost:window.headerPost,
-    scopeHeaderPost:window.scopeHeaderPost,headerBlocks,headerRejected,duplicateHeaderRejected,sections:window.nativeAlignments};
+    scopeHeaderPost:window.scopeHeaderPost,headerBlocks,headerRejected,duplicateHeaderRejected,
+    offerBlocks,offerRejected,duplicateOfferRejected,sections:window.nativeAlignments};
   });
   console.log({...result,sections:Object.keys(result.sections)});
-  assert.ok(result.initial<=2,'Only the custom tabs and header should be registered before the validator sets up core.');
+  assert.ok(result.initial<=3,'Only the custom production blocks should be registered before the validator sets up core.');
+  assert.equal(result.offerBlocks,1);
+  assert.equal(result.offerRejected,true);
+  assert.equal(result.duplicateOfferRejected,true);
   if(result.scopeHeaderPost){
    assert.equal(result.headerBlocks,4);
    assert.equal(result.headerRejected,true);
