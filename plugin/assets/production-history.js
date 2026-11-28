@@ -5,10 +5,10 @@
     const $ = id => document.getElementById(id);
     const root = $('sm-team-panel-history');
     if (!root || !cfg?.historyUrl) return;
-    const list = $('sm-history-list'), detail = $('sm-history-detail'), status = $('sm-history-status');
+    const list = $('sm-history-list'), detail = $('sm-history-detail'), backdrop = $('sm-history-backdrop'), status = $('sm-history-status');
     const search = $('sm-history-search'), category = $('sm-history-category'), sort = $('sm-history-sort');
     const prev = $('sm-history-prev'), next = $('sm-history-next');
-    let page = 1, generation = 0, timer, selected = null, renderers = [], exportControl = null;
+    let page = 1, generation = 0, timer, selected = null, renderers = [], exportControl = null, previousFocus = null, openRequest = 0;
     const node = (tag, value, cls) => {
         const element = document.createElement(tag);
         if (value !== undefined) element.textContent = value;
@@ -30,7 +30,9 @@
         if (exportControl?.busy()) { status.textContent='Wait for the current conversion or save to finish.'; return false; }
         exportControl?.destroy(); exportControl=null;
         renderers.splice(0).forEach(r => r.destroy());
-        detail.replaceChildren(); detail.hidden = true; selected = null;
+        detail.replaceChildren(); detail.hidden = true; backdrop.hidden = true; selected = null;
+        const target = previousFocus; previousFocus = null;
+        if (target?.isConnected) target.focus();
         return true;
     }
     function download(record) {
@@ -64,8 +66,12 @@
         frame.srcdoc = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:"><meta name="viewport" content="width=device-width,initial-scale=1">' + template.innerHTML;
         detail.append(frame);
     }
-    function inspect(record) {
-        if (!clearDetail()) return; selected = record; detail.hidden = false;
+    function inspect(record,trigger) {
+        if (!clearDetail()) return; previousFocus=trigger; selected = record; detail.hidden = false; backdrop.hidden = false;
+        const close = button('Close ×', () => clearDetail());
+        close.classList.add('sm-history-drawer-close');
+        close.setAttribute('aria-label','Close archived job details');
+        detail.append(close);
         detail.append(node('h2',record.jobId + ' : ' + record.title));
         detail.append(node('p',record.status + ' · ' + record.createdAt + ' · Archived data; no AI inference.'));
         const actions = node('div',undefined,'sm-history-actions');
@@ -85,6 +91,7 @@
             actions.prepend(button('Open scope checkpoint',()=>window.SyndaMorphScope.open(record.id)));
             const manifest=[...(record.events||[])].reverse().find(event=>event.type==='scope_manifest');
             if(manifest) section('Section manifest',JSON.stringify(manifest.data,null,2),'html');
+            detail.scrollTop=0; close.focus();
             return;
         }
         if (context.brief) section('Original brief',context.brief).open=true;
@@ -171,18 +178,25 @@
         }
         if(final?.usage) section('Metrics and validation',JSON.stringify({usage:final.usage,agentMetrics:final.agentMetrics,checks:final.checks,estimatedCostUsd:final.estimatedCostUsd,elapsedMs:final.elapsedMs},null,2),'html');
         section('Recorded event metadata',JSON.stringify(events.filter(e=>e.type!=='agent_delta').map(e=>({type:e.type,at:e.at,role:e.data?.role})),null,2),'html');
-        detail.scrollIntoView({block:'nearest'});
+        detail.scrollTop=0;
+        close.focus();
     }
     async function open(id, action) {
+        const ticket=++openRequest;
+        const trigger=document.activeElement;
         try {
             if (exportControl?.busy()) throw new Error('Wait for the current conversion or save to finish.');
             status.textContent='Loading archived job…';
             const record=await get('/'+id);
+            if(ticket!==openRequest)return;
             if(action==='export') download(record);
             else if(action==='replay') await window.SyndaMorphProductionReplay.replay(record,true);
-            else inspect(record);
+            else {
+                // Do not replace the focus origin until the old drawer has closed.
+                inspect(record,trigger);
+            }
             status.textContent='Archived job loaded.';
-        }catch(e){status.textContent=e.message;}
+        }catch(e){if(ticket===openRequest)status.textContent=e.message;}
     }
     async function load() {
         const ticket=++generation;
@@ -205,10 +219,27 @@
             prev.disabled=page<=1;next.disabled=!data.more;
         }catch(e){if(ticket===generation)status.textContent=e.message;}
     }
-    function changed(){page=1;clearDetail();void load();}
+    function changed(){page=1;if(!clearDetail())return;void load();}
     search.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(changed,200);});
     category.addEventListener('change',changed);sort.addEventListener('change',changed);
     $('sm-history-refresh').addEventListener('click',()=>void load());
+    backdrop.addEventListener('click',()=>clearDetail());
+    document.addEventListener('keydown',event=>{
+        if(detail.hidden)return;
+        if(event.key==='Escape'){
+            event.preventDefault();clearDetail();return;
+        }
+        if(event.key!=='Tab')return;
+        const focusable=[...detail.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])')]
+            .filter(element=>element.getClientRects().length>0);
+        if(!focusable.length){event.preventDefault();detail.focus();return;}
+        const first=focusable[0], last=focusable[focusable.length-1];
+        if(event.shiftKey && (document.activeElement===first || document.activeElement===detail)){
+            event.preventDefault();last.focus();
+        }else if(!event.shiftKey && document.activeElement===last){
+            event.preventDefault();first.focus();
+        }
+    });
     prev.addEventListener('click',()=>{if(page>1){page--;void load();}});
     next.addEventListener('click',()=>{page++;void load();});
     // Handles mouse and keyboard tab activation through the shared tab controller.
