@@ -58,7 +58,42 @@
             stat('total', String(data.total));
             stat('completed', String(data.completed));
             stat('attention', String(data.attention));
-            stat('cost', '—');
+            const usage = data.usageCost || {};
+            const formatUsd = amount => '
+            const rate = data.completionRate === null ? '—' : data.completionRate.toFixed(1) + '%';
+            stat('rate', rate);
+            stat('acceptance', rate);
+            const fill = root.querySelector('[data-overview-acceptance-bar]');
+            if (fill) fill.style.width = data.completionRate === null ? '0%' : Math.min(100, Math.max(0, data.completionRate)) + '%';
+            activity(data.recent || []);
+            status.textContent = 'Showing archived activity · ' + (rangeButtons.find(button => button.dataset.range === period)?.textContent || period);
+        } catch (error) {
+            if (ticket === generation) status.textContent = error.message;
+        }
+    }
+
+    for (const button of rangeButtons) {
+        button.addEventListener('click', () => {
+            period = button.dataset.range;
+            for (const other of rangeButtons) {
+                const active = other === button;
+                other.classList.toggle('is-active', active);
+                other.setAttribute('aria-pressed', String(active));
+            }
+            void load();
+        });
+    }
+    void load();
+})();
+ + Number(amount).toFixed(6).replace(/0+$/, '').replace(/\\.$/, '');
+            const total = usage.estimatedTotalUsd;
+            const mean = usage.estimatedMeanPerMeteredJobUsd;
+            stat('cost', total === null || total === undefined ? '—' : formatUsd(total));
+            const detail = $('sm-overview-cost-detail');
+            if (detail) detail.textContent = mean === null || mean === undefined
+                ? 'No metered job receipts in this period'
+                : 'Mean ' + formatUsd(mean) + ' / ' + usage.meteredJobs + ' metered job' +
+                    (usage.meteredJobs === 1 ? '' : 's') + ' · estimated';
             const rate = data.completionRate === null ? '—' : data.completionRate.toFixed(1) + '%';
             stat('rate', rate);
             stat('acceptance', rate);
