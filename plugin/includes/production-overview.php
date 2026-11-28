@@ -144,6 +144,38 @@ add_action( 'rest_api_init', static function (): void {
             foreach ( $categories as $row ) {
                 if ( isset( $sourceCounts[ $row['category'] ] ) ) { $sourceCounts[ $row['category'] ] = (int) $row['total']; }
             }
+            // Usage is attributed to each archived provider call, not a final job
+            // result. This includes calls from failed/incomplete jobs and avoids
+            // counting replayed/cached responses a second time.
+            list( , $events ) = syndamorph_history_tables();
+            $metered = $wpdb->get_results(
+                "SELECT e.job_id, e.payload FROM $events e
+                 INNER JOIN $jobs j ON j.id = e.job_id
+                 WHERE $where AND e.event_type = 'agent_complete'
+                 ORDER BY e.job_id ASC, e.id ASC",
+                ARRAY_A
+            );
+            if ( ! is_array( $metered ) ) {
+                return new WP_Error( 'sm_overview_usage', 'Could not read usage receipts.', array( 'status' => 503 ) );
+            }
+            $costByJob = array();
+            foreach ( $metered as $record ) {
+                $receipt = json_decode( (string) $record['payload'], true );
+                $value = $receipt['metric']['estimatedCostUsd'] ?? null;
+                if ( ! is_numeric( $value ) || ! is_finite( (float) $value ) || (float) $value < 0 ) { continue; }
+                $jobId = (int) $record['job_id'];
+                if ( ! isset( $costByJob[$jobId] ) ) { $costByJob[$jobId] = 0.0; }
+                $costByJob[$jobId] += (float) $value;
+            }
+            $meteredJobs = count( $costByJob );
+            $totalCost = array_sum( $costByJob );
+            $costTotals = array(
+                'estimatedTotalUsd' => $meteredJobs ? round( $totalCost, 6 ) : null,
+                'estimatedMeanPerMeteredJobUsd' => $meteredJobs ? round( $totalCost / $meteredJobs, 6 ) : null,
+                'meteredJobs' => $meteredJobs,
+                'basis' => 'agent_complete_receipts',
+                'isEstimate' => true,
+            );
             $total = array_sum( $statusCounts );
             $completed = $statusCounts['completed'] ?? 0;
             $attention = 0;
@@ -158,6 +190,7 @@ add_action( 'rest_api_init', static function (): void {
                 'completionRate' => $total ? round( 100 * $completed / $total, 1 ) : null,
                 'statuses' => $statusCounts,
                 'categories' => $sourceCounts,
+                'usageCost' => $costTotals,
                 'recent' => array_map( 'syndamorph_history_summary', $recent ),
             ) );
         },
