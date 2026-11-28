@@ -1,0 +1,118 @@
+.wp-block-syndamorph-booking-summary {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr)) minmax(0, 220px);
+    width: 100%;
+    max-width: 1120px;
+    min-height: 88px;
+    background: #fff;
+    color: #111;
+    font-family: var(--wp--preset--font-family--beausite-classic, system-ui, sans-serif);
+    font-size: 18px;
+    letter-spacing: 0;
+    line-height: 1.55;
+    box-shadow: 0 3px 10px rgb(45 43 43 / 16%);
+}
+.wp-block-group:has(> .sm-booking-overlap) { position: relative }
+.wp-block-group > .sm-booking-overlap {
+    position: absolute;
+    inset: auto 0 -44px;
+    width: min(1120px, calc(100% - 40px));
+    margin: 0 auto !important;
+    z-index: 2;
+}
+.wp-block-syndamorph-booking-summary .sm-booking-field {
+    position: relative;
+    min-width: 0;
+}
+.wp-block-syndamorph-booking-summary .sm-booking-field:nth-child(-n+2) { border-right: 1px solid #d7d3d3 }
+.wp-block-syndamorph-booking-summary .sm-booking-field:first-child,
+.wp-block-syndamorph-booking-summary .sm-booking-toggle,
+.wp-block-syndamorph-booking-summary:not([data-sm-booking]) .sm-booking-field {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px 20px;
+}
+.wp-block-syndamorph-booking-summary .sm-booking-label {
+    color: #605d5d;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.wp-block-syndamorph-booking-summary .sm-booking-dates { display: flex; align-items: center; gap: 14px; flex-wrap: wrap }
+.wp-block-syndamorph-booking-summary .sm-booking-arrow {
+    width: 9px;
+    height: 1px;
+    margin-inline: 4px;
+    background: currentColor;
+}
+.wp-block-syndamorph-booking-summary .sm-booking-calendar {
+    position: absolute;
+    width: 13.5px;
+    height: 12.75px;
+    inset: auto 23px 25px auto;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+}
+.wp-block-syndamorph-booking-summary button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.wp-block-syndamorph-booking-summary button:focus-visible { outline: 2px solid #111; outline-offset: -3px }
+.wp-block-syndamorph-booking-summary .sm-booking-toggle { min-height: 100%; width: 100% }
+.wp-block-syndamorph-booking-summary .sm-booking-toggle > span:last-child::after {
+    content: '';
+    width: 5px;
+    height: 5px;
+    margin: 7px 4px 0 8px;
+    float: right;
+    border: solid currentColor;
+    border-width: 0 1px 1px 0;
+    transform: rotate(45deg);
+}
+.wp-block-syndamorph-booking-summary .sm-booking-availability {
+    display: grid;
+    place-items: center;
+    padding: 0 16px;
+    background: #111;
+    color: #fff;
+    font-weight: 700;
+    text-align: center;
+}
+.wp-block-syndamorph-booking-summary .sm-booking-panel[hidden] { display: none }
+.wp-block-syndamorph-booking-summary .sm-booking-panel {
+    position: absolute;
+    z-index: 1;
+    inset-block-start: 100%;
+    inset-inline-start: 0;
+    width: min(340px, calc(100vw - 32px));
+    background: #fff;
+    border: 1px solid #d7d3d3;
+    box-sizing: border-box;
+    box-shadow: 0 3px 10px rgb(45 43 43 / 16%);
+}
+.wp-block-syndamorph-booking-summary .sm-booking-counter {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 32px 52px 32px;
+    align-items: center;
+    text-align: center;
+    padding: 14px 6px 14px 16px;
+    border-bottom: 1px solid #d7d3d3;
+}
+.wp-block-syndamorph-booking-summary .sm-booking-counter > span { text-align: left }
+.wp-block-syndamorph-booking-summary .sm-booking-counter button { height: 32px; text-align: center; border: 1px solid #d7d3d3 }
+.wp-block-syndamorph-booking-summary .sm-booking-rates { width: min(420px, calc(100vw - 32px)) }
+.wp-block-syndamorph-booking-summary .sm-booking-rates > * { display: block; width: 100%; padding: 14px 20px; box-sizing: border-box }
+.wp-block-syndamorph-booking-summary [data-sm-rate][aria-pressed=true] { font-weight: 700 }
+@media (max-width: 1023px) {
+    .wp-block-syndamorph-booking-summary { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+    .wp-block-group > .sm-booking-overlap { position: static; width: 100% }
+    .wp-block-syndamorph-booking-summary .sm-booking-counters { inset-inline-start: auto; inset-inline-end: 0 }
+}

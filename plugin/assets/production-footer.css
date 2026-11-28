@@ -1,0 +1,143 @@
+.wp-block-group.sm-recorded-footer {
+    width: 100%;
+    box-sizing: border-box;
+    background: #111;
+    color: #fff;
+    font-family: "Beausite Classic", system-ui, sans-serif;
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.55;
+    letter-spacing: normal;
+}
+
+.wp-block-group.sm-recorded-footer :where(.wp-block-group, p, figure) {
+    margin: 0;
+}
+
+.wp-block-group.sm-recorded-footer a {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+
+.sm-recorded-footer a:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+.wp-block-group.sm-recorded-footer .sm-footer-muted { color: #bab6b6; }
+
+.wp-block-group.sm-recorded-footer .sm-source-footer-logo img {
+    box-sizing: border-box;
+    display: block;
+    width: auto;
+    height: 96px;
+    max-width: none;
+}
+
+.sm-recorded-footer .sm-footer-desktop {
+    box-sizing: border-box;
+    min-width: 1280px;
+    padding: 72px 60px 40px;
+    background: #111;
+}
+
+.sm-footer-desktop .sm-footer-top {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 24px;
+    padding-bottom: 48px;
+    border-bottom: 1px solid #605d5d;
+}
+
+.sm-footer-desktop .sm-footer-brand,
+.sm-footer-desktop .sm-footer-links {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 16px;
+    line-height: 1.55;
+}
+
+.sm-footer-desktop .sm-footer-brand {
+    grid-column: 1 / span 4;
+    gap: 14px;
+    line-height: 1.6;
+}
+
+.sm-footer-desktop .sm-footer-explore { grid-column: 6 / span 2; }
+.sm-footer-desktop .sm-footer-discover { grid-column: 8 / span 2; }
+.sm-footer-desktop .sm-footer-follow { grid-column: 10 / span 3; }
+
+.sm-footer-desktop .sm-footer-heading {
+    color: #bab6b6;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.55;
+    letter-spacing: 1.04px;
+    text-transform: uppercase;
+}
+
+.sm-footer-desktop .sm-footer-social-boxes {
+    display: flex;
+    gap: 12px;
+}
+
+.sm-footer-desktop .sm-footer-social-box {
+    box-sizing: border-box;
+    width: 36px;
+    height: 36px;
+    border: 1px solid #7d7979;
+}
+
+.sm-footer-desktop .sm-footer-bottom,
+.sm-footer-desktop .sm-footer-legal {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    color: #bab6b6;
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+.sm-footer-desktop .sm-footer-bottom { padding-top: 24px; }
+
+.sm-recorded-footer .sm-footer-compact {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    padding: 40px 20px 96px;
+}
+
+.wp-block-group.sm-recorded-footer .sm-footer-compact .sm-source-footer-logo {
+    margin-bottom: 20px;
+}
+
+.wp-block-group.sm-recorded-footer .sm-footer-compact .sm-source-footer-logo img {
+    height: 80px;
+}
+
+.sm-footer-compact .sm-footer-address {
+    padding-bottom: 20px;
+    font-size: 15px;
+    line-height: 1.6;
+}
+
+.sm-footer-compact .sm-footer-compact-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 16px 0;
+    border-top: 1px solid #605d5d;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.55;
+}
+
+.sm-footer-compact .sm-footer-compact-row:last-of-type { border-bottom: 1px solid #605d5d; }
+
+.sm-footer-compact .sm-footer-copyright {
+    padding-top: 16px;
+    color: #bab6b6;
+    font-size: 13px;
+    line-height: 1.55;
+}

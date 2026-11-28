@@ -1,0 +1,136 @@
+.wp-block-syndamorph-recorded-newsletter {
+    width: 100%;
+    color: #201e1d;
+    font: 400 15px/1.55 "Beausite Classic", system-ui, sans-serif;
+    letter-spacing: normal;
+    background: #f8f4f4;
+}
+
+.wp-block-syndamorph-recorded-newsletter :is(h2,p) { margin: 0; letter-spacing: normal; }
+.wp-block-syndamorph-recorded-newsletter button {
+    border: 0;
+    border-radius: 0;
+    color: inherit;
+    font: inherit;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+}
+
+.wp-block-syndamorph-recorded-newsletter button:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: -3px;
+}
+
+.sm-newsletter-desktop {
+    position: relative;
+    display: grid;
+    min-width: 1280px;
+    padding: 80px 60px;
+    grid-template-columns: repeat(12,minmax(0,1fr));
+    gap: 24px;
+    background: #f8f4f4;
+}
+
+.wp-block-syndamorph-recorded-newsletter h2 {
+    font: 400 48px/1.05 "Beausite Grand", serif;
+    color: #201e1d;
+}
+
+.sm-newsletter-desktop h2 { grid-column: 1 / span 5; }
+.sm-newsletter-fields {
+    grid-column: 6 / span 6;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 640px;
+}
+
+.wp-block-syndamorph-recorded-newsletter .sm-newsletter-field,
+.wp-block-syndamorph-recorded-newsletter .sm-newsletter-trigger {
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    height: 52px;
+    border-bottom: 2px solid #111;
+    color: #605d5d;
+    font-size: 17px;
+    line-height: 1.55;
+}
+
+.sm-newsletter-phone { display: grid; grid-template-columns: 140px 1fr; gap: 16px; }
+.sm-newsletter-picker { position: relative; }
+.wp-block-syndamorph-recorded-newsletter .sm-newsletter-trigger {
+    color: #201e1d;
+    width: 100%;
+    justify-content: space-between;
+}
+
+.wp-block-syndamorph-recorded-newsletter svg { flex: 0 0 auto; margin-left: 8px; }
+.sm-newsletter-trigger[aria-expanded="true"] svg { transform: rotate(180deg); }
+.sm-newsletter-menu {
+    position: absolute;
+    z-index: 5;
+    left: 0;
+    bottom: 100%;
+    box-sizing: border-box;
+    width: 280px;
+    max-height: 320px;
+    overflow-y: auto;
+    background: #fff;
+    color: #201e1d;
+    border: 1px solid #bab6b6;
+    padding: 6px 0;
+}
+.sm-newsletter-menu[hidden] { display: none; }
+.wp-block-syndamorph-recorded-newsletter .sm-newsletter-choice {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    padding: 10px 16px;
+    font-size: 16px;
+    line-height: 1.55;
+    text-align: left;
+}
+.sm-newsletter-choice span:last-child { color: #605d5d; }
+.wp-block-syndamorph-recorded-newsletter .sm-newsletter-choice:is([aria-pressed="true"],:hover) { background: #f8f4f4; }
+.wp-block-syndamorph-recorded-newsletter .sm-newsletter-consent { color: #444141; }
+.sm-newsletter-desktop .sm-newsletter-consent { display: flex; align-items: flex-start; gap: 10px; }
+.sm-newsletter-desktop .sm-newsletter-consent span {
+    display: block;
+    box-sizing: border-box;
+    height: 16px;
+    width: 16px;
+    margin-top: 1px;
+    border: 1px solid #111;
+}
+.wp-block-syndamorph-recorded-newsletter .sm-newsletter-subscribe {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    height: 48px;
+    width: 200px;
+    padding: 0 16px;
+    border: 1px solid #111;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.sm-newsletter-compact { display: none; }
+@media (max-width:1023px) {
+    .sm-newsletter-desktop { display: none; }
+    .sm-newsletter-compact {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 48px 20px;
+        border-top: 2px solid #111;
+    }
+    .sm-newsletter-compact h2 { font-size: 28px; }
+    .sm-newsletter-compact .sm-newsletter-field { height: 48px; font-size: 16px; }
+    .sm-newsletter-compact .sm-newsletter-prefix { color: #201e1d; }
+    .sm-newsletter-compact .sm-newsletter-phone { grid-template-columns: 96px 1fr; gap: 12px; }
+    .sm-newsletter-compact .sm-newsletter-consent { font-size: 14px; }
+    .sm-newsletter-compact .sm-newsletter-subscribe { width: 100%; }
+}

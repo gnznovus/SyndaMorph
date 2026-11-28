@@ -1,0 +1,19 @@
+{
+  "origin": "GEN-000002 approved reference SHA-256 12107e8b92e69fb65a5a605704011a54dc5fba48a7bc32c7f60e7ddff21f9db9",
+  "cases": [
+    {"id":"unchanged","expected":"pass","liveMode":"manual","evidence":"Identical markup and all three screenshots."},
+    {"id":"equivalent-color","expected":"pass","liveMode":"scoped","find":"--sm-hero-bg-start: #18283a;","replace":"--sm-hero-bg-start: rgb(24 40 58);","evidence":"Equivalent RGB notation yields identical pixels and copy."},
+    {"id":"font-family","expected":"block","liveMode":"manual","css":".sm-hero__title{font-family:monospace}","evidence":"Headline uses monospace instead of system-ui."},
+    {"id":"spacing","expected":"block","liveMode":"manual","css":".sm-hero{padding-block:1rem}","evidence":"Top and bottom padding shrink to 16 CSS px."},
+    {"id":"tablet-alignment","expected":"block","liveMode":"manual","css":"@media (min-width:700px) and (max-width:900px){.sm-hero__inner{align-items:flex-start;text-align:left}}","evidence":"Content aligns left at 768 px only."},
+    {"id":"mobile-wrap","expected":"block","liveMode":"scoped","css":"@media (max-width:500px){.sm-hero__title{white-space:nowrap}}","evidence":"The headline loses wrapping and overflows at 375 px only."},
+    {"id":"missing-decoration","expected":"block","liveMode":"scoped","find":"<span class=\"audit-mark\" aria-hidden=\"true\"></span>","replace":"","evidence":"Required small gold marker disappears without changing copy."},
+    {"id":"background","expected":"block","liveMode":"manual","css":".sm-hero{background:#8b4e4e}","evidence":"Navy gradient is replaced by a red fill."},
+    {"id":"altered-copy","expected":"block","liveMode":"scoped","find":"Rest well in a space designed for you","replace":"Stay well in a place built for everyone","evidence":"Literal headline differs at every viewport."},
+    {"id":"wrong-link","expected":"block","liveMode":"brief","find":"href=\"#rooms\"","replace":"href=\"#nowhere\"","requiresLink":true,"evidence":"The CTA targets a missing fragment with identical rendered pixels."},
+    {"id":"static-control","expected":"block","liveMode":"brief","find":"<a class=\"sm-hero__cta\" href=\"#rooms\">View available rooms</a>","replace":"<span class=\"sm-hero__cta\">View available rooms</span>","requiresLink":true,"evidence":"The visually identical CTA is no longer a link or keyboard control."},
+    {"id":"desktop-alignment","expected":"block","liveMode":"scoped","css":"@media (min-width:1024px){.sm-hero__content{margin-inline:0}}","evidence":"The centered content column shifts left only at 1440 px."},
+    {"id":"responsive-control-width","expected":"block","liveMode":"manual","css":"@media (max-width:500px){.sm-hero__cta{width:100%}}","requiresLink":true,"evidence":"CTA is full width on mobile and intrinsic on larger viewports, outside the tested native control-width contract."}
+  ],
+  "repeat": ["unchanged","unchanged","wrong-link","wrong-link"]
+}

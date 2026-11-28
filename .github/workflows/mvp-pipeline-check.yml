@@ -1,11 +1,69 @@
 name: MVP autonomous pipeline checks
 on:
   push:
-    branches: [feat/mvp-autonomous-pipeline]
+    branches: [feat/mvp-autonomous-pipeline, feat/secure-gateway-leasing-v1]
     paths:
       - 'backend/**'
       - 'compose.yaml'
+      - 'compose.reference.yaml'
+      - 'compose.plesk-staging.yaml'
+      - 'tests/plesk-compose-check.py'
+      - 'tests/internal-transport-test.php'
+      - 'tests/transport-admin-browser.cjs'
+      - 'plugin/includes/internal-transport.php'
+      - 'plugin/includes/transport-status.php'
       - 'plugin/includes/production-team.php'
+      - 'plugin/includes/production-standards.php'
+      - 'plugin/includes/production-job-memory.php'
+      - 'plugin/includes/production-learning.php'
+      - 'plugin/assets/production-learning.js'
+      - 'plugin/includes/production-history.php'
+      - 'plugin/includes/production-editor-learning.php'
+      - 'plugin/assets/production-history.js'
+      - 'plugin/assets/production-ai-export.js'
+      - 'plugin/includes/ai-team-real.php'
+      - 'plugin/includes/production-collaboration.php'
+      - 'plugin/includes/production-specification.php'
+      - 'plugin/includes/production-reference.php'
+      - 'plugin/includes/production-touch.php'
+      - 'plugin/includes/production-responsive.php'
+      - 'plugin/includes/production-design-evidence.php'
+      - 'tests/production-design-evidence-test.php'
+      - 'tests/production-responsive-test.php'
+      - 'tests/designer-responsive-wordpress.php'
+      - 'plugin/includes/production-source.php'
+      - 'plugin/includes/production-inspection.php'
+      - 'plugin/includes/production-scope*.php'
+      - 'plugin/includes/production-compact.php'
+      - 'plugin/includes/production-source.php'
+      - 'plugin/assets/production-scope.js'
+      - 'tests/production-scope-*'
+      - 'tests/bossy-design-audit.php'
+      - 'tests/fixtures/bossy-*'
+      - 'plugin/includes/production-visual-qa.php'
+      - 'plugin/includes/production-surgery.php'
+      - 'plugin/includes/production-repair.php'
+      - 'plugin/includes/production-tools.php'
+      - 'plugin/includes/production-block-plan.php'
+      - 'plugin/includes/ai-models.php'
+      - 'renderer/**'
+      - 'plugin/assets/production-rich-content.js'
+      - 'plugin/assets/ai-team-real.js'
+      - 'tests/real-ai-poc-test.php'
+      - 'tests/inspection-wordpress.php'
+      - 'tests/adaptive-surgery-benchmark.*'
+      - 'tests/fixtures/gen-015-repair.json'
+      - 'tests/gutenberg-native-*'
+      - 'tests/production-tabs-wordpress.php'
+      - 'tests/production-booking-wordpress.php'
+      - 'plugin/includes/production-booking.php'
+      - 'plugin/assets/production-booking*'
+      - 'tests/production-scroll-strip-wordpress.php'
+      - 'plugin/includes/production-scroll-strip.php'
+      - 'plugin/includes/production-disclosures.php'
+      - 'tests/production-disclosures-wordpress.php'
+      - 'tests/production-scope-wordpress.php'
+      - 'plugin/includes/production-editor-learning.php'
       - 'plugin/includes/ai-integration.php'
       - 'plugin/syndamorph.php'
       - 'plugin/assets/production-team.js'
@@ -15,9 +73,64 @@ on:
       - '.github/workflows/mvp-pipeline-check.yml'
   pull_request:
     paths:
+      - 'plugin/includes/production-surgery.php'
+      - 'plugin/includes/production-repair.php'
+      - 'plugin/includes/production-collaboration.php'
+      - 'plugin/includes/production-specification.php'
+      - 'plugin/includes/production-reference.php'
+      - 'plugin/includes/production-touch.php'
+      - 'plugin/includes/production-responsive.php'
+      - 'plugin/includes/production-design-evidence.php'
+      - 'tests/production-design-evidence-test.php'
+      - 'tests/production-responsive-test.php'
+      - 'tests/designer-responsive-wordpress.php'
+      - 'plugin/includes/production-source.php'
+      - 'plugin/includes/production-inspection.php'
+      - 'plugin/includes/production-scope*.php'
+      - 'plugin/includes/production-compact.php'
+      - 'plugin/includes/production-source.php'
+      - 'plugin/assets/production-scope.js'
+      - 'tests/production-scope-*'
+      - 'tests/bossy-design-audit.php'
+      - 'tests/fixtures/bossy-*'
+      - 'renderer/**'
+      - 'plugin/includes/production-visual-qa.php'
       - 'backend/**'
       - 'compose.yaml'
+      - 'compose.reference.yaml'
+      - 'compose.plesk-staging.yaml'
+      - 'tests/plesk-compose-check.py'
+      - 'tests/internal-transport-test.php'
+      - 'tests/transport-admin-browser.cjs'
+      - 'plugin/includes/internal-transport.php'
+      - 'plugin/includes/transport-status.php'
       - 'plugin/includes/production-team.php'
+      - 'plugin/includes/production-standards.php'
+      - 'plugin/includes/production-job-memory.php'
+      - 'plugin/includes/production-learning.php'
+      - 'plugin/assets/production-learning.js'
+      - 'plugin/includes/production-history.php'
+      - 'plugin/includes/production-editor-learning.php'
+      - 'plugin/assets/production-history.js'
+      - 'plugin/assets/production-ai-export.js'
+      - 'plugin/includes/ai-team-real.php'
+      - 'plugin/assets/production-rich-content.js'
+      - 'plugin/assets/ai-team-real.js'
+      - 'tests/real-ai-poc-test.php'
+      - 'tests/inspection-wordpress.php'
+      - 'tests/adaptive-surgery-benchmark.*'
+      - 'tests/fixtures/gen-015-repair.json'
+      - 'tests/gutenberg-native-*'
+      - 'tests/production-tabs-wordpress.php'
+      - 'tests/production-booking-wordpress.php'
+      - 'plugin/includes/production-booking.php'
+      - 'plugin/assets/production-booking*'
+      - 'tests/production-scroll-strip-wordpress.php'
+      - 'plugin/includes/production-scroll-strip.php'
+      - 'plugin/includes/production-disclosures.php'
+      - 'tests/production-disclosures-wordpress.php'
+      - 'tests/production-scope-wordpress.php'
+      - 'plugin/includes/production-editor-learning.php'
       - 'plugin/includes/ai-integration.php'
       - 'plugin/syndamorph.php'
       - 'plugin/assets/production-team.js'
@@ -38,12 +151,63 @@ jobs:
           node --check backend/server.js
           node --check backend/purr-poc.js
           node --check plugin/assets/ai-integration.js
+          node --check plugin/assets/ai-team-real.js
+          node --check plugin/assets/production-rich-content.js
+          php -l plugin/includes/production-standards.php
+          php -l plugin/includes/production-history.php
+          node --check plugin/assets/production-history.js
+          node --check plugin/assets/production-learning.js
+          php -l plugin/includes/production-learning.php
+          node --check plugin/assets/production-ai-export.js
+          php -l plugin/includes/ai-models.php
+          php -l plugin/includes/ai-team-real.php
+          php -l plugin/includes/production-block-plan.php
+          php -l plugin/includes/production-collaboration.php
+          php -l plugin/includes/production-specification.php
+          php -l plugin/includes/production-reference.php
+          php -l plugin/includes/production-touch.php
+          php -l plugin/includes/production-responsive.php
+          php -l plugin/includes/production-design-evidence.php
+          php -l tests/designer-responsive-wordpress.php
+          php -l tests/production-tabs-wordpress.php
+          php -l tests/production-booking-wordpress.php
+          php -l plugin/includes/production-booking.php
+          php -l tests/production-scroll-strip-wordpress.php
+          php -l plugin/includes/production-disclosures.php
+          php -l tests/production-disclosures-wordpress.php
+          php -l plugin/includes/production-source.php
+          node --check backend/production-source.js
+          php -l plugin/includes/production-inspection.php
+          php -l plugin/includes/production-scope.php
+          php -l plugin/includes/production-scope-template.php
+          php -l plugin/includes/production-scope-source.php
+          php -l plugin/includes/production-source.php
+          php -l tests/production-scope-wordpress.php
+          node --check plugin/assets/production-scope.js
+          php -l tests/inspection-wordpress.php
+          php -l tests/bossy-design-audit.php
+          php -l plugin/includes/production-visual-qa.php
+          php -l plugin/includes/production-surgery.php
+          php -l plugin/includes/production-tools.php
+          php -l plugin/includes/production-repair.php
+          php -l plugin/includes/production-job-memory.php
+          node --check renderer/compare.js
+          node --check renderer/render-worker.js
+          node --check renderer/server.js
+          php tests/real-ai-poc-test.php
+          php tests/internal-transport-test.php
+          php tests/production-responsive-test.php
+          php tests/production-design-evidence-test.php
           node --check plugin/assets/demo-dialogue.js
           node --check plugin/assets/production-team.js
           node --check plugin/assets/production-workflow.js
           php -l plugin/includes/production-team.php
           php -l plugin/includes/ai-integration.php
           php -l plugin/syndamorph.php
+          php -l plugin/includes/gateway-admin.php
+          node --check plugin/assets/gateway-admin.js
+          node --check backend/gateway/server.js
+          node --check backend/gateway/core.js
           node --check backend/mvp/plan.js
           node --check backend/mvp/registry.js
           node --check backend/mvp/loop.js
@@ -54,8 +218,56 @@ jobs:
           npm install --prefix backend --ignore-scripts --no-audit --no-fund
           npm test --prefix backend
       - name: Docker Compose validation
-        run: docker compose config --quiet
+        run: |
+          docker compose config --quiet
+          python3 tests/plesk-compose-check.py
+      - name: Opt-in offline archive verification
+        run: |
+          docker compose -f compose.yaml -f compose.reference.yaml config --quiet
+          docker compose -f compose.yaml -f compose.reference.yaml build backend
+          docker compose -f compose.yaml -f compose.reference.yaml run --rm --no-deps -T -e SYNDAMORPH_TEST_REFERENCE=1 -v "${{ github.workspace }}/backend/production-reference.test.js:/app/production-reference.test.js:ro" backend node --test production-reference.test.js
+          docker compose -f compose.yaml -f compose.reference.yaml run --rm --no-deps -T -e SYNDAMORPH_TEST_REFERENCE=1 -v "${{ github.workspace }}/backend/production-touch.test.js:/app/production-touch.test.js:ro" backend node --test production-touch.test.js
+      - name: Real Playwright inspection smoke test
+        env:
+          SYNDAMORPH_RENDERER_TOKEN: renderer-ci-smoke-test-token-fixture
+        run: |
+          docker build -t syndamorph-inspection ./renderer
+          docker run --rm -i --network none --init --entrypoint node syndamorph-inspection < renderer/transport.test.js
+          docker run -d --rm --init --read-only --tmpfs /tmp:size=256m --memory 768m --pids-limit 128 --shm-size 256m --cap-drop ALL --security-opt no-new-privileges -e SYNDAMORPH_RENDERER_TOKEN --name syndamorph-inspection-test -p 127.0.0.1:3999:3000 syndamorph-inspection
+          trap 'docker rm -f syndamorph-inspection-test >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 30); do if curl -fsS -o /dev/null http://127.0.0.1:3999/healthz 2>/dev/null; then break; fi; sleep 1; done
+          docker exec -i syndamorph-inspection-test node < renderer/overlap.test.js
+          node --test renderer/inspect.test.js
+          node tests/adaptive-surgery-benchmark.cjs
+      - name: Real WordPress Gutenberg serialization gate
+        env:
+          SYNDAMORPH_GATEWAY_ADMIN_TOKEN: gateway-ci-admin-token-fixture-v1
+          SYNDAMORPH_GATEWAY_PEPPER: gateway-ci-storage-pepper-fixture-v1
+        run: |
+          docker compose up -d db wordpress renderer
+          trap 'docker compose down -v' EXIT
+          for i in $(seq 1 60); do if curl -fsS -o /dev/null http://127.0.0.1:8085/wp-admin/install.php; then break; fi; sleep 2; done
+          curl -fsS -o /dev/null -X POST 'http://127.0.0.1:8085/wp-admin/install.php?step=2' --data 'weblog_title=CI&user_name=ciadmin&admin_password=ci-only-test-password&admin_password2=ci-only-test-password&admin_email=ci@example.invalid&blog_public=0&Submit=Install+WordPress'
+          docker compose exec -T wordpress php < tests/inspection-wordpress.php
+          docker compose exec -T wordpress php < tests/designer-responsive-wordpress.php
+          docker compose exec -T wordpress mkdir -p /tmp/sm-bossy-audit
+          docker compose cp tests/fixtures/bossy-approved-gen-000002.html wordpress:/tmp/sm-bossy-audit/bossy-approved-gen-000002.html
+          docker compose cp tests/fixtures/bossy-design-cases.json wordpress:/tmp/sm-bossy-audit/bossy-design-cases.json
+          docker compose exec -T -e SM_BOSS_AUDIT_LIVE=0 -e SM_BOSS_AUDIT_TRUST_ONLY=1 -e SM_BOSS_AUDIT_REQUIRE_FIXES=1 wordpress php < tests/bossy-design-audit.php
+          docker compose exec -T wordpress php < tests/production-tabs-wordpress.php
+          docker compose exec -T wordpress php < tests/production-booking-wordpress.php
+          docker compose exec -T wordpress php < tests/production-scroll-strip-wordpress.php
+          docker compose exec -T wordpress php < tests/production-disclosures-wordpress.php
+          docker compose cp tests/gutenberg-native-fixture.php wordpress:/var/www/html/sm-native-fixture.php
+          cd backend && npx playwright install --with-deps chromium && cd ..
+          node tests/gutenberg-native-browser.cjs
+          node tests/production-scope-browser.cjs
+          docker compose up -d --wait --wait-timeout 90 backend gateway
+          docker compose exec -T wordpress php -r 'require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/plugin.php"; $result = activate_plugin("syndamorph/syndamorph.php"); if (is_wp_error($result)) { exit(1); } $subscriber = wp_insert_user(["user_login"=>"transport_subscriber","user_pass"=>"subscriber-local-test-password","role"=>"subscriber"]); if (is_wp_error($subscriber)) { exit(1); }'
+          node tests/transport-admin-browser.cjs
       - name: Backend runtime packaging
         run: |
           docker build -t syndamorph-mvp ./backend
           docker run --rm --entrypoint node syndamorph-mvp -e "require('./mvp/endpoint'); require('./mvp/claude'); require('./purr-poc'); console.log('MVP and Purr modules available')"
+          docker build -f backend/gateway/Dockerfile -t syndamorph-gateway ./backend
+          docker run --rm --entrypoint node syndamorph-gateway -e "require('./gateway/core'); require('./gateway/store'); require('./gateway/server'); console.log('Gateway modules available')"

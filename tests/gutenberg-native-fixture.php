@@ -1,0 +1,266 @@
+<?php
+// CI-only fixture. Never deploy this file with the plugin.
+require '/var/www/html/wp-load.php';
+require_once '/var/www/html/wp-content/plugins/syndamorph/includes/production-block-plan.php';
+$plan=array('version'=>1,'blocks'=>array(array('type'=>'group','style'=>array('gradient'=>'linear-gradient(135deg,#1b1a17,#2a2722)','minHeight'=>'clamp(28rem,70svh,46rem)','padding'=>'2rem','justifyContent'=>'left','verticalAlignment'=>'center'),'children'=>array(
+    array('type'=>'group','style'=>array('contentWidth'=>'34rem'),'children'=>array(
+        array('type'=>'group','style'=>array('gap'=>'clamp(1rem,0.8rem + 1vw,1.75rem)','justifyContent'=>'left','verticalAlignment'=>'top'),'children'=>array(
+            array('type'=>'heading','text'=>'Welcome','level'=>2,'style'=>array('color'=>'#f5f1ea','fontSize'=>'clamp(2rem,1.2rem + 3.5vw,4.25rem)','fontWeight'=>600,'lineHeight'=>1.1,'letterSpacing'=>'-0.01em','align'=>'left')),
+            array('type'=>'paragraph','text'=>'A comfortable stay.','style'=>array('color'=>'#d6cfc4','fontSize'=>'1rem','lineHeight'=>1.6,'fontWeight'=>400,'align'=>'left')),
+            array('type'=>'buttons','children'=>array(array('type'=>'button','text'=>'Explore','href'=>'#rooms','style'=>array('background'=>'#c9a86a','color'=>'#1b1a17','fontWeight'=>600,'lineHeight'=>1.25,'borderRadius'=>'2px','padding'=>array('top'=>'0.9rem','right'=>'1.75rem','bottom'=>'0.9rem','left'=>'1.75rem')))))
+        ))
+    ))
+))));
+$artifact=syndamorph_compile_block_plan(wp_json_encode($plan));
+$fixtures=array();
+$add=static function(string $name,array $children,array $rootStyle=array())use(&$fixtures){
+    $compiled=syndamorph_compile_block_plan(wp_json_encode(array('version'=>1,'blocks'=>array(array('type'=>'group','style'=>$rootStyle,'children'=>$children)))));
+    if(is_wp_error($compiled)){http_response_code(500);exit($name.': '.$compiled->get_error_message());}
+    $fixtures[$name]=$compiled;
+};
+$heading=array('type'=>'heading','text'=>'Fixture heading');
+$paragraph=array('type'=>'paragraph','text'=>'Plain & editable.');
+$tabsPost=get_post((int)get_option('syndamorph_test_tabs_post',0));
+$offerCopy=array('placeholder'=>'4:5','eyebrow'=>'Special offer','title'=>'Original offer title',
+    'description'=>'An edited promotion with literal <local> copy.','offerLabel'=>'View offer','dismissLabel'=>'Continue to website');
+$offerBlock=get_comment_delimited_block_content('syndamorph/desktop-offer',array('copy'=>$offerCopy),'');
+$newsletterProfile=array(
+    'desktop'=>array('Original newsletter heading','Name','Email address','TH +66','Tel.','Consent copy','Subscribe'),
+    'compact'=>array('Compact newsletter heading','Name','Email address','+66','Tel.','Consent copy','Subscribe'),
+    'choices'=>array(array('name'=>'Thailand','dial'=>'+66','label'=>'TH +66'),
+        array('name'=>'United Kingdom','dial'=>'+44','label'=>'UK +44')));
+$newsletterBlock=syndamorph_newsletter_content($newsletterProfile);
+$newsletterDraft=wp_insert_post(array('post_type'=>'page','post_status'=>'draft','post_title'=>'Recorded Newsletter fixture',
+    'post_content'=>wp_slash($newsletterBlock),'meta_input'=>array('_syndamorph_scope_key'=>'2:page')),true);
+if(is_wp_error($newsletterDraft)||!$newsletterDraft||
+    syndamorph_scope_block_count(parse_blocks($newsletterBlock))!==1||
+    syndamorph_scope_block_count(parse_blocks($newsletterBlock.$newsletterBlock))!==-1||
+    syndamorph_newsletter_profile($newsletterProfile+array('submission'=>'/subscribe'))!==null){
+    http_response_code(500);exit('Recorded Newsletter contract failed.');
+}
+if(!syndamorph_offer_copy($offerCopy)||syndamorph_offer_copy($offerCopy+array('href'=>'/unsupported'))||
+    syndamorph_offer_copy(array_diff_key($offerCopy,array('dismissLabel'=>true)))||
+    !str_contains(syndamorph_offer_render(array('copy'=>$offerCopy)),'&lt;local&gt;')){
+    http_response_code(500);exit('Invalid Desktop Offer contract');
+}
+$offerEntrance='<!-- wp:group {"className":"sm-offer-entrance","layout":{"type":"flow"}} -->'.
+    '<div class="wp-block-group sm-offer-entrance"><!-- wp:heading -->'.
+    '<h2 class="wp-block-heading">Offer entrance fixture</h2><!-- /wp:heading --></div><!-- /wp:group -->';
+$offerPost=wp_insert_post(array('post_type'=>'page','post_status'=>'draft','post_title'=>'Desktop Offer fixture',
+    'post_content'=>wp_slash($offerBlock."\n\n".$offerEntrance)),true);
+if(is_wp_error($offerPost)||!$offerPost){http_response_code(500);exit('Desktop Offer draft was not created');}
+if(syndamorph_scope_block_count(parse_blocks($offerBlock))!==1||
+    syndamorph_scope_block_count(parse_blocks($offerBlock."\n\n".$offerBlock))!==-1){
+    http_response_code(500);exit('Full Page Desktop Offer identity was not enforced.');
+}
+$bookingBlock=get_comment_delimited_block_content('syndamorph/booking-summary',array('overlap'=>true),'');
+$bookingGroup=static fn(string $blocks,string $visibility='desktop'): string =>
+    '<!-- wp:group {"className":"sm-view-'.$visibility.'"} --><div class="wp-block-group sm-view-'.$visibility.'">'.
+    $blocks.'</div><!-- /wp:group -->';
+$scopeBooking=$bookingGroup($bookingBlock);
+$bookingDocument=syndamorph_scope_document($scopeBooking,'Full Page booking fixture');
+$badBooking=get_comment_delimited_block_content('syndamorph/booking-summary',
+    array('overlap'=>true,'copy'=>array('externalUrl'=>'/unverified')),'');
+if(syndamorph_scope_block_count(parse_blocks($scopeBooking))!==2||
+    substr_count($bookingDocument,'production-booking-view.js')!==1||
+    str_contains(syndamorph_scope_document($offerEntrance,'No booking'),'production-booking-view.js')){
+    http_response_code(500);exit('Full Page booking presence or runtime failed.');
+}
+foreach(array($bookingBlock,$scopeBooking.$scopeBooking,$bookingGroup($bookingBlock,'compact'),
+    $bookingGroup($scopeBooking),$bookingGroup($badBooking)) as $invalidBooking){
+    if(syndamorph_scope_block_count(parse_blocks($invalidBooking))!==-1){
+        http_response_code(500);exit('An invalid Full Page booking block was admitted.');
+    }
+}
+$scopeBookingPost=wp_insert_post(array('post_type'=>'page','post_status'=>'draft','post_title'=>'Full Page booking fixture',
+    'post_content'=>wp_slash($scopeBooking),'meta_input'=>array('_syndamorph_scope_key'=>'1:page')),true);
+if(is_wp_error($scopeBookingPost)||!$scopeBookingPost){http_response_code(500);exit('Full Page booking draft failed.');}
+$headerPost=0;$scopeHeaderPost=0;
+if(function_exists('register_block_template')&&wp_is_block_theme()){
+    $uploaded=array();
+    $image=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ioAAAAASUVORK5CYII=',true);
+    $logo=syndamorph_import_image_bytes($image,'native-header-fixture.png',$uploaded,true);
+    if(is_wp_error($logo)){http_response_code(500);exit('Header fixture image failed');}
+    $root='https://example.invalid/';
+    $headerNav=array('logoId'=>$logo,'logoAlt'=>'Example logo','homeUrl'=>$root,'rateUrl'=>$root.'rates?a=1&b=2',
+        'rateLabel'=>'Check Rate','bookLabel'=>'Book','languageLabel'=>'EN','languages'=>array('English','Español'),
+        'utility'=>array(array('label'=>'About','href'=>$root.'about')),
+        'primary'=>array(array('label'=>'Stay','href'=>$root.'stay','panelWidth'=>280,
+            'children'=>array(array('label'=>'All Rooms','href'=>$root.'stay#rooms'),
+                array('label'=>'Suites','href'=>$root.'stay#suites','separatorBefore'=>true)))),
+        'compactPrimary'=>array(array('label'=>'Stay','children'=>array(array('label'=>'All Rooms')))),
+        'compactUtility'=>array(array('label'=>'About','href'=>$root.'about')));
+    $placeholderNav=array_replace($headerNav,array('compactPrimary'=>array(array('label'=>'Unsafe','href'=>'#'))));
+    if(!syndamorph_header_content($headerNav)||
+        syndamorph_header_content(array_replace($headerNav,array('rateUrl'=>$root.'rates?a=1&amp;b=2')))!==$headerNav||
+        syndamorph_header_content(array_replace($headerNav,array('rateUrl'=>'javascript:alert(1)')))||
+        syndamorph_header_content(array_replace($headerNav,array('homeUrl'=>'https://user@example.invalid/')))||
+        syndamorph_header_content($placeholderNav)){
+        http_response_code(500);exit('Invalid Recorded Header contract');
+    }
+    $headerBlock=get_comment_delimited_block_content('syndamorph/recorded-header',array('navigation'=>$headerNav),'');
+    $spacer='<!-- wp:spacer {"height":"1200px"} --><div style="height:1200px" aria-hidden="true" class="wp-block-spacer"></div><!-- /wp:spacer -->';
+    $headerPost=wp_insert_post(array('post_type'=>'page','post_status'=>'draft','post_title'=>'Recorded Header fixture',
+        'post_content'=>wp_slash(implode("\n\n",array($headerBlock,$offerEntrance,$spacer)))),true);
+    if(is_wp_error($headerPost)||!$headerPost){http_response_code(500);exit('Recorded Header draft was not created');}
+    update_post_meta($headerPost,'_wp_page_template','production-canvas');
+    $hash=hash('sha256',$image);
+    $scopeBlock=get_comment_delimited_block_content('syndamorph/recorded-header',
+        array('navigation'=>$headerNav,'logoSha256'=>$hash),'');
+    $scopeContent=implode("\n\n",array($scopeBlock,$offerEntrance,$spacer));
+    $document=syndamorph_scope_document($scopeContent,'Full Page header fixture');
+    $isolated=syndamorph_image_strip_frame($document);
+    $changed=str_replace($hash,str_repeat('0',64),$scopeBlock);
+    $nested='<!-- wp:group --><div class="wp-block-group">'.$scopeBlock.'</div><!-- /wp:group -->';
+    if(syndamorph_scope_block_count(parse_blocks($scopeContent))!==4||
+        syndamorph_scope_block_count(parse_blocks($headerBlock))!==-1||
+        syndamorph_scope_block_count(parse_blocks($changed))!==-1||
+        syndamorph_scope_block_count(parse_blocks($nested))!==-1||
+        syndamorph_scope_block_count(parse_blocks($scopeBlock.$scopeBlock))!==-1||
+        is_wp_error($isolated)||substr_count($isolated,'data:image/png;base64,'.base64_encode($image))!==3||
+        !is_wp_error(syndamorph_image_strip_frame(syndamorph_scope_document($changed,'Changed logo')))){
+        http_response_code(500);exit('Full Page header evidence was lost or invalid evidence passed.');
+    }
+    $scopeHeaderPost=wp_insert_post(array('post_type'=>'page','post_status'=>'draft','post_title'=>'Full Page header fixture',
+        'post_content'=>wp_slash($scopeContent),'meta_input'=>array('_syndamorph_scope_key'=>'0:page')),true);
+    if(is_wp_error($scopeHeaderPost)||!$scopeHeaderPost){http_response_code(500);exit('Full Page header draft was not created');}
+}
+$button=array('type'=>'button','text'=>'CTA label','href'=>'#reservations');
+$wrap=static fn(array $child,array $style=array())=>array('type'=>'buttons','style'=>$style,'children'=>array($child));
+$add('GEN9 custom CTA font',array($heading,$wrap(array_merge($button,array('style'=>array('color'=>'#18283a','background'=>'#c9a86a','fontSize'=>'1rem','fontWeight'=>600,'lineHeight'=>1.25,'padding'=>array('top'=>'0.875rem','right'=>'1.5rem','bottom'=>'0.875rem','left'=>'1.5rem'),'borderRadius'=>'0.25rem'))))));
+$add('plain all types',array($heading,$paragraph,$wrap($button),array('type'=>'columns','children'=>array(array('type'=>'column','children'=>array($paragraph)),array('type'=>'column','children'=>array($heading))))));
+$add('scoped grayscale paragraph with pretty wrapping',array($heading,$paragraph+array('style'=>array('textWrap'=>'pretty','fontSmoothing'=>'grayscale')),$paragraph));
+$add('scoped grayscale heading',array($heading+array('style'=>array('fontSmoothing'=>'grayscale')),$paragraph));
+$straight="Live Thonglor's rhythm.";
+$add('literal source apostrophe and wrapping',array(
+    array('type'=>'paragraph','text'=>$straight,'style'=>array('textWrap'=>'wrap','literalApostrophes'=>true)),
+    array('type'=>'paragraph','text'=>"It's standard typography."),
+));
+$savedTypography=str_replace('&#039;',"'",$fixtures['literal source apostrophe and wrapping']['content']);
+$styledParagraphs=wptexturize(do_blocks($savedTypography));
+if(!str_contains($styledParagraphs,'sm-text-wrap-wrap sm-literal-apostrophes')||
+    !str_contains($styledParagraphs,'Thonglor&#039;s')||!str_contains($styledParagraphs,'It&#8217;s')){
+    http_response_code(500);exit('Literal apostrophe changed unrelated WordPress typography');
+}
+$compactRule=array('width'=>'1px','color'=>'#d7d3d3');
+$add('authored heading breaks and fixed Grid',array(
+    array('type'=>'heading','level'=>1,'text'=>"Hotel Indigo\nBangkok Thonglor",'preserveLineBreaks'=>true,
+        'style'=>array('fontSize'=>'clamp(48px,48px,48px)','lineHeight'=>'0.95','letterSpacing'=>'0px')),
+    array('type'=>'group','gridColumns'=>2,'style'=>array('gap'=>'0px','borderBottom'=>$compactRule),
+        'children'=>array(
+            array('type'=>'group','style'=>array('borderRight'=>$compactRule),'children'=>array($paragraph)),
+            array('type'=>'group','children'=>array($paragraph)),
+        )),
+));
+$add('captured viewport variants',array(
+    array('type'=>'group','style'=>array('visibility'=>'desktop','background'=>'#aaccbb'),'children'=>array($heading)),
+    array('type'=>'group','style'=>array('visibility'=>'compact'),'children'=>array($paragraph)),
+));
+$typography=array('color'=>'#123456','background'=>'#abcdef','fontSize'=>'1.25rem','fontWeight'=>700,'lineHeight'=>1.4,'letterSpacing'=>'-0.02em');
+foreach(array('heading','paragraph') as $type){
+    $leaf=$type==='heading'?$heading:$paragraph;
+    foreach(array('left','center','right') as $align)$add($type.' '.$align,array($heading,array_merge($leaf,array('style'=>$typography+array('align'=>$align,'margin'=>array('top'=>'0','bottom'=>'1rem'))))));
+}
+foreach(range(1,6) as $level)$add('heading level '.$level,array(array_merge($heading,array('level'=>$level))));
+foreach(array('left','center','right') as $align)$add('buttons '.$align,array($heading,$wrap(array_merge($button,array('style'=>$typography+array('padding'=>'1rem','borderRadius'=>'4px'))),array('justifyContent'=>$align,'gap'=>'1rem'))));
+$add('button gradient',array($heading,$wrap(array_merge($button,array('style'=>array('gradient'=>'linear-gradient(90deg,#123456,#abcdef)','color'=>'#ffffff','fontSize'=>'clamp(1rem,2vw,2rem)'))))));
+$add('columns gap and column styles',array($heading,array('type'=>'columns','style'=>array('gap'=>'clamp(1rem,2vw,2rem)'),'children'=>array(array('type'=>'column','style'=>array('color'=>'#123456','background'=>'#abcdef','padding'=>'1rem'),'children'=>array($paragraph)),array('type'=>'column','style'=>array('gradient'=>'linear-gradient(90deg,#123456,#abcdef)','padding'=>array('left'=>'2rem')),'children'=>array($heading))))));
+foreach(array('left','center','right','stretch') as $align)$add('group '.$align,array($heading,$paragraph),array('color'=>'#123456','background'=>'#abcdef','padding'=>'1rem','gap'=>'1rem','minHeight'=>'30vh','justifyContent'=>$align,'verticalAlignment'=>'bottom'));
+$add('constrained group',array($heading,$paragraph),array('contentWidth'=>'36rem','gap'=>'1rem'));
+$add('constrained layout geometry',array(
+    array_merge($heading,array('style'=>array('margin'=>0,'align'=>'center'))),
+    array_merge($paragraph,array('style'=>array('margin'=>array('bottom'=>'1rem'),'align'=>'center'))),
+    $wrap($button,array('justifyContent'=>'center')),
+),array('padding'=>'1rem','contentWidth'=>'36rem','gap'=>'1.5rem'));
+$add('scoped reconstruction',array(array('type'=>'group',
+    'style'=>array('justifyContent'=>'stretch','gap'=>'1.5rem'),
+    'children'=>array(
+        $heading,
+        $paragraph,
+        $wrap(array_merge($button,array('style'=>array('fontSize'=>'1rem','fontWeight'=>600,'lineHeight'=>1.2))),
+            array('justifyContent'=>'center')),
+    ),
+)),array('contentWidth'=>'42rem','minHeight'=>'clamp(26.5rem, 20rem + 20vw, 38rem)'));
+$add('vertically centered constrained content',array(array(
+    'type'=>'group','style'=>array('contentWidth'=>'36rem','gap'=>'1rem','padding'=>0),
+    'children'=>array($heading,array_merge($paragraph,array('style'=>array(
+        'textTransform'=>'uppercase','padding'=>array('left'=>'clamp(0rem,6vw - 0.5rem,2rem)'),
+        'margin'=>array('bottom'=>'clamp(0.5rem,2vw,1.5rem)')))),
+        $wrap(array_merge($button,array('style'=>array('textTransform'=>'capitalize'))),
+            array('margin'=>array('top'=>'0.5rem','bottom'=>'0')))),
+)),array('justifyContent'=>'stretch','verticalAlignment'=>'center','minHeight'=>'24rem','padding'=>'1rem'));
+if(syndamorph_native_full_button_width()){
+    $add('fixed full width CTA',array($heading,$wrap(array_merge($button,array(
+        'style'=>array('width'=>'100%','textTransform'=>'lowercase'))))),array('justifyContent'=>'stretch'));
+}
+$stackChild=array('type'=>'group','id'=>'stack-content','style'=>array('contentWidth'=>'44rem','gap'=>'1.5rem'),
+    'children'=>array(array_merge($heading,array('id'=>'stack-heading')),array_merge($paragraph,array('id'=>'stack-copy')),$wrap($button)));
+$add('constrained child in default stack',array($stackChild),array('padding'=>'4rem'));
+$stackChild['style']['padding']=0;
+$add('constrained child in stretched stack',array($stackChild),array('padding'=>'4rem','justifyContent'=>'stretch'));
+$add('left aligned constrained child',array($heading),array('contentWidth'=>'25rem','contentAlignment'=>'left','padding'=>0));
+$add('empty decorated Group',array(
+    array('type'=>'heading','id'=>'decorative-heading','text'=>'Welcome'),
+    array('type'=>'group','id'=>'decorative-panel','style'=>array(
+        'minHeight'=>'clamp(12rem,30vw,26rem)','gradient'=>'linear-gradient(200deg,#2f4f70,#14263a)'))));
+$alignments=array();
+foreach(array('full','wide','content') as $alignment){
+    $planned=array('version'=>1,'sectionAlignment'=>$alignment,'blocks'=>array(array('type'=>'group',
+        'style'=>array('flow'=>true,'background'=>'#123456','color'=>'#ffffff'),
+        'children'=>array(array('type'=>'group','style'=>array('contentWidth'=>'20rem','padding'=>0),
+            'children'=>array(array('type'=>'heading','text'=>'Section width '.$alignment)))))));
+    $case=syndamorph_compile_block_plan(wp_json_encode($planned));
+    if(is_wp_error($case)){http_response_code(500);exit($case->get_error_message());}
+    $fixtures['section width '.$alignment]=$case;
+    $alignments[$alignment]=array('content'=>$case['content'],'preview'=>$case['preview']);
+}
+$parity=$fixtures['constrained layout geometry'];
+$nativeHtml=do_blocks($parity['content']);
+$baseCss='*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,sans-serif}.wp-block-button__link{display:inline-block}.has-text-align-center{text-align:center}';
+$parity['frontend']='<style>'.wp_get_global_stylesheet().
+    wp_style_engine_get_stylesheet_from_context('block-supports').$baseCss.'</style>'.$nativeHtml;
+$parity['flex']=array('preview'=>$fixtures['group center']['preview']);
+$nativeFlex=do_blocks($fixtures['group center']['content']);
+$parity['flex']['frontend']='<style>'.wp_get_global_stylesheet().
+    wp_style_engine_get_stylesheet_from_context('block-supports').$baseCss.'</style>'.$nativeFlex;
+$parity['columns']=array('preview'=>$fixtures['columns gap and column styles']['preview']);
+$nativeColumns=do_blocks($fixtures['columns gap and column styles']['content']);
+$columnCss=file_get_contents(ABSPATH.WPINC.'/blocks/columns/style.min.css');
+$parity['columns']['frontend']='<style>'.wp_get_global_stylesheet().$columnCss.
+    wp_style_engine_get_stylesheet_from_context('block-supports').$baseCss.'</style>'.$nativeColumns;
+
+$coreButtonCss=file_get_contents(ABSPATH.WPINC.'/blocks/button/style.min.css');
+foreach(array('vertically centered constrained content'=>'hybrid','fixed full width CTA'=>'fullWidth') as $fixture=>$key) {
+    if(!isset($fixtures[$fixture]))continue;
+    $case=$fixtures[$fixture];
+    $frontend=do_blocks($case['content']);
+    $parity[$key]=array('preview'=>$case['preview'],'frontend'=>'<style>'.wp_get_global_stylesheet().
+        wp_style_engine_get_stylesheet_from_context('block-supports').$coreButtonCss.$baseCss.'</style>'.$frontend);
+}
+
+if(method_exists('WP_Theme_JSON','get_viewport_media_queries') &&
+    wp_is_block_theme() && syndamorph_native_full_button_width()) {
+    // Probe core's responsive dimensions directly. The rule targets the
+    // wrapper, so it cannot replace an intrinsic anchor with a full-width CTA.
+    $responsive='<!-- wp:buttons {"layout":{"type":"flex"}} --><div class="wp-block-buttons">'.
+        '<!-- wp:button {"style":{"@mobile":{"dimensions":{"width":"100%"}}}} --><div class="wp-block-button">'.
+        '<a class="wp-block-button__link wp-element-button" href="#rooms">See rooms</a></div><!-- /wp:button -->'.
+        '</div><!-- /wp:buttons -->';
+    $frontend=do_blocks($responsive);
+    $parity['responsiveCoreWrapper']='<style>'.wp_get_global_stylesheet().
+        wp_style_engine_get_stylesheet_from_context('block-supports').$coreButtonCss.$baseCss.'</style>'.$frontend;
+}
+
+if(is_wp_error($artifact)){http_response_code(500);exit($artifact->get_error_message());}
+header('Content-Type: text/html; charset=utf-8');
+?><!doctype html><html><head><meta charset="utf-8"><?php
+wp_enqueue_script('wp-block-library');
+wp_print_scripts(array('wp-block-library','syndamorph-tabs-editor','syndamorph-header-editor','syndamorph-offer-editor','syndamorph-booking-editor','syndamorph-newsletter-editor'));
+printf('<script>window.nativeScopeNewsletter=%s;window.newsletterPost=%d;</script>',
+    wp_json_encode($newsletterBlock,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT),$newsletterDraft);
+printf('<script>window.nativeScopeHeader=%s;</script>',wp_json_encode($scopeContent??'',JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT));
+printf('<script>window.nativeScopeOffer=%s;</script>',wp_json_encode($offerBlock,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT));
+printf('<script>window.nativeScopeBooking=%s;window.nativeBookingBlock=%s;window.scopeBookingPost=%d;</script>',
+    wp_json_encode($scopeBooking,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT),
+    wp_json_encode($bookingBlock,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT),$scopeBookingPost);
+?></head><body><script src="/wp-content/plugins/syndamorph/assets/production-ai-export.js"></script><script>window.nativeFixture=<?php echo wp_json_encode($artifact,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeFixtures=<?php echo wp_json_encode($fixtures,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeParity=<?php echo wp_json_encode($parity,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.tabsPost=<?php echo (int)($tabsPost->ID??0); ?>;window.tabsContent=<?php echo wp_json_encode($tabsPost->post_content??'',JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.nativeAlignments=<?php echo wp_json_encode($alignments,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT); ?>;window.bookingPost=<?php echo (int)get_option('syndamorph_test_booking_post',0); ?>;window.offerPost=<?php echo (int)$offerPost; ?>;window.headerPost=<?php echo (int)$headerPost; ?>;window.scopeHeaderPost=<?php echo (int)$scopeHeaderPost; ?>;</script></body></html>

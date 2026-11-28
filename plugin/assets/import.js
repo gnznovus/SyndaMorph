@@ -25,6 +25,7 @@
     const inlineTags = new Set( [ 'br', 'span', 'strong', 'b', 'em', 'i', 'code', 'sup', 'sub', 'a', 'small', 'mark', 'u', 's' ] );
     const isInlineNode = ( part ) => part.nodeType === 3 ||
         ( part.nodeType === 1 && inlineTags.has( part.tagName.toLowerCase() ) &&
+            !(part.tagName === 'A' && /(?:^|[\s_-])(?:btn|button|cta)(?:$|[\s_-])/i.test(part.className || '')) &&
             ! part.querySelector( 'p,h1,h2,h3,h4,h5,h6,div,section,article,img,ul,ol,table' ) );
     const childBlocks = ( node, context, textTag = 'p' ) => {
         const output = [];
@@ -82,6 +83,7 @@
     const allowedLength = ( value ) => {
         const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
         if ( raw === '0' ) { return '0px'; }
+        if ( /^(?:clamp|min|max)\(\s*[0-9.,%\s+*\/-]*(?:(?:px|rem|em|vw|vh|svh|dvh)[0-9.,%\s+*\/-]*)+\)$/.test( raw ) && CSS.supports( 'width', raw ) ) { return raw; }
         const match = raw.match( /^(\d+(?:\.\d+)?)(px|rem|em|%)$/ );
         if ( ! match || Number( match[ 1 ] ) > 400 ) { return ''; }
         return raw;
@@ -192,14 +194,33 @@
 
     const readStyles = ( node, context ) => {
         const style = document.createElement( 'div' ).style;
-        context.rules.forEach( ( rule ) => {
-            try {
-                if ( node.matches( rule.selector ) ) {
-                    style.cssText += ';' + rule.declaration;
-                }
-            } catch ( error ) { /* Ignore invalid CSS selectors. */ }
-        } );
-        style.cssText += ';' + ( node.getAttribute( 'style' ) || '' );
+        const declarations = element => {
+            const result = document.createElement('div').style;
+            context.rules.forEach(rule => { try { if(element.matches(rule.selector)) result.cssText += ';'+rule.declaration; } catch(_) {} });
+            result.cssText += ';'+(element.getAttribute('style')||'');
+            return result;
+        };
+        const ancestors = [];
+        for(let p=node;p&&p.nodeType===1;p=p.parentElement) ancestors.unshift(p);
+        const variables = new Map();
+        const inherited = ['color','font-family','font-size','font-weight','line-height','letter-spacing','text-align','text-transform'];
+        const resolve = value => {
+            for(let i=0;i<8&&value.includes('var(');i++) value=value.replace(/var\(\s*(--[\w-]+)\s*(?:,\s*([^()]*))?\)/g,(_,key,fallback)=>variables.get(key)||fallback||'');
+            return value.includes('var(')?'':value;
+        };
+        for(const element of ancestors) {
+            const local=declarations(element);
+            for(const name of Array.from(local)) if(name.startsWith('--')) variables.set(name,local.getPropertyValue(name).trim());
+            for(const name of Array.from(local)) {
+                if(name.startsWith('--') || (element!==node && !inherited.includes(name))) continue;
+                const value=resolve(local.getPropertyValue(name));
+                if(value) style.setProperty(name,value,local.getPropertyPriority(name));
+            }
+        }
+        // Expand logical spacing to native block sides (horizontal writing mode).
+        for(const [logical,physical] of Object.entries({'padding-block-start':'padding-top','padding-block-end':'padding-bottom','padding-inline-start':'padding-left','padding-inline-end':'padding-right','margin-block-start':'margin-top','margin-block-end':'margin-bottom','margin-inline-start':'margin-left','margin-inline-end':'margin-right'})) {
+            if(style.getPropertyValue(logical)) style.setProperty(physical,style.getPropertyValue(logical));
+        }
         const captured = context.captured;
         const fontSize = allowedLength( style.fontSize );
         const lineHeight = validLineHeight( style.lineHeight );
@@ -237,13 +258,13 @@
             justifyContent: style.justifyContent,
             textAlign: acceptedAlign( style.textAlign ),
             color: allowedColor( style.color ),
-            background: allowedColor( style.backgroundColor ),
+            background: allowedColor( style.backgroundColor ) || ( /^linear-gradient\(/i.test(style.backgroundImage) ? allowedColor((style.backgroundImage.match(/#[0-9a-f]{3,6}\b|rgba?\([^)]*\)/i)||[])[0]) : '' ),
             backgroundImage: cssImageUrl( style.backgroundImage, context ),
             backgroundSize: [ 'cover', 'contain' ].includes( style.backgroundSize ) ? style.backgroundSize : '',
-            fontFamily: captured && /^[\p{L}\p{N}\s,'"-]{1,160}$/u.test( style.fontFamily ) ? style.fontFamily : '',
+            fontFamily: /^[\p{L}\p{N}\s,'"-]{1,160}$/u.test( style.fontFamily ) ? style.fontFamily : '',
             fontWeight: validFontWeight( style.fontWeight ),
-            letterSpacing: captured && /^-?\d+(?:\.\d+)?(?:px|em|rem)$/.test( style.letterSpacing ) ? style.letterSpacing : '',
-            textTransform: captured && [ 'uppercase', 'lowercase', 'capitalize' ].includes( style.textTransform ) ? style.textTransform : '',
+            letterSpacing: /^-?\d+(?:\.\d+)?(?:px|em|rem)$/.test( style.letterSpacing ) ? style.letterSpacing : '',
+            textTransform: [ 'uppercase', 'lowercase', 'capitalize' ].includes( style.textTransform ) ? style.textTransform : '',
             lineHeight: largeText && pixels( lineHeight ) ? ( pixels( lineHeight ) / pixels( fontSize ) ).toFixed( 3 ) : lineHeight,
             padding,
             margin,
@@ -298,6 +319,7 @@
 
     const safeUrl = ( raw, context, protocols = [ 'https:', 'http:' ] ) => {
         if ( ! raw || ! raw.trim() ) { return ''; }
+        if ( /^#[A-Za-z][\w-]*$/.test(raw.trim()) ) { return raw.trim(); }
         try {
             const url = new URL( raw.trim(), context.baseUrl );
             return protocols.includes( url.protocol ) ? url.href : '';
@@ -357,10 +379,16 @@
         return parts.join( '' );
     };
 
-    const asButton = ( label, href ) => {
-        const anchor = '<a class="wp-block-button__link wp-element-button"' +
+    const asButton = ( label, href, styles = {} ) => {
+        const attrs = {}, classes = ['wp-block-button__link'];
+        const inline = [];
+        if(styles.color){attrs.style={color:{text:styles.color}};classes.push('has-text-color');inline.push('color:'+styles.color);}
+        if(styles.background){attrs.style={...(attrs.style||{}),color:{...(attrs.style?.color||{}),background:styles.background}};classes.push('has-background');inline.push('background-color:'+styles.background);}
+        classes.push('wp-element-button');
+        const css=applySpacing(attrs,inline.join(';'),{padding:styles.padding||{},margin:{}},false);
+        const anchor = '<a'+htmlAttributes(classes.join(' '),css) +
             ( href ? ' href="' + escapeHtml( href ) + '"' : '' ) + '>' + escapeHtml( label ) + '</a>';
-        const inner = block( 'button', {}, '<div class="wp-block-button">' + anchor + '</div>' );
+        const inner = block( 'button', attrs, '<div class="wp-block-button">' + anchor + '</div>' );
         return block( 'buttons', {}, '<div class="wp-block-buttons">' + inner + '</div>' );
     };
 
@@ -512,16 +540,16 @@
             // A native Image is its own block, so split it from the surrounding text.
             return childBlocks( node, context, tag );
         } else if ( tag === 'p' && node.children.length === 1 && node.firstElementChild.tagName.toLowerCase() === 'a' &&
-            /(?:^|\s)(?:btn|button|cta)(?:$|\s)/i.test( node.firstElementChild.className || '' ) ) {
+            /(?:^|[\s_-])(?:btn|button|cta)(?:$|[\s_-])/i.test( node.firstElementChild.className || '' ) ) {
             const anchor = node.firstElementChild;
-            markup = asButton( anchor.textContent.trim(), safeUrl( anchor.getAttribute( 'href' ), context ) );
+            markup = asButton( anchor.textContent.trim(), safeUrl( anchor.getAttribute( 'href' ), context ), readStyles(anchor,context) );
         } else if ( isTextBlock ) {
             if ( ! node.textContent.trim() ) { return ''; }
             markup = textBlock( tag, styles, simpleInline( node, context, styles.display ) );
         } else if ( tag === 'button' || ( tag === 'a' && ! node.querySelector( 'img' ) &&
-            /(?:^|\s)(?:btn|button|cta)(?:$|\s)/i.test( node.className || '' ) ) ) {
+            /(?:^|[\s_-])(?:btn|button|cta)(?:$|[\s_-])/i.test( node.className || '' ) ) ) {
             const value = node.textContent.trim();
-            if ( value ) { markup = asButton( value, tag === 'a' ? safeUrl( node.getAttribute( 'href' ), context ) : '' ); }
+            if ( value ) { markup = asButton( value, tag === 'a' ? safeUrl( node.getAttribute( 'href' ), context ) : '', styles ); }
         } else if ( tag === 'ul' || tag === 'ol' ) {
             markup = asList( node, context );
         } else if ( tag === 'table' ) {
@@ -722,7 +750,7 @@
         const stylesheets = await inspectStylesheets( doc );
         const rules = extractStyles( doc );
         // No source scripts or active embeds are allowed in the preview or block output.
-        doc.querySelectorAll( 'script, iframe, object, embed, template, svg, link, base' ).forEach( ( node ) => node.remove() );
+        doc.querySelectorAll( 'script, style, iframe, object, embed, template, svg, link, base' ).forEach( ( node ) => node.remove() );
         if ( ! captured ) { doc.querySelectorAll( 'form' ).forEach( ( node ) => node.remove() ); }
         if ( captured ) { captureRoot.querySelectorAll( '[data-syndamorph-hidden],[data-syndamorph-static-control]' ).forEach( ( node ) => node.remove() ); }
         doc.querySelectorAll( '*' ).forEach( ( node ) => {

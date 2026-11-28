@@ -1,0 +1,630 @@
+{
+  "archive": {
+    "job": "GEN-000002",
+    "event": 1877,
+    "head": "a03d4b625bef5f0b682bec6f81383ce5c4573248",
+    "compilerSha256": "c10ec67776793cadc5ccd971d903c3ad5303dea1be1338ab54d6c89465d5d557",
+    "widths": [
+      1440,
+      768,
+      390
+    ]
+  },
+  "reference": "<section class=\"sm-hero\" aria-labelledby=\"sm-hero-title\">\n  <!-- Revision note: Playwright desktop and mobile measurements at 1440, 768 and 375 CSS px were not captured in this revision. No-overflow, clipping and line-wrap results at those widths are unverified until measured in a browser. -->\n  <style>\n    .sm-hero {\n      --sm-hero-bg-start: #18283a;\n      --sm-hero-bg-end: #2b4a6b;\n      --sm-hero-text: #ffffff;\n      --sm-hero-muted: #e3e9f0;\n      --sm-hero-cta-bg: #f5e6c8;\n      --sm-hero-cta-text: #18283a;\n      --sm-hero-focus: #ffd966;\n      --sm-hero-space-block: clamp(3rem, 2rem + 6vw, 6.5rem);\n      --sm-hero-space-inline: clamp(1.25rem, 0.75rem + 3vw, 3rem);\n      --sm-hero-gap: clamp(1rem, 0.6rem + 1.5vw, 1.75rem);\n      --sm-hero-content-width: 42rem;\n      --sm-hero-radius: 999px;\n\n      box-sizing: border-box;\n      background: linear-gradient(135deg, var(--sm-hero-bg-start) 0%, var(--sm-hero-bg-end) 100%);\n      color: var(--sm-hero-text);\n      font-family: system-ui, -apple-system, \"Segoe UI\", sans-serif;\n      padding: var(--sm-hero-space-block) var(--sm-hero-space-inline);\n      overflow-wrap: break-word;\n      word-break: normal;\n    }\n\n    .sm-hero *,\n    .sm-hero *::before,\n    .sm-hero *::after {\n      box-sizing: border-box;\n    }\n\n    /* Container-level width control: centers the content group.\n       No max-width is applied to individual text leaves. */\n    .sm-hero__content {\n      width: 100%;\n      max-width: var(--sm-hero-content-width);\n      margin-inline: auto;\n    }\n\n    .sm-hero__inner {\n      display: flex;\n      flex-direction: column;\n      align-items: center;\n      text-align: center;\n      gap: var(--sm-hero-gap);\n    }\n\n    .sm-hero__eyebrow {\n      margin: 0;\n      font-size: clamp(0.8rem, 0.75rem + 0.25vw, 0.95rem);\n      font-weight: 600;\n      letter-spacing: 0.12em;\n      text-transform: uppercase;\n      color: var(--sm-hero-muted);\n    }\n\n    .sm-hero__title {\n      margin: 0;\n      font-size: clamp(2rem, 1.2rem + 3.5vw, 4rem);\n      line-height: 1.1;\n      font-weight: 700;\n      letter-spacing: -0.01em;\n      color: var(--sm-hero-text);\n      text-wrap: balance;\n    }\n\n    .sm-hero__intro {\n      margin: 0;\n      font-size: clamp(1rem, 0.9rem + 0.5vw, 1.25rem);\n      line-height: 1.6;\n      color: var(--sm-hero-muted);\n      text-wrap: pretty;\n    }\n\n    .sm-hero__cta {\n      display: inline-flex;\n      align-items: center;\n      justify-content: center;\n      min-height: 2.75rem;\n      margin-top: calc(var(--sm-hero-gap) * 0.25);\n      padding: 0.75rem clamp(1.25rem, 1rem + 1vw, 2rem);\n      border-radius: var(--sm-hero-radius);\n      background: var(--sm-hero-cta-bg);\n      color: var(--sm-hero-cta-text);\n      font-size: clamp(0.95rem, 0.9rem + 0.25vw, 1.05rem);\n      font-weight: 600;\n      line-height: 1.2;\n      text-decoration: none;\n      text-align: center;\n      max-width: 100%;\n    }\n\n    .sm-hero__cta:hover {\n      text-decoration: underline;\n    }\n\n    .sm-hero__cta:focus-visible {\n      outline: 3px solid var(--sm-hero-focus);\n      outline-offset: 3px;\n    }\n\n    @media (min-width: 48rem) {\n      .sm-hero__inner {\n        gap: clamp(1.25rem, 1rem + 1vw, 2rem);\n      }\n    }\n  </style>\n\n  <div class=\"sm-hero__content\">\n    <div class=\"sm-hero__inner\">\n      <p class=\"sm-hero__eyebrow\">Welcome</p>\n      <h2 class=\"sm-hero__title\" id=\"sm-hero-title\">Rest well in a space designed for you</h2>\n      <p class=\"sm-hero__intro\">\n        Settle into calm, considered rooms with thoughtful details, attentive service and\n        comfortable spaces for work, rest and time together. Every stay is planned around your pace.\n      </p>\n      <a class=\"sm-hero__cta\" href=\"#rooms\">View available rooms</a>\n    </div>\n  </div>\n</section>",
+  "plan": {
+    "version": 1,
+    "blocks": [
+      {
+        "type": "group",
+        "id": "sm-hero-root",
+        "style": {
+          "gradient": "linear-gradient(135deg, #18283a, #2b4a6b)",
+          "padding": {
+            "top": "clamp(3rem, 2rem + 6vw, 6.5rem)",
+            "right": "clamp(1.25rem, 0.75rem + 3vw, 3rem)",
+            "bottom": "clamp(3rem, 2rem + 6vw, 6.5rem)",
+            "left": "clamp(1.25rem, 0.75rem + 3vw, 3rem)"
+          },
+          "gap": "clamp(1rem, 0.6rem + 1.5vw, 1.75rem)",
+          "color": "#ffffff",
+          "contentWidth": "42rem"
+        },
+        "children": [
+          {
+            "type": "paragraph",
+            "id": "sm-hero-eyebrow",
+            "text": "Welcome",
+            "style": {
+              "color": "#e3e9f0",
+              "fontSize": "clamp(0.8rem, 0.75rem + 0.25vw, 0.95rem)",
+              "fontWeight": 600,
+              "letterSpacing": "0.12em",
+              "align": "center",
+              "margin": 0
+            }
+          },
+          {
+            "type": "heading",
+            "id": "sm-hero-title",
+            "level": 2,
+            "text": "Rest well in a space designed for you",
+            "style": {
+              "color": "#ffffff",
+              "fontSize": "clamp(2rem, 1.2rem + 3.5vw, 4rem)",
+              "fontWeight": 700,
+              "lineHeight": 1.1,
+              "letterSpacing": "-0.01em",
+              "align": "center",
+              "margin": 0
+            }
+          },
+          {
+            "type": "paragraph",
+            "id": "sm-hero-intro",
+            "text": "Settle into calm, considered rooms with thoughtful details, attentive service and comfortable spaces for work, rest and time together. Every stay is planned around your pace.",
+            "style": {
+              "color": "#e3e9f0",
+              "fontSize": "clamp(1rem, 0.9rem + 0.5vw, 1.25rem)",
+              "lineHeight": 1.6,
+              "align": "center",
+              "margin": 0
+            }
+          },
+          {
+            "type": "buttons",
+            "id": "sm-hero-actions",
+            "style": {
+              "justifyContent": "center"
+            },
+            "children": [
+              {
+                "type": "button",
+                "id": "sm-hero-cta",
+                "text": "View available rooms",
+                "href": "#rooms",
+                "style": {
+                  "background": "#f5e6c8",
+                  "color": "#18283a",
+                  "borderRadius": "999px",
+                  "padding": {
+                    "top": "0.75rem",
+                    "right": "clamp(1.25rem, 1rem + 1vw, 2rem)",
+                    "bottom": "0.75rem",
+                    "left": "clamp(1.25rem, 1rem + 1vw, 2rem)"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "baseline": {
+    "score": 38,
+    "status": "uncompleted",
+    "issues": [
+      {
+        "id": "style-c617d107388d",
+        "component": "sm-hero-eyebrow",
+        "severity": "medium",
+        "detail": "Measured width differs from HTML reference at 1440px for Welcome"
+      },
+      {
+        "id": "style-4fa65cad0019",
+        "component": "sm-hero-cta",
+        "severity": "medium",
+        "detail": "Measured fontSize, fontWeight differs from HTML reference at 1440px for View available rooms"
+      },
+      {
+        "id": "style-62da71eaca4c",
+        "component": "sm-hero-eyebrow",
+        "severity": "medium",
+        "detail": "Measured width differs from HTML reference at 768px for Welcome"
+      },
+      {
+        "id": "style-6e6f7eb07317",
+        "component": "sm-hero-cta",
+        "severity": "medium",
+        "detail": "Measured fontSize, fontWeight differs from HTML reference at 768px for View available rooms"
+      },
+      {
+        "id": "style-de30e393a434",
+        "component": "sm-hero-eyebrow",
+        "severity": "medium",
+        "detail": "Measured width differs from HTML reference at 390px for Welcome"
+      },
+      {
+        "id": "style-40073a8c520d",
+        "component": "sm-hero-cta",
+        "severity": "medium",
+        "detail": "Measured fontSize, fontWeight differs from HTML reference at 390px for View available rooms"
+      },
+      {
+        "id": "spacing-root-gap-collapse",
+        "component": "sm-hero-root",
+        "severity": "high",
+        "detail": "Measured in the native render at 1440, 768 and 390px, the eyebrow, heading, intro and button sit flush with no block spacing (for example, the eyebrow ends at y=127 where the heading starts, and the heading ends at y=268 where the intro starts). The root group declares gap but the constrained contentWidth layout does not apply it. The reference shows about 30px between eyebrow and title and about 30px between title and intro. Wrap the content in an inner flex group so the group gap acts as block spacing, or use equivalent native spacing, and re-measure.",
+        "source": "model"
+      },
+      {
+        "id": "spacing-root-min-height",
+        "component": "sm-hero-root",
+        "severity": "medium",
+        "detail": "Measured native section height is 544px at 1440, 435px at 768 and 397px at 390. The reference is 608, 483 and 427px. The plan has no minHeight, so the hero is shorter and its vertical rhythm differs from the approved reference. Add a supported group minHeight (for example a vh/clamp value) that matches the reference proportions at 1440, 768 and 390px, then re-measure.",
+        "source": "model"
+      }
+    ],
+    "pixels": [
+      {
+        "width": 1440,
+        "pixelDifferenceRatio": 0.14338,
+        "meanChannelDifference": 26.565,
+        "sampledPixels": 324000
+      },
+      {
+        "width": 768,
+        "pixelDifferenceRatio": 0.14796,
+        "meanChannelDifference": 26.109,
+        "sampledPixels": 172800
+      },
+      {
+        "width": 390,
+        "pixelDifferenceRatio": 0.16591,
+        "meanChannelDifference": 27.297,
+        "sampledPixels": 87750
+      }
+    ],
+    "usage": {
+      "inputTokens": 69710,
+      "outputTokens": 28949,
+      "cacheReadTokens": 19866,
+      "cacheWriteTokens": 1419
+    },
+    "cost": 0.021822,
+    "retained": 0,
+    "evidenceHash": "ff24bf308eda44d491dda30930c3718ad945d7868ac6e4dc56e932e4d3e31480"
+  },
+  "rounds": [
+    {
+      "patch": {
+        "id": "sm-hero-root",
+        "changes": [
+          {
+            "target": "sm-hero-root",
+            "path": "style.minHeight",
+            "value": "clamp(26.5rem, 20rem + 20vw, 38rem)"
+          },
+          {
+            "target": "sm-hero-eyebrow",
+            "path": "style.margin.bottom",
+            "value": "clamp(1rem, 0.6rem + 1.5vw, 1.75rem)"
+          },
+          {
+            "target": "sm-hero-title",
+            "path": "style.margin.bottom",
+            "value": "clamp(1rem, 0.6rem + 1.5vw, 1.75rem)"
+          }
+        ]
+      },
+      "review": null,
+      "result": {
+        "round": 1,
+        "id": "sm-hero-root",
+        "status": "rejected",
+        "accepted": false,
+        "detail": "Side edits require existing spacing object."
+      },
+      "metrics": [
+        {
+          "role": "developer",
+          "task": "repair",
+          "inputTokens": 7084,
+          "outputTokens": 1677,
+          "elapsedMs": 8952,
+          "estimatedCostUsd": 0.001561,
+          "outputCap": 16384,
+          "cacheReadTokens": 1419,
+          "cacheWriteTokens": 0,
+          "contextBytes": 10013,
+          "imageBytes": 162060
+        }
+      ]
+    },
+    {
+      "patch": {
+        "id": "sm-hero-root",
+        "changes": [
+          {
+            "target": "sm-hero-root",
+            "path": "style.minHeight",
+            "value": "clamp(22.5rem, 22.5rem + 17vw, 38rem)"
+          },
+          {
+            "target": "sm-hero-eyebrow",
+            "path": "style.margin",
+            "value": {
+              "top": "0px",
+              "right": "0px",
+              "bottom": "1.875rem",
+              "left": "0px"
+            }
+          },
+          {
+            "target": "sm-hero-title",
+            "path": "style.margin",
+            "value": {
+              "top": "0px",
+              "right": "0px",
+              "bottom": "1.875rem",
+              "left": "0px"
+            }
+          }
+        ]
+      },
+      "review": {
+        "decision": "changes_requested",
+        "issues": [
+          {
+            "id": "layout-root-desktop-centering",
+            "component": "sm-hero-root",
+            "severity": "high",
+            "detail": "At 1440px the content column starts at x=48 and is 672px wide, so its center is about x=384, while the CTA is centered at about x=720. The heading, intro and button do not share one center axis, and the reference centers the whole stack. The contentWidth constraint is not centering the children at desktop width. Fix the root layout so the constrained content is centered in the section, then re-measure at 1440px. At 768px the text column center (about x=371) also sits slightly off the button center (about x=384), so re-check it.",
+            "kind": "implementation",
+            "status": "open"
+          },
+          {
+            "id": "style-eyebrow-uppercase-visual",
+            "component": "sm-hero-eyebrow",
+            "severity": "medium",
+            "detail": "The reference eyebrow renders as uppercase 'WELCOME' with tracking, while the updated eyebrow renders as mixed-case 'Welcome' at all three widths. The schema has no text-transform property, so match the reference visually by changing the eyebrow text casing in the plan, or record the difference as an approved content variant. Re-check at 1440, 768 and 390px after the change.",
+            "kind": "implementation",
+            "status": "open"
+          }
+        ],
+        "reviewLimits": "Root height and the button font metrics are not reported by the measurements, so the minHeight match and the button font-size/weight deltas are unverified here and are not listed as defects."
+      },
+      "result": {
+        "round": 2,
+        "id": "sm-hero-root",
+        "delegation": {
+          "designerNeeded": false,
+          "reason": "Frozen reference: implementation repair only."
+        },
+        "route": "developer",
+        "impact": {
+          "changed": [
+            "sm-hero-root",
+            "sm-hero-eyebrow",
+            "sm-hero-title"
+          ],
+          "affected": [
+            "sm-hero-root",
+            "sm-hero-eyebrow",
+            "sm-hero-title",
+            "sm-hero-intro",
+            "sm-hero-actions",
+            "sm-hero-cta"
+          ],
+          "reused": []
+        },
+        "reviewScope": [
+          "sm-hero-root",
+          "sm-hero-eyebrow",
+          "sm-hero-title",
+          "sm-hero-intro",
+          "sm-hero-actions",
+          "sm-hero-cta"
+        ],
+        "changedFields": [
+          {
+            "target": "sm-hero-root",
+            "path": "style.minHeight",
+            "value": "clamp(22.5rem, 22.5rem + 17vw, 38rem)"
+          },
+          {
+            "target": "sm-hero-eyebrow",
+            "path": "style.margin",
+            "value": {
+              "top": "0px",
+              "right": "0px",
+              "bottom": "1.875rem",
+              "left": "0px"
+            }
+          },
+          {
+            "target": "sm-hero-title",
+            "path": "style.margin",
+            "value": {
+              "top": "0px",
+              "right": "0px",
+              "bottom": "1.875rem",
+              "left": "0px"
+            }
+          }
+        ],
+        "imageScope": "component",
+        "accepted": false,
+        "before": 8,
+        "after": 8,
+        "scoreBefore": 38,
+        "scoreAfter": 38,
+        "introducedIssues": [
+          "layout-root-desktop-centering",
+          "style-eyebrow-uppercase-visual"
+        ],
+        "evidenceHash": "4fbcc1778d3f024a637666b43a13e7a756100f5b0585882205b9a951b8bb6137"
+      },
+      "metrics": [
+        {
+          "role": "developer",
+          "task": "repair",
+          "inputTokens": 7134,
+          "outputTokens": 1892,
+          "elapsedMs": 8665,
+          "estimatedCostUsd": 0.001674,
+          "outputCap": 16384,
+          "cacheReadTokens": 1419,
+          "cacheWriteTokens": 0,
+          "contextBytes": 10139,
+          "imageBytes": 162060
+        },
+        {
+          "role": "boss",
+          "task": "revision_validation",
+          "inputTokens": 5799,
+          "outputTokens": 3469,
+          "elapsedMs": 18497,
+          "estimatedCostUsd": 0.002329,
+          "outputCap": 16384,
+          "cacheReadTokens": 1419,
+          "cacheWriteTokens": 0,
+          "contextBytes": 9005,
+          "imageBytes": 165484
+        }
+      ],
+      "pixels": [
+        {
+          "width": 1440,
+          "pixelDifferenceRatio": 0.06784,
+          "meanChannelDifference": 12.002,
+          "sampledPixels": 324000
+        },
+        {
+          "width": 768,
+          "pixelDifferenceRatio": 0.06709,
+          "meanChannelDifference": 11.115,
+          "sampledPixels": 172800
+        },
+        {
+          "width": 390,
+          "pixelDifferenceRatio": 0.12919,
+          "meanChannelDifference": 21.052,
+          "sampledPixels": 87750
+        }
+      ]
+    },
+    {
+      "patch": {
+        "id": "sm-hero-root",
+        "changes": [
+          {
+            "target": "sm-hero-root",
+            "path": "style.minHeight",
+            "value": "clamp(22.5rem, 22.5rem + 17vw, 38rem)"
+          },
+          {
+            "target": "sm-hero-eyebrow",
+            "path": "style.margin",
+            "value": {
+              "top": "0px",
+              "right": "0px",
+              "bottom": "clamp(1.25rem, 1rem + 1vw, 1.875rem)",
+              "left": "0px"
+            }
+          },
+          {
+            "target": "sm-hero-title",
+            "path": "style.margin",
+            "value": {
+              "top": "0px",
+              "right": "0px",
+              "bottom": "clamp(1.25rem, 1rem + 1vw, 1.875rem)",
+              "left": "0px"
+            }
+          }
+        ]
+      },
+      "review": {
+        "decision": "changes_requested",
+        "issues": [
+          {
+            "id": "layout-root-desktop-centering",
+            "component": "sm-hero-actions",
+            "severity": "high",
+            "detail": "At 1440px and 768px the 'View available rooms' button renders at the right edge of the hero, not centered under the intro as in the reference. Only the 390px render centers it. The buttons container has justifyContent center, but the rendered button is not centered at the wider breakpoints. Fix the actions/button placement so the CTA is centered at all three widths, then re-measure.",
+            "kind": "implementation",
+            "status": "open"
+          },
+          {
+            "id": "style-4fa65cad0019",
+            "component": "sm-hero-cta",
+            "severity": "medium",
+            "detail": "The CTA label measures 16px at font-weight 400 at all three widths. The reference label is visibly larger and heavier at 1440, 768 and 390px. Set the button font size and weight to match the reference, then re-measure.",
+            "kind": "implementation",
+            "status": "open"
+          }
+        ]
+      },
+      "result": {
+        "round": 3,
+        "id": "sm-hero-root",
+        "delegation": {
+          "designerNeeded": false,
+          "reason": "Frozen reference: implementation repair only."
+        },
+        "route": "developer",
+        "impact": {
+          "changed": [
+            "sm-hero-root",
+            "sm-hero-eyebrow",
+            "sm-hero-title"
+          ],
+          "affected": [
+            "sm-hero-root",
+            "sm-hero-eyebrow",
+            "sm-hero-title",
+            "sm-hero-intro",
+            "sm-hero-actions",
+            "sm-hero-cta"
+          ],
+          "reused": []
+        },
+        "reviewScope": [
+          "sm-hero-root",
+          "sm-hero-eyebrow",
+          "sm-hero-title",
+          "sm-hero-intro",
+          "sm-hero-actions",
+          "sm-hero-cta"
+        ],
+        "changedFields": [
+          {
+            "target": "sm-hero-root",
+            "path": "style.minHeight",
+            "value": "clamp(22.5rem, 22.5rem + 17vw, 38rem)"
+          },
+          {
+            "target": "sm-hero-eyebrow",
+            "path": "style.margin",
+            "value": {
+              "top": "0px",
+              "right": "0px",
+              "bottom": "clamp(1.25rem, 1rem + 1vw, 1.875rem)",
+              "left": "0px"
+            }
+          },
+          {
+            "target": "sm-hero-title",
+            "path": "style.margin",
+            "value": {
+              "top": "0px",
+              "right": "0px",
+              "bottom": "clamp(1.25rem, 1rem + 1vw, 1.875rem)",
+              "left": "0px"
+            }
+          }
+        ],
+        "imageScope": "component",
+        "accepted": false,
+        "before": 8,
+        "after": 7,
+        "scoreBefore": 38,
+        "scoreAfter": 34,
+        "introducedIssues": [
+          "layout-root-desktop-centering"
+        ],
+        "evidenceHash": "c8cb6e38ff2db1ce5f606875594ce64b8a40022e2ee504adc213f0150ca7d5a3"
+      },
+      "metrics": [
+        {
+          "role": "developer",
+          "task": "repair",
+          "inputTokens": 7547,
+          "outputTokens": 1412,
+          "elapsedMs": 7547,
+          "estimatedCostUsd": 0.001475,
+          "outputCap": 16384,
+          "cacheReadTokens": 1419,
+          "cacheWriteTokens": 0,
+          "contextBytes": 10943,
+          "imageBytes": 162060
+        },
+        {
+          "role": "boss",
+          "task": "revision_validation",
+          "inputTokens": 6246,
+          "outputTokens": 2495,
+          "elapsedMs": 12630,
+          "estimatedCostUsd": 0.001886,
+          "outputCap": 16384,
+          "cacheReadTokens": 1419,
+          "cacheWriteTokens": 0,
+          "contextBytes": 9869,
+          "imageBytes": 165012
+        }
+      ],
+      "pixels": [
+        {
+          "width": 1440,
+          "pixelDifferenceRatio": 0.06784,
+          "meanChannelDifference": 12.002,
+          "sampledPixels": 324000
+        },
+        {
+          "width": 768,
+          "pixelDifferenceRatio": 0.06804,
+          "meanChannelDifference": 11.14,
+          "sampledPixels": 172800
+        },
+        {
+          "width": 390,
+          "pixelDifferenceRatio": 0.07448,
+          "meanChannelDifference": 11.418,
+          "sampledPixels": 87750
+        }
+      ]
+    },
+    {
+      "patch": {
+        "id": "sm-hero-eyebrow",
+        "changes": []
+      },
+      "review": null,
+      "result": {
+        "round": 4,
+        "id": "sm-hero-eyebrow",
+        "status": "rejected",
+        "accepted": false,
+        "detail": "Expected {id,changes:[{path,value,target?}]} with at most eight changes."
+      },
+      "metrics": [
+        {
+          "role": "developer",
+          "task": "repair",
+          "inputTokens": 2762,
+          "outputTokens": 994,
+          "elapsedMs": 7671,
+          "estimatedCostUsd": 0.000787,
+          "outputCap": 16384,
+          "cacheReadTokens": 1419,
+          "cacheWriteTokens": 0,
+          "contextBytes": 2942,
+          "imageBytes": 9300
+        }
+      ]
+    }
+  ],
+  "evidence": {
+    "reference": [
+      {"width":1440,"snapshot":{"overflow":false,"elements":[{"tag":"SECTION","id":"","text":"","rect":[8,8,1424,608],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"start"}},{"tag":"DIV","id":"","text":"","rect":[384,112,672,400],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px 328px","gap":"normal","display":"block","textAlign":"start"}},{"tag":"DIV","id":"","text":"","rect":[384,112,672,400],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"30.4px","display":"flex","textAlign":"center"}},{"tag":"P","id":"","text":"Welcome","rect":[679,112,82,21],"styles":{"color":"rgb(227, 233, 240)","fontSize":"15.2px","fontWeight":"600","letterSpacing":"1.824px","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"H2","id":"sm-hero-title","text":"Rest well in a space designed for you","rect":[384,163,672,141],"styles":{"color":"rgb(255, 255, 255)","fontSize":"64px","fontWeight":"700","letterSpacing":"-0.64px","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"P","id":"","text":"\n        Settle into calm, considered rooms with thoughtful details, attentive service and\n        comfortable spaces for work, rest and time together. Every stay is planned around your pace.\n      ","rect":[384,335,672,96],"styles":{"color":"rgb(227, 233, 240)","fontSize":"20px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"A","id":"","text":"View available rooms","rect":[613,468,215,44],"styles":{"color":"rgb(24, 40, 58)","fontSize":"16.8px","fontWeight":"600","letterSpacing":"normal","margin":"7px 0px 0px","gap":"normal","display":"flex","textAlign":"center"}}]},"a11y":[]},
+      {"width":768,"snapshot":{"overflow":false,"elements":[{"tag":"SECTION","id":"","text":"","rect":[8,8,752,483],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"start"}},{"tag":"DIV","id":"","text":"","rect":[48,86,672,327],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px 4.96875px","gap":"normal","display":"block","textAlign":"start"}},{"tag":"DIV","id":"","text":"","rect":[48,86,672,327],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"23.68px","display":"flex","textAlign":"center"}},{"tag":"P","id":"","text":"Welcome","rect":[347,86,75,18],"styles":{"color":"rgb(227, 233, 240)","fontSize":"13.92px","fontWeight":"600","letterSpacing":"1.6704px","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"H2","id":"sm-hero-title","text":"Rest well in a space designed for you","rect":[48,128,672,101],"styles":{"color":"rgb(255, 255, 255)","fontSize":"46.08px","fontWeight":"700","letterSpacing":"-0.4608px","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"P","id":"","text":"\n        Settle into calm, considered rooms with thoughtful details, attentive service and\n        comfortable spaces for work, rest and time together. Every stay is planned around your pace.\n      ","rect":[48,253,672,88],"styles":{"color":"rgb(227, 233, 240)","fontSize":"18.24px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"A","id":"","text":"View available rooms","rect":[285,369,197,44],"styles":{"color":"rgb(24, 40, 58)","fontSize":"16.32px","fontWeight":"600","letterSpacing":"normal","margin":"5.28px 0px 0px","gap":"normal","display":"flex","textAlign":"center"}}]},"a11y":[]},
+      {"width":390,"snapshot":{"overflow":false,"elements":[{"tag":"SECTION","id":"","text":"","rect":[8,8,374,427],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"start"}},{"tag":"DIV","id":"","text":"","rect":[32,63,327,316],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"start"}},{"tag":"DIV","id":"","text":"","rect":[32,63,327,316],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"16px","display":"flex","textAlign":"center"}},{"tag":"P","id":"","text":"Welcome","rect":[160,63,70,17],"styles":{"color":"rgb(227, 233, 240)","fontSize":"12.975px","fontWeight":"600","letterSpacing":"1.557px","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"H2","id":"sm-hero-title","text":"Rest well in a space designed for you","rect":[32,96,327,72],"styles":{"color":"rgb(255, 255, 255)","fontSize":"32.85px","fontWeight":"700","letterSpacing":"-0.3285px","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"P","id":"","text":"\n        Settle into calm, considered rooms with thoughtful details, attentive service and\n        comfortable spaces for work, rest and time together. Every stay is planned around your pace.\n      ","rect":[32,185,327,131],"styles":{"color":"rgb(227, 233, 240)","fontSize":"16.35px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"A","id":"","text":"View available rooms","rect":[104,335,181,44],"styles":{"color":"rgb(24, 40, 58)","fontSize":"15.375px","fontWeight":"600","letterSpacing":"normal","margin":"4px 0px 0px","gap":"normal","display":"flex","textAlign":"center"}}]},"a11y":[]}
+    ],
+    "baseline": [
+      {"width":1440,"snapshot":{"overflow":false,"elements":[{"tag":"DIV","id":"","text":"","rect":[0,0,1440,544],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"28px","display":"block","textAlign":"start"}},{"tag":"P","id":"","text":"Welcome","rect":[48,104,672,23],"styles":{"color":"rgb(227, 233, 240)","fontSize":"15.2px","fontWeight":"600","letterSpacing":"1.824px","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"H2","id":"","text":"Rest well in a space designed for you","rect":[48,127,672,141],"styles":{"color":"rgb(255, 255, 255)","fontSize":"64px","fontWeight":"700","letterSpacing":"-0.64px","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"P","id":"","text":"Settle into calm, considered rooms with thoughtful details, attentive service and comfortable spaces for work, rest and time together. Every stay is planned around your pace.","rect":[48,268,672,96],"styles":{"color":"rgb(227, 233, 240)","fontSize":"20px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"DIV","id":"","text":"","rect":[384,392,672,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"28px 336px 0px","gap":"16px","display":"flex","textAlign":"start"}},{"tag":"DIV","id":"","text":"","rect":[616,392,208,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"start"}},{"tag":"A","id":"","text":"View available rooms","rect":[616,392,208,48],"styles":{"color":"rgb(24, 40, 58)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"inline-block","textAlign":"start"}}]},"a11y":[]},
+      {"width":768,"snapshot":{"overflow":false,"elements":[{"tag":"DIV","id":"","text":"","rect":[0,0,768,435],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"21.12px","display":"block","textAlign":"start"}},{"tag":"P","id":"","text":"Welcome","rect":[35,78,672,21],"styles":{"color":"rgb(227, 233, 240)","fontSize":"13.92px","fontWeight":"600","letterSpacing":"1.6704px","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"H2","id":"","text":"Rest well in a space designed for you","rect":[35,99,672,101],"styles":{"color":"rgb(255, 255, 255)","fontSize":"46.08px","fontWeight":"700","letterSpacing":"-0.4608px","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"P","id":"","text":"Settle into calm, considered rooms with thoughtful details, attentive service and comfortable spaces for work, rest and time together. Every stay is planned around your pace.","rect":[35,200,672,88],"styles":{"color":"rgb(227, 233, 240)","fontSize":"18.24px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"DIV","id":"","text":"","rect":[48,309,672,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"21.12px 12.9688px 0px","gap":"16px","display":"flex","textAlign":"start"}},{"tag":"DIV","id":"","text":"","rect":[287,309,194,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"start"}},{"tag":"A","id":"","text":"View available rooms","rect":[287,309,194,48],"styles":{"color":"rgb(24, 40, 58)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"inline-block","textAlign":"start"}}]},"a11y":[]},
+      {"width":390,"snapshot":{"overflow":false,"elements":[{"tag":"DIV","id":"","text":"","rect":[0,0,390,397],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"16px","display":"block","textAlign":"start"}},{"tag":"P","id":"","text":"Welcome","rect":[24,55,343,19],"styles":{"color":"rgb(227, 233, 240)","fontSize":"12.975px","fontWeight":"600","letterSpacing":"1.557px","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"H2","id":"","text":"Rest well in a space designed for you","rect":[24,75,343,72],"styles":{"color":"rgb(255, 255, 255)","fontSize":"32.85px","fontWeight":"700","letterSpacing":"-0.3285px","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"P","id":"","text":"Settle into calm, considered rooms with thoughtful details, attentive service and comfortable spaces for work, rest and time together. Every stay is planned around your pace.","rect":[24,147,343,131],"styles":{"color":"rgb(227, 233, 240)","fontSize":"16.35px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"DIV","id":"","text":"","rect":[24,294,343,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"16px 0px 0px","gap":"16px","display":"flex","textAlign":"start"}},{"tag":"DIV","id":"","text":"","rect":[102,294,187,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"start"}},{"tag":"A","id":"","text":"View available rooms","rect":[102,294,187,48],"styles":{"color":"rgb(24, 40, 58)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"inline-block","textAlign":"start"}}]},"a11y":[]}
+    ],
+    "round2": [
+      {"width":1440,"snapshot":{"overflow":false,"elements":[{"tag":"DIV","id":"","text":"","rect":[0,0,1440,605],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"28px","display":"block","textAlign":"start"}},{"tag":"P","id":"","text":"Welcome","rect":[48,104,672,23],"styles":{"color":"rgb(227, 233, 240)","fontSize":"15.2px","fontWeight":"600","letterSpacing":"1.824px","margin":"0px 0px 30px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"H2","id":"","text":"Rest well in a space designed for you","rect":[48,157,672,141],"styles":{"color":"rgb(255, 255, 255)","fontSize":"64px","fontWeight":"700","letterSpacing":"-0.64px","margin":"0px 0px 30px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"P","id":"","text":"Settle into calm, considered rooms with thoughtful details, attentive service and comfortable spaces for work, rest and time together. Every stay is planned around your pace.","rect":[48,328,672,96],"styles":{"color":"rgb(227, 233, 240)","fontSize":"20px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"DIV","id":"","text":"","rect":[384,452,672,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"28px 336px 0px","gap":"16px","display":"flex","textAlign":"start"}},{"tag":"DIV","id":"","text":"","rect":[616,452,208,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"start"}},{"tag":"A","id":"","text":"View available rooms","rect":[616,452,208,48],"styles":{"color":"rgb(24, 40, 58)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"inline-block","textAlign":"start"}}]},"a11y":[]},
+      {"width":768,"snapshot":{"overflow":false,"elements":[{"tag":"DIV","id":"","text":"","rect":[0,0,768,495],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"21.12px","display":"block","textAlign":"start"}},{"tag":"P","id":"","text":"Welcome","rect":[35,78,672,21],"styles":{"color":"rgb(227, 233, 240)","fontSize":"13.92px","fontWeight":"600","letterSpacing":"1.6704px","margin":"0px 0px 30px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"H2","id":"","text":"Rest well in a space designed for you","rect":[35,129,672,101],"styles":{"color":"rgb(255, 255, 255)","fontSize":"46.08px","fontWeight":"700","letterSpacing":"-0.4608px","margin":"0px 0px 30px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"P","id":"","text":"Settle into calm, considered rooms with thoughtful details, attentive service and comfortable spaces for work, rest and time together. Every stay is planned around your pace.","rect":[35,260,672,88],"styles":{"color":"rgb(227, 233, 240)","fontSize":"18.24px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"DIV","id":"","text":"","rect":[48,369,672,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"21.12px 12.9688px 0px","gap":"16px","display":"flex","textAlign":"start"}},{"tag":"DIV","id":"","text":"","rect":[287,369,194,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"start"}},{"tag":"A","id":"","text":"View available rooms","rect":[287,369,194,48],"styles":{"color":"rgb(24, 40, 58)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"inline-block","textAlign":"start"}}]},"a11y":[]},
+      {"width":390,"snapshot":{"overflow":false,"elements":[{"tag":"DIV","id":"","text":"","rect":[0,0,390,457],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"16px","display":"block","textAlign":"start"}},{"tag":"P","id":"","text":"Welcome","rect":[24,55,343,19],"styles":{"color":"rgb(227, 233, 240)","fontSize":"12.975px","fontWeight":"600","letterSpacing":"1.557px","margin":"0px 0px 30px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"H2","id":"","text":"Rest well in a space designed for you","rect":[24,105,343,72],"styles":{"color":"rgb(255, 255, 255)","fontSize":"32.85px","fontWeight":"700","letterSpacing":"-0.3285px","margin":"0px 0px 30px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"P","id":"","text":"Settle into calm, considered rooms with thoughtful details, attentive service and comfortable spaces for work, rest and time together. Every stay is planned around your pace.","rect":[24,207,343,131],"styles":{"color":"rgb(227, 233, 240)","fontSize":"16.35px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"DIV","id":"","text":"","rect":[24,354,343,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"16px 0px 0px","gap":"16px","display":"flex","textAlign":"start"}},{"tag":"DIV","id":"","text":"","rect":[102,354,187,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"start"}},{"tag":"A","id":"","text":"View available rooms","rect":[102,354,187,48],"styles":{"color":"rgb(24, 40, 58)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"inline-block","textAlign":"start"}}]},"a11y":[]}
+    ],
+    "round3": [
+      {"width":1440,"snapshot":{"overflow":false,"elements":[{"tag":"DIV","id":"","text":"","rect":[0,0,1440,605],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"28px","display":"block","textAlign":"start"}},{"tag":"P","id":"","text":"Welcome","rect":[48,104,672,23],"styles":{"color":"rgb(227, 233, 240)","fontSize":"15.2px","fontWeight":"600","letterSpacing":"1.824px","margin":"0px 0px 30px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"H2","id":"","text":"Rest well in a space designed for you","rect":[48,157,672,141],"styles":{"color":"rgb(255, 255, 255)","fontSize":"64px","fontWeight":"700","letterSpacing":"-0.64px","margin":"0px 0px 30px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"P","id":"","text":"Settle into calm, considered rooms with thoughtful details, attentive service and comfortable spaces for work, rest and time together. Every stay is planned around your pace.","rect":[48,328,672,96],"styles":{"color":"rgb(227, 233, 240)","fontSize":"20px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"DIV","id":"","text":"","rect":[384,452,672,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"28px 336px 0px","gap":"16px","display":"flex","textAlign":"start"}},{"tag":"DIV","id":"","text":"","rect":[616,452,208,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"start"}},{"tag":"A","id":"","text":"View available rooms","rect":[616,452,208,48],"styles":{"color":"rgb(24, 40, 58)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"inline-block","textAlign":"start"}}]},"a11y":[]},
+      {"width":768,"snapshot":{"overflow":false,"elements":[{"tag":"DIV","id":"","text":"","rect":[0,0,768,491],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"21.12px","display":"block","textAlign":"start"}},{"tag":"P","id":"","text":"Welcome","rect":[35,78,672,21],"styles":{"color":"rgb(227, 233, 240)","fontSize":"13.92px","fontWeight":"600","letterSpacing":"1.6704px","margin":"0px 0px 23.68px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"H2","id":"","text":"Rest well in a space designed for you","rect":[35,123,672,101],"styles":{"color":"rgb(255, 255, 255)","fontSize":"46.08px","fontWeight":"700","letterSpacing":"-0.4608px","margin":"0px 0px 23.68px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"P","id":"","text":"Settle into calm, considered rooms with thoughtful details, attentive service and comfortable spaces for work, rest and time together. Every stay is planned around your pace.","rect":[35,248,672,88],"styles":{"color":"rgb(227, 233, 240)","fontSize":"18.24px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"DIV","id":"","text":"","rect":[48,356,672,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"21.12px 12.9688px 0px","gap":"16px","display":"flex","textAlign":"start"}},{"tag":"DIV","id":"","text":"","rect":[287,356,194,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"start"}},{"tag":"A","id":"","text":"View available rooms","rect":[287,356,194,48],"styles":{"color":"rgb(24, 40, 58)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"inline-block","textAlign":"start"}}]},"a11y":[]},
+      {"width":390,"snapshot":{"overflow":false,"elements":[{"tag":"DIV","id":"","text":"","rect":[0,0,390,437],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"16px","display":"block","textAlign":"start"}},{"tag":"P","id":"","text":"Welcome","rect":[24,55,343,19],"styles":{"color":"rgb(227, 233, 240)","fontSize":"12.975px","fontWeight":"600","letterSpacing":"1.557px","margin":"0px 0px 20px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"H2","id":"","text":"Rest well in a space designed for you","rect":[24,95,343,72],"styles":{"color":"rgb(255, 255, 255)","fontSize":"32.85px","fontWeight":"700","letterSpacing":"-0.3285px","margin":"0px 0px 20px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"P","id":"","text":"Settle into calm, considered rooms with thoughtful details, attentive service and comfortable spaces for work, rest and time together. Every stay is planned around your pace.","rect":[24,187,343,131],"styles":{"color":"rgb(227, 233, 240)","fontSize":"16.35px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"center"}},{"tag":"DIV","id":"","text":"","rect":[24,334,343,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"16px 0px 0px","gap":"16px","display":"flex","textAlign":"start"}},{"tag":"DIV","id":"","text":"","rect":[102,334,187,48],"styles":{"color":"rgb(255, 255, 255)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"block","textAlign":"start"}},{"tag":"A","id":"","text":"View available rooms","rect":[102,334,187,48],"styles":{"color":"rgb(24, 40, 58)","fontSize":"16px","fontWeight":"400","letterSpacing":"normal","margin":"0px","gap":"normal","display":"inline-block","textAlign":"start"}}]},"a11y":[]}
+    ]
+  }
+}

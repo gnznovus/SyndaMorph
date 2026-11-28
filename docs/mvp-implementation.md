@@ -1,5 +1,8 @@
 # SyndaMorph demo MVP — implementation track
 
+
+> **Status update (2026-11-24):** This document records the earlier demo MVP foundation. The **canonical current implementation/roadmap** is [Master Plan](master-plan.md). Adaptive Surgery v2 was implemented in the later WordPress collaborative pipeline at [`54a1833`](https://github.com/gnznovus/SyndaMorph/commit/54a1833354081a04421138b6e993b2c347ccdc1e). The historical `backend/mvp/loop.js` five-repair bound below describes **that older isolated MVP contract**, **not** the active Surgery v2 correction policy. Real live-provider repeatability, custom interactive blocks, campaigns and parallel queues remain unaccepted future gates.
+
 Target: **demo**, not a production-ready remote deployment platform.
 
 ## Outcome
@@ -33,5 +36,18 @@ Branch: `feat/mvp-autonomous-pipeline` from `poc/hybrid-engine`; stable v0.11.1 
 
 - `Fidelity > Editable > Reusable`; never pass visual match while block validity, content integrity or behavior fails.
 - Use an approved component from the registry before proposing a new block; generated PHP/JS is build-time validated and never executed from an AI response directly.
-- Claude access is not confirmed. A mock adapter and recorded evidence are sufficient for P0. API and CLI adapters will share the same plan contract.
+- At the time of the original P0 scaffold, live Claude execution was unconfirmed; the later real-agent POC now has verified paid calls. The P0 layout-plan/compiler contract remains separate and is not yet wired to the real-team route.
 - No automatic production publication, unrestricted site capture, privileged remote execution or claims of transactionally atomic WordPress rollback in the demo.
+
+## Later integration milestone: real four-agent AI Production Team (24 November 2026)
+
+On `feat/secure-gateway-leasing-v1`, the WordPress Operations workspace now accepts a **brief-only** live AI job from **AI Production Team → Setup → Task instructions → Start Production** (followed by **Reset**). There is no separate POC card and no mandatory source URL, HTML or ZIP. The authored simulator and Purr communication POC shell controls have been removed.
+
+The administrator-only real workflow calls **Boss → Designer → Developer → Validator** sequentially through the Anthropic adapter, with server-side streaming and a configured estimated budget. Its first complete Haiku 5.5 run consumed 11,957 input and 16,515 output tokens over 73.8 seconds, costing an estimated $0.009453. Each agent's generated text now streams into the Production feed in real time, with per-agent token/latency/cost metrics on completion and a sandboxed HTML preview in Results. No content is automatically published or converted to Gutenberg.
+
+This demonstrates real LLM inference and role handoff **only**. It does not replace the deterministic Source Import converter, complete the P0 layout-plan/custom-block compiler, create Gutenberg-native patterns from AI output, or verify browser fidelity. See [real AI team POC](real-ai-team-poc-1.md) for the exact workflow, baseline and constraints.
+
+
+## Production standards and rich reports
+
+The team now uses shared versioned skills, techniques and nine default criteria, plus a local Markdown and limited Mermaid flowchart renderer for live and final agent messages. The section contract explicitly delegates document metadata to the host. See [production standards and readable communication](production-standards.md) for supported formats, verification boundaries and acceptance steps.

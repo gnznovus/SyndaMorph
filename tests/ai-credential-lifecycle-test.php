@@ -20,6 +20,7 @@ function current_user_can( $cap ) { return $GLOBALS['sm_test_authorized']; }
 function get_option( $name, $default = false ) { return $GLOBALS['sm_test_options'][$name] ?? $default; }
 function update_option( $name, $value, $autoload = null ) { $GLOBALS['sm_test_options'][$name] = $value; return true; }
 function delete_option( $name ) { unset( $GLOBALS['sm_test_options'][$name] ); return true; }
+function delete_transient( $name ) { return true; }
 function wp_salt( $purpose ) { return 'isolated-mock-test-salt-' . $purpose; }
 function rest_ensure_response( $value ) { return $value; }
 function rest_url( $path ) { return '/wp-json/' . $path; }

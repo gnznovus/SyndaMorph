@@ -80,14 +80,7 @@ function syndamorph_ai_render_tab(): void {
                 </div>
                 <div>
                     <p class="sm-nav-label">Workspace</p>
-                    <nav class="sm-nav" aria-label="SyndaMorph modules">
-                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph' ) ); ?>">
-                            <span class="dashicons dashicons-groups" aria-hidden="true"></span> AI Production Team
-                        </a>
-                        <a class="sm-nav-item is-active" href="<?php echo esc_url( admin_url( 'tools.php?page=syndamorph&tab=ai' ) ); ?>" aria-current="page">
-                            <span class="dashicons dashicons-admin-network" aria-hidden="true"></span> AI Integration
-                        </a>
-                    </nav>
+                    <?php syndamorph_operations_navigation( 'ai' ); ?>
                 </div>
                 <div class="sm-sidebar-footer">
                     <strong>Internal MVP</strong><br>
@@ -119,6 +112,15 @@ function syndamorph_ai_render_tab(): void {
                         <span class="sm-stat-value sm-stat-small" id="syndamorph-ai-last-test">Not tested</span>
                     </div>
                 </div>
+                <nav class="sm-ai-settings-tabs" role="tablist" aria-label="AI Integration settings">
+                    <button type="button" role="tab" id="sm-ai-tab-provider" aria-controls="sm-ai-panel-provider" aria-selected="true" tabindex="0" data-panel="provider">
+                        <span class="sm-ai-tab-step">01</span><strong>Provider Connection</strong>
+                    </button>
+                    <button type="button" role="tab" id="sm-ai-tab-model" aria-controls="sm-ai-panel-model" aria-selected="false" tabindex="-1" data-panel="model">
+                        <span class="sm-ai-tab-step">02</span><strong>Model Configuration</strong>
+                    </button>
+                </nav>
+                <section id="sm-ai-panel-provider" class="sm-ai-settings-panel" role="tabpanel" aria-labelledby="sm-ai-tab-provider">
                 <div class="sm-workspace">
                     <section class="sm-card" aria-labelledby="sm-connection-title">
                         <div class="sm-card-header">
@@ -186,6 +188,59 @@ function syndamorph_ai_render_tab(): void {
                         </div>
                     </section>
                 </div>
+                </section>
+                <section id="sm-ai-panel-model" class="sm-ai-settings-panel" role="tabpanel" aria-labelledby="sm-ai-tab-model" hidden>
+                <section class="sm-card" aria-labelledby="sm-model-config-title" >
+                    <div class="sm-card-header">
+                        <h2 class="sm-card-title" id="sm-model-config-title">AI model configuration</h2>
+                        <p class="sm-card-caption">Models are discovered from the provider; standard token prices come from a separately maintained pricing reference. Confirm rates before any paid run.</p>
+                    </div>
+                    <div class="sm-card-body" style="display:grid;gap:16px">
+                        <div class="sm-model-layout">
+                            <div class="sm-model-left">
+                                <div class="sm-field">
+                                    <label class="sm-field-label" for="syndamorph-model-choice">Available models</label>
+                                    <select class="sm-control" id="syndamorph-model-choice"><option value="">Load available models first</option></select>
+                                    <p class="sm-hint" id="syndamorph-model-status">Anthropic catalog available after saving a provider key. Other provider adapters are pending.</p>
+                                </div>
+                                <div class="sm-model-controls">
+                                    <div class="sm-model-refresh-row">
+                                        <button type="button" class="sm-outline-button" id="syndamorph-model-refresh">Refresh provider models</button>
+                                    </div>
+                                    <div class="sm-field sm-model-budget">
+                                        <label class="sm-field-label" for="syndamorph-model-budget">Max job budget (USD)</label>
+                                        <input class="sm-control" id="syndamorph-model-budget" type="number" min="0.01" max="100" step="0.01" value="1.00">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="sm-model-summary">
+                                <div class="sm-stat">
+                                    <span class="sm-stat-label">Illustrative POC estimate</span>
+                                    <strong class="sm-stat-value" id="syndamorph-model-cost">Unknown</strong>
+                                    <span class="sm-hint">Assumes 6K input + 4K output tokens</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="sm-provider-budget-panel" aria-labelledby="sm-provider-budget-title">
+                            <div class="sm-provider-budget-header">
+                                <div>
+                                    <h3 id="sm-provider-budget-title">Provider budget</h3>
+                                    <p class="sm-hint">Monthly spending limit and remaining allowance from the selected provider, when authorized.</p>
+                                </div>
+                                <button type="button" class="sm-outline-button" id="syndamorph-provider-budget-refresh">Refresh budget</button>
+                            </div>
+                            <div class="sm-provider-budget-metrics">
+                                <div class="sm-stat"><span class="sm-stat-label">Provider monthly limit</span><strong class="sm-stat-value" id="syndamorph-provider-budget-limit">—</strong></div>
+                                <div class="sm-stat"><span class="sm-stat-label">Remaining allowance</span><strong class="sm-stat-value" id="syndamorph-provider-budget-remaining">—</strong></div>
+                            </div>
+                            <p class="sm-hint" id="syndamorph-provider-budget-note" role="status" aria-live="polite">Budget availability depends on provider account permissions.</p>
+                        </div>
+                        <p class="sm-hint">Displayed standard rates are based on <a href="https://platform.claude.com/docs/en/about-claude/pricing" target="_blank" rel="noopener noreferrer">Anthropic's published pricing</a> (checked 24 Nov 2026). Models without a known reference price cannot be selected for paid jobs. Estimates exclude caching and other billing adjustments; Haiku 5.5 costs more for prompts over 100K tokens.</p>
+                        <div><button type="button" class="sm-primary" id="syndamorph-model-save">Save model and budget</button></div>
+                        <p id="syndamorph-model-save-status" role="status" aria-live="polite"></p>
+                    </div>
+                </section>
+                </section>
             </main>
         </div>
     </div>
@@ -213,6 +268,8 @@ add_action( 'rest_api_init', static function (): void {
             }
             // Remove the actual encrypted option, not merely the UI representation.
             delete_option( 'syndamorph_ai_key_' . $provider );
+            delete_transient( 'syndamorph_ai_models_' . $provider );
+            delete_option( 'syndamorph_ai_catalog_last_' . $provider );
             return rest_ensure_response( array(
                 'provider' => $provider,
                 'key' => syndamorph_ai_key_status( $provider ),
@@ -241,6 +298,8 @@ add_action( 'rest_api_init', static function (): void {
                     return new WP_Error( 'syndamorph_ai_storage', 'Credential encryption unavailable.', array( 'status' => 503 ) );
                 }
                 update_option( 'syndamorph_ai_key_' . $provider, $encrypted, false );
+                delete_transient( 'syndamorph_ai_models_' . $provider );
+                delete_option( 'syndamorph_ai_catalog_last_' . $provider );
             }
             $key = syndamorph_ai_saved_key( $provider );
             if ( '' === $key ) {
@@ -287,7 +346,7 @@ add_action( 'rest_api_init', static function (): void {
 } );
 
 add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
-    if ( 'tools_page_syndamorph' !== $hook || ! current_user_can( 'manage_options' ) ||
+    if ( 'toplevel_page_syndamorph' !== $hook || ! current_user_can( 'manage_options' ) ||
          ! isset( $_GET['tab'] ) || 'ai' !== sanitize_key( wp_unslash( $_GET['tab'] ) ) ) { return; }
     wp_enqueue_style( 'syndamorph-operations', plugin_dir_url( __DIR__ ) . 'assets/operations-dashboard.css', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/operations-dashboard.css' ) );
     wp_enqueue_script( 'syndamorph-ai-tab', plugin_dir_url( __DIR__ ) . 'assets/ai-integration.js', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/ai-integration.js' ), true );
@@ -296,5 +355,8 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
         'statusUrl' => rest_url( 'syndamorph/v1/ai/providers' ),
         'testUrl' => rest_url( 'syndamorph/v1/ai/test' ),
         'deleteBaseUrl' => rest_url( 'syndamorph/v1/ai/keys/' ),
+        'modelsUrl' => rest_url( 'syndamorph/v1/ai/models' ),
+        'modelSettingsUrl' => rest_url( 'syndamorph/v1/ai/models/settings' ),
+        'providerBudgetUrl' => rest_url( 'syndamorph/v1/ai/provider-budget' ),
     ) ) . ';', 'before' );
 } );

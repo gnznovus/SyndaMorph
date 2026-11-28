@@ -1,0 +1,118 @@
+.sm-offer {
+    display: contents;
+    font: 400 15px/1.55 "Beausite Classic", system-ui, sans-serif;
+    color: #201e1d;
+}
+
+.sm-offer[hidden] { display: none; }
+
+@media (width < 1024px) {
+    .sm-offer { display: none; }
+}
+
+@media (width >= 1024px) {
+    :is(.wp-block-post-content, #syndamorph-page):has(.sm-offer:not([hidden])) .sm-offer-entrance > :is(h1,h2,p) {
+        opacity: 0;
+        visibility: hidden;
+        translate: 0 12px;
+    }
+}
+
+.sm-offer .sm-offer-shade {
+    position: fixed;
+    inset: 0;
+    z-index: 98;
+    background: rgb(17 17 17 / 55%);
+}
+
+@media (width >= 1024px) {
+    #syndamorph-page:has(> .sm-offer) {
+        display: flow-root;
+        position: relative;
+        min-height: 100vh;
+    }
+    #syndamorph-page > .sm-offer .sm-offer-shade { position: absolute; }
+}
+
+.sm-offer .sm-offer-card {
+    position: absolute;
+    top: calc(200px - var(--sm-offer-origin-y, 0px));
+    left: max(300px, calc((100% - 680px) / 2));
+    z-index: 99;
+    display: grid;
+    grid-template-columns: 320px 360px;
+    align-items: center;
+    width: 680px;
+    max-width: none;
+    margin: 0;
+    background: #fff;
+    color: inherit;
+}
+
+.sm-offer .sm-offer-placeholder {
+    box-sizing: border-box;
+    height: 400px;
+    margin: 0;
+    padding: 12px;
+    background: #eae7e7;
+    color: #605d5d;
+    font: 400 14px/1.55 "Beausite Classic", system-ui, sans-serif;
+}
+
+.sm-offer .sm-offer-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 40px 32px;
+}
+
+.sm-offer .sm-offer-eyebrow {
+    margin: 0;
+    font: 700 13px/1.55 "Beausite Fit", sans-serif;
+    letter-spacing: 1.56px;
+    text-transform: uppercase;
+}
+
+.sm-offer h2 {
+    margin: 0;
+    color: inherit;
+    font: 400 56px/.95 "Beausite Grand", serif;
+    letter-spacing: -.56px;
+}
+
+.sm-offer .sm-offer-description {
+    margin: 0;
+    color: #333;
+    font: 400 17px/1.55 "Beausite Classic", system-ui, sans-serif;
+    letter-spacing: normal;
+    text-wrap: pretty;
+}
+
+.sm-offer .sm-offer-label {
+    display: grid;
+    place-items: center;
+    min-height: 52px;
+    margin-top: 12px;
+    padding: 0 16px;
+    background: #111;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.sm-offer .sm-offer-dismiss {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    cursor: pointer;
+}
+
+.sm-offer .sm-offer-dismiss:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 3px;
+}

@@ -326,15 +326,27 @@ add_filter( 'rest_pre_serve_request', static function ( $served, $result, $reque
 /** On approval upload only images actually referenced by the selected block markup. */
 function syndamorph_package_media( ZipArchive $zip, string $path, array &$created ): int|WP_Error {
     $raw = $zip->getFromName( $path );
-    $info = false !== $raw && strlen( $raw ) <= 12582912 ? @getimagesizefromstring( $raw ) : false;
+    if ( false === $raw ) {
+        return syndamorph_package_error( 'Invalid package image or MIME mismatch: ' . $path );
+    }
+    return syndamorph_import_image_bytes( $raw, $path, $created );
+}
+
+/** Store verified image bytes using the same Media Library path as package imports. */
+function syndamorph_import_image_bytes( string $raw, string $path, array &$created, bool $preserve_original = false ): int|WP_Error {
+    $info = strlen( $raw ) <= 12582912 ? @getimagesizefromstring( $raw ) : false;
     if ( ! is_array( $info ) || ( $info['mime'] ?? '' ) !== syndamorph_package_mime( $path ) ) {
         return syndamorph_package_error( 'Invalid package image or MIME mismatch: ' . $path );
     }
     $hash = hash( 'sha256', $raw );
     $existing = get_posts( array( 'post_type' => 'attachment', 'post_status' => 'inherit',
-        'fields' => 'ids', 'numberposts' => 1, 'meta_key' => '_syndamorph_sha256',
+        'fields' => 'ids', 'numberposts' => $preserve_original ? 20 : 1, 'meta_key' => '_syndamorph_sha256',
         'meta_value' => $hash ) );
-    if ( $existing ) { return (int) $existing[0]; }
+    foreach ( $existing as $id ) {
+        if ( ! $preserve_original || syndamorph_attachment_has_original( (int) $id, $hash ) ) {
+            return (int) $id;
+        }
+    }
     require_once ABSPATH . 'wp-admin/includes/image.php';
     $mime = syndamorph_package_mime( $path );
     $name = sanitize_file_name( basename( $path ) );
@@ -353,11 +365,30 @@ function syndamorph_package_media( ZipArchive $zip, string $path, array &$create
         @unlink( $saved['file'] );
         return $attachment;
     }
-    $created[] = $attachment;
+    if ( ! $preserve_original ) { $created[] = $attachment; }
     update_post_meta( $attachment, '_syndamorph_sha256', $hash );
-    $metadata = wp_generate_attachment_metadata( $attachment, $saved['file'] );
+    if ( $preserve_original ) { add_filter( 'big_image_size_threshold', '__return_false', PHP_INT_MAX ); }
+    try {
+        $metadata = wp_generate_attachment_metadata( $attachment, $saved['file'] );
+    } finally {
+        if ( $preserve_original ) { remove_filter( 'big_image_size_threshold', '__return_false', PHP_INT_MAX ); }
+    }
     if ( is_array( $metadata ) ) { wp_update_attachment_metadata( $attachment, $metadata ); }
+    if ( $preserve_original && ! syndamorph_attachment_has_original( $attachment, $hash ) ) {
+        wp_delete_attachment( $attachment, true );
+        return syndamorph_package_error( 'Media Library did not preserve the original image bytes.', 500 );
+    }
+    if ( $preserve_original ) { $created[] = $attachment; }
     return $attachment;
+}
+
+function syndamorph_attachment_has_original( int $id, string $hash ): bool {
+    $file = get_attached_file( $id, true );
+    $uploads = wp_get_upload_dir();
+    $root = realpath( $uploads['basedir'] ?? '' );
+    $real = is_string( $file ) ? realpath( $file ) : false;
+    return $root !== false && $real !== false && str_starts_with( $real, $root . DIRECTORY_SEPARATOR ) &&
+        is_file( $real ) && is_readable( $real ) && filesize( $real ) <= 12582912 && hash_file( 'sha256', $real ) === $hash;
 }
 function syndamorph_package_abort( array $posts, array $attachments ): void {
     foreach ( $posts as $id ) { wp_delete_post( $id, true ); }

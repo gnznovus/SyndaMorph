@@ -10,6 +10,8 @@
     const inspectStatus = $( 'syndamorph-team-inspect-status' );
     const inspection = $( 'syndamorph-team-source-inspection' );
     const sectionSelect = $( 'syndamorph-team-section' );
+    const scopeInput = $( 'syndamorph-team-scope' );
+    const scopeAdapter = window.SyndaMorphScope;
     const sourceSummary = $( 'syndamorph-team-source-summary' );
     const diagnostics = $( 'syndamorph-team-source-diagnostics' );
     const diagnosticsJson = $( 'syndamorph-team-source-diagnostics-json' );
@@ -121,6 +123,7 @@
     };
     const resetInspection = () => {
         sourceGeneration++;
+        scopeAdapter?.clear();
         inspected = null;
         prepared = [];
         activeJob = null;
@@ -140,6 +143,7 @@
         sourceSummary.textContent = '';
     };
     kindInput.addEventListener( 'change', () => { resetInspection(); sourceMode(); } );
+    scopeInput?.addEventListener( 'change', resetInspection );
     Object.values( jsOptions ).forEach( input => input.addEventListener( 'change', resetInspection ) );
     sourceMode();
     root.querySelectorAll( '#syndamorph-team-source, #syndamorph-team-render-mode, #syndamorph-team-html' )
@@ -167,6 +171,16 @@
                 try { sourceUrl = new URL( raw ); }
                 catch ( error ) { throw new Error( 'Enter a valid HTTP(S) page URL.' ); }
                 if ( ![ 'http:', 'https:' ].includes( sourceUrl.protocol ) ) throw new Error( 'Only HTTP(S) URLs are supported.' );
+                if ( scopeAdapter?.usesSource() ) {
+                    result = await scopeAdapter.discover( raw );
+                    if ( token !== sourceGeneration ) return;
+                    result.requestedUrl = raw;
+                    const sections = Object.values( result.regions );
+                    inspected = { kind, sections, snapshot: {scopeId: result.id}, url: raw, scopeId: result.id };
+                    sourceSummary.textContent = sections.length + ' required region(s) recorded across 1440, 768 and 375 px.';
+                    diagnostics.hidden = false;
+                    diagnosticsJson.textContent = JSON.stringify( result.captures, null, 2 );
+                } else {
                 result = await request( SyndaMorphTeam.captureUrl, {
                     url: raw, mode: $( 'syndamorph-team-render-mode' ).value,
                 } );
@@ -175,12 +189,13 @@
                     ![ 'header', 'footer', 'overlay' ].includes( item.kind ) &&
                     ( item.geometryAvailable === false || item.bounds.height > 0 ) );
                 if ( !sections.length ) throw new Error( 'No usable sections were detected. Try a different rendering mode.' );
-                inspected = { kind, sections, diagnostics: result.diagnostics };
+                inspected = { kind, sections, diagnostics: result.diagnostics, snapshot: result, url: raw };
                 sourceSummary.textContent = sections.length + ' usable section(s) of ' + all.length +
                     ' detected. Select the section to convert.';
                 if ( result.diagnostics ) {
                     diagnostics.hidden = false;
                     diagnosticsJson.textContent = JSON.stringify( result.diagnostics, null, 2 );
+                }
                 }
             } else if ( kind === 'package' ) {
                 const file = pick.file( 'package' );
@@ -190,7 +205,7 @@
                 form.append( 'package', file );
                 result = await request( SyndaMorphTeam.packageScanUrl, form, true );
                 if ( !Array.isArray( result.pages ) || !result.pages.length ) throw new Error( 'No HTML pages found inside the package.' );
-                inspected = { kind, token: result.token, pages: result.pages };
+                inspected = { kind, token: result.token, pages: result.pages, manifest: {pages:result.pages, images:result.images, assets:result.assets} };
                 sourceSummary.textContent = result.pages.length + ' HTML page(s), ' +
                     result.images + ' image(s), ' + result.assets + ' other asset(s). Package session expires in 60 minutes.';
             } else {
@@ -220,14 +235,17 @@
                 sectionSelect.removeAttribute( 'size' );
             }
             sectionSelect.blur();
+            sectionSelect.hidden = inspected.kind === 'url' && result?.mode === 'page';
+            sectionSelect.labels[0].hidden = sectionSelect.hidden;
             inspection.hidden = false;
+            if ( inspected.scopeId ) scopeAdapter.set( result );
             setStatus( 'Source inspected', sourceSummary.textContent );
         } catch ( error ) {
             if ( token === sourceGeneration ) setStatus( 'Inspection failed', error.message || String( error ), true );
         } finally {
             busy = false;
             inspectButton.disabled = false;
-            convertButton.disabled = false;
+            convertButton.disabled = Boolean(inspected?.scopeId && scopeInput?.value === 'page');
         }
     } );
 
@@ -459,12 +477,16 @@
         savedDraftIds.length = 0;
         stage( 'production' );
         jobState.textContent = 'Converting';
+        let archive = null;
+        const archiveEvent = (type, data) => request(SyndaMorphTeam.historyUrl + '/' + archive.id + '/reference-event', {type,data});
         try {
             let pages = [];
             if ( kind === 'url' ) {
                 const section = chosen.sections.find( item => item.id === sectionSelect.value );
                 if ( !section ) throw new Error( 'Select a captured section.' );
-                pages = [ { path: section.id, title: section.label || section.id, html: section.html } ];
+                const sourceSection = chosen.scopeId ? await scopeAdapter.preview( section.id ) : section;
+                if ( !sourceSection.html ) throw new Error( 'This section has no usable captured HTML.' );
+                pages = [ { path: section.id, title: section.label || section.id, html: sourceSection.html } ];
             } else if ( kind === 'html' ) {
                 const selected = pick.file( 'html' );
                 const markup = selected ? await selected.text() : pick.html();
@@ -476,6 +498,22 @@
                 if ( names.length > 30 ) throw new Error( 'Batch import supports up to 30 selected pages.' );
                 pages = names.map( path => ( { path, title: titleFor( path ) } ) );
             }
+            const jobTitle = pages.length === 1 ? pages[0].title + ' — Gutenberg Conversion' :
+                pages.length + ' pages — Gutenberg Package Conversion';
+            const reference = {kind, selected: pages.map(p => p.path), jsMode};
+            if (kind === 'url') { reference.url = chosen.url; reference.capture = chosen.snapshot; }
+            if (kind === 'html') { reference.filename = pages[0].path; reference.html = pages[0].html; }
+            if (kind === 'package') {
+                reference.manifest = chosen.manifest;
+                const form = new FormData();
+                form.append('title', jobTitle);
+                form.append('reference', JSON.stringify(reference));
+                form.append('package', pick.file('package'));
+                archive = await request(SyndaMorphTeam.historyUrl + '/reference', form, true);
+            } else {
+                archive = await request(SyndaMorphTeam.historyUrl + '/reference', {title:jobTitle, reference});
+            }
+            currentJob.textContent = archive.jobId + ' : ' + archive.title;
             const next = [];
             for ( const page of pages ) {
                 if ( generation !== sourceGeneration ) return;
@@ -491,15 +529,16 @@
                     css = result.css || [];
                 }
                 const converted = await SyndaMorphConverter.prepareImport( source, jsMode );
-                next.push( { ...page, content: converted.content, preview: converted.preview,
-                    missing: [ ...missing, ...converted.missing ], css, stylesheets: converted.stylesheets } );
+                const artifact = { ...page, content: converted.content, preview: converted.preview,
+                    missing: [ ...missing, ...converted.missing ], css, stylesheets: converted.stylesheets };
+                await archiveEvent('reference_page', {path:page.path, title:page.title, source, artifact});
+                next.push(artifact);
 
             }
             if ( generation !== sourceGeneration ) return;
             prepared = next;
-            activeJob = { id: 'LOCAL-' + Date.now().toString( 36 ).toUpperCase(), kind, token: chosen.token, jsMode };
-            const jobTitle = pages.length === 1 ? pages[ 0 ].title + ' — Gutenberg Conversion' :
-                pages.length + ' pages — Gutenberg Package Conversion';
+            await archiveEvent('job_complete', {status:'converted', pageCount:next.length, aiCalls:0});
+            activeJob = { id: archive.jobId, archiveId:archive.id, kind, token: chosen.token, jsMode };
             const label = activeJob.id + ' : ' + jobTitle;
             resultsTitle.textContent = label;
             currentJob.textContent = label;
@@ -520,6 +559,7 @@
             viewResult.textContent = prepared.length > 1 ? 'View Results' : 'View Result';
             viewResult.hidden = false;
         } catch ( error ) {
+            if (archive) { try { await archiveEvent('job_error', {message:error.message || String(error)}); } catch (_) {} }
             showError( convertError, 'Conversion failed: ' + ( error.message || String( error ) ) );
             jobState.textContent = 'Conversion error';
             outputState.textContent = 'Not ready';
@@ -594,6 +634,10 @@
                 } );
                 createdDraftIds = [ Number( result.id ) ].filter( Number.isSafeInteger );
                 statusMessage = 'Draft saved. Open it through the WordPress Pages screen.';
+            }
+            if (activeJob.archiveId) {
+                try { await request(SyndaMorphTeam.historyUrl + '/' + activeJob.archiveId + '/reference-event', {type:'reference_saved', data:{mode, result, message:statusMessage}}); }
+                catch (_) { statusMessage += ' History save receipt could not be recorded.'; }
             }
             if ( mode === 'draft' ) savedDraftIds.push( ...createdDraftIds );
             savedModes.set( mode, statusMessage );

@@ -1,5 +1,8 @@
 # SyndaMorph V2 — Hybrid Engine POC
 
+
+> **Current project status (2026-11-24):** This V2 hybrid POC is historical input to the [canonical Master Plan](master-plan.md). Native/editable Gutenberg conversion and a deterministic browser service remain core architectural decisions. The future full website design requires **Boss source-code + rendered-visual + interaction classification**, **Developer custom interactive Gutenberg block engineering**, and reusable packaging; those capabilities are **planned**, not delivered by this earlier single-page URL POC. Surgery v2 in the separate collaborative pipeline is implemented but still awaits live-provider acceptance.
+
 Status: experimental. This branch must not change the released plugin behavior or release pipeline without explicit acceptance.
 
 ## Product target

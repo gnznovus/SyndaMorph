@@ -133,3 +133,16 @@ test('marks only available FAQ answers for native Details and reports the missin
         assert.doesNotMatch(booking.html, /data-syndamorph-disclosure/);
     });
 });
+
+
+test('production inventory exposes a heading and paragraph as a source-only range', () => {
+    withDocument('<main><section id="faq"><h2>FAQs</h2><p>Longer introduction text.</p><button>Question</button></section>' +
+        '<section id="stories"><h2>Stories</h2><p>Read the latest news.</p></section></main>', () => {
+        const sections = extractSections({ inventoryOnly: true });
+        const intro = sections.find(section => section.label === 'FAQs introduction');
+        assert.ok(intro);
+        assert.equal(intro.parentRef, '[id="faq"]');
+        assert.deepEqual(intro.sourceRef.split('\n').map(ref => document.querySelector(ref)?.localName), ['h2', 'p']);
+        assert.ok(sections.every(section => !section.html));
+    });
+});

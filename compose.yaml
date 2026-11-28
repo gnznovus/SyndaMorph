@@ -32,10 +32,17 @@ services:
       # Enables an in-process mock provider only when WP_DEBUG is also true.
       SYNDAMORPH_MOCK_AI_ENABLED: "1"
       SYNDAMORPH_RENDERER_URL: "http://renderer:3000/render"
+      SYNDAMORPH_RENDERER_TOKEN: ${SYNDAMORPH_RENDERER_TOKEN:-local-renderer-transport-test-fixture-v1}
       SYNDAMORPH_BACKEND_URL: "http://backend:3100/capture"
       SYNDAMORPH_BACKEND_TOKEN: "local-poc-token-change-before-deployment"
       SYNDAMORPH_CAPTURE_HOSTS: "www.syndacast.com"
       SYNDAMORPH_RESOURCE_HOSTS: "unpkg.com,cdn.jsdelivr.net,fonts.googleapis.com,fonts.gstatic.com"
+      SYNDAMORPH_GATEWAY_URL: "http://gateway:3200"
+      SYNDAMORPH_GATEWAY_ADMIN_TOKEN: ${SYNDAMORPH_GATEWAY_ADMIN_TOKEN:-}
+      WORDPRESS_CONFIG_EXTRA: |
+        define( 'WP_ENVIRONMENT_TYPE', 'local' );
+        define( 'SYNDAMORPH_GATEWAY_URL', getenv( 'SYNDAMORPH_GATEWAY_URL' ) ?: '' );
+        define( 'SYNDAMORPH_GATEWAY_ADMIN_TOKEN', getenv( 'SYNDAMORPH_GATEWAY_ADMIN_TOKEN' ) ?: '' );
     networks:
       - default
       - render_net
@@ -72,11 +79,69 @@ services:
     mem_limit: 768m
     shm_size: 256mb
 
+  gateway:
+    build:
+      context: ./backend
+      dockerfile: gateway/Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      SYNDAMORPH_GATEWAY_HOST: "0.0.0.0"
+      SYNDAMORPH_GATEWAY_PORT: "3200"
+      SYNDAMORPH_GATEWAY_PEPPER: ${SYNDAMORPH_GATEWAY_PEPPER:-}
+      SYNDAMORPH_GATEWAY_ADMIN_TOKEN: ${SYNDAMORPH_GATEWAY_ADMIN_TOKEN:-}
+      SYNDAMORPH_GATEWAY_DATA: /data/state.json
+      SYNDAMORPH_GATEWAY_ARTIFACTS: /artifacts
+    expose:
+      - "3200"
+    volumes:
+      - gateway_data:/data
+      - gateway_artifacts:/artifacts
+    networks:
+      - default
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3200/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 4s
+      retries: 5
+
+  gateway-tunnel:
+    image: nginx:1.27-alpine
+    profiles: ["gateway-tunnel"]
+    restart: unless-stopped
+    depends_on:
+      gateway:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8087:8080"
+    volumes:
+      - ./config/gateway-tunnel.nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - default
+
   renderer:
     build: ./renderer
     restart: unless-stopped
     init: true
     user: pwuser
+    environment:
+      SYNDAMORPH_RENDERER_TOKEN: ${SYNDAMORPH_RENDERER_TOKEN:-local-renderer-transport-test-fixture-v1}
     networks:
       - render_net
     read_only: true
@@ -97,3 +162,5 @@ networks:
 volumes:
   db_data:
   wp_data:
+  gateway_data:
+  gateway_artifacts:

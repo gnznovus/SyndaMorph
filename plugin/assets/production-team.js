@@ -11,7 +11,6 @@
     const htmlFile = byId( 'syndamorph-team-html-file' );
     const file = byId( 'syndamorph-team-package' );
     const brief = byId( 'syndamorph-team-brief' );
-    const run = byId( 'syndamorph-team-run' );
     const reset = byId( 'syndamorph-team-reset' );
     const timeline = byId( 'syndamorph-team-timeline' );
     const review = byId( 'syndamorph-team-review' );
@@ -24,9 +23,6 @@
     const notice = byId( 'syndamorph-team-validation' );
     const tabs = Array.from( root.querySelectorAll( '.sm-team-tabs [role="tab"]' ) );
     const panels = Array.from( root.querySelectorAll( '.sm-team-panel' ) );
-    let activeTimer = null;
-    let generation = 0;
-    let current = null;
 
     function setText( node, text ) { if ( node ) node.textContent = text; }
     function selectTab( tab, focus = false ) {
@@ -37,6 +33,10 @@
             if ( selected && focus ) button.focus();
         }
         for ( const panel of panels ) panel.hidden = panel.dataset.panel !== tab;
+    }
+    // Overview and bookmarked history links can select the History panel.
+    if ( new URLSearchParams( window.location.search ).get( 'view' ) === 'history' ) {
+        selectTab( 'history' );
     }
     tabs.forEach( ( button, index ) => {
         button.addEventListener( 'click', () => selectTab( button.dataset.panel ) );
@@ -192,187 +192,32 @@
         url: () => url.value.trim(),
     } );
 
-    // The PM will generate job titles during real classification. UI-only names
-    // are deliberately marked simulated, never represented as AI inference.
-    function demoTitle( kind ) {
-        return {
-            url: 'Website Source — Gutenberg Conversion',
-            html: 'HTML Source — Gutenberg Conversion',
-            package: 'ZIP Package — Gutenberg Conversion',
-        }[ kind ];
-    }
-    function validateSource() {
-        const kind = sourceType.value;
-        if ( kind === 'url' ) {
-            const value = url.value.trim();
-            if ( !value ) return 'Enter a source URL.';
-            try {
-                const parsed = new URL( value );
-                if ( ![ 'http:', 'https:' ].includes( parsed.protocol ) || !parsed.hostname ) throw new Error( 'Invalid' );
-            } catch ( _error ) { return 'Source must be a valid HTTP(S) URL.'; }
-        } else if ( kind === 'html' ) {
-            if ( !accepted.html && !html.value.trim() ) return 'Paste HTML or choose an HTML file to start the demonstration.';
-        } else if ( kind === 'package' ) {
-            if ( !accepted.package ) return 'Select a ZIP package.';
-        }
-        if ( !brief.value.trim() ) return 'Describe the task in the production brief.';
-        return '';
-    }
-    function setAgentStates( completed ) {
-        const doneAgents = new Set( stages.slice( 0, completed ).map( stage => stage.agent ) );
-        root.querySelectorAll( '[data-agent]' ).forEach( node => {
-            const pill = node.querySelector( '.sm-status-pill' );
-            const done = doneAgents.has( node.dataset.agent );
-            pill.textContent = done ? 'Acknowledged' : 'Standing by';
-            pill.dataset.state = done ? 'success' : 'idle';
-        } );
-    }
-    // These are authored intent-pool lines. No AI calls or verified actions.
-    let stages = [];
-    let demoSession = null;
-    const turnCount = () => String( stages.length ).padStart( 2, '0' );
-    function stopSimulation() {
-        generation += 1;
-        if ( activeTimer !== null ) window.clearTimeout( activeTimer );
-        activeTimer = null;
-    }
-    function renderReview( completed ) {
-        review.replaceChildren();
-        const heading = document.createElement( 'strong' );
-        heading.textContent = completed ? ( demoSession?.state.forced ? 'Simulation unresolved · artifacts not generated' : 'Peace route reached · artifacts not generated' ) : 'Simulation in progress';
-        const detail = document.createElement( 'p' );
-        detail.textContent = completed
-            ? 'All authored intent-pool messages were displayed. No source capture, AI reasoning, Gutenberg patterns, custom blocks, or fidelity tests were performed.'
-            : 'Authored dialogue is displayed one message at a time. This is entertainment, not production execution.';
-        review.append( heading, detail );
-    }
     function resetState() {
-        stopSimulation();
-        current = null;
-        demoSession = null;
-        stages = [];
-        timeline.replaceChildren();
-        const li = document.createElement( 'li' );
-        li.className = 'sm-team-empty';
-        li.textContent = 'No activity yet. Start a simulation from Setup.';
-        timeline.append( li );
-        setText( currentJob, 'No job submitted' );
-        setText( resultTitle, 'No job submitted' );
-        setText( jobState, 'Not started' );
-        setText( handoffs, '00 turns' );
-        setText( outputState, 'Not generated' );
-        setText( feedState, 'Idle' );
-        feedState.dataset.state = 'idle';
-        setText( notice, 'UI simulation only · no production job, source capture, or AI inference.' );
-        review.replaceChildren();
-        const heading = document.createElement( 'strong' );
-        heading.textContent = 'No output available';
-        const message = document.createElement( 'p' );
-        message.textContent = 'Start a simulation from Setup. No artifacts exist yet.';
-        review.append( heading, message );
-        setAgentStates( 0 );
+        root.dispatchEvent(new Event('syndamorph-team-reset'));
+        if (timeline) timeline.replaceChildren();
+        const empty = document.createElement('li');
+        empty.className = 'sm-team-empty';
+        empty.textContent = 'No activity yet. Start Production from Setup.';
+        if (timeline) timeline.append(empty);
+        setText(currentJob, 'No job submitted');
+        setText(resultTitle, 'No job submitted');
+        setText(jobState, 'Not started');
+        setText(handoffs, '0 / 4 completed');
+        setText(outputState, 'Not generated');
+        setText(feedState, 'Idle');
+        if (feedState) feedState.dataset.state = 'idle';
+        setText(notice, 'Enter a production brief and select Start Production.');
+        if (review) {
+            review.replaceChildren();
+            const title = document.createElement('strong');
+            title.textContent = 'No output available';
+            review.append(title);
+        }
+        root.querySelectorAll('[data-agent] .sm-status-pill').forEach(pill => {
+            pill.textContent = 'Standing by';
+            pill.dataset.state = 'idle';
+        });
     }
-    function appendStage( index ) {
-        const stage = stages[ index ];
-        const followLatest = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 48;
-        const li = document.createElement( 'li' );
-        li.className = 'sm-team-step';
-        const title = document.createElement( 'strong' );
-        title.textContent = stage.name + ' · ' + stage.type;
-        const text = document.createElement( 'p' );
-        text.textContent = stage.action;
-        const stamp = document.createElement( 'span' );
-        stamp.className = 'sm-team-step-count';
-        stamp.textContent = 'DEMO ' + String( index + 1 ).padStart( 2, '0' );
-        li.append( stamp, title, text );
-        timeline.append( li );
-        setAgentStates( index + 1 );
-        setText( handoffs, turnCount() + ' turns' );
-        if ( followLatest ) timeline.scrollTop = timeline.scrollHeight;
-    }
-    function begin() {
-        const error = validateSource();
-        if ( error ) { notice.textContent = error; return; }
-        stopSimulation();
-        demoSession = window.SyndaMorphDemoDialogue.createSession( { kind: sourceType.value, brief: brief.value.trim() } );
-        stages = [];
-        const ticket = generation;
-        const id = 'DEMO-' + Date.now().toString( 36 ).toUpperCase();
-        current = { id, title: demoTitle( sourceType.value ), sourceType: sourceType.value };
-        setText( currentJob, current.id + ' : ' + current.title );
-        setText( resultTitle, current.id + ' : ' + current.title );
-        setText( jobState, 'Simulating' );
-        setText( outputState, 'Not generated' );
-        setText( handoffs, '00 turns' );
-        setText( feedState, 'Rule-based demo' );
-        feedState.dataset.state = 'running';
-        setText( notice, 'Rule-based entertainment · no AI inference or generated artifacts.' );
-        timeline.replaceChildren();
-        setAgentStates( 0 );
-        renderReview( false );
-        selectTab( 'production' );
-        let index = 0;
-        const tick = () => {
-            if ( ticket !== generation ) return;
-            const message = demoSession.next();
-            if ( !message ) return;
-            stages.push( message );
-            appendStage( index++ );
-            if ( !demoSession.state.resolved ) {
-                activeTimer = window.setTimeout( tick, 950 );
-                return;
-            }
-            activeTimer = null;
-            setText( jobState, demoSession.state.forced ? 'Review needed' : 'Demo completed' );
-            setText( feedState, demoSession.state.forced ? 'Unresolved' : 'Peace route reached' );
-            feedState.dataset.state = demoSession.state.forced ? 'running' : 'success';
-            renderReview( true );
-        };
-        activeTimer = window.setTimeout( tick, 250 );
-    }
-    run.addEventListener( 'click', begin );
-    reset.addEventListener( 'click', () => { resetState(); selectTab( 'setup' ); } );
-
-    // Retain the existing live Purr POC as a separate, explicitly identified check.
-    const purrRun = byId( 'syndamorph-purr-run' );
-    const purrState = byId( 'syndamorph-purr-status' );
-    const purrTranscript = byId( 'syndamorph-purr-transcript' );
-    if ( purrRun && purrState && purrTranscript ) {
-        purrRun.addEventListener( 'click', async () => {
-            if ( purrRun.disabled ) return;
-            const value = current ? current.title : 'Gutenberg production team communication demonstration';
-            purrRun.disabled = true;
-            purrState.textContent = 'Connecting';
-            purrState.dataset.state = 'running';
-            purrTranscript.textContent = 'Opening Purr session and exchanging four messages…';
-            try {
-                const response = await fetch( SyndaMorphTeam.purrPocUrl, {
-                    method: 'POST', credentials: 'same-origin',
-                    headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': SyndaMorphTeam.nonce },
-                    body: JSON.stringify( { job: value } ),
-                } );
-                const data = await response.json();
-                if ( !response.ok || !data.success || !data.session_created || data.steps_completed !== 4 ||
-                     !Array.isArray( data.conversation ) ) throw new Error( 'Incomplete Purr response' );
-                purrTranscript.replaceChildren();
-                data.conversation.forEach( item => {
-                    const row = document.createElement( 'article' );
-                    row.className = 'sm-purr-message';
-                    const label = document.createElement( 'strong' );
-                    label.textContent = item.step + '. ' + item.agent + ' · ' + item.action;
-                    const message = document.createElement( 'p' );
-                    message.textContent = item.message;
-                    row.append( label, message );
-                    purrTranscript.append( row );
-                } );
-                purrState.textContent = '4 / 4 received';
-                purrState.dataset.state = 'success';
-            } catch ( _error ) {
-                purrState.textContent = 'Failed';
-                purrState.dataset.state = 'error';
-                purrTranscript.textContent = 'Communication test could not complete. Check Purr configuration and Gateway availability.';
-            } finally { purrRun.disabled = false; }
-        } );
-    }
+    reset.addEventListener('click', () => { resetState(); selectTab('setup'); });
     selectTab( 'setup' );
 } )();

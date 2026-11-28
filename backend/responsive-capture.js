@@ -1,0 +1,577 @@
+'use strict';
+
+const { createHash } = require('node:crypto');
+const { inspectTouch, touchTargetId } = require('./production-touch');
+const VIEWPORTS = [1440, 768, 375];
+const HEIGHT = 900;
+
+async function settleEntrancePaint(page) {
+    // Sample pending transitions after layout, without finishing animations,
+    // scrolling, changing styles, or waiting on a site's infinite effects.
+    await page.evaluate(async () => {
+        await Promise.race([
+            new Promise(resolve => setTimeout(resolve, 1200)),
+            (async () => {
+                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                const entrance = document.getAnimations().filter(animation => {
+                    const effect = animation.effect;
+                    const target = effect?.target;
+                    if (!(target instanceof Element) || !Number.isFinite(effect.getComputedTiming().endTime) ||
+                        (!animation.pending && animation.playState !== 'running')) return false;
+                    const rect = target.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < innerHeight &&
+                        effect.getKeyframes().some(frame => 'opacity' in frame || 'transform' in frame);
+                });
+                await Promise.allSettled(entrance.map(animation => animation.finished));
+            })(),
+        ]);
+    });
+}
+
+// Read the original DOM. The existing manual extractor's static annotations
+// are useful for display, but aren't a record of the source's behavior.
+function sourceInventory({ selectors }) {
+    const normalize = value => value.replace(/\s+/gu, ' ').trim();
+    const visible = element => {
+        const bounds = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return bounds.width > 0 && bounds.height > 0 && !element.closest('[hidden]') &&
+            !['hidden', 'collapse'].includes(style.visibility) && style.display !== 'none';
+    };
+    const stripProfile = (element, style) => {
+        const box = element.getBoundingClientRect();
+        const cards = [...element.children];
+        if (innerWidth >= 1024 || element === document.body || element === document.documentElement ||
+            document.documentElement.scrollWidth > innerWidth || style.overflowX !== 'auto' || style.direction !== 'ltr' ||
+            style.scrollSnapType !== 'x mandatory' || style.columnGap !== '12px' || style.paddingInlineEnd !== '20px' ||
+            box.left < -2 || box.right > innerWidth + 2 || element.scrollLeft !== 0 || cards.length < 2 || cards.length > 6 ||
+            element.closest('form,[inert],[aria-disabled="true"]') || !element.checkVisibility({opacityProperty:true,visibilityProperty:true}) ||
+            !cards.every(card => visible(card) && getComputedStyle(card).scrollSnapAlign === 'start')) return null;
+        const cardBounds = cards.map(card => card.getBoundingClientRect());
+        if (!cardBounds.every((rect, index) => Math.abs(rect.width - (element.clientWidth - 20) * .8) <= 2 &&
+            Math.abs(rect.left - (index ? cardBounds[index - 1].right + 12 : box.left)) <= 2)) return null;
+        const cardCopy = cards.map(card => normalize(card.innerText));
+        if (!cardCopy.some(Boolean) || cardCopy.some(copy => copy.length > 4000)) return null;
+        const chain = [];
+        for (let node = element; node !== document.body; node = node.parentElement) {
+            const index = Array.prototype.indexOf.call(node.parentElement.children, node);
+            chain.unshift(`:nth-child(${index + 1})`);
+        }
+        return { identity: { selector: ['body', ...chain].join(' > '), tag: element.localName,
+            role: element.getAttribute('role') ?? '', name: normalize(element.getAttribute('aria-label') ||
+                element.innerText || element.title || element.getAttribute('placeholder') || '').slice(0,120) }, cardCopy };
+    };
+    return selectors.map(selector => {
+        const root = document.querySelector(selector);
+        if (!root) return null;
+        const elements = [root, ...root.querySelectorAll('*')].filter(element =>
+            !element.closest('script,style,noscript,template') && visible(element));
+        const text = [];
+        const visibleNodes = new Set(elements);
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        while (walker.nextNode()) {
+            const literal = normalize(walker.currentNode.nodeValue);
+            if (literal && visibleNodes.has(walker.currentNode.parentElement)) text.push(literal);
+        }
+        const links = [];
+        const assets = [];
+        const controls = [];
+        for (const element of elements) {
+            if (element.matches('a[href]')) links.push({
+                href: element.getAttribute('href').startsWith('#') ? element.getAttribute('href') : element.href,
+                text: normalize(element.innerText || element.getAttribute('aria-label') || ''),
+            });
+            if (element.matches('img')) assets.push({
+                type: 'image', url: element.currentSrc || element.src, alt: element.getAttribute('alt'),
+                loaded: element.complete && element.naturalWidth > 0,
+            });
+            if (element.matches('svg,iframe,video,audio,canvas,object,embed')) assets.push({ type: element.localName });
+            const style = getComputedStyle(element);
+            const background = style.backgroundImage;
+            for (const match of background.matchAll(/url\("?([^"\)]+)"?\)/g)) assets.push({ type: 'background', url: match[1] });
+            if (['auto','scroll'].includes(style.overflowX) && element.clientWidth > 0 &&
+                element.scrollWidth - element.clientWidth > 4) {
+                const strip = stripProfile(element, style);
+                controls.push({type:'horizontal-scroll',name:normalize(element.getAttribute('aria-label') || '').slice(0,180),
+                    ...(strip ? { strip } : {})});
+            }
+            const customAction = !element.closest('a[href],button') && (typeof element.onclick === 'function' ||
+                style.cursor === 'pointer' && (!element.parentElement || getComputedStyle(element.parentElement).cursor !== 'pointer'));
+            if (customAction || element.matches('form,input,select,textarea,button,details,summary,dialog,[role=button],[role=tab],[role=dialog],[role=application],[aria-expanded],[aria-roledescription=carousel],a:not([href]),a[href="#"]')) {
+                controls.push({ type: element.getAttribute('role') || element.localName,
+                    name: normalize(element.getAttribute('aria-label') || element.innerText || element.getAttribute('placeholder') || '').slice(0, 180) });
+            }
+        }
+        const bounds = root.getBoundingClientRect();
+        return {
+            text, links, assets, controls,
+            anchors: [root.id, root.getAttribute('data-section-id'), root.getAttribute('aria-label')].filter(Boolean),
+            position: getComputedStyle(root).position,
+            compactNavigation: bounds.y <= 2 && bounds.height < 200 &&
+                elements.some(element => /(menu|navigation)/i.test(element.getAttribute('aria-label') || '')),
+        };
+    });
+}
+
+async function captureImage(session, width, y, height) {
+    // Bound pixels before Chromium encodes. Full-height views preserve the
+    // document's composition, at a smaller scale suitable for comparison.
+    const scale = Math.min(1, HEIGHT / height);
+    for (const quality of [58, 40, 22]) {
+        const { data } = await session.send('Page.captureScreenshot', {
+            format: 'jpeg', quality, captureBeyondViewport: true,
+            clip: { x: 0, y, width, height, scale },
+        });
+        if (data.length <= 400000) return data;
+    }
+    return null;
+}
+
+async function muteOverlayLayers(page, sections) {
+    return page.evaluateHandle(({ overlaySelectors, contentSelectors }) => {
+        const overlays = overlaySelectors.map(selector => document.querySelector(selector)).filter(Boolean);
+        const content = contentSelectors.map(selector => document.querySelector(selector)).filter(Boolean);
+        const muted = new Set(overlays);
+        for (const overlay of overlays) {
+            for (let node = overlay; node && node !== document.body; node = node.parentElement) {
+                for (const sibling of node.parentElement.children) {
+                    if (content.some(root => sibling.contains(root) || root.contains(sibling))) continue;
+                    const style = getComputedStyle(sibling), box = sibling.getBoundingClientRect();
+                    const isShade = ['fixed','absolute'].includes(style.position) && Number(style.zIndex) > 0 &&
+                        box.left <= 2 && box.top <= 2 && box.right >= innerWidth - 2 && box.bottom >= innerHeight - 2 &&
+                        !(sibling.innerText || '').trim() && !sibling.querySelector('img,video,canvas,iframe') &&
+                        (style.backgroundColor !== 'rgba(0, 0, 0, 0)' || style.backdropFilter !== 'none' || style.backgroundImage !== 'none');
+                    if (isShade) muted.add(sibling);
+                }
+            }
+        }
+        const prior = [...muted].map(element => [element,element.style.getPropertyValue('opacity'),element.style.getPropertyPriority('opacity')]);
+        for (const [element] of prior) element.style.setProperty('opacity','0','important');
+        return { count: prior.length, restore() {
+            for (const [element,value,priority] of prior) {
+                if (value) element.style.setProperty('opacity',value,priority);
+                else element.style.removeProperty('opacity');
+            }
+        }};
+    }, { overlaySelectors: sections.filter(s => s.kind === 'overlay').map(s => s.sourceRef),
+        contentSelectors: sections.filter(s => s.kind !== 'overlay').map(s => s.sourceRef) });
+}
+
+/** Reproduce the pinned hero before replaying a confirmed, local dismissal. */
+async function captureSettledPair(page, sections, { width, ownerRef, adjacentRef, leadRef,
+    overlayRef, dismissTargetId, copySha256, pinnedHeroSha256 }, sealNetwork) {
+    const pending = reason => ({ version: 1, width, status: 'pending', reason });
+    const root = (ref, kind) => sections.find(section => section.sourceRef === ref && section.kind === kind);
+    if (width !== 1440 || page.viewportSize()?.width !== width ||
+        !root(ownerRef, 'content') || !root(adjacentRef, 'content') || !root(overlayRef, 'overlay'))
+        return pending('unverified_capture_regions');
+    const receipt = await inspectTouch(page, { width, actions: [], copySha256 }, sealNetwork);
+    const target = receipt.initial.targets.find(item => item.id === dismissTargetId && item.permitsClick &&
+        item.destination === null && /^Continue to website(?: →)?$/u.test(item.name));
+    const denied = sealNetwork();
+    if (receipt.status !== 'observed' || !target || denied.length) return pending('unverified_local_dismissal');
+    const dismiss = page.locator(target.selector);
+    if (await dismiss.count() !== 1 || !await dismiss.evaluate((element, selector) => {
+        const overlays = document.querySelectorAll(selector);
+        return overlays.length === 1 && overlays[0].contains(element) &&
+            element.checkVisibility({ opacityProperty: true, visibilityProperty: true });
+    }, overlayRef)) return pending('dismissal_outside_overlay');
+    const overlayHidden = () => page.locator(overlayRef).evaluateAll(elements =>
+        elements.every(element => !element.checkVisibility({ opacityProperty: true, visibilityProperty: true })));
+
+    const measure = () => page.evaluate(({ ownerRef, adjacentRef, leadRef }) => {
+        const unique = ref => [...document.querySelectorAll(ref)].length === 1 ? document.querySelector(ref) : null;
+        const owner = unique(ownerRef), adjacent = unique(adjacentRef), lead = unique(leadRef);
+        if (!owner || !adjacent || !lead || !owner.contains(lead) ||
+            owner.contains(adjacent) || adjacent.contains(owner)) return null;
+        const bounds = element => {
+            const box = element.getBoundingClientRect();
+            return [Math.round(box.left + scrollX), Math.round(box.top + scrollY), Math.round(box.width), Math.round(box.height)];
+        };
+        const a = bounds(owner), b = bounds(adjacent), paint = getComputedStyle(lead);
+        if (scrollX || scrollY || a[0] !== 0 || b[0] !== 0 || a[2] !== innerWidth || b[2] !== innerWidth ||
+            a[1] < 0 || a[3] <= 0 || b[3] <= 0 || a[1] + a[3] !== b[1] || a[3] + b[3] > 12000)
+            return null;
+        return { geometry: [a, b], copy: [owner.innerText, adjacent.innerText],
+            leadOpacity: paint.opacity, leadTransform: paint.transform, url: location.href };
+    }, { ownerRef, adjacentRef, leadRef });
+    const before = await measure();
+    if (!before || before.leadOpacity !== '0') return pending('unverified_initial_paint');
+
+    const [, top, , heroHeight] = before.geometry[0];
+    const pairHeight = heroHeight + before.geometry[1][3];
+    const session = await page.context().newCDPSession(page);
+    const sha = base64 => createHash('sha256').update(Buffer.from(base64, 'base64')).digest('hex');
+    try {
+        const hidden = await muteOverlayLayers(page, sections);
+        let pinned;
+        try { pinned = await captureImage(session, width, top, heroHeight); }
+        finally {
+            await hidden.evaluate(state => state.restore());
+            await hidden.dispose();
+        }
+        if (!pinned || sha(pinned) !== pinnedHeroSha256 || denied.length) return pending('pinned_hero_mismatch');
+        await dismiss.click({ timeout: 2200 });
+        await settleEntrancePaint(page);
+        const after = await measure();
+        if (!after || after.leadOpacity !== '1' || after.leadTransform !== 'none' || !await overlayHidden() ||
+            denied.length || after.url !== before.url || JSON.stringify(after.copy) !== JSON.stringify(before.copy) ||
+            JSON.stringify(after.geometry) !== JSON.stringify(before.geometry))
+            return pending('post_dismissal_paint_unverified');
+
+        const capture = async extent => {
+            const image = await captureImage(session, width, top, extent);
+            return image && image === await captureImage(session, width, top, extent) ?
+                { image, sha256: sha(image), extent } : null;
+        };
+        const hero = await capture(heroHeight);
+        const pair = await capture(pairHeight);
+        if (!hero || !pair || denied.length || hero.sha256 === pinnedHeroSha256 || !await overlayHidden() ||
+            JSON.stringify(await measure()) !== JSON.stringify(after)) return pending('unstable_settled_paint');
+        return { version: 1, width, status: 'observed', ownerRef, adjacentRef, leadRef, overlayRef,
+            dismissTargetId, pinnedHeroSha256, sourceCopySha256: copySha256, blockedRequestCount: 0,
+            top, hero, pair };
+    } catch {
+        return pending('settled_paint_unavailable');
+    } finally {
+        await session.detach();
+    }
+}
+
+/** Capture the region itself after verifying the original composition and the adjacent owner's overhang. */
+async function captureOwnedRegion(page,sections,diagnostics,{width,sourceRef,destinationRef,overlapRef,compositedSha256}) {
+    const target=sections.find(section=>section.kind==='content'&&section.sourceRef===sourceRef);
+    const owner=sections.find(section=>section.kind==='content'&&section.sourceRef===destinationRef);
+    const overhang=owner?.overhangs?.find(entry=>entry.sourceRef===overlapRef&&entry.position==='absolute'&&entry.edges?.bottom>0);
+    const top=Math.round(target?.bounds?.y??-1);
+    const height=Math.round(target?.bounds?.height??0);
+    if(!diagnostics.contentReady||!target?.geometryAvailable||!overhang||top<0||height<1||height>12000||page.viewportSize()?.width!==width)
+        return null;
+    const measure=()=>page.evaluate(({sourceRef,destinationRef,overlapRef})=>{
+        const unique=selector=>{
+            const elements=document.querySelectorAll(selector);
+            return elements.length===1?elements[0]:null;
+        };
+        const source=unique(sourceRef), owner=unique(destinationRef), overhang=unique(overlapRef);
+        if(!source||!owner||!overhang||owner.contains(source)||source.contains(owner)||
+            !owner.contains(overhang)||getComputedStyle(overhang).position!=='absolute')return null;
+        const r=source.getBoundingClientRect(), a=owner.getBoundingClientRect(), b=overhang.getBoundingClientRect();
+        const intersection=Math.min(r.bottom,b.bottom)-Math.max(r.top,b.top);
+        if(a.bottom>r.top+1||b.top>=r.top||intersection<=0||Math.min(r.right,b.right)<=Math.max(r.left,b.left))return null;
+        return {rect:[r.x+scrollX,r.y+scrollY,r.width,r.height],overlap:Math.round(intersection*100)/100,
+            copy:source.textContent};
+    },{sourceRef,destinationRef,overlapRef});
+    const before=await measure();
+    if(!before||Math.round(before.rect[1])!==top||Math.round(before.rect[3])!==height||
+        Math.abs(before.overlap-overhang.edges.bottom)>1)return null;
+    const captureFrame=async()=>{
+        const rows=sections.filter(section=>section===target||section.kind==='overlay');
+        const capture=await captureResponsiveViewport(page,rows,width,diagnostics);
+        return capture.sections.find(section=>section.sourceRef===sourceRef)?.screenshot;
+    };
+    const original=await captureFrame();
+    const sha=base64=>createHash('sha256').update(Buffer.from(base64,'base64')).digest('hex');
+    if(!original||sha(original)!==compositedSha256)return null;
+    const restore=await page.locator(overlapRef).evaluateHandle(element=>{
+        const prior=element.style.getPropertyValue('visibility');
+        const priority=element.style.getPropertyPriority('visibility');
+        element.style.setProperty('visibility','hidden','important');
+        return ()=>prior?element.style.setProperty('visibility',prior,priority):element.style.removeProperty('visibility');
+    });
+    try{
+        const after=await measure();
+        if(JSON.stringify(after)!==JSON.stringify(before))return null;
+        const screenshot=await captureFrame();
+        if(!screenshot||sha(screenshot)===compositedSha256)return null;
+        return {width,top,height,overlap:before.overlap,sourceRef,destinationRef,overlapRef,
+            compositedSha256,cropSha256:sha(screenshot),screenshot};
+    }finally{
+        await restore.evaluate(undo=>undo());
+        await restore.dispose();
+    }
+}
+
+/** Replay a compact-only, noninteractive list with small decorative vector badges. */
+async function captureCompactGuarantee(page, sections, diagnostics, {width,sourceRef,copySha256,pinnedSha256}, sealNetwork) {
+    const unknown = reason => ({version:1,width,sourceRef,status:'unknown',reason});
+    const denied = sealNetwork();
+    const hash = value => createHash('sha256').update(value).digest('hex');
+    const readCopy = () => page.evaluate(() => document.body.innerText.replace(/\s+/gu,' ').trim());
+    if (!diagnostics.contentReady || denied.length || hash(await readCopy()) !== copySha256)
+        return unknown('source_changed_during_replay');
+    const receipt = {version:1,width,sourceRef,status:'observed',sourceCopySha256:copySha256,blockedRequestCount:0};
+    const root = page.locator(sourceRef).filter({visible:true});
+    if (width === 1440) {
+        if (await root.count() !== 0) return unknown('visible_at_desktop');
+        return denied.length ? unknown('source_changed_during_replay') : {...receipt,present:false};
+    }
+    const target = sections.find(section => section.sourceRef === sourceRef && section.kind === 'content');
+    const y = Math.round(target?.bounds?.y ?? -1);
+    const height = Math.round(target?.bounds?.height ?? 0);
+    if (!target?.geometryAvailable || target.bounds.x !== 0 || target.bounds.width !== width ||
+        y < 0 || height <= 0 || height > 420 || await root.count() !== 1)
+        return unknown('unsupported_guarantee_geometry');
+    const profile = await root.evaluate(element => {
+        const active = 'a,button,input,select,textarea,form,[role],[tabindex],[contenteditable],[onclick]';
+        if (element.children.length !== 3 || element.closest('a,form,[inert]') ||
+            element.matches(active) || element.querySelector(active))
+            return null;
+        const rows = [...element.children].map(row => {
+            if (row.children.length !== 2) return null;
+            const [icon, words] = row.children;
+            const svg = icon.firstElementChild;
+            if (icon.children.length !== 1 || svg?.localName !== 'svg' || words.children.length !== 2 ||
+                [...words.children].some(line => line.children.length) ||
+                !svg.children.length || svg.children.length > 12 ||
+                [...svg.children].some(shape => !['path','rect','circle','line','polyline','polygon','ellipse'].includes(shape.localName) || shape.children.length))
+                return null;
+            const {width,height} = svg.getBoundingClientRect();
+            if (width !== 20 || height !== 20) return null;
+            return [...words.children].map(line => line.textContent.replace(/\s+/gu,' ').trim());
+        });
+        return rows.every(row => row?.every(text => text && text.length <= 150)) ? rows.flat() : null;
+    });
+    if (!profile) return unknown('unsupported_guarantee_markup');
+    const original = await captureResponsiveViewport(page, sections.filter(section => section === target || section.kind === 'overlay'),
+        width, diagnostics);
+    const composed = original.sections.find(section => section.sourceRef === sourceRef)?.screenshot;
+    if (!composed || hash(Buffer.from(composed,'base64')) !== pinnedSha256) return unknown('pinned_crop_changed');
+
+    // Separate this region from fixed overlays without mutating the archived DOM.
+    await page.evaluate(top => window.scrollTo({top,behavior:'instant'}), Math.max(0,y-128));
+    if (!await root.evaluate(element => {
+        const box = element.getBoundingClientRect();
+        if (box.top < 0 || box.bottom > innerHeight || box.left !== 0 || box.right !== innerWidth) return false;
+        return [box.top+2,box.top+box.height/2,box.bottom-2].every(y =>
+            [2,innerWidth/2,innerWidth-2].every(x => element.contains(document.elementFromPoint(x,y))));
+    })) return unknown('guarantee_occluded');
+    const icons = [];
+    const svg = root.locator('svg');
+    for (let i=0;i<3;i++) {
+        const bytes = await svg.nth(i).screenshot({type:'png',timeout:2500});
+        if (bytes.length > 8192) return unknown('badge_paint_limit');
+        icons.push({asset:{sha256:hash(bytes),bytes:bytes.length,mime:'image/png',
+            pixels:[bytes.readUInt32BE(16),bytes.readUInt32BE(20)]},assetBase64:bytes.toString('base64')});
+    }
+    const session = await page.context().newCDPSession(page);
+    try {
+        const screenshot = await captureImage(session,width,y,height);
+        if (!screenshot || denied.length || hash(await readCopy()) !== copySha256)
+            return unknown('isolated_crop_unverified');
+        return {...receipt,present:true,copy:profile,y,height,pinnedSha256,screenshot,icons};
+    } finally { await session.detach(); }
+}
+
+/** Observe the fixed strip and its apparent actions using sealed local replay. */
+async function captureCompactBooking(page, sections, diagnostics, {width,sourceRef,copySha256,pinnedSha256}, sealNetwork) {
+    const unknown = reason => ({version:1,width,sourceRef,status:'unknown',reason});
+    const denied = sealNetwork();
+    const hash = value => createHash('sha256').update(value).digest('hex');
+    const readCopy = () => page.evaluate(() => document.body.innerText.replace(/\s+/gu,' ').trim());
+    if (!diagnostics.contentReady || denied.length || hash(await readCopy()) !== copySha256)
+        return unknown('source_changed_during_replay');
+    const receipt = {version:1,width,sourceRef,status:'observed',sourceCopySha256:copySha256,blockedRequestCount:0};
+    const root = page.locator(sourceRef).filter({visible:true});
+    if (width === 1440) {
+        if (await root.count() !== 0) return unknown('visible_at_desktop');
+        return denied.length ? unknown('source_changed_during_replay') : {...receipt,present:false};
+    }
+    const target = sections.find(section => section.kind === 'content' && section.sourceRef === sourceRef);
+    if (!target?.geometryAvailable || await root.count() !== 1) return unknown('booking_not_unique');
+    const state = () => root.evaluate(element => {
+        const active = 'a,button,input,select,textarea,form,[role],[tabindex],[contenteditable],[onclick]';
+        const [details,label] = element.children;
+        if (element.children.length !== 2 || details.children.length !== 2 || label.children.length ||
+            element.matches(active) || element.querySelector(active) || element.closest('a,form,[inert]') ||
+            getComputedStyle(element).position !== 'fixed') return null;
+        const copy = [...details.children,label].map(node=>node.textContent.replace(/\s+/gu,' ').trim());
+        return copy.every(text=>text.length>0 && text.length<=150) ? copy : null;
+    });
+    const copy = await state();
+    if (!copy || await page.evaluate(()=>scrollY) !== 0) return unknown('unsupported_booking_markup');
+    const expected = {x:0,y:HEIGHT-68,width,height:68};
+    const fixed = async () => {
+        const actual = await root.boundingBox();
+        return actual && Object.keys(expected).every(key=>actual[key]===expected[key]);
+    };
+    if (!await fixed()) return unknown('unsupported_booking_geometry');
+    const original = await captureResponsiveViewport(page,sections.filter(section=>section===target||section.kind==='overlay'),
+        width,diagnostics);
+    const screenshot = original.sections.find(section=>section.sourceRef===sourceRef)?.screenshot;
+    if (!screenshot || hash(Buffer.from(screenshot,'base64'))!==pinnedSha256) return unknown('pinned_crop_changed');
+    const scrollPositions = [0,500,1400,3000];
+    for (const top of scrollPositions) {
+        await page.evaluate(top=>window.scrollTo({top,behavior:'instant'}),top);
+        if (await page.evaluate(()=>scrollY)!==top || !await fixed()) return unknown('fixed_scroll_unverified');
+    }
+    const url = page.url();
+    const markup = await root.innerHTML();
+    for (const label of copy.slice(1)) {
+        const target = root.getByText(label,{exact:true});
+        if (await target.count()!==1) return unknown('booking_label_ambiguous');
+        try { await target.click({timeout:1800}); }
+        catch { return unknown('booking_label_occluded'); }
+        if (page.url()!==url || await root.innerHTML()!==markup || !await fixed() ||
+            denied.length || hash(await readCopy())!==copySha256)
+            return unknown('booking_action_observed');
+    }
+    return {...receipt,present:true,copy,pinnedSha256,scrollPositions,controls:0,localActions:'inert'};
+}
+
+async function replayDesktopOffer(page,sections,diagnostics,{width,sourceRef,pinnedSha256,copySha256,dismissLabel},sealNetwork) {
+    const unknown=reason=>({version:1,width,sourceRef,status:'unknown',reason});
+    const copy=await inspectTouch(page,{width,actions:[],copySha256},sealNetwork);
+    if(copy.status!=='observed'||sealNetwork().length)return unknown('source_copy_changed');
+    const card=page.locator(sourceRef).filter({visible:true});
+    const dismissers=page.getByRole('button',{name:dismissLabel,exact:true});
+    const receipt={version:1,width,sourceRef,status:'observed',sourceCopySha256:copySha256,blockedRequestCount:0};
+    if(width!==1440){
+        return await card.count()===0&&await dismissers.count()===0?
+            {...receipt,present:false}:unknown('compact_offer_present');
+    }
+    const target=sections.find(row=>row.kind==='overlay'&&row.sourceRef===sourceRef);
+    const verified=copy.initial.targets.filter(item=>item.name===dismissLabel&&item.permitsClick&&!item.destination);
+    if(!target?.geometryAvailable||await card.count()!==1||await dismissers.count()!==1||
+        verified.length!==1||!await dismissers.evaluate((button,selector)=>button===document.querySelector(selector),
+            verified[0].selector)||!await card.evaluate((el,selector)=>el.contains(document.querySelector(selector)),
+            verified[0].selector))return unknown('offer_target_unverified');
+    const closed=await captureResponsiveViewport(page,sections.filter(section=>section.kind==='overlay'),width,diagnostics);
+    const screenshot=closed.sections.find(section=>section.sourceRef===sourceRef)?.screenshot;
+    if(!screenshot||createHash('sha256').update(Buffer.from(screenshot,'base64')).digest('hex')!==pinnedSha256)
+        return unknown('pinned_offer_changed');
+    const facts=await card.evaluate(el=>{
+        const {x,y,width,height}=el.getBoundingClientRect();
+        const [image,content]=el.children;
+        const clean=node=>node.innerText.replace(/\s+/gu,' ').trim();
+        const interactive='a,button,input,select,textarea,form,[role],[tabindex],[contenteditable],[onclick]';
+        if(el.children.length!==2||content.children.length!==5||el.querySelector('img,video,iframe,svg')||
+            el.closest('a,form')||image.getBoundingClientRect().width!==320||
+            image.getBoundingClientRect().height!==400||getComputedStyle(el).position!=='absolute')return null;
+        const [eyebrow,title,description,label,dismiss]=content.children;
+        if([image,eyebrow,title,description,label].some(node=>node.matches(interactive)||node.querySelector(interactive))||
+            dismiss.getAttribute('role')!=='button'&&dismiss.tagName!=='BUTTON')return null;
+        const shade=document.elementFromPoint(5,5);
+        const shadeBox=shade?.getBoundingClientRect();
+        if(!shadeBox||shadeBox.x!==0||shadeBox.y!==0||shadeBox.width!==innerWidth||
+            shadeBox.height<document.documentElement.scrollHeight-1||shade.closest(interactive)||
+            getComputedStyle(shade).backgroundColor!=='rgba(17, 17, 17, 0.55)')return null;
+        return {clip:{x,y,width,height:Math.ceil(height)},copy:{
+            placeholder:clean(image),eyebrow:eyebrow.textContent.replace(/\s+/gu,' ').trim(),title:clean(title),description:clean(description),
+            offerLabel:clean(label),dismissLabel:clean(dismiss)
+        },shade:'document'};
+    });
+    if(!facts||facts.clip.x!==380||facts.clip.y!==200||facts.clip.width!==680||facts.clip.height!==411||
+        facts.copy.dismissLabel!==dismissLabel||Object.values(facts.copy).some(value=>!value||value.length>240))
+        return unknown('unsupported_offer_shape');
+    const url=page.url();
+    const markup=await card.innerHTML();
+    const shot=(await page.screenshot({type:'jpeg',quality:75,clip:facts.clip,timeout:3000})).toString('base64');
+    const holds=async()=>page.url()===url&&await card.count()===1&&await card.innerHTML()===markup&&sealNetwork().length===0;
+    const label=card.getByText(facts.copy.offerLabel,{exact:true});
+    if(await label.count()!==1)return unknown('offer_label_ambiguous');
+    await label.click({timeout:2000});
+    if(!await holds())return unknown('offer_label_action_observed');
+    await page.mouse.click(5,5);
+    if(!await holds())return unknown('offer_shade_action_observed');
+    await page.keyboard.press('Escape');
+    if(!await holds())return unknown('offer_escape_action_observed');
+    await dismissers.click({timeout:2000});
+    await card.waitFor({state:'hidden',timeout:2000});
+    if(page.url()!==url||sealNetwork().length)return unknown('offer_dismissal_unverified');
+    return {...receipt,present:true,pinnedSha256,...facts,screenshot:shot,dismissal:'pointer',
+        labelKeepsOpen:true,shadeKeepsOpen:true,escapeKeepsOpen:true};
+}
+
+async function captureResponsiveViewport(page, sections, width, diagnostics, describeSource = null) {
+    const session = await page.context().newCDPSession(page);
+    try {
+        const height = await page.evaluate(() => Math.max(innerHeight, document.documentElement.scrollHeight));
+        const whole = height <= 36000 ? await captureImage(session, width, 0, height) : null;
+        const fold = await captureImage(session, width, 0, HEIGHT);
+        const inventories = await page.evaluate(sourceInventory, { selectors: sections.map(section => section.sourceRef) });
+        for (const inventory of inventories) for (const control of inventory?.controls ?? []) {
+            if (!control.strip) continue;
+            const { identity, cardCopy } = control.strip;
+            control.strip = { version: 1, targetId: touchTargetId(identity), cards: cardCopy.length,
+                copySha256: createHash('sha256').update(JSON.stringify(cardCopy)).digest('hex'), cardCopy };
+        }
+        const facts = describeSource ? await page.evaluate(describeSource, sections.map(section => section.sourceRef)) : [];
+        const captureSection = async (section, index, hiddenLayers = 0) => {
+            const top = Math.max(0, Math.round(section.bounds.y ?? 0));
+            const extent = Math.round(section.bounds.height ?? 0);
+            const screenshot = section.geometryAvailable && extent > 0 && extent <= 12000
+                ? await captureImage(session, width, top, extent) : null;
+            return { ...section, inventory: inventories[index], facts: facts[index] ?? null, screenshot, hiddenOverlayLayers: hiddenLayers };
+        };
+        const evidence = [];
+        for (const [index, section] of sections.entries())
+            if (section.kind === 'overlay') evidence[index] = await captureSection(section,index);
+        const hidden = await muteOverlayLayers(page, sections);
+        try {
+            const count = await hidden.evaluate(state => state.count);
+            for (const [index, section] of sections.entries())
+                if (section.kind !== 'overlay') evidence[index] = await captureSection(section,index,count);
+        } finally {
+            await hidden.evaluate(state => state.restore());
+            await hidden.dispose();
+        }
+        return { width, height, whole, fold, ready: diagnostics.contentReady, sections: evidence,
+            network: diagnostics.network, browserErrors: diagnostics.browserErrors };
+    } finally {
+        await session.detach();
+    }
+}
+
+function tokens(text) {
+    return new Set((text.normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) || [])
+        .filter(word => !['the', 'and', 'for', 'with', 'your', 'from', 'our', 'you', 'this'].includes(word)));
+}
+
+function correspondence(left, right, frequency) {
+    if (left.sourceRef === right.sourceRef || (left.inventory?.anchors || []).some(anchor =>
+        right.inventory?.anchors?.includes(anchor))) return 100;
+    if (left.kind === 'overlay' || right.kind === 'overlay') return left.kind === right.kind && left.label === right.label ? 90 : 0;
+    if (left.label.toLowerCase() === right.label.toLowerCase() && left.label !== 'Untitled content') return 90;
+    if (left.kind === 'header' && right.inventory?.compactNavigation) return 85;
+    const words = entry => tokens([entry.label, ...(entry.inventory?.text || [])].join(' '));
+    const a = words(left), b = words(right);
+    const common = [...a].filter(word => b.has(word) && frequency.get(word) <= 3);
+    const labels = [...tokens(left.label)].filter(word => tokens(right.label).has(word));
+    return common.length >= 3 ? Math.min(80, common.length * 3 + labels.length * 5) : labels.length >= 2 ? 10 : 0;
+}
+
+function reconcileResponsive(url, views) {
+    const regions = [];
+    const append = (section, width, index) => {
+        const id = createHash('sha256').update(url + '\n' + section.sourceRef).digest('hex').slice(0, 24);
+        const region = { id, label: section.label, kind: section.kind, sourceRef: section.sourceRef,
+            variants: { [width]: section } };
+        regions.splice(index, 0, region);
+        return region;
+    };
+    for (const view of views) {
+        const frequency = new Map();
+        for (const section of view.sections) for (const word of tokens((section.inventory?.text || []).join(' ')))
+            frequency.set(word, (frequency.get(word) || 0) + 1);
+        const ranked = view.sections.map(section => regions.map(region => ({ region, score: Math.max(...Object.values(region.variants)
+            .map(previous => correspondence(previous, section, frequency))) }))
+            .filter(match => match.score >= 10).sort((a, b) => b.score - a.score));
+        const matches = new Map();
+        for (const [index, options] of ranked.entries()) {
+            const match = options[0];
+            if (!match || match.score - (options[1]?.score || 0) < 5 ||
+                ranked.some((other, i) => i !== index && other[0]?.region === match.region && other[0].score >= match.score - 4)) continue;
+            match.region.variants[view.width] = view.sections[index];
+            matches.set(index, match.region);
+        }
+        for (const [index, section] of view.sections.entries()) {
+            if (matches.has(index)) continue;
+            const next = [...matches].find(([i]) => i > index)?.[1];
+            append(section, view.width, next ? regions.indexOf(next) : regions.length);
+        }
+    }
+    return regions;
+}
+
+module.exports = { VIEWPORTS, settleEntrancePaint, captureResponsiveViewport, captureOwnedRegion, captureSettledPair, replayDesktopOffer,
+    captureCompactGuarantee, captureCompactBooking, reconcileResponsive };

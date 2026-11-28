@@ -1,0 +1,182 @@
+.sm-linked-editorial.wp-block-group {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 24px;
+    position: relative;
+    padding: 96px 60px 120px;
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
+    background: white;
+    font: 400 15px/1.55 "Beausite Classic", system-ui, sans-serif;
+    color: #201e1d;
+    letter-spacing: normal;
+}
+
+.sm-linked-editorial :is(p, h2, .wp-block-group, .wp-block-image) {
+    margin: 0;
+}
+
+.sm-linked-editorial .sm-editorial-lead,
+.sm-linked-editorial .sm-editorial-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.sm-linked-editorial .sm-editorial-lead {
+    grid-column: 1/span 6;
+}
+
+.sm-linked-editorial .sm-editorial-copy {
+    grid-column: 8/span 5;
+    justify-content: flex-end;
+}
+
+.sm-linked-editorial .sm-editorial-kicker {
+    font: 700 14px/1.55 "Beausite Fit", sans-serif;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #605d5d;
+}
+
+.sm-linked-editorial h2.sm-editorial-title {
+    font: 400 60px/1.05 "Beausite Grand", serif;
+    letter-spacing: normal;
+    color: inherit;
+}
+
+.sm-linked-editorial .wp-block-image {
+    display: block;
+    width: 100%;
+    max-width: 440px;
+    margin-top: 16px;
+}
+
+.sm-linked-editorial .wp-block-image img {
+    display: block;
+    width: 100%;
+    height: auto;
+    filter: grayscale(1) contrast(1.15);
+    mix-blend-mode: multiply;
+}
+
+.sm-linked-editorial :is(.sm-editorial-intro, .sm-editorial-description) {
+    line-height: 1.6;
+    color: #333;
+    text-wrap: pretty;
+}
+
+.sm-linked-editorial .sm-editorial-intro {
+    font-size: 20px;
+}
+
+.sm-linked-editorial .sm-editorial-description {
+    font-size: 17px;
+}
+
+.sm-linked-editorial .sm-editorial-strapline {
+    font: 400 26px/1.2 "Beausite Grand", serif;
+    color: #111;
+}
+
+.sm-linked-editorial .sm-editorial-link {
+    align-self: flex-start;
+    margin-top: 14px;
+    font: 600 16px/1.55 "Beausite Classic", system-ui, sans-serif;
+}
+
+.sm-linked-editorial .sm-editorial-link a {
+    display: block;
+    color: #111;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+.sm-linked-editorial :is(.sm-editorial-landscape, .sm-editorial-portrait) {
+    display: flex;
+    align-items: flex-end;
+    box-sizing: border-box;
+    padding: 16px;
+    background: #eae7e7;
+}
+
+.sm-linked-editorial .sm-editorial-landscape {
+    grid-column: 1/span 7;
+    margin-top: 48px;
+    aspect-ratio: 4/3;
+}
+
+.sm-linked-editorial .sm-editorial-portrait {
+    grid-column: 9/span 4;
+    margin-top: 160px;
+    aspect-ratio: 4/5;
+}
+
+.sm-linked-editorial .sm-editorial-caption {
+    font: 400 14px/1.55 "Beausite Classic", system-ui, sans-serif;
+    color: #605d5d;
+}
+
+.sm-linked-editorial .sm-editorial-compact-panel {
+    display: none;
+}
+
+
+@media (max-width: 1023px) {
+    .sm-linked-editorial.wp-block-group {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 56px 20px;
+    }
+
+    .sm-linked-editorial .sm-editorial-lead,
+    .sm-linked-editorial .sm-editorial-copy {
+        display: contents;
+    }
+
+    .sm-linked-editorial :is(.wp-block-image, .sm-editorial-landscape, .sm-editorial-portrait) {
+        display: none;
+    }
+
+    .sm-linked-editorial .sm-editorial-kicker {
+        font-size: 12px;
+    }
+
+    .sm-linked-editorial h2.sm-editorial-title {
+        font-size: 32px;
+    }
+
+    .sm-linked-editorial .sm-editorial-intro {
+        font-size: 17px;
+    }
+
+    .sm-linked-editorial .sm-editorial-description {
+        font-size: 16px;
+    }
+
+    .sm-linked-editorial .sm-editorial-strapline {
+        font-size: 22px;
+        color: inherit;
+    }
+
+    .sm-linked-editorial .sm-editorial-link {
+        margin-top: 0;
+    }
+
+    .sm-linked-editorial .sm-editorial-link a {
+        text-underline-offset: auto;
+    }
+
+    .sm-linked-editorial .sm-editorial-compact-panel {
+        display: block;
+        box-sizing: border-box;
+        aspect-ratio: 4/5;
+        padding: 10px;
+        margin-top: 12px;
+        background: #eae7e7;
+    }
+
+}

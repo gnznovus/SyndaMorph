@@ -1,0 +1,121 @@
+<section class="sm-hero" aria-labelledby="sm-hero-title">
+  <!-- Revision note: Playwright desktop and mobile measurements at 1440, 768 and 375 CSS px were not captured in this revision. No-overflow, clipping and line-wrap results at those widths are unverified until measured in a browser. -->
+  <style>
+    .sm-hero {
+      --sm-hero-bg-start: #18283a;
+      --sm-hero-bg-end: #2b4a6b;
+      --sm-hero-text: #ffffff;
+      --sm-hero-muted: #e3e9f0;
+      --sm-hero-cta-bg: #f5e6c8;
+      --sm-hero-cta-text: #18283a;
+      --sm-hero-focus: #ffd966;
+      --sm-hero-space-block: clamp(3rem, 2rem + 6vw, 6.5rem);
+      --sm-hero-space-inline: clamp(1.25rem, 0.75rem + 3vw, 3rem);
+      --sm-hero-gap: clamp(1rem, 0.6rem + 1.5vw, 1.75rem);
+      --sm-hero-content-width: 42rem;
+      --sm-hero-radius: 999px;
+
+      box-sizing: border-box;
+      background: linear-gradient(135deg, var(--sm-hero-bg-start) 0%, var(--sm-hero-bg-end) 100%);
+      color: var(--sm-hero-text);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      padding: var(--sm-hero-space-block) var(--sm-hero-space-inline);
+      overflow-wrap: break-word;
+      word-break: normal;
+    }
+
+    .sm-hero *,
+    .sm-hero *::before,
+    .sm-hero *::after {
+      box-sizing: border-box;
+    }
+
+    /* Container-level width control: centers the content group.
+       No max-width is applied to individual text leaves. */
+    .sm-hero__content {
+      width: 100%;
+      max-width: var(--sm-hero-content-width);
+      margin-inline: auto;
+    }
+
+    .sm-hero__inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: var(--sm-hero-gap);
+    }
+
+    .sm-hero__eyebrow {
+      margin: 0;
+      font-size: clamp(0.8rem, 0.75rem + 0.25vw, 0.95rem);
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--sm-hero-muted);
+    }
+
+    .sm-hero__title {
+      margin: 0;
+      font-size: clamp(2rem, 1.2rem + 3.5vw, 4rem);
+      line-height: 1.1;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--sm-hero-text);
+      text-wrap: balance;
+    }
+
+    .sm-hero__intro {
+      margin: 0;
+      font-size: clamp(1rem, 0.9rem + 0.5vw, 1.25rem);
+      line-height: 1.6;
+      color: var(--sm-hero-muted);
+      text-wrap: pretty;
+    }
+
+    .sm-hero__cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.75rem;
+      margin-top: calc(var(--sm-hero-gap) * 0.25);
+      padding: 0.75rem clamp(1.25rem, 1rem + 1vw, 2rem);
+      border-radius: var(--sm-hero-radius);
+      background: var(--sm-hero-cta-bg);
+      color: var(--sm-hero-cta-text);
+      font-size: clamp(0.95rem, 0.9rem + 0.25vw, 1.05rem);
+      font-weight: 600;
+      line-height: 1.2;
+      text-decoration: none;
+      text-align: center;
+      max-width: 100%;
+    }
+
+    .sm-hero__cta:hover {
+      text-decoration: underline;
+    }
+
+    .sm-hero__cta:focus-visible {
+      outline: 3px solid var(--sm-hero-focus);
+      outline-offset: 3px;
+    }
+
+    @media (min-width: 48rem) {
+      .sm-hero__inner {
+        gap: clamp(1.25rem, 1rem + 1vw, 2rem);
+      }
+    }
+  </style>
+
+  <div class="sm-hero__content">
+    <div class="sm-hero__inner">
+      <p class="sm-hero__eyebrow">Welcome</p>
+      <h2 class="sm-hero__title" id="sm-hero-title">Rest well in a space designed for you</h2>
+      <p class="sm-hero__intro">
+        Settle into calm, considered rooms with thoughtful details, attentive service and
+        comfortable spaces for work, rest and time together. Every stay is planned around your pace.
+      </p>
+      <a class="sm-hero__cta" href="#rooms">View available rooms</a>
+    </div>
+  </div>
+</section>

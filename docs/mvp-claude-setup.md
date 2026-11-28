@@ -1,5 +1,8 @@
 # SyndaMorph MVP — Claude API plug-in setup
 
+
+> **Current project status (2026-11-24):** This is the **historical, initial Claude source-analysis adapter setup**, not instructions for the latest production team workflow. For current setup and collaborative contract see [README](../README.md), [Collaborative Production](collaborative-production.md), and [Master Plan](master-plan.md). The earlier statement that WordPress has no AI button was true only for that MVP slice; a later Operations Board and real-AI team UI exist. Adaptive Surgery v2 is implemented with deterministic benchmarks; **live-provider performance and savings remain unverified**. Do not hardcode model names or run obsolete deployment steps without checking current environment/configuration.
+
 This is **only the source-analysis adapter** for the demo; it does not yet compile a Pattern, run the fidelity loop, or install a client package.
 
 ## Tomorrow's setup (local disposable Docker environment)
@@ -54,3 +57,11 @@ This is **only the source-analysis adapter** for the demo; it does not yet compi
 - Provider requests are made one per analyze call. No hidden loops, no background spend.
 - `sectionId` must refer to a real section returned by capture. Initial Hotel Indigo test may use `section-1`.
 - Next development step: mobile capture and live Gutenberg compiler/validator adapters, then API-backed repair iterations.
+
+## WordPress AI Production Team POC (later milestone)
+
+This document describes the historical backend MVP setup. The current `feat/secure-gateway-leasing-v1` branch additionally implements a **real Anthropic four-agent POC inside WordPress Operations**. It is separate from the backend scaffold described above.
+
+To run it, configure a paid model under **Tools → SyndaMorph → AI Integration**, then open **AI Production Team → Setup**, enter a standalone brief under **Task instructions** (no URL/HTML/ZIP required) and choose **Start Production** next to **Reset**. Agent dialogue streams into the Production feed over authenticated SSE. The simulator and standalone communication POC shell controls have been removed. The job returns Boss, Designer, Developer and Validator reports with per-role token/duration/cost measurements. No code is executed, no Gutenberg pattern is created, and nothing is published automatically.
+
+See [Real AI Production Team — POC #1](real-ai-team-poc-1.md) for verified baseline results, safety boundaries and current limitations.

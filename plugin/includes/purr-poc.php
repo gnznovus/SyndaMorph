@@ -10,9 +10,7 @@ add_action( 'rest_api_init', static function (): void {
         'methods' => 'POST',
         'permission_callback' => static function (): bool { return current_user_can( 'manage_options' ); },
         'callback' => static function ( WP_REST_Request $request ) {
-            $token = getenv( 'SYNDAMORPH_BACKEND_TOKEN' );
-            if ( ! is_string( $token ) || '' === $token ||
-                 'http://backend:3100/capture' !== getenv( 'SYNDAMORPH_BACKEND_URL' ) ) {
+            if ( ! syndamorph_internal_configured( 'backend' ) ) {
                 return new WP_Error( 'syndamorph_purr_unavailable', 'POC backend is not configured.', array( 'status' => 503 ) );
             }
             $job = $request->get_param( 'job' );
@@ -20,10 +18,10 @@ add_action( 'rest_api_init', static function (): void {
                  preg_match( '/[\x00-\x1f\x7f]/', $job ) ) {
                 return new WP_Error( 'syndamorph_purr_job', 'Provide a POC job under 200 characters.', array( 'status' => 400 ) );
             }
-            $response = wp_remote_post( 'http://backend:3100/purr/communication-poc', array(
+            $response = syndamorph_internal_request( 'backend', 'POST', '/purr/communication-poc', array(
                 'timeout' => 65,
                 'redirection' => 0,
-                'headers' => array( 'Content-Type' => 'application/json', 'X-SyndaMorph-Token' => $token ),
+                'headers' => array( 'Content-Type' => 'application/json' ),
                 'body' => wp_json_encode( array( 'job' => $job ) ),
             ) );
             if ( is_wp_error( $response ) ) {

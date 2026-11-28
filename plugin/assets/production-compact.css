@@ -1,0 +1,119 @@
+.is-style-sm-compact-guarantee,
+.is-style-sm-compact-booking {
+    box-sizing: border-box;
+    margin: 0;
+    color: #201e1d;
+    font: 400 15px/1.55 "Beausite Classic", system-ui, sans-serif;
+    letter-spacing: normal;
+}
+
+.is-style-sm-compact-guarantee {
+    display: block;
+    width: 100%;
+    padding: 28px 20px 0;
+    background: #fff;
+}
+
+.is-style-sm-compact-guarantee > .wp-block-group {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 0;
+    padding: 12px 0;
+    border-bottom: 1px solid #d7d3d3;
+}
+
+.is-style-sm-compact-guarantee > .wp-block-group:last-child { border-bottom: 0; }
+
+.is-style-sm-compact-guarantee .wp-block-image {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    box-sizing: border-box;
+    margin: 0;
+    border: 1px solid #111;
+}
+
+.is-style-sm-compact-guarantee .wp-block-image img {
+    display: block;
+    width: 20px;
+    height: 21px;
+}
+
+.is-style-sm-compact-guarantee .wp-block-image + .wp-block-group,
+.is-style-sm-compact-booking > .wp-block-group {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+}
+
+.is-style-sm-compact-guarantee p,
+.is-style-sm-compact-booking p {
+    margin: 0;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-wrap: wrap;
+}
+
+.is-style-sm-compact-guarantee p:first-child {
+    font-size: 17px;
+    font-weight: 600;
+}
+
+.is-style-sm-compact-guarantee p + p,
+.is-style-sm-compact-booking .wp-block-group p:first-child {
+    color: #605d5d;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.is-style-sm-compact-guarantee p + p {
+    font-family: "Beausite Fit", sans-serif;
+    letter-spacing: .08em;
+}
+
+.is-style-sm-compact-booking {
+    position: fixed;
+    z-index: 15;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 68px;
+    padding: 0 16px;
+    border-top: 1px solid #111;
+    background: #fff;
+}
+
+.is-style-sm-compact-booking .wp-block-group p:first-child { font-weight: 700; }
+
+.is-style-sm-compact-booking p {
+    -webkit-font-smoothing: antialiased;
+    filter: brightness(1);
+}
+
+.is-style-sm-compact-booking > p {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 16px;
+    background: #111;
+    color: #fff;
+    font-weight: 700;
+    text-align: center;
+}
+
+@media (width >= 1024px) {
+    .is-style-sm-compact-guarantee,
+    .is-style-sm-compact-booking { display: none; }
+    .editor-styles-wrapper .is-style-sm-compact-guarantee { display: block; }
+    .editor-styles-wrapper .is-style-sm-compact-booking { display: flex; }
+}
+
+.editor-styles-wrapper .is-style-sm-compact-booking { position: static; }
