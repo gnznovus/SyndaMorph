@@ -8,6 +8,7 @@
     const list = $('sm-history-list'), detail = $('sm-history-detail'), backdrop = $('sm-history-backdrop'), status = $('sm-history-status');
     const search = $('sm-history-search'), category = $('sm-history-category'), sort = $('sm-history-sort');
     const prev = $('sm-history-prev'), next = $('sm-history-next');
+    const pageInfo = $('sm-history-page-info'), pageNumbers = $('sm-history-page-numbers');
     let page = 1, generation = 0, timer, selected = null, renderers = [], exportControl = null, previousFocus = null, openRequest = 0;
     const node = (tag, value, cls) => {
         const element = document.createElement(tag);
@@ -198,13 +199,39 @@
             status.textContent='Archived job loaded.';
         }catch(e){if(ticket===openRequest)status.textContent=e.message;}
     }
+    function renderPages(totalPages) {
+        pageNumbers.replaceChildren();
+        const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+        const end = Math.min(totalPages, start + 4);
+        const addPage = number => {
+            const control = button(String(number), () => { if(number !== page) { page=number; void load(); } });
+            control.setAttribute('aria-label', 'Page ' + number);
+            if (number === page) {
+                control.setAttribute('aria-current', 'page');
+                control.disabled = true;
+            }
+            pageNumbers.append(control);
+        };
+        if (start > 1) {
+            addPage(1);
+            if (start > 2) pageNumbers.append(node('span', '…', 'sm-history-page-ellipsis'));
+        }
+        for (let number = start; number <= end; number++) addPage(number);
+        if (end < totalPages) {
+            if (end < totalPages - 1) pageNumbers.append(node('span', '…', 'sm-history-page-ellipsis'));
+            addPage(totalPages);
+        }
+    }
     async function load() {
         const ticket=++generation;
         status.textContent='Loading history…';
         try {
             const data=await get('',{q:search.value,category:category.value,sort:sort.value,page});
             if(ticket!==generation)return;
+            const totalPages=Math.max(1, Number(data.totalPages)||1);
+            if(page>totalPages){page=totalPages;void load();return;}
             list.replaceChildren();
+            list.scrollTop=0;
             for(const job of data.jobs||[]) {
                 const card=node('article',undefined,'sm-history-item');
                 const header=node('div',undefined,'sm-history-item-head');
@@ -215,8 +242,15 @@
                 if(job.category==='GEN')actions.append(button('Replay',()=>open(job.id,'replay')));
                 actions.append(button('Export',()=>open(job.id,'export')));card.append(actions);list.append(card);
             }
-            status.textContent=(data.jobs||[]).length?'Page '+page:'No matching jobs.';
-            prev.disabled=page<=1;next.disabled=!data.more;
+            const total=Math.max(0,Number(data.total)||0);
+            const perPage=Math.max(1,Number(data.perPage)||50);
+            const start=total?(page-1)*perPage+1:0;
+            const end=Math.min(total,page*perPage);
+            status.textContent=total ? total+' archived '+(total===1?'job':'jobs')+' found' : 'No matching jobs.';
+            pageInfo.textContent='Page '+page+' of '+totalPages+(total?' · Showing '+start+'–'+end+' of '+total:'');
+            renderPages(totalPages);
+            prev.disabled=page<=1;
+            next.disabled=page>=totalPages;
         }catch(e){if(ticket===generation)status.textContent=e.message;}
     }
     function changed(){page=1;if(!clearDetail())return;void load();}
