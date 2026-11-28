@@ -267,9 +267,10 @@ function syndamorph_team_render_tab(): void {
                                 <button type="button" class="sm-team-secondary" id="sm-history-refresh">Refresh</button>
                             </div>
                             <p id="sm-history-status" role="status" aria-live="polite"></p>
-                            <div id="sm-history-list"></div>
+                            <div id="sm-history-list" role="region" aria-label="Archived production jobs" tabindex="0"></div>
                             <div class="sm-history-actions"><button type="button" class="sm-team-secondary" id="sm-history-prev" disabled>Previous</button><button type="button" class="sm-team-secondary" id="sm-history-next" disabled>Next</button></div>
-                            <div id="sm-history-detail" hidden></div>
+                            <div id="sm-history-backdrop" hidden></div>
+                            <aside id="sm-history-detail" role="dialog" aria-modal="true" aria-label="Archived job details" tabindex="-1" hidden></aside>
                             <section class="sm-card" aria-labelledby="sm-learning-title">
                                 <div class="sm-card-header"><h3 id="sm-learning-title" class="sm-card-title">Adaptive Learning</h3><p class="sm-card-caption">Verified lessons are reused only for matching agent tasks and compiler versions.</p></div>
                                 <div class="sm-card-body">
