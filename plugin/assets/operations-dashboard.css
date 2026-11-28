@@ -1094,7 +1094,7 @@
 #syndamorph-overview .sm-overview-legend .accepted {background:#31a15a;}
 #syndamorph-overview .sm-overview-legend .pending {background:#e4a12b;}
 #syndamorph-overview .sm-overview-legend .blocked {background:#ed3832;}
-#syndamorph-overview .sm-overview-job-list {padding:10px 20px 8px;max-height:360px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;}
+#syndamorph-overview .sm-overview-job-list {padding:10px 20px 8px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;}
 #syndamorph-overview .sm-overview-job {display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 0;border-bottom:1px solid var(--sm-border);}
 #syndamorph-overview .sm-overview-job:last-child {border-bottom:0;}
 #syndamorph-overview .sm-overview-job-info {min-width:0;}
