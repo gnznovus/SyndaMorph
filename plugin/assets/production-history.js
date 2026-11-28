@@ -279,4 +279,8 @@
     // Handles mouse and keyboard tab activation through the shared tab controller.
     new MutationObserver(()=>{if(!root.hidden)void load();}).observe(root,{attributes:true,attributeFilter:['hidden']});
     if(!root.hidden)void load();
+    const deepLinkedId = new URLSearchParams(window.location.search).get('inspect');
+    if (new URLSearchParams(window.location.search).get('view') === 'history' && /^[1-9][0-9]*$/.test(deepLinkedId || '')) {
+        void open(deepLinkedId, 'inspect');
+    }
 })();
