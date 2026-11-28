@@ -151,7 +151,7 @@ add_action( 'rest_api_init', static function (): void {
             $metered = $wpdb->get_results(
                 "SELECT e.job_id, e.payload FROM $events e
                  INNER JOIN $jobs j ON j.id = e.job_id
-                 WHERE $where AND e.event_type = 'agent_complete'
+                 WHERE " . str_replace( 'created_at', 'j.created_at', $where ) . " AND e.event_type = 'agent_complete'
                  ORDER BY e.job_id ASC, e.id ASC",
                 ARRAY_A
             );
