@@ -35,18 +35,7 @@ function syndamorph_gateway_render_tab(): void {
                 </div>
                 <div>
                     <p class="sm-nav-label">Workspace</p>
-                    <nav class="sm-nav" aria-label="SyndaMorph modules">
-                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'admin.php?page=syndamorph' ) ); ?>"><span class="dashicons dashicons-dashboard" aria-hidden="true"></span> Overview</a>
-                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'admin.php?page=syndamorph&tab=production' ) ); ?>">
-                            <span class="dashicons dashicons-groups" aria-hidden="true"></span> AI Production Team
-                        </a>
-                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'admin.php?page=syndamorph&tab=ai' ) ); ?>">
-                            <span class="dashicons dashicons-admin-network" aria-hidden="true"></span> AI Integration
-                        </a>
-                        <a class="sm-nav-item is-active" href="<?php echo esc_url( admin_url( 'admin.php?page=syndamorph&tab=gateway' ) ); ?>" aria-current="page">
-                            <span class="dashicons dashicons-shield" aria-hidden="true"></span> Client Access Manager
-                        </a>
-                    </nav>
+                    <?php syndamorph_operations_navigation( 'gateway' ); ?>
                 </div>
                 <div class="sm-sidebar-footer">
                     <strong>Secure Gateway · MVP</strong><br>
