@@ -34,6 +34,10 @@
         }
         for ( const panel of panels ) panel.hidden = panel.dataset.panel !== tab;
     }
+    // Overview and bookmarked history links can select the History panel.
+    if ( new URLSearchParams( window.location.search ).get( 'view' ) === 'history' ) {
+        selectTab( 'history' );
+    }
     tabs.forEach( ( button, index ) => {
         button.addEventListener( 'click', () => selectTab( button.dataset.panel ) );
         button.addEventListener( 'keydown', event => {
