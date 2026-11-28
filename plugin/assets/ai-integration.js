@@ -281,6 +281,74 @@
             if ( modelStatus ) modelStatus.textContent = error.message;
         }
     }
+    const providerBudgetLimit = byId( 'syndamorph-provider-budget-limit' );
+    const providerBudgetRemaining = byId( 'syndamorph-provider-budget-remaining' );
+    const providerBudgetNote = byId( 'syndamorph-provider-budget-note' );
+    const providerBudgetRefresh = byId( 'syndamorph-provider-budget-refresh' );
+    let budgetRequest = 0;
+    const formatProviderUsd = value => '
+    modelSave?.addEventListener( 'click', async () => {
+        if ( !modelChoice?.value || !activeModel()?.pricing ) {
+            modelSaveStatus.textContent = 'Choose a model with available reference pricing.';
+            return;
+        }
+        modelSave.disabled = true;
+        modelSaveStatus.textContent = 'Saving…';
+        try {
+            const response = await fetch( SyndaMorphAI.modelSettingsUrl, {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': SyndaMorphAI.nonce },
+                body: JSON.stringify( {
+                    provider: provider.value, model: modelChoice.value,
+                    maxJobUsd: Number( budget.value ),
+                } ),
+            } );
+            const data = await response.json();
+            if ( !response.ok ) throw new Error( data.message || 'Could not save model settings.' );
+            modelSaveStatus.textContent = 'Saved ' + data.model + ' with reference pricing and job budget.';
+        } catch ( error ) {
+            modelSaveStatus.textContent = error.message;
+        } finally { modelSave.disabled = false; }
+    } );
+} )();
+ + Number( value ).toLocaleString( 'en-US', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2,
+    } );
+    async function loadProviderBudget() {
+        if ( !providerBudgetLimit || !SyndaMorphAI.providerBudgetUrl ) return;
+        const seq = ++budgetRequest;
+        const selected = provider.value;
+        providerBudgetLimit.textContent = '—';
+        providerBudgetRemaining.textContent = '—';
+        providerBudgetNote.textContent = 'Checking provider spending allowance…';
+        providerBudgetRefresh.disabled = true;
+        try {
+            const url = new URL( SyndaMorphAI.providerBudgetUrl );
+            url.searchParams.set( 'provider', selected );
+            const response = await fetch( url, {
+                credentials: 'same-origin', headers: { 'X-WP-Nonce': SyndaMorphAI.nonce },
+            } );
+            const data = await response.json();
+            if ( !response.ok ) throw new Error( data.message || 'Could not read provider budget.' );
+            if ( seq !== budgetRequest || selected !== provider.value ) return;
+            if ( data.available && Number.isFinite( Number( data.limitUsd ) ) && data.limitUsd !== null ) {
+                providerBudgetLimit.textContent = formatProviderUsd( data.limitUsd );
+            }
+            if ( data.remainingType === 'calculated_allowance' &&
+                data.remainingUsd !== null && Number.isFinite( Number( data.remainingUsd ) ) ) {
+                providerBudgetRemaining.textContent = formatProviderUsd( data.remainingUsd );
+            }
+            providerBudgetNote.textContent = data.message || 'Provider billing details are unavailable.';
+        } catch ( error ) {
+            if ( seq === budgetRequest ) providerBudgetNote.textContent = error.message;
+        } finally {
+            if ( seq === budgetRequest ) providerBudgetRefresh.disabled = false;
+        }
+    }
+    provider.addEventListener( 'change', loadProviderBudget );
+    providerBudgetRefresh?.addEventListener( 'click', loadProviderBudget );
+    void loadProviderBudget();
+
     modelRefresh?.addEventListener( 'click', () => loadModels( true ) );
     modelSave?.addEventListener( 'click', async () => {
         if ( !modelChoice?.value || !activeModel()?.pricing ) {
