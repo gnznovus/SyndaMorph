@@ -53,7 +53,7 @@
         for (const job of jobs) {
             const item = element('li', undefined, 'sm-overview-job');
             const link = element('a', job.jobId + ' · ' + job.title);
-            link.href = 'admin.php?page=syndamorph&tab=production&view=history';
+            link.href = 'admin.php?page=syndamorph&tab=production&view=history&inspect=' + encodeURIComponent(job.id);
             const sub = element('small', job.createdAt + ' · ' + job.category + ' · ' + job.status);
             item.append(link, sub);
             list.append(item);
