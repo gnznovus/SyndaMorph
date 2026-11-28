@@ -334,9 +334,17 @@ add_action( 'rest_api_init', static function (): void {
                 $like = '%' . $wpdb->esc_like( $query ) . '%';
                 $where .= $wpdb->prepare( " AND (title LIKE %s OR CONCAT(category,'-',LPAD(sequence_no,6,'0')) LIKE %s)", $like, $like );
             }
+            $total = $wpdb->get_var( "SELECT COUNT(*) FROM $jobs WHERE $where" );
+            if ( null === $total ) { return new WP_Error( 'sm_history_read', 'Could not count history.', array( 'status' => 503 ) ); }
             $rows = $wpdb->get_results( $wpdb->prepare( "SELECT id,category,sequence_no,title,status,created_at,updated_at FROM $jobs WHERE $where ORDER BY $order LIMIT 51 OFFSET %d", ( $page - 1 ) * 50 ), ARRAY_A );
             if ( ! is_array( $rows ) ) { return new WP_Error( 'sm_history_read', 'Could not read history.', array( 'status' => 503 ) ); }
-            return rest_ensure_response( array( 'jobs' => array_map( 'syndamorph_history_summary', array_slice( $rows, 0, 50 ) ), 'more' => count( $rows ) > 50 ) );
+            return rest_ensure_response( array(
+                'jobs' => array_map( 'syndamorph_history_summary', array_slice( $rows, 0, 50 ) ),
+                'more' => count( $rows ) > 50,
+                'total' => (int) $total,
+                'perPage' => 50,
+                'totalPages' => max( 1, (int) ceil( (int) $total / 50 ) ),
+            ) );
         },
     ) );
     register_rest_route('syndamorph/v1','/history/(?P<id>[0-9]+)/control',array(
