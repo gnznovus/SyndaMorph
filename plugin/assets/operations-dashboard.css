@@ -1075,8 +1075,10 @@
 #syndamorph-overview .sm-overview-metric-foot {color:var(--sm-muted);font-size:11px;line-height:1.5;}
 #syndamorph-overview .sm-overview-positive {color:#25824e;font-weight:700;}
 #syndamorph-overview .sm-overview-main-grid {display:grid;grid-template-columns:minmax(0,1.75fr) minmax(300px,1fr);gap:16px;margin-bottom:16px;align-items:stretch;}
-#syndamorph-overview .sm-overview-main-grid > .sm-card {height:390px;min-height:0;}
-#syndamorph-overview .sm-overview-main-grid > .sm-card:nth-child(2) {display:flex;flex-direction:column;}
+#syndamorph-overview .sm-overview-main-grid > .sm-card {min-height:0;}
+/* Left panel determines the grid row; recent activity fills it without
+   contributing its potentially long archive to the row's intrinsic height. */
+#syndamorph-overview .sm-overview-main-grid > .sm-card:nth-child(2) {display:flex;flex-direction:column;height:0;min-height:100%;}
 #syndamorph-overview .sm-overview-bottom-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;}
 #syndamorph-overview .sm-overview-card-header {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:19px 20px 0;}
 #syndamorph-overview .sm-overview-card-header h3 {margin:0;font-size:15px;font-weight:770;}
@@ -1125,6 +1127,6 @@
 #syndamorph-overview .sm-overview-evidence-note {margin:5px 20px 20px;color:var(--sm-muted);font-size:11px;line-height:1.6;}
 #syndamorph-overview .sm-overview-empty {margin:10px 0;color:var(--sm-muted);font-size:12px;}
 #syndamorph-overview .sm-overview-footnote {font-size:11px;color:var(--sm-muted);line-height:1.7;margin:18px 0 0;}
-@media(max-width:1220px){#syndamorph-overview .sm-overview-metrics {grid-template-columns:repeat(2,minmax(0,1fr));}#syndamorph-overview .sm-overview-main-grid {grid-template-columns:1fr;}#syndamorph-overview .sm-overview-main-grid > .sm-card:first-child {height:auto;min-height:0;}#syndamorph-overview .sm-overview-main-grid > .sm-card:nth-child(2) {height:390px;}}
+@media(max-width:1220px){#syndamorph-overview .sm-overview-metrics {grid-template-columns:repeat(2,minmax(0,1fr));}#syndamorph-overview .sm-overview-main-grid {grid-template-columns:1fr;}#syndamorph-overview .sm-overview-main-grid > .sm-card:nth-child(2) {height:320px;min-height:0;}}
 @media(max-width:780px){#syndamorph-overview .sm-overview-bottom-grid {grid-template-columns:1fr;}}
 @media(max-width:600px){#syndamorph-overview .sm-overview-metrics {grid-template-columns:1fr;}#syndamorph-overview .sm-overview-stage-grid {grid-template-columns:repeat(3,minmax(0,1fr));}#syndamorph-overview .sm-overview-qa-grid {gap:8px;padding:15px;}#syndamorph-overview .sm-overview-filters {width:100%;justify-content:space-between;}#syndamorph-overview .sm-overview-filters button {padding:9px 7px;}#syndamorph-overview .sm-overview-card-header {flex-wrap:wrap;}}
