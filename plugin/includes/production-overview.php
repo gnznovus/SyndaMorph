@@ -14,12 +14,7 @@ function syndamorph_overview_render_tab(): void {
                 </div>
                 <div>
                     <p class="sm-nav-label">Workspace</p>
-                    <nav class="sm-nav" aria-label="SyndaMorph modules">
-                        <a class="sm-nav-item is-active" aria-current="page" href="<?php echo esc_url( admin_url( 'admin.php?page=syndamorph' ) ); ?>"><span class="dashicons dashicons-dashboard" aria-hidden="true"></span> Overview</a>
-                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'admin.php?page=syndamorph&tab=production' ) ); ?>"><span class="dashicons dashicons-groups" aria-hidden="true"></span> AI Production Team</a>
-                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'admin.php?page=syndamorph&tab=ai' ) ); ?>"><span class="dashicons dashicons-admin-network" aria-hidden="true"></span> AI Integration</a>
-                        <a class="sm-nav-item" href="<?php echo esc_url( admin_url( 'admin.php?page=syndamorph&tab=gateway' ) ); ?>"><span class="dashicons dashicons-shield" aria-hidden="true"></span> Client Access Manager</a>
-                    </nav>
+                    <?php syndamorph_operations_navigation( 'overview' ); ?>
                 </div>
                 <div class="sm-sidebar-footer"><strong>Internal MVP</strong><br>Read-only operational reporting from saved production jobs. No AI calls are made by this dashboard.</div>
             </aside>
