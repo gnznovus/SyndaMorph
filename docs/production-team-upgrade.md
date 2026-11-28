@@ -422,3 +422,9 @@ Full Page visual evidence uses authenticated, server-selected Chromium settings.
 The follow-up live audit held every defective trial and passed all four controls. Bossy identified 11 of 12 distinct faults including the unmetered request in the denominator. Through Our Lens and GEN-000055 completed their original jobs. BKKGO progressed from 3 eligible regions to 16 source-backed placements in its original Gutenberg draft. The visual and responsive gates passed after an explicitly approved desktop layout adjustment was verified against the unchanged archive. The frontend reads the same profile as QA and applies it only to the exact approved draft content. [Design validation audit](bossy-validation-audit.md#v0128-verification) · [BKKGO acceptance](production-pilot-bkkgo.md#v01269-accepted-bkkgo-full-page-draft)
 
 No release has been authorized for this development series. Each checkpoint records the version, actual verification and outstanding work in the plugin changelog.
+
+## v0.12.70 refresh native host evidence
+
+History reinspection can refresh host heading and contrast against the current WordPress Page template and global styles. The browser uses the approved preview at its original widths. History binds the supplemental receipt to the same compiled bytes and accepts it only while the current Page context and original required checks still match. Reinspection leaves the original generation and editor events intact.
+
+A change to the WordPress global stylesheet invalidated the older host context for Through Our Lens. The new Chromium receipt in event 25806 verifies GEN-000051 at 1440, 768 and 375 px against the current context. The original reviewed 35-block artifact and private Pattern 64 retained their shared checksum. REF-000030 continues to use the exact source-reviewed Pattern, and the refresh used zero model calls.

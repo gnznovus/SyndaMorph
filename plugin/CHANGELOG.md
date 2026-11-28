@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.70] - 2026-11-28
+
+### Fixed
+
+- History can refresh archived native heading and contrast evidence after WordPress Page styles change. The refresh is tied to the exact artifact, preview, work order, and current WordPress context.
+
+### Verified
+
+- GEN-000051 passed fresh host accessibility QA at 1440, 768 and 375 px without a provider call, a new generation, or any change to its Pattern.
+
 ## [0.12.69] - 2026-11-28
 
 ### Fixed

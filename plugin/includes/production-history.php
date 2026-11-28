@@ -113,6 +113,17 @@ function syndamorph_history_latest(int $id,string $type): ?array {
 
 /** Reinspection supplies supplemental evidence for the exact archived artifact and preview. */
 function syndamorph_history_responsive_result(int $id,array $final): array {
+    $checksum=$final['artifact']['contentSha256']??null;
+    if(is_string($checksum)&&is_string($final['artifact']['content']??null)&&
+        hash_equals($checksum,hash('sha256',$final['artifact']['content']))&&
+        !syndamorph_design_host_acceptance($final,$checksum)){
+        $receipt=syndamorph_history_latest($id,'native_host_recheck');
+        if($receipt){
+            $candidate=$final;
+            $candidate['quality']['hostAccessibility']=$receipt;
+            if(syndamorph_design_host_acceptance($candidate,$checksum))$final=$candidate;
+        }
+    }
     $original=$final['quality']['continuousResponsive']??null;
     if(($original['status']??null)!=='pending')return $final;
     $receipt=syndamorph_history_latest($id,'native_responsive_recheck');
@@ -136,6 +147,35 @@ function syndamorph_history_responsive_result(int $id,array $final): array {
         }
     }
     return $final;
+}
+
+function syndamorph_history_recheck_native_host(int $id) {
+    global $wpdb;
+    list($jobs)=syndamorph_history_tables();
+    $category=$wpdb->get_var($wpdb->prepare("SELECT category FROM $jobs WHERE id=%d",$id));
+    $final=$category==='GEN'?syndamorph_history_latest($id,'job_complete'):null;
+    $artifact=$final['artifact']??array();
+    $sha=$artifact['contentSha256']??null;$preview=$artifact['preview']??null;
+    $checks=syndamorph_design_host_checks($final['designApproval']['productionSpecification']??array());
+    $widths=$final['quality']['viewportWidths']??array();
+    if(!is_string($sha)||!is_string($preview)||!is_string($artifact['content']??null)||
+        !hash_equals($sha,hash('sha256',$artifact['content']))||!$checks||!$widths)
+        return new WP_Error('sm_host_checkpoint','This job has no exact native host requirements to recheck.',array('status'=>409));
+    $context=syndamorph_design_wordpress_page_context();
+    $effective=syndamorph_history_responsive_result($id,$final);
+    if(syndamorph_design_host_acceptance($effective,$sha))
+        return array('inspected'=>true,'hostAccessibility'=>$effective['quality']['hostAccessibility'],'aiCalls'=>0);
+    $receipt=syndamorph_design_host_accessibility($preview,$checks,$context,$widths)+array('artifactSha256'=>$sha);
+    $current=syndamorph_history_latest($id,'job_complete');
+    if(($current['artifact']['contentSha256']??null)!==$sha||($current['artifact']['preview']??null)!==$preview||
+        syndamorph_design_host_checks($current['designApproval']['productionSpecification']??array())!==$checks||
+        ($current['quality']['viewportWidths']??null)!==$widths||syndamorph_design_wordpress_page_context()!==$context)
+        return new WP_Error('sm_host_checkpoint','The archived artifact or WordPress Page context changed during reinspection.',array('status'=>409));
+    $candidate=$current;
+    $candidate['quality']['hostAccessibility']=$receipt;
+    $passed=syndamorph_design_host_acceptance($candidate,$sha);
+    syndamorph_history_append($id,$passed?'native_host_recheck':'native_host_attempt',$receipt);
+    return array('inspected'=>$receipt['status']!=='pending','hostAccessibility'=>$receipt,'aiCalls'=>0);
 }
 
 function syndamorph_history_touch_receipt(int $id,string $key): ?array {
@@ -370,6 +410,8 @@ add_action( 'rest_api_init', static function (): void {
     register_rest_route('syndamorph/v1','/history/(?P<id>[0-9]+)/reinspect-reference',array(
         'methods'=>'POST','permission_callback'=>$permission,
         'callback'=>static function(WP_REST_Request $request){
+            if($request->get_param('check')==='native-host')
+                return syndamorph_history_recheck_native_host((int)$request['id']);
             global $wpdb;
             list($jobs,$events)=syndamorph_history_tables();
             $id=(int)$request['id'];

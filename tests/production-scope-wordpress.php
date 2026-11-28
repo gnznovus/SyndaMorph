@@ -455,6 +455,31 @@ if($phase==='setup') {
         is_wp_error(syndamorph_source_work_order_amend($proofSpec,$proofSource,$proofSamples,$wrongTarget))&&
         is_wp_error(syndamorph_source_work_order_amend($proofSpec,$incorrect,$misleading,$edits)),
         'Incomplete evidence, a different style target, or an actual captured link permitted a revision.');
+    $hostJob=scope_ok(syndamorph_history_create('GEN','Offline host QA checkpoint',array()));
+    $hostArtifact=$fixtures[$keys[0]]['artifact'];
+    $hostArchive=array('status'=>'completed','artifact'=>$hostArtifact,
+        'quality'=>array('viewportWidths'=>SYNDAMORPH_SOURCE_WIDTHS),
+        'designApproval'=>array('productionSpecification'=>array('requirements'=>array(
+            array('id'=>'current-heading','check'=>array('kind'=>'host-heading')),
+            array('id'=>'current-contrast','check'=>array('kind'=>'host-contrast')),
+        ))));
+    syndamorph_history_append($hostJob['id'],'job_complete',$hostArchive);
+    $hostArchive=syndamorph_history_latest($hostJob['id'],'job_complete');
+    $hostRequest=new WP_REST_Request('POST','/syndamorph/v1/history/'.$hostJob['id'].'/reinspect-reference');
+    $hostRequest->set_param('check','native-host');
+    $hostResponse=rest_do_request($hostRequest);
+    $hostResult=$hostResponse->get_data();
+    $hostSha=$hostArtifact['contentSha256'];
+    $effective=syndamorph_history_responsive_result($hostJob['id'],$hostArchive);
+    scope_expect($hostResponse->get_status()===200&&$hostResult['aiCalls']===0&&
+        syndamorph_design_host_acceptance($effective,$hostSha)&&
+        syndamorph_history_latest($hostJob['id'],'job_complete')===$hostArchive&&
+        rest_do_request($hostRequest)->get_data()===$hostResult,'Host reinspection did not preserve the exact archived candidate.');
+    $changedPreview=$hostArchive;
+    $changedPreview['artifact']['preview'].='<p>Different preview</p>';
+    scope_expect(!syndamorph_design_host_acceptance(
+        syndamorph_history_responsive_result($hostJob['id'],$changedPreview),$hostSha),
+        'Host reinspection evidence was attached to a changed browser preview.');
     $staged=scope_ok(syndamorph_scope_configure(scope_ok(syndamorph_scope_open('section',$capture)),$brief,$keys[0]));
     $stagedPlan=syndamorph_collab_ids($fixtures[$keys[0]]['plan']);
     $stagedPlan['blocks'][0]['id']='staged-root';

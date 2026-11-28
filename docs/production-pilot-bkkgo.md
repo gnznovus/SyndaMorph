@@ -80,6 +80,7 @@ The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593
 - **Conversion eligibility** is 3 of 16 with v0.12.18. The original preflight overlooked two scroll strips and the corrected v0.12.15 replay held both, leaving 1 of 16. The exact archived controls now qualify under the native scroll-strip contract. A run still requires recorded movement at every active width before Bossy planning.
 - **Current conversion eligibility** is 12 of 16 with v0.12.62. Recorded replay now also binds the desktop-only offer, its six editable fields, and its local dismissal.
 - **Acceptance** is 12 of 16 as of v0.12.62. REF-000030 has verified the site header, desktop offer, compact guarantee, compact booking strip, Our Story, Exclusive Offers, Rooms, SIP & DINE, Neighborhood, Through Our Lens, FAQ and brand strip. The original unpublished partial draft has 423 editor-verified blocks at source positions 1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 14 and 15. Whole-page acceptance remains pending.
+- **Final audit** verified source coverage, conversion eligibility and acceptance on all 16 regions. Recorded evidence closes the four viewport gaps through verified variant absence or copy relocation. Twelve regions have direct receipts and four have exact independent Section-to-Pattern reuse receipts. Unknown external booking and subscription effects remain outside the source prototype contract. [BKKGO Full Page acceptance](#v01269-accepted-bkkgo-full-page-draft)
 
 ### Responsive intro source checkpoint, v0.12.43
 
@@ -251,7 +252,7 @@ History event 25801 records the tested candidate for 1024–1279 px. It lets the
 
 After the user approved the change, History event 25802 bound the fixed stylesheet to the exact original draft content, archived source and candidate. The resulting manifest in event 25803 passed 22 responsive widths with zero findings. Full-height differences remained 0.022%, 0.601% and 0.363% at the three required widths. The first-fold gate also passed. The original draft and all 16 Patterns retained their saved block content.
 
-The authenticated preview fit all eight tested widths from 375 to 1440 px. Desktop checks passed for local offer dismissal, navigation link parity, hover, the keyboard language picker, the newsletter country picker and footer links. Compact drawer controls and newsletter visibility also passed. Chromium observed zero external requests. Gutenberg opened and reloaded the exact original draft with 501 valid blocks. REF-000030 is completed in local WordPress History and draft 66 remains unpublished. This checkpoint used zero paid model calls.
+The authenticated preview fit all eight tested widths from 375 to 1440 px. Desktop checks passed for local offer dismissal, navigation link parity, hover, the keyboard language picker, the newsletter country picker and footer links. Compact drawer controls and newsletter visibility also passed. Chromium observed zero external requests. Gutenberg opened and reloaded the exact original draft with 501 valid blocks. Private copy 261 started from the same bytes and retained all 501 valid blocks through edit, save, reload and restoration. REF-000030 is completed in local WordPress History and draft 66 remains unpublished. This checkpoint used zero paid model calls.
 
 ### SIP & DINE alignment checkpoint, v0.12.42
 
