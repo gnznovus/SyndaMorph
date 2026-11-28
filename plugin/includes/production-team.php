@@ -268,7 +268,14 @@ function syndamorph_team_render_tab(): void {
                             </div>
                             <p id="sm-history-status" role="status" aria-live="polite"></p>
                             <div id="sm-history-list" role="region" aria-label="Archived production jobs" tabindex="0"></div>
-                            <div class="sm-history-actions"><button type="button" class="sm-team-secondary" id="sm-history-prev" disabled>Previous</button><button type="button" class="sm-team-secondary" id="sm-history-next" disabled>Next</button></div>
+                            <nav class="sm-history-pagination" aria-label="History pages">
+                                <span id="sm-history-page-info" class="sm-history-page-info" aria-live="polite">Page 1 of 1</span>
+                                <div class="sm-history-pagination-controls">
+                                    <button type="button" class="sm-team-secondary" id="sm-history-prev" disabled>Previous</button>
+                                    <div id="sm-history-page-numbers" class="sm-history-page-numbers" aria-label="Choose history page"></div>
+                                    <button type="button" class="sm-team-secondary" id="sm-history-next" disabled>Next</button>
+                                </div>
+                            </nav>
                             <div id="sm-history-backdrop" hidden></div>
                             <aside id="sm-history-detail" role="dialog" aria-modal="true" aria-label="Archived job details" tabindex="-1" hidden></aside>
                             <section class="sm-card" aria-labelledby="sm-learning-title">
