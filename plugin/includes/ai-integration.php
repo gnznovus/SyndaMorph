@@ -221,6 +221,20 @@ function syndamorph_ai_render_tab(): void {
                                 </div>
                             </div>
                         </div>
+                        <div class="sm-provider-budget-panel" aria-labelledby="sm-provider-budget-title">
+                            <div class="sm-provider-budget-header">
+                                <div>
+                                    <h3 id="sm-provider-budget-title">Provider budget</h3>
+                                    <p class="sm-hint">Monthly spending limit and remaining allowance from the selected provider, when authorized.</p>
+                                </div>
+                                <button type="button" class="sm-outline-button" id="syndamorph-provider-budget-refresh">Refresh budget</button>
+                            </div>
+                            <div class="sm-provider-budget-metrics">
+                                <div class="sm-stat"><span class="sm-stat-label">Provider monthly limit</span><strong class="sm-stat-value" id="syndamorph-provider-budget-limit">—</strong></div>
+                                <div class="sm-stat"><span class="sm-stat-label">Remaining allowance</span><strong class="sm-stat-value" id="syndamorph-provider-budget-remaining">—</strong></div>
+                            </div>
+                            <p class="sm-hint" id="syndamorph-provider-budget-note" role="status" aria-live="polite">Budget availability depends on provider account permissions.</p>
+                        </div>
                         <p class="sm-hint">Displayed standard rates are based on <a href="https://platform.claude.com/docs/en/about-claude/pricing" target="_blank" rel="noopener noreferrer">Anthropic's published pricing</a> (checked 24 Nov 2026). Models without a known reference price cannot be selected for paid jobs. Estimates exclude caching and other billing adjustments; Haiku 5.5 costs more for prompts over 100K tokens.</p>
                         <div><button type="button" class="sm-primary" id="syndamorph-model-save">Save model and budget</button></div>
                         <p id="syndamorph-model-save-status" role="status" aria-live="polite"></p>
@@ -343,5 +357,6 @@ add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
         'deleteBaseUrl' => rest_url( 'syndamorph/v1/ai/keys/' ),
         'modelsUrl' => rest_url( 'syndamorph/v1/ai/models' ),
         'modelSettingsUrl' => rest_url( 'syndamorph/v1/ai/models/settings' ),
+        'providerBudgetUrl' => rest_url( 'syndamorph/v1/ai/provider-budget' ),
     ) ) . ';', 'before' );
 } );
