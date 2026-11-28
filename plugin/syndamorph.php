@@ -9,6 +9,7 @@
  * Text Domain: syndamorph
  */
 if ( ! defined( 'ABSPATH' ) ) { exit; }
+require_once __DIR__ . '/includes/operations-navigation.php';
 require_once __DIR__ . '/includes/internal-transport.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/render-endpoint.php';
 require_once plugin_dir_path( __FILE__ ) . 'includes/capture-endpoint.php';
