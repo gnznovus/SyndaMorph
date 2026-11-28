@@ -30,6 +30,7 @@
             if ( active && focus ) tab.focus();
         }
         for ( const panel of settingPanels ) panel.hidden = panel.id !== 'sm-ai-panel-' + name;
+        if ( name === 'model' ) void loadProviderBudget();
     };
     settingTabs.forEach( ( tab, index ) => {
         tab.addEventListener( 'click', () => setSettingsTab( tab.dataset.panel ) );
@@ -320,9 +321,10 @@
             if ( seq === budgetRequest ) providerBudgetRefresh.disabled = false;
         }
     }
-    provider.addEventListener( 'change', loadProviderBudget );
+    provider.addEventListener( 'change', () => {
+        if ( !byId( 'sm-ai-panel-model' )?.hidden ) void loadProviderBudget();
+    } );
     providerBudgetRefresh?.addEventListener( 'click', loadProviderBudget );
-    void loadProviderBudget();
 
     modelRefresh?.addEventListener( 'click', () => loadModels( true ) );
     modelSave?.addEventListener( 'click', async () => {
