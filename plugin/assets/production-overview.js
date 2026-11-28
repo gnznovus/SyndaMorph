@@ -1,4 +1,4 @@
-/* SyndaMorph Overview: read-only, evidence-backed job summaries. */
+/* Approved SyndaMorph Operations Overview: archive-backed metrics and prototype layout. */
 (() => {
     'use strict';
     const root = document.getElementById('syndamorph-overview');
@@ -6,14 +6,14 @@
     if (!root || !cfg?.url) return;
     const $ = id => document.getElementById(id);
     const status = $('sm-overview-status');
-    const period = $('sm-overview-period');
-    let ticket = 0;
+    const rangeButtons = [...root.querySelectorAll('[data-range]')];
+    let period = 'today', generation = 0;
 
     function element(tag, text, className) {
-        const el = document.createElement(tag);
-        if (text !== undefined) el.textContent = text;
-        if (className) el.className = className;
-        return el;
+        const node = document.createElement(tag);
+        if (text !== undefined) node.textContent = text;
+        if (className) node.className = className;
+        return node;
     }
 
     function stat(name, value) {
@@ -21,73 +21,64 @@
         if (target) target.textContent = value;
     }
 
-    function breakdown(id, rows, total) {
-        const container = $(id);
-        container.replaceChildren();
-        if (!total) {
-            container.append(element('p', 'No archived jobs in this period.', 'sm-overview-empty'));
-            return;
-        }
-        for (const [label, count] of rows) {
-            if (!count) continue;
-            const line = element('div', undefined, 'sm-overview-bar-row');
-            const heading = element('div', undefined, 'sm-overview-bar-label');
-            heading.append(element('span', label), element('strong', String(count)));
-            const track = element('div', undefined, 'sm-overview-bar-track');
-            const bar = element('span', undefined, 'sm-overview-bar-fill');
-            bar.style.width = (count / total * 100).toFixed(1) + '%';
-            track.append(bar);
-            line.append(heading, track);
-            container.append(line);
-        }
-    }
-
-    function recent(jobs) {
+    function activity(jobs) {
         const container = $('sm-overview-jobs');
         container.replaceChildren();
         if (!jobs.length) {
-            container.append(element('p', 'No recent jobs for this period.', 'sm-overview-empty'));
+            container.append(element('p', 'No archived jobs in this period.', 'sm-overview-empty'));
             return;
         }
-        const list = element('ul', undefined, 'sm-overview-job-list');
-        for (const job of jobs) {
-            const item = element('li', undefined, 'sm-overview-job');
-            const link = element('a', job.jobId + ' · ' + job.title);
-            link.href = 'admin.php?page=syndamorph&tab=production&view=history&inspect=' + encodeURIComponent(job.id);
-            const sub = element('small', job.createdAt + ' · ' + job.category + ' · ' + job.status);
-            item.append(link, sub);
-            list.append(item);
+        for (const job of jobs.slice(0, 5)) {
+            const row = element('div', undefined, 'sm-overview-job');
+            const information = element('div', undefined, 'sm-overview-job-info');
+            const title = element('a', job.jobId + ' · ' + job.title, 'sm-overview-job-id');
+            title.href = 'admin.php?page=syndamorph&tab=production&view=history&inspect=' + encodeURIComponent(job.id);
+            const detail = element('div', job.category + ' · ' + job.createdAt, 'sm-overview-job-detail');
+            information.append(title, detail);
+            const raw = String(job.status || '').toLowerCase();
+            const pill = element('span', raw.replaceAll('_', ' '), 'sm-overview-pill');
+            pill.classList.add(raw === 'completed' ? 'completed' : raw === 'running' || raw === 'paused' || raw === 'uncompleted' || raw === 'needs_review' ? 'pending' : 'blocked');
+            row.append(information, pill);
+            container.append(row);
         }
-        container.append(list);
     }
 
     async function load() {
-        const current = ++ticket;
+        const ticket = ++generation;
         status.textContent = 'Loading recorded production activity…';
-        $('sm-overview-refresh').disabled = true;
         try {
             const url = new URL(cfg.url, window.location.href);
-            url.searchParams.set('period', period.value);
-            const response = await fetch(url, { credentials: 'same-origin', headers: {'X-WP-Nonce': cfg.nonce} });
+            url.searchParams.set('period', period);
+            const response = await fetch(url, {credentials: 'same-origin', headers: {'X-WP-Nonce': cfg.nonce}});
             if (!response.ok) throw new Error('Overview request failed (HTTP ' + response.status + ').');
             const data = await response.json();
-            if (current !== ticket) return;
+            if (ticket !== generation) return;
             stat('total', String(data.total));
             stat('completed', String(data.completed));
             stat('attention', String(data.attention));
-            stat('rate', data.completionRate === null ? '—' : data.completionRate + '%');
-            const statuses = Object.entries(data.statuses || {}).sort((a,b) => b[1] - a[1]);
-            breakdown('sm-overview-pipeline', statuses, data.total);
-            breakdown('sm-overview-modes', Object.entries(data.categories || {}), data.total);
-            recent(data.recent || []);
-            status.textContent = 'Showing saved jobs for ' + period.options[period.selectedIndex].text + '.';
+            stat('cost', '—');
+            const rate = data.completionRate === null ? '—' : data.completionRate.toFixed(1) + '%';
+            stat('rate', rate);
+            stat('acceptance', rate);
+            const fill = root.querySelector('[data-overview-acceptance-bar]');
+            if (fill) fill.style.width = data.completionRate === null ? '0%' : Math.min(100, Math.max(0, data.completionRate)) + '%';
+            activity(data.recent || []);
+            status.textContent = 'Showing archived activity · ' + (rangeButtons.find(button => button.dataset.range === period)?.textContent || period);
         } catch (error) {
-            if (current === ticket) status.textContent = error.message;
-        } finally {
-            if (current === ticket) $('sm-overview-refresh').disabled = false;
+            if (ticket === generation) status.textContent = error.message;
         }
     }
-    period.addEventListener('change', load);
-    $('sm-overview-refresh').addEventListener('click', load);
+
+    for (const button of rangeButtons) {
+        button.addEventListener('click', () => {
+            period = button.dataset.range;
+            for (const other of rangeButtons) {
+                const active = other === button;
+                other.classList.toggle('is-active', active);
+                other.setAttribute('aria-pressed', String(active));
+            }
+            void load();
+        });
+    }
     void load();
 })();
