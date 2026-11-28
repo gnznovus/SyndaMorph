@@ -1074,7 +1074,9 @@
 #syndamorph-overview .sm-overview-metric-value {display:block;color:var(--sm-ink);font-size:30px;letter-spacing:-1.1px;font-weight:800;line-height:1.2;margin:12px 0 7px;}
 #syndamorph-overview .sm-overview-metric-foot {color:var(--sm-muted);font-size:11px;line-height:1.5;}
 #syndamorph-overview .sm-overview-positive {color:#25824e;font-weight:700;}
-#syndamorph-overview .sm-overview-main-grid {display:grid;grid-template-columns:minmax(0,1.75fr) minmax(300px,1fr);gap:16px;margin-bottom:16px;}
+#syndamorph-overview .sm-overview-main-grid {display:grid;grid-template-columns:minmax(0,1.75fr) minmax(300px,1fr);gap:16px;margin-bottom:16px;align-items:stretch;}
+#syndamorph-overview .sm-overview-main-grid > .sm-card {height:390px;min-height:0;}
+#syndamorph-overview .sm-overview-main-grid > .sm-card:nth-child(2) {display:flex;flex-direction:column;}
 #syndamorph-overview .sm-overview-bottom-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;}
 #syndamorph-overview .sm-overview-card-header {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:19px 20px 0;}
 #syndamorph-overview .sm-overview-card-header h3 {margin:0;font-size:15px;font-weight:770;}
@@ -1094,18 +1096,18 @@
 #syndamorph-overview .sm-overview-legend .accepted {background:#31a15a;}
 #syndamorph-overview .sm-overview-legend .pending {background:#e4a12b;}
 #syndamorph-overview .sm-overview-legend .blocked {background:#ed3832;}
-#syndamorph-overview .sm-overview-job-list {padding:10px 20px 8px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;}
-#syndamorph-overview .sm-overview-job {display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 0;border-bottom:1px solid var(--sm-border);}
+#syndamorph-overview .sm-overview-job-list {flex:1 1 0;min-height:0;padding:0 20px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;}
+#syndamorph-overview .sm-overview-job {display:flex;align-items:center;justify-content:space-between;gap:10px;height:90px;min-height:90px;padding:10px 0;box-sizing:border-box;border-bottom:1px solid var(--sm-border);}
 #syndamorph-overview .sm-overview-job:last-child {border-bottom:0;}
 #syndamorph-overview .sm-overview-job-info {min-width:0;}
-#syndamorph-overview .sm-overview-job-id {font-size:12px;font-weight:750;color:var(--sm-ink);text-decoration:none;overflow-wrap:anywhere;}
+#syndamorph-overview .sm-overview-job-id {display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;font-size:12px;font-weight:750;color:var(--sm-ink);text-decoration:none;overflow-wrap:anywhere;}
 #syndamorph-overview .sm-overview-job-id:hover {color:var(--sm-accent);}
 #syndamorph-overview .sm-overview-job-detail {font-size:11px;color:var(--sm-muted);margin-top:5px;}
 #syndamorph-overview .sm-overview-pill {flex:none;border-radius:7px;font-size:10px;font-weight:700;padding:6px 8px;}
 #syndamorph-overview .sm-overview-pill.completed {color:#22814a;background:#e9f7ee;}
 #syndamorph-overview .sm-overview-pill.pending {color:#986113;background:#fff4e1;}
 #syndamorph-overview .sm-overview-pill.blocked {color:#bf302b;background:#fff0ed;}
-#syndamorph-overview .sm-overview-recent-link {margin:6px 20px 18px;}
+#syndamorph-overview .sm-overview-recent-link {flex:none;align-self:flex-start;margin:12px 20px 18px;}
 #syndamorph-overview .sm-overview-link {display:inline-block;color:var(--sm-accent);font-size:12px;font-weight:700;text-decoration:none;}
 #syndamorph-overview .sm-overview-link:hover {text-decoration:underline;}
 #syndamorph-overview .sm-overview-bars {padding:13px 20px 4px;}
@@ -1123,6 +1125,6 @@
 #syndamorph-overview .sm-overview-evidence-note {margin:5px 20px 20px;color:var(--sm-muted);font-size:11px;line-height:1.6;}
 #syndamorph-overview .sm-overview-empty {margin:10px 0;color:var(--sm-muted);font-size:12px;}
 #syndamorph-overview .sm-overview-footnote {font-size:11px;color:var(--sm-muted);line-height:1.7;margin:18px 0 0;}
-@media(max-width:1220px){#syndamorph-overview .sm-overview-metrics {grid-template-columns:repeat(2,minmax(0,1fr));}#syndamorph-overview .sm-overview-main-grid {grid-template-columns:1fr;}}
+@media(max-width:1220px){#syndamorph-overview .sm-overview-metrics {grid-template-columns:repeat(2,minmax(0,1fr));}#syndamorph-overview .sm-overview-main-grid {grid-template-columns:1fr;}#syndamorph-overview .sm-overview-main-grid > .sm-card:first-child {height:auto;min-height:0;}#syndamorph-overview .sm-overview-main-grid > .sm-card:nth-child(2) {height:390px;}}
 @media(max-width:780px){#syndamorph-overview .sm-overview-bottom-grid {grid-template-columns:1fr;}}
 @media(max-width:600px){#syndamorph-overview .sm-overview-metrics {grid-template-columns:1fr;}#syndamorph-overview .sm-overview-stage-grid {grid-template-columns:repeat(3,minmax(0,1fr));}#syndamorph-overview .sm-overview-qa-grid {gap:8px;padding:15px;}#syndamorph-overview .sm-overview-filters {width:100%;justify-content:space-between;}#syndamorph-overview .sm-overview-filters button {padding:9px 7px;}#syndamorph-overview .sm-overview-card-header {flex-wrap:wrap;}}
