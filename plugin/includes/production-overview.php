@@ -82,7 +82,7 @@ function syndamorph_overview_render_tab(): void {
 add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
     if ( 'toplevel_page_syndamorph' !== $hook || ! current_user_can( 'manage_options' ) ) { return; }
     $tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
-    if ( '' !== $tab && 'overview' !== $tab ) { return; }
+    if ( in_array( $tab, array( 'production', 'team', 'ai', 'gateway' ), true ) ) { return; }
     $base = plugin_dir_path( __DIR__ ) . 'assets/';
     $url = plugin_dir_url( __DIR__ ) . 'assets/';
     wp_enqueue_style( 'syndamorph-operations', $url . 'operations-dashboard.css', array(), (string) filemtime( $base . 'operations-dashboard.css' ) );
