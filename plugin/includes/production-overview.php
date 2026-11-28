@@ -60,7 +60,7 @@ function syndamorph_overview_render_tab(): void {
                             <div class="sm-overview-stage"><span>QA</span><strong data-overview-stage="qa">—</strong><small>Independent proof</small></div>
                         </div>
                         <p class="sm-overview-pipeline-note">Stage counters require verified, currently active checkpoint receipts. No stages are inferred from historical job status.</p>
-                        <div class="sm-overview-progress-label"><span>Acceptance rate</span><strong data-overview-stat="acceptance">—</strong></div>
+                        <div class="sm-overview-progress-label"><span>Recorded completion rate</span><strong data-overview-stat="acceptance">—</strong></div>
                         <div class="sm-overview-progress-track"><div class="sm-overview-progress-fill" data-overview-acceptance-bar></div></div>
                         <div class="sm-overview-legend"><span><i class="accepted"></i>Accepted</span><span><i class="pending"></i>Pending</span><span><i class="blocked"></i>Blocked</span></div>
                     </section>
