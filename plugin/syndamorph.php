@@ -59,6 +59,25 @@ add_action( 'admin_head', static function (): void {
     </style>';
 } );
 
+/**
+ * Preserve previously bookmarked Tools URLs after promoting SyndaMorph to
+ * its own WordPress menu. Do not redirect other Tools screens.
+ */
+add_action( 'admin_init', static function (): void {
+    if ( ! current_user_can( 'manage_options' ) || ! isset( $_GET['page'] ) ||
+        'syndamorph' !== sanitize_key( wp_unslash( $_GET['page'] ) ) ) { return; }
+    global $pagenow;
+    if ( 'tools.php' !== $pagenow ) { return; }
+    $args = array( 'page' => 'syndamorph' );
+    foreach ( array( 'tab', 'view' ) as $key ) {
+        if ( isset( $_GET[$key] ) ) { $args[$key] = sanitize_key( wp_unslash( $_GET[$key] ) ); }
+    }
+    // Historical Tools URLs were the Production workspace by default.
+    if ( ! isset( $args['tab'] ) ) { $args['tab'] = 'production'; }
+    wp_safe_redirect( add_query_arg( $args, admin_url( 'admin.php' ) ) );
+    exit;
+} );
+
 function syndamorph_render_operations_page(): void {
     if ( ! current_user_can( 'manage_options' ) ) { return; }
     $tab = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : '';
