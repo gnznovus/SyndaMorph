@@ -1581,8 +1581,15 @@ function syndamorph_scope_document(string $content,string $title): string {
     $runtime=str_contains($body,'data-sm-room-photo=')?'<script defer src="'.esc_url(add_query_arg('ver',syndamorph_rooms_fingerprint(),
         plugins_url('assets/production-rooms-view.js',dirname(__DIR__).'/syndamorph.php'))).'"></script>':'';
     $types=array_column($blocks,'blockName');
-    foreach(array('syndamorph/recorded-header'=>'production-header-view.js','syndamorph/desktop-offer'=>'production-offer-view.js') as $block=>$file){
-        if(!in_array($block,$types,true))continue;
+    $tags=new WP_HTML_Tag_Processor($body);
+    $scripts=array(
+        'production-header-view.js'=>in_array('syndamorph/recorded-header',$types,true),
+        'production-offer-view.js'=>in_array('syndamorph/desktop-offer',$types,true),
+        'production-booking-view.js'=>$tags->next_tag(array('class_name'=>'wp-block-syndamorph-booking-summary')) &&
+            $tags->get_attribute('data-sm-booking')===true,
+    );
+    foreach($scripts as $file=>$required){
+        if(!$required)continue;
         $asset='assets/'.$file;
         $plugin=dirname(__DIR__).'/syndamorph.php';
         $runtime.='<script defer src="'.esc_url(add_query_arg('ver',filemtime(dirname($plugin).'/'.$asset),
@@ -1729,35 +1736,42 @@ function syndamorph_scope_verify_page(array $manifest,string $checksum,int $coun
     return syndamorph_scope_finish_page($manifest);
 }
 
-function syndamorph_scope_block_count(array $nodes,bool $root=true): int {
-    $total=0;$recordedHeader=false;$desktopOffer=false;
-    foreach($nodes as $node) {
-        if(($node['blockName']??null)===null&&trim($node['innerHTML']??'')==='')continue;
-        $name=$node['blockName']??'';
-        if($name==='syndamorph/recorded-header'){
-            $data=syndamorph_header_content($node['attrs']['navigation']??null);
-            $hash=$node['attrs']['logoSha256']??null;
-            if(!$root||$recordedHeader||!$data||!is_string($hash)||!preg_match('/^[a-f0-9]{64}$/D',$hash)||
-                get_post_mime_type($data['logoId'])!=='image/png'||!syndamorph_attachment_has_original($data['logoId'],$hash)||
-                !empty($node['innerBlocks'])||trim($node['innerHTML']??'')!=='')return -1;
-            $recordedHeader=true;
+function syndamorph_scope_block_count(array $nodes): int {
+    $total=0;$seen=array();
+    $visit=static function(array $blocks,bool $root,bool $desktopGroup=false)use(&$visit,&$total,&$seen): bool {
+        foreach($blocks as $node){
+            $name=$node['blockName']??'';
+            $hasMarkup=trim($node['innerHTML']??'')!=='';
+            if($name===''&&!$hasMarkup)continue;
+            $attrs=$node['attrs']??array();
+            $children=$node['innerBlocks']??array();
             $total++;
-            continue;
+            if(in_array($name,array('syndamorph/recorded-header','syndamorph/desktop-offer','syndamorph/booking-summary'),true)){
+                if(isset($seen[$name])||$children||$hasMarkup)return false;
+                $seen[$name]=true;
+                if($name==='syndamorph/recorded-header'){
+                    $data=syndamorph_header_content($attrs['navigation']??null);
+                    $hash=$attrs['logoSha256']??null;
+                    if(!$root||!$data||!is_string($hash)||!preg_match('/^[a-f0-9]{64}$/D',$hash)||
+                        get_post_mime_type($data['logoId'])!=='image/png'||!syndamorph_attachment_has_original($data['logoId'],$hash))
+                        return false;
+                }elseif($name==='syndamorph/desktop-offer'){
+                    if(!$root||!syndamorph_offer_copy($attrs['copy']??null))return false;
+                }elseif(!$desktopGroup||($attrs['overlap']??null)!==true||
+                    array_diff_key($attrs,array('copy'=>true,'overlap'=>true))||
+                    !syndamorph_booking_copy(array_key_exists('copy',$attrs)?$attrs['copy']:array())){
+                    return false;
+                }
+                continue;
+            }
+            if(!str_starts_with($name,'core/')&&$name!=='syndamorph/tabs')return false;
+            if($name==='syndamorph/tabs'&&syndamorph_tabs_decode($attrs['panelData']??null)===null)return false;
+            $classes=is_string($attrs['className']??null)?preg_split('/\s+/',trim($attrs['className'])):array();
+            if(!$visit($children,false,$root&&$name==='core/group'&&in_array('sm-view-desktop',$classes,true)))return false;
         }
-        if($name==='syndamorph/desktop-offer'){
-            if(!$root||$desktopOffer||!syndamorph_offer_copy($node['attrs']['copy']??null)||
-                !empty($node['innerBlocks'])||trim($node['innerHTML']??'')!=='')return -1;
-            $desktopOffer=true;
-            $total++;
-            continue;
-        }
-        if(!str_starts_with($name,'core/')&&$name!=='syndamorph/tabs')return -1;
-        if($name==='syndamorph/tabs'&&syndamorph_tabs_decode($node['attrs']['panelData']??null)===null)return -1;
-        $children=syndamorph_scope_block_count($node['innerBlocks']??array(),false);
-        if($children<0)return -1;
-        $total+=1+$children;
-    }
-    return $total;
+        return true;
+    };
+    return $visit($nodes,true)?$total:-1;
 }
 
 add_filter('template_include',static function(string $template): string {

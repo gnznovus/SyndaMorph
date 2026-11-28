@@ -79,6 +79,27 @@ async function verifyBooking(page, post) {
  console.log('PASS: Gutenberg booking edit, save, reload, local actions, and independent instances.');
 }
 
+async function verifyScopeBooking(page, post) {
+ await page.setViewportSize({width:1440,height:900});
+ assert.equal((await page.goto(origin+'/?page_id='+post+'&preview=true')).status(),200);
+ const booking=page.locator('#syndamorph-page > .sm-view-desktop > [data-sm-booking]');
+ assert.equal(await booking.count(),1);
+ assert.equal(await page.locator('script[src*="production-booking-view.js"]').count(),1);
+ const guests=booking.getByRole('button',{name:/Rooms & guests/});
+ await guests.click();
+ assert.equal(await guests.getAttribute('aria-expanded'),'true');
+ await booking.getByRole('button',{name:'Increase Adults'}).click();
+ assert.equal(await booking.locator('[data-sm-booking-guests]').innerText(),'1 room · 3 guests');
+ const rate=booking.getByRole('button',{name:/Rate preference/});
+ await rate.press('Enter');
+ await booking.getByRole('button',{name:'Reward Nights',exact:true}).press('Space');
+ assert.equal(await booking.locator('[data-sm-booking-rate]').innerText(),'Reward Nights');
+ assert.equal(await rate.getAttribute('aria-expanded'),'false');
+ await page.setViewportSize({width:1023,height:900});
+ assert.equal(await booking.isVisible(),false);
+ console.log('PASS: nested Booking Summary stays interactive on the assembled desktop canvas and hidden at compact widths.');
+}
+
 async function verifyDesktopOffer(page, post) {
  assert.ok(post, 'Desktop Offer fixture did not save a draft');
  await page.goto(origin+'/wp-admin/post.php?post='+post+'&action=edit');
@@ -313,16 +334,31 @@ async function verifySectionWidths(page, sections) {
    let offerRejected=false,duplicateOfferRejected=false;
    try{validate(scopeOffer);}catch(e){offerRejected=/unsupported Gutenberg block/.test(e.message);}
    try{validate(scopeOffer+'\n\n'+scopeOffer,200,true);}catch(e){duplicateOfferRejected=/unsupported Gutenberg block/.test(e.message);}
+   const booking=window.nativeScopeBooking;
+   const bookingBlocks=validate(booking,200,true);
+   const rejectedBooking=(content,scope)=>{
+    try{validate(content,200,scope);return false;}catch(e){return /unsupported Gutenberg block/.test(e.message);}
+   };
+   const invalidBookings=[
+    rejectedBooking(booking,false),
+    rejectedBooking(booking+'\n\n'+booking,true),
+    rejectedBooking(window.nativeBookingBlock,true),
+    rejectedBooking(booking.replaceAll('sm-view-desktop','sm-view-compact'),true),
+    rejectedBooking(booking.replace('"overlap":true','"overlap":false'),true),
+   ];
    return {initial,count,registered,expected:a.blockCount,rejected,cases,missingFontClassRejected,tabBlocks,
     tabsPost:window.tabsPost,bookingPost:window.bookingPost,offerPost:window.offerPost,headerPost:window.headerPost,
     scopeHeaderPost:window.scopeHeaderPost,headerBlocks,headerRejected,duplicateHeaderRejected,
-    offerBlocks,offerRejected,duplicateOfferRejected,sections:window.nativeAlignments};
+    offerBlocks,offerRejected,duplicateOfferRejected,bookingBlocks,invalidBookings,scopeBookingPost:window.scopeBookingPost,
+    sections:window.nativeAlignments};
   });
   console.log({...result,sections:Object.keys(result.sections)});
-  assert.ok(result.initial<=3,'Only the custom production blocks should be registered before the validator sets up core.');
+  assert.ok(result.initial<=4,'Only the custom production blocks should be registered before the validator sets up core.');
   assert.equal(result.offerBlocks,1);
   assert.equal(result.offerRejected,true);
   assert.equal(result.duplicateOfferRejected,true);
+  assert.equal(result.bookingBlocks,2);
+  assert.deepEqual(result.invalidBookings,[true,true,true,true,true]);
   if(result.scopeHeaderPost){
    assert.equal(result.headerBlocks,4);
    assert.equal(result.headerRejected,true);
@@ -415,6 +451,7 @@ async function verifySectionWidths(page, sections) {
   }
   await verifyEditableTabs(page,result.tabsPost);
   await verifyBooking(page,result.bookingPost);
+  await verifyScopeBooking(page,result.scopeBookingPost);
   await verifyDesktopOffer(page,result.offerPost);
   await verifyRecordedHeader(page,result.headerPost);
   await verifyRecordedHeader(page,result.scopeHeaderPost,'#syndamorph-page');

@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.63] - 2026-11-28
+
+### Fixed
+
+- Full Page Production validates one overlapping Booking Summary directly inside a top-level desktop Group. The production canvas loads its local controls when rendering the block. Ordinary AI export keeps its existing block contract.
+
+### Verified
+
+- The retained BKKGO hero and intro render privately alongside twelve verified Patterns. The settled desktop pair measured 0.267% differing pixels, and both compact hero crops matched the source. Source-bound placement and whole-page QA remain pending.
+
 ## [0.12.62] - 2026-11-28
 
 ### Added

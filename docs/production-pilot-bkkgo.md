@@ -183,6 +183,16 @@ Independent authenticated renderer QA checked the card, document-height scrim, l
 
 Private unsynced Pattern 228 was placed at source position 3 in draft 66. The separate edit-test draft 229 returned to the exact Pattern bytes after save, reload and restoration. History events 25743 and 25749 retain independent QA and the exact round-trip. The assembled draft preserved the eleven prior Patterns and has 423 validated blocks and SHA-256 `0ee1a4942dd95fc8d908648e6e363fbf48b4db874a6ecfe45e475b65b9f60bd7`. The assembled preview repeated desktop visibility, compact absence and dismissal with zero requests. Hero, relocated intro, newsletter, footer and whole-page QA remain pending. No model calls were made.
 
+### v0.12.63 Booking Summary in the Full Page canvas
+
+Gutenberg itself recognized the retained Booking Summary. Full Page validation rejected it, and the isolated WordPress template omitted WordPress's usual frontend script queue. Both Full Page validators now admit a single overlapping Booking Summary directly inside a top-level desktop Group. The template loads its existing runtime when it renders that block. The usual AI export continues to reject it. Regression fixtures cover duplicate, misplaced, compact, and malformed Booking Summary blocks.
+
+Local unpublished draft 233 combined the two retained hero variants and desktop intro with the twelve verified Patterns. All 448 blocks passed the Full Page count gate. Chromium confirmed the 44 px overlap between the 88 px booking bar and the next region, the three original counter ranges, all five rate choices, and the rooms anchor with zero interaction requests. The relocated title appeared once at 1440, 1024, 1023, 768 and 375 px. The original header's 1280 px minimum width accounts for the horizontal scroll at intermediate desktop widths in both the archived source and the assembled preview.
+
+Using the original JPEG framing, the settled hero and the settled hero plus intro measured 0.223% and 0.267% differing pixels at 1440 px against source History event 23333. Both compact hero crops matched checkpoint 12133. The original first-fold comparisons measured 0.136%, 0.003%, and 0.001% at 1440, 768, and 375 px.
+
+In a separate Gutenberg copy, draft 234, the booking label and intro heading survived editing, save, reload and restoration with all 448 blocks valid. Gutenberg reserialized some previously placed Patterns on the copy. The exact post-edit bytes reproduced the first-fold measurements and interaction results. Local History events 25752 and 25753 retain both integration runs. The original draft still has twelve placements. Production source binding, remaining regions and whole-page QA are pending. No model calls were made.
+
 History event 23342 binds draft 184 and its saved content SHA-256 `ed7bda9ee638f5b7850c01c87246a01efc2c7bb1bc93529c2368debbda2caa6e` to the native test. Event 23343 records compact source evidence against checkpoints 12136 and 12137.
 
 ### SIP & DINE alignment checkpoint, v0.12.42

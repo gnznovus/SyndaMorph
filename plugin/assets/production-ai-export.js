@@ -40,12 +40,13 @@
         if (!Array.isArray(parsed) || !parsed.length) throw new Error('Gutenberg parser returned no native blocks.');
         let count=0;
         const seen=new Set();
-        function visit(blocks, root = false) {
+        function visit(blocks, root = false, desktopGroup = false) {
             for(const block of blocks) {
                 count++;
-                const recorded=recordedComponents&&root&&!seen.has(block?.name)&&!block.innerBlocks?.length&&(
-                    (block?.name==='syndamorph/recorded-header'&&/^[a-f0-9]{64}$/.test(block.attributes?.logoSha256 ?? ''))||
-                    (block?.name==='syndamorph/desktop-offer'&&typeof block.attributes?.copy?.dismissLabel==='string'));
+                const recorded=recordedComponents&&!seen.has(block?.name)&&!block.innerBlocks?.length&&(
+                    (root&&block?.name==='syndamorph/recorded-header'&&/^[a-f0-9]{64}$/.test(block.attributes?.logoSha256 ?? ''))||
+                    (root&&block?.name==='syndamorph/desktop-offer'&&typeof block.attributes?.copy?.dismissLabel==='string')||
+                    (desktopGroup&&block?.name==='syndamorph/booking-summary'&&block.attributes?.overlap===true));
                 const supported = block?.name?.startsWith('core/') || block?.name === 'syndamorph/tabs' || recorded;
                 if (count>limit || !supported || !api.getBlockType(block.name))
                     throw new Error('Unknown or unsupported Gutenberg block.');
@@ -53,7 +54,10 @@
                 const check=api.validateBlock(block);
                 const valid=Array.isArray(check) ? check[0] === true : check?.isValid === true;
                 if(!valid || block.isValid===false) throw new Error('Gutenberg serialization invalid for '+block.name+' (block '+count+'). Inspect console for expected and actual save markup.');
-                if (block.innerBlocks?.length) visit(block.innerBlocks);
+                if (block.innerBlocks?.length) {
+                    const classes=typeof block.attributes?.className==='string'?block.attributes.className.split(/\s+/):[];
+                    visit(block.innerBlocks,false,root&&block.name==='core/group'&&classes.includes('sm-view-desktop'));
+                }
             }
         }
         visit(parsed,true);
