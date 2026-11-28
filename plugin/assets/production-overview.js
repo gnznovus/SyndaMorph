@@ -59,7 +59,9 @@
             stat('completed', String(data.completed));
             stat('attention', String(data.attention));
             const usage = data.usageCost || {};
-            const formatUsd = amount => String.fromCharCode(36) + Number(amount).toFixed(6).replace(/0+$/, '').replace(/\\.$/, '');
+            const formatUsd = amount => String.fromCharCode(36) + Number(amount).toLocaleString('en-US', {
+                minimumFractionDigits: 2, maximumFractionDigits: 6,
+            });
             const total = usage.estimatedTotalUsd;
             const mean = usage.estimatedMeanPerMeteredJobUsd;
             stat('cost', total === null || total === undefined ? '—' : formatUsd(total));
