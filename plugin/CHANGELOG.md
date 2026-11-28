@@ -6,6 +6,20 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.64] - 2026-11-28
+
+### Added
+
+- Full Page Production can recover the retained hero and relocated intro from an editable draft. It checks both regions against their original copy placement, visual states and booking behavior before saving private Patterns. Assembly places the two Patterns together.
+
+### Fixed
+
+- The recorded desktop hero and intro preserve their 1280 px minimum width. The intro keeps its original font sizes while the active WordPress theme applies fluid typography elsewhere.
+
+### Verified
+
+- REF-000030 placed the recovered hero and intro in its original draft with all twelve earlier Pattern identities intact. The draft has 448 verified blocks across 14 of 16 regions. Both new Patterns passed Gutenberg edit and reload plus independent visual, responsive and interaction QA.
+
 ## [0.12.63] - 2026-11-28
 
 ### Fixed

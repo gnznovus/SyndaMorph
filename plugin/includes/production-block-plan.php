@@ -54,6 +54,10 @@ function syndamorph_native_tile_aspect_css(): string {
         '.wp-block-group.sm-aspect-3-4{width:100%;aspect-ratio:3/4}';
 }
 
+function syndamorph_native_recorded_desktop_width_css(): string {
+    return '@media(min-width:1024px){.wp-block-group.sm-recorded-desktop-width{min-width:1280px}}';
+}
+
 if(function_exists('add_action'))add_action('enqueue_block_assets',static function():void {
     wp_register_style('syndamorph-square-grid',false);
     wp_enqueue_style('syndamorph-square-grid');
@@ -68,6 +72,9 @@ if(function_exists('add_action'))add_action('enqueue_block_assets',static functi
     wp_register_style('syndamorph-production-compact',false);
     wp_enqueue_style('syndamorph-production-compact');
     wp_add_inline_style('syndamorph-production-compact',syndamorph_native_compact_css());
+    wp_register_style('syndamorph-recorded-desktop-width',false);
+    wp_enqueue_style('syndamorph-recorded-desktop-width');
+    wp_add_inline_style('syndamorph-recorded-desktop-width',syndamorph_native_recorded_desktop_width_css());
 });
 
 function syndamorph_block_plan_contract(): string {
@@ -284,6 +291,7 @@ function syndamorph_native_core_preview(array $blocks,?array $ids=null,bool $pag
     if(isset($classes['sm-aspect-4-3'])||isset($classes['sm-aspect-3-4']))$css.=syndamorph_native_tile_aspect_css();
     if(isset($classes['is-style-sm-compact-guarantee'])||isset($classes['is-style-sm-compact-booking']))
         $css.=syndamorph_native_compact_css();
+    if(isset($classes['sm-recorded-desktop-width']))$css.=syndamorph_native_recorded_desktop_width_css();
     $css.='*,*::before,*::after{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;line-height:1.5}';
     return '<style>'.$css.'</style>'.($pageWidth?syndamorph_native_page_width_body():'').$html;
 }

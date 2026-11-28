@@ -10,6 +10,7 @@ require_once __DIR__.'/production-rooms.php';
 require_once __DIR__.'/production-compact.php';
 require_once __DIR__.'/production-scope-header.php';
 require_once __DIR__.'/production-scope-offer.php';
+require_once __DIR__.'/production-scope-first-fold.php';
 require_once __DIR__.'/production-tabs.php';
 require_once __DIR__.'/production-responsive.php';
 
@@ -250,6 +251,13 @@ function syndamorph_scope_status(array $manifest): array {
     $manifest['unmeteredReserveUsd']=0.0;
     $manifest['outputTokens']=0;
     foreach($manifest['regions'] as &$region) {
+        if(isset($region['firstFoldEvent'])&&!syndamorph_scope_first_fold_record($manifest,$region)){
+            $region['issue']='The retained hero and intro need fresh combined QA.';
+            $region['status']=empty($region['patternId'])?'blocked':'uncompleted';
+            $manifest['status']='uncompleted';
+            if(!empty($manifest['page']['allRegions']))
+                $manifest['page']['qa']=array('passed'=>false,'reason'=>$region['issue']);
+        }
         if(!isset($region['desktopOfferReplayAvailable'])&&($region['kind']??null)==='overlay'&&
             !empty($manifest['referenceArchive']['runtimeSha256'])){
             $overlay=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
@@ -1039,6 +1047,7 @@ function syndamorph_scope_resume_checkpoint(array $manifest,string $key,array $e
 function syndamorph_scope_candidate(array $manifest,string $key): ?array {
     if($manifest['mode']==='section'&&$manifest['selected']!==$key)return null;
     $region=$manifest['regions'][$key]??null;
+    if(isset($region['firstFoldEvent']))return syndamorph_scope_first_fold_candidate($manifest,$region);
     if(isset($region['recordedHeaderSourceEvent']))return syndamorph_scope_header_candidate($manifest,$region);
     if(isset($region['desktopOfferSourceEvent']))return syndamorph_scope_offer_candidate($manifest,$region);
     $compact=$region?syndamorph_scope_compact_kind($region):null;
@@ -1123,6 +1132,7 @@ function syndamorph_scope_save_pattern(array $manifest,string $key,?array $image
         $fresh=match($assetKind){
             'recordedHeader'=>syndamorph_scope_header_quality(syndamorph_scope_header_receipt($manifest,$region),$candidate['content']),
             'desktopOffer'=>syndamorph_scope_offer_quality(syndamorph_scope_offer_receipt($manifest,$region),$candidate['content']),
+            'firstFold'=>syndamorph_scope_first_fold_save_quality($manifest,$region),
             'compactGuarantee'=>syndamorph_compact_quality($region['compactGuaranteeEvidence'],$candidate['content'],'guarantee'),
             'compactBooking'=>syndamorph_compact_quality($region['compactBookingEvidence'],$candidate['content'],'booking'),
             'revealLayout'=>syndamorph_reveal_layout_quality($source,$region['revealEvidence'],$candidate['content']),
@@ -1135,6 +1145,7 @@ function syndamorph_scope_save_pattern(array $manifest,string $key,?array $image
         $event=match($assetKind){'compactGuarantee'=>'compact_guarantee_editor','compactBooking'=>'compact_booking_editor',
             'recordedHeader'=>'recorded_header_editor',
             'desktopOffer'=>'desktop_offer_editor',
+            'firstFold'=>'first_fold_editor',
             'revealLayout'=>'source_reveal_editor_verified','rooms'=>'source_rooms_editor_verified','linkedEditorial'=>'source_linked_editor_verified',
             default=>'source_image_editor_verified'};
         syndamorph_history_append($manifest['id'],$event,array(
@@ -1575,7 +1586,7 @@ function syndamorph_scope_repin_section(array $manifest,array $capture) {
     return $manifest;
 }
 
-function syndamorph_scope_document(string $content,string $title): string {
+function syndamorph_scope_document(string $content,string $title,bool $includeRuntime=true): string {
     $blocks=array_values(array_filter(parse_blocks($content),static fn($block)=>$block['blockName']!==null));
     $body=syndamorph_native_core_preview($blocks);
     $runtime=str_contains($body,'data-sm-room-photo=')?'<script defer src="'.esc_url(add_query_arg('ver',syndamorph_rooms_fingerprint(),
@@ -1598,7 +1609,7 @@ function syndamorph_scope_document(string $content,string $title): string {
     return '<!doctype html><html lang="'.esc_attr(get_bloginfo('language')).'"><head><meta charset="utf-8">'.
         '<meta name="viewport" content="width=device-width,initial-scale=1"><title>'.esc_html($title).'</title>'.
         '<style>'.syndamorph_native_visibility_css().'</style></head>'.
-        '<body><main id="syndamorph-page">'.$body.'</main>'.$runtime.'</body></html>';
+        '<body><main id="syndamorph-page">'.$body.'</main>'.($includeRuntime?$runtime:'').'</body></html>';
 }
 
 function syndamorph_scope_page_qa(array $manifest,WP_Post $page): array {
@@ -1618,6 +1629,10 @@ function syndamorph_scope_page_qa(array $manifest,WP_Post $page): array {
                 $offer=syndamorph_scope_offer_receipt($manifest,$region);
                 if(($offer['views'][$width]['present']??null)===false&&
                     !empty(syndamorph_scope_offer_candidate($manifest,$region)['eligible']))continue;
+            }
+            if($ref===null&&isset($region['firstFoldEvent'])){
+                $pair=syndamorph_scope_first_fold_record($manifest,$region);
+                if(($pair['regions']['intro']??null)===$key&&in_array($width,array(768,375),true))continue;
             }
             $order[]=$ref;
         }
@@ -1654,6 +1669,12 @@ function syndamorph_scope_assemble(array $manifest) {
     $placement=array();$content=array();
     foreach($manifest['regions'] as $id=>$region) {
         if(empty($region['patternId']))continue;
+        if(isset($region['firstFoldEvent'])){
+            $pair=syndamorph_scope_first_fold_record($manifest,$region);
+            if(!$pair)return syndamorph_scope_error('first_fold_source','The saved hero and intro need fresh combined QA.');
+            // Leave the previously verified page usable if only one Pattern has been saved.
+            if(array_filter($pair['regions'],static fn($key)=>empty($manifest['regions'][$key]['patternId'])))continue;
+        }
         if((isset($region['imageStripQa'])||isset($region['linkedEditorialQa']))&&empty(syndamorph_scope_candidate($manifest,$id)['eligible']))
             return syndamorph_scope_error('image_source','The saved region has lost its original asset evidence.');
         if((isset($region['revealLayoutQa'])||isset($region['roomsQa']))&&empty(syndamorph_scope_candidate($manifest,$id)['eligible']))
@@ -1825,7 +1846,7 @@ add_action('rest_api_init',static function():void {
         }),
         array('methods'=>'POST','permission_callback'=>$permission,'callback'=>static function(WP_REST_Request $request) {
             $action=$request->get_param('action');
-            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_copy_placement','verify_settled_pair','verify_image','stage_image_strip','stage_linked_editorial','stage_reveal_layout','stage_rooms','stage_compact_guarantee','stage_compact_booking','stage_recorded_header','stage_desktop_offer','assemble','verify_page'),true))
+            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_copy_placement','verify_settled_pair','verify_image','stage_image_strip','stage_linked_editorial','stage_reveal_layout','stage_rooms','stage_compact_guarantee','stage_compact_booking','stage_recorded_header','stage_desktop_offer','stage_first_fold','assemble','verify_page'),true))
                 return syndamorph_scope_error('action','Invalid scope action.',400);
             return syndamorph_scope_locked(static function()use($request,$action){
                 $manifest=syndamorph_history_latest((int)$request['id'],'scope_manifest');
@@ -1900,6 +1921,10 @@ add_action('rest_api_init',static function():void {
                         case 'stage_compact_booking': return syndamorph_scope_stage_compact($manifest,$region,'booking');
                         case 'stage_recorded_header': return syndamorph_scope_stage_header($manifest,$region);
                         case 'stage_desktop_offer': return syndamorph_scope_stage_offer($manifest,$region);
+                        case 'stage_first_fold':
+                            $draftId=filter_var($request->get_param('draftId'),FILTER_VALIDATE_INT,array('options'=>array('min_range'=>1)));
+                            if($draftId===false)return syndamorph_scope_error('first_fold_draft','Enter the ID of the retained draft.',400);
+                            return syndamorph_scope_stage_first_fold($manifest,$region,$draftId);
                         case 'reuse_section':
                             $sectionId=filter_var($request->get_param('sectionId'),FILTER_VALIDATE_INT,array('options'=>array('min_range'=>1)));
                             if($sectionId===false)return syndamorph_scope_error('reuse_scope','An exact saved Section ID is required.',400);

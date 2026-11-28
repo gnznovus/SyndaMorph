@@ -193,6 +193,16 @@ Using the original JPEG framing, the settled hero and the settled hero plus intr
 
 In a separate Gutenberg copy, draft 234, the booking label and intro heading survived editing, save, reload and restoration with all 448 blocks valid. Gutenberg reserialized some previously placed Patterns on the copy. The exact post-edit bytes reproduced the first-fold measurements and interaction results. Local History events 25752 and 25753 retain both integration runs. The original draft still has twelve placements. Production source binding, remaining regions and whole-page QA are pending. No model calls were made.
 
+### v0.12.64 source-bound hero and intro placement
+
+Production Setup recovered the editable hero and relocated intro from retained Gutenberg draft 234. It checked source checkpoints 12133 and 12135, settled replay receipt 23333, the three title placements, and the exact five supporting Patterns. Network-disabled source replay at 1440, 1280, 1200 and 1024 px confirmed that the source keeps both desktop regions at a minimum width of 1280 px and preserves the intro's height and typography. The native repair scopes that width to the two recorded Groups and retains fixed 56 px and 18 px type through WordPress fluid typography.
+
+The authenticated renderer passed copy, local interaction and responsive checks at ten widths. Initial desktop fold difference was 0.137%, the settled hero 0.202%, and the settled pair 0.292%. Both compact hero crops matched their original sources. The native controls preserved the recorded guest limits, five rate states and unique rooms anchor. No interaction attempted a network request. A different draft, an incorrect Gutenberg block count and malformed or incomplete screenshot frames were rejected.
+
+History event 25754 binds the two candidates to the original archive. Private unsynced Patterns 239 and 241 were placed together at source positions 2 and 4. Saving only the first left the existing draft intact. The final Assembly preserved all twelve earlier Pattern IDs and checksums. Draft 66 has 448 Gutenberg-verified blocks and SHA-256 `a0aa4cc7b86372ab6620bc8977e7a93333f51888b063297cf7191d0352a6c469`. The assembled preview repeated all ten checks and measured 0.136% for the desktop first fold and 0.267% for the settled pair.
+
+The separate Pattern edit copies, drafts 240 and 242, retained valid editable blocks through save, reload and restoration. Gutenberg reserialized each copy. Their exact post-edit bytes passed the same independent renderer checks, recorded with the placement in History event 25763. REF-000030 now has 14 of 16 verified placements. Newsletter, footer and whole-page QA remain pending. No model calls were made.
+
 History event 23342 binds draft 184 and its saved content SHA-256 `ed7bda9ee638f5b7850c01c87246a01efc2c7bb1bc93529c2368debbda2caa6e` to the native test. Event 23343 records compact source evidence against checkpoints 12136 and 12137.
 
 ### SIP & DINE alignment checkpoint, v0.12.42

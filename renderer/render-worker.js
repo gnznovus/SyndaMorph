@@ -5,6 +5,7 @@ const { createHash } = require('node:crypto');
 const axe = require('axe-core');
 const { checkHeader } = require('./check-header');
 const { checkOffer } = require('./check-offer');
+const { checkFirstFold } = require('./check-first-fold');
 const { HEIGHT, MAX_JPEG, MAX_METADATA, DEFAULT_VIEWPORTS, RendererError } = require('./inspection-contract');
 
 async function waitForInstalledFonts(page) {
@@ -423,7 +424,7 @@ process.stdin.on('end', async () => {
     const evidence = [];
     try {
         const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, disclosures, imageStrip, revealCards, roomsRuntime,
-            compactBooking, header, offer, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
+            compactBooking, header, offer, firstFold, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
             headless: true, timeout: 10000,
             // Synthetic fixtures are fulfilled by Playwright. Other Chromium
@@ -435,7 +436,8 @@ process.stdin.on('end', async () => {
             ],
         });
         const context = await browser.newContext({
-            javaScriptEnabled: !inspect || Boolean(tabsRuntime || roomsRuntime || header || offer),
+            javaScriptEnabled: !inspect || Boolean(tabsRuntime || roomsRuntime || header || offer || firstFold),
+            ...(firstFold ? {reducedMotion:'reduce'} : {}),
             serviceWorkers: 'block',
             acceptDownloads: false,
         });
@@ -446,15 +448,15 @@ process.stdin.on('end', async () => {
         const page = await context.newPage();
         page.on('crash', () => { crashed = true; });
         page.on('popup', (popup) => popup.close().catch(() => {}));
-        if(header||offer){
+        if(header||offer||firstFold){
             const fixture='https://functional.invalid/';
-            const name=header?'header':'offer';
+            const name=header?'header':offer?'offer':'first-fold';
             const document=fixture+name, script=document+'.js';
             await page.route(document,route=>route.fulfill({contentType:'text/html;charset=utf-8',
                 headers:{'content-security-policy':"default-src 'none'; script-src "+script+"; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'"},
-                body:'<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1">'+html+
-                    '<style>html,body,#syndamorph-page{margin:0;min-height:3900px}</style><script src="/'+name+'.js"></script>'}));
-            await page.route(script,route=>route.fulfill({contentType:'application/javascript',body:(header??offer).runtime}));
+                body:(firstFold ? html : '<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1">'+html+
+                    '<style>html,body,#syndamorph-page{margin:0;min-height:3900px}</style>')+'<script src="/'+name+'.js"></script>'}));
+            await page.route(script,route=>route.fulfill({contentType:'application/javascript',body:(header??offer??firstFold).runtime}));
             for(const width of viewports){
                 await page.setViewportSize({width,height:HEIGHT});
                 const other=[];
@@ -463,8 +465,11 @@ process.stdin.on('end', async () => {
                 try{
                     await page.goto(document,{waitUntil:'domcontentloaded',timeout:5000});
                     await waitForInstalledFonts(page);
-                    const proof=header?await checkHeader(page,width,header.frames[width]):await checkOffer(page,width,offer.frame);
-                    evidence.push({width,proof:{...proof,offline:other.length===0&&page.url()===document}});
+                    const proof=header?await checkHeader(page,width,header.frames[width]):offer?await checkOffer(page,width,offer.frame):
+                        await checkFirstFold(page,width,firstFold);
+                    const finalUrl=new URL(page.url());
+                    if(firstFold&&finalUrl.hash===firstFold.anchor)finalUrl.hash='';
+                    evidence.push({width,proof:{...proof,offline:other.length===0&&finalUrl.href===document}});
                 }finally{page.off('request',log);}
             }
             process.stdout.write(JSON.stringify({evidence}));

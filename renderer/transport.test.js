@@ -26,7 +26,7 @@ test('renderer authenticates every job before parsing or running Chromium', asyn
     let launches = 0;
     const url = await serve(t, async () => { launches++; return []; });
     const routes = ['render','inspect','compare','crop','check-tabs','check-scroll-strips','check-disclosures',
-        'check-image-strip','check-reveal-cards','check-rooms','check-compact-booking','check-header','check-offer'];
+        'check-image-strip','check-reveal-cards','check-rooms','check-compact-booking','check-header','check-offer','check-first-fold'];
     for (const path of routes) {
         for (const headers of [{}, {'x-syndamorph-renderer-token': 'x'.repeat(token.length)}]) {
             const refused = await fetch(url + '/' + path, { method: 'POST', headers, body: 'not JSON' });
@@ -106,6 +106,24 @@ test('Desktop Offer requires its pinned state only on the observed desktop viewp
     assert.equal((await post([375],'/9j/')).status,400);
     assert.equal(launches,0);
     assert.equal((await post([1023,375],null)).status,200);
+    assert.equal(launches,1);
+});
+
+test('first-fold replay requires exact frame extents and a local anchor before launching Chromium', async t => {
+    let launches=0;
+    const url=await serve(t,async (_html,widths)=>{launches++;return widths.map(width=>({width}));});
+    const frame=(top,extent)=>({image:'/9j/aaaa',top,extent});
+    const frames={1440:{fold:frame(0,900),hero:frame(141,760),pair:frame(141,1352)}};
+    const post=(values={})=>fetch(url+'/check-first-fold',{method:'POST',headers:auth,
+        body:JSON.stringify({html:'<section>First fold</section>',runtime:'void 0;',viewports:[1440,1024],
+            frames,title:'Recorded title',copy:{desktop:'Hero',compact:'Recorded title',intro:'Recorded title'},
+            anchor:'#rooms',...values})});
+    assert.equal((await post({frames:{}})).status,400);
+    assert.equal((await post({frames:{1440:{...frames[1440],pair:frame(140,1352)}}})).status,400);
+    assert.equal((await post({anchor:'https://example.invalid/#rooms'})).status,400);
+    assert.equal((await post({viewports:[1440,768]})).status,400);
+    assert.equal(launches,0);
+    assert.equal((await post()).status,200);
     assert.equal(launches,1);
 });
 

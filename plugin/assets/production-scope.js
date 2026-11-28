@@ -208,6 +208,23 @@
                     if (!row.patternId) await finishRegion(row.id);
                 }));
             }
+            if (manifest.mode==='page' && row.settledPair?.regions?.adjacent) {
+                const partner=row.settledPair.regions.adjacent.region;
+                if (manifest.regions[partner]?.sourceCopyPlacement && ['blocked','uncompleted'].includes(row.status)) {
+                    const input=node('input');
+                    input.type='number'; input.min='1'; input.step='1';
+                    const label=node('label','Retained WordPress draft ID ');
+                    label.append(input);
+                    entry.append(label,button('Verify and save the retained hero and intro',async()=>{
+                        const draftId=Number(input.value);
+                        if (!Number.isSafeInteger(draftId)||draftId<1) throw new Error('Enter the ID of the retained draft.');
+                        manifest=await request(url(),{action:'stage_first_fold',region:row.id,draftId});
+                        for (const id of [row.id,partner]) {
+                            if (!manifest.regions[id].patternId) await finishRegion(id);
+                        }
+                    }));
+                }
+            }
             if (row.checkpointAvailable) entry.append(button('Recheck browser', () => recheck(row)));
             if (checkpoint && manifest.costBounded &&
                 Number(manifest.spentUsd) + Number(manifest.unmeteredReserveUsd) < budget() * 0.8) {
@@ -261,7 +278,7 @@
         if (!candidate.eligible) throw new Error('This section is still pending source or production QA.');
         if (candidate.assetKind || candidate.verifiedLayout) {
             const count = window.SyndaMorphAIExport.validateNative(candidate.content, 200,
-                ['recordedHeader','desktopOffer'].includes(candidate.verifiedLayout));
+                ['recordedHeader','desktopOffer','firstFold'].includes(candidate.verifiedLayout));
             manifest = await request(url(), {action:'save_pattern',region:id,checksum:candidate.checksum,blockCount:count,valid:true});
             return;
         }
