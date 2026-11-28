@@ -11,6 +11,7 @@ require_once __DIR__.'/production-compact.php';
 require_once __DIR__.'/production-scope-header.php';
 require_once __DIR__.'/production-scope-offer.php';
 require_once __DIR__.'/production-scope-first-fold.php';
+require_once __DIR__.'/production-footer.php';
 require_once __DIR__.'/production-tabs.php';
 require_once __DIR__.'/production-responsive.php';
 
@@ -251,6 +252,16 @@ function syndamorph_scope_status(array $manifest): array {
     $manifest['unmeteredReserveUsd']=0.0;
     $manifest['outputTokens']=0;
     foreach($manifest['regions'] as &$region) {
+        if(($region['kind']??null)==='footer'&&!empty($manifest['referenceArchive']['runtimeSha256'])){
+            $source=syndamorph_scope_checkpoint($manifest['id'],$region['checkpoint']);
+            $region['footerReplayAvailable']=$source!==null&&syndamorph_footer_profile($source)!==null;
+        }
+        if(isset($region['footerSourceEvent'])&&empty(syndamorph_footer_candidate($manifest,$region)['eligible'])){
+            $region['issue']='The recorded footer needs complete source and browser QA.';
+            $region['status']=empty($region['patternId'])?'blocked':'uncompleted';
+            $manifest['status']='uncompleted';
+            if(!empty($manifest['page']['allRegions']))$manifest['page']['qa']=array('passed'=>false,'reason'=>$region['issue']);
+        }
         if(isset($region['firstFoldEvent'])&&!syndamorph_scope_first_fold_record($manifest,$region)){
             $region['issue']='The retained hero and intro need fresh combined QA.';
             $region['status']=empty($region['patternId'])?'blocked':'uncompleted';
@@ -1048,6 +1059,7 @@ function syndamorph_scope_candidate(array $manifest,string $key): ?array {
     if($manifest['mode']==='section'&&$manifest['selected']!==$key)return null;
     $region=$manifest['regions'][$key]??null;
     if(isset($region['firstFoldEvent']))return syndamorph_scope_first_fold_candidate($manifest,$region);
+    if(isset($region['footerSourceEvent']))return syndamorph_footer_candidate($manifest,$region);
     if(isset($region['recordedHeaderSourceEvent']))return syndamorph_scope_header_candidate($manifest,$region);
     if(isset($region['desktopOfferSourceEvent']))return syndamorph_scope_offer_candidate($manifest,$region);
     $compact=$region?syndamorph_scope_compact_kind($region):null;
@@ -1133,6 +1145,7 @@ function syndamorph_scope_save_pattern(array $manifest,string $key,?array $image
             'recordedHeader'=>syndamorph_scope_header_quality(syndamorph_scope_header_receipt($manifest,$region),$candidate['content']),
             'desktopOffer'=>syndamorph_scope_offer_quality(syndamorph_scope_offer_receipt($manifest,$region),$candidate['content']),
             'firstFold'=>syndamorph_scope_first_fold_save_quality($manifest,$region),
+            'recordedFooter'=>syndamorph_footer_quality(syndamorph_footer_receipt($manifest,$region),$candidate['content']),
             'compactGuarantee'=>syndamorph_compact_quality($region['compactGuaranteeEvidence'],$candidate['content'],'guarantee'),
             'compactBooking'=>syndamorph_compact_quality($region['compactBookingEvidence'],$candidate['content'],'booking'),
             'revealLayout'=>syndamorph_reveal_layout_quality($source,$region['revealEvidence'],$candidate['content']),
@@ -1146,6 +1159,7 @@ function syndamorph_scope_save_pattern(array $manifest,string $key,?array $image
             'recordedHeader'=>'recorded_header_editor',
             'desktopOffer'=>'desktop_offer_editor',
             'firstFold'=>'first_fold_editor',
+            'recordedFooter'=>'recorded_footer_editor',
             'revealLayout'=>'source_reveal_editor_verified','rooms'=>'source_rooms_editor_verified','linkedEditorial'=>'source_linked_editor_verified',
             default=>'source_image_editor_verified'};
         syndamorph_history_append($manifest['id'],$event,array(
@@ -1592,6 +1606,7 @@ function syndamorph_scope_document(string $content,string $title,bool $includeRu
     $runtime=str_contains($body,'data-sm-room-photo=')?'<script defer src="'.esc_url(add_query_arg('ver',syndamorph_rooms_fingerprint(),
         plugins_url('assets/production-rooms-view.js',dirname(__DIR__).'/syndamorph.php'))).'"></script>':'';
     $types=array_column($blocks,'blockName');
+    $footer=in_array('sm-recorded-footer',array_column(array_column($blocks,'attrs'),'className'),true);
     $tags=new WP_HTML_Tag_Processor($body);
     $scripts=array(
         'production-header-view.js'=>in_array('syndamorph/recorded-header',$types,true),
@@ -1608,7 +1623,7 @@ function syndamorph_scope_document(string $content,string $title,bool $includeRu
     }
     return '<!doctype html><html lang="'.esc_attr(get_bloginfo('language')).'"><head><meta charset="utf-8">'.
         '<meta name="viewport" content="width=device-width,initial-scale=1"><title>'.esc_html($title).'</title>'.
-        '<style>'.syndamorph_native_visibility_css().'</style></head>'.
+        '<style>'.syndamorph_native_visibility_css().($footer?syndamorph_footer_css():'').'</style></head>'.
         '<body><main id="syndamorph-page">'.$body.'</main>'.($includeRuntime?$runtime:'').'</body></html>';
 }
 
@@ -1669,6 +1684,8 @@ function syndamorph_scope_assemble(array $manifest) {
     $placement=array();$content=array();
     foreach($manifest['regions'] as $id=>$region) {
         if(empty($region['patternId']))continue;
+        if(isset($region['footerSourceEvent'])&&empty(syndamorph_footer_candidate($manifest,$region)['eligible']))
+            return syndamorph_scope_error('footer_source','The saved footer requires current source QA.');
         if(isset($region['firstFoldEvent'])){
             $pair=syndamorph_scope_first_fold_record($manifest,$region);
             if(!$pair)return syndamorph_scope_error('first_fold_source','The saved hero and intro need fresh combined QA.');
@@ -1846,7 +1863,7 @@ add_action('rest_api_init',static function():void {
         }),
         array('methods'=>'POST','permission_callback'=>$permission,'callback'=>static function(WP_REST_Request $request) {
             $action=$request->get_param('action');
-            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_copy_placement','verify_settled_pair','verify_image','stage_image_strip','stage_linked_editorial','stage_reveal_layout','stage_rooms','stage_compact_guarantee','stage_compact_booking','stage_recorded_header','stage_desktop_offer','stage_first_fold','assemble','verify_page'),true))
+            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_copy_placement','verify_settled_pair','verify_image','stage_image_strip','stage_linked_editorial','stage_reveal_layout','stage_rooms','stage_compact_guarantee','stage_compact_booking','stage_recorded_header','stage_desktop_offer','stage_first_fold','stage_recorded_footer','assemble','verify_page'),true))
                 return syndamorph_scope_error('action','Invalid scope action.',400);
             return syndamorph_scope_locked(static function()use($request,$action){
                 $manifest=syndamorph_history_latest((int)$request['id'],'scope_manifest');
@@ -1921,6 +1938,7 @@ add_action('rest_api_init',static function():void {
                         case 'stage_compact_booking': return syndamorph_scope_stage_compact($manifest,$region,'booking');
                         case 'stage_recorded_header': return syndamorph_scope_stage_header($manifest,$region);
                         case 'stage_desktop_offer': return syndamorph_scope_stage_offer($manifest,$region);
+                        case 'stage_recorded_footer': return syndamorph_stage_footer($manifest,$region);
                         case 'stage_first_fold':
                             $draftId=filter_var($request->get_param('draftId'),FILTER_VALIDATE_INT,array('options'=>array('min_range'=>1)));
                             if($draftId===false)return syndamorph_scope_error('first_fold_draft','Enter the ID of the retained draft.',400);

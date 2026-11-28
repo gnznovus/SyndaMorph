@@ -119,7 +119,7 @@ if(function_exists('add_action')){
         return $tags->get_updated_html();
     },10,2);
     add_filter('render_block_core/image',static function(string $html,array $block):string {
-        if(!in_array($block['attrs']['className']??null,array('sm-source-strip-image','sm-source-linked-image','sm-source-compact-badge'),true))return $html;
+        if(!in_array($block['attrs']['className']??null,array('sm-source-strip-image','sm-source-linked-image','sm-source-compact-badge','sm-source-footer-logo'),true))return $html;
         $id=$block['attrs']['id']??null;
         $hash=is_int($id)?get_post_meta($id,'_syndamorph_source_strip_sha256',true):null;
         $tags=new WP_HTML_Tag_Processor($html);

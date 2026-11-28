@@ -6,6 +6,7 @@ const axe = require('axe-core');
 const { checkHeader } = require('./check-header');
 const { checkOffer } = require('./check-offer');
 const { checkFirstFold } = require('./check-first-fold');
+const { checkFooter } = require('./check-footer');
 const { HEIGHT, MAX_JPEG, MAX_METADATA, DEFAULT_VIEWPORTS, RendererError } = require('./inspection-contract');
 
 async function waitForInstalledFonts(page) {
@@ -424,7 +425,7 @@ process.stdin.on('end', async () => {
     const evidence = [];
     try {
         const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, disclosures, imageStrip, revealCards, roomsRuntime,
-            compactBooking, header, offer, firstFold, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
+            compactBooking, header, offer, firstFold, footer, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
             headless: true, timeout: 10000,
             // Synthetic fixtures are fulfilled by Playwright. Other Chromium
@@ -448,6 +449,26 @@ process.stdin.on('end', async () => {
         const page = await context.newPage();
         page.on('crash', () => { crashed = true; });
         page.on('popup', (popup) => popup.close().catch(() => {}));
+        if(footer){
+            const fixture='https://functional.invalid/footer';
+            await page.route(fixture,route=>route.fulfill({contentType:'text/html;charset=utf-8',
+                headers:{'content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'"},
+                body:html}));
+            for(const width of viewports){
+                const other=[];
+                const log=request=>{if(request.url()!==fixture)other.push(true);};
+                page.on('request',log);
+                try {
+                    await page.setViewportSize({width,height:HEIGHT});
+                    await page.goto(fixture,{waitUntil:'load',timeout:5000});
+                    await waitForInstalledFonts(page);
+                    const proof=await checkFooter(page,width,footer.frames[width],sourceFrameScreenshot);
+                    evidence.push({width,proof:{...proof,offline:other.length===0&&page.url()===fixture}});
+                }finally{page.off('request',log);}
+            }
+            process.stdout.write(JSON.stringify({evidence}));
+            return;
+        }
         if(header||offer||firstFold){
             const fixture='https://functional.invalid/';
             const name=header?'header':offer?'offer':'first-fold';

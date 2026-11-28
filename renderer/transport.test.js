@@ -26,7 +26,7 @@ test('renderer authenticates every job before parsing or running Chromium', asyn
     let launches = 0;
     const url = await serve(t, async () => { launches++; return []; });
     const routes = ['render','inspect','compare','crop','check-tabs','check-scroll-strips','check-disclosures',
-        'check-image-strip','check-reveal-cards','check-rooms','check-compact-booking','check-header','check-offer','check-first-fold'];
+        'check-image-strip','check-reveal-cards','check-rooms','check-compact-booking','check-header','check-offer','check-first-fold','check-footer'];
     for (const path of routes) {
         for (const headers of [{}, {'x-syndamorph-renderer-token': 'x'.repeat(token.length)}]) {
             const refused = await fetch(url + '/' + path, { method: 'POST', headers, body: 'not JSON' });
@@ -124,6 +124,20 @@ test('first-fold replay requires exact frame extents and a local anchor before l
     assert.equal((await post({viewports:[1440,768]})).status,400);
     assert.equal(launches,0);
     assert.equal((await post()).status,200);
+    assert.equal(launches,1);
+});
+
+test('footer inspection rejects absent, extra and unbounded pinned frames', async t => {
+    let launches=0;
+    const url=await serve(t,async (_html,widths)=>{launches++;return widths.map(width=>({width}));});
+    const frame={top:8191.1875,extent:616,image:'/9j/aaaa'};
+    const post=frames=>fetch(url+'/check-footer',{method:'POST',headers:auth,
+        body:JSON.stringify({html:'<footer>Footer fixture</footer>',viewports:[1024,375],frames})});
+    assert.equal((await post({})).status,400);
+    assert.equal((await post({375:{...frame,extent:901}})).status,400);
+    assert.equal((await post({375:frame,1024:frame})).status,400);
+    assert.equal(launches,0);
+    assert.equal((await post({375:frame})).status,200);
     assert.equal(launches,1);
 });
 

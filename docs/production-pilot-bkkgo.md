@@ -203,6 +203,16 @@ History event 25754 binds the two candidates to the original archive. Private un
 
 The separate Pattern edit copies, drafts 240 and 242, retained valid editable blocks through save, reload and restoration. Gutenberg reserialized each copy. Their exact post-edit bytes passed the same independent renderer checks, recorded with the placement in History event 25763. REF-000030 now has 14 of 16 verified placements. Newsletter, footer and whole-page QA remain pending. No model calls were made.
 
+### v0.12.65 source-bound footer placement
+
+Production Setup reproduced the three original crops from checkpoint 12147. History event 25765 binds the original PNG logo bytes, ordered copy, and nine recorded HTTPS destinations. All five desktop `#` anchors scrolled to the document start without changing the footer or issuing a network request. The four compact plus labels stayed inert. The editable footer uses full-width core Groups, Paragraphs and Images.
+
+Independent QA event 25767 reports 0% differing pixels at 1440, 768 and 375 px under the existing visual comparison. The assembled footer matched the archived width and height at all ten sampled viewports, including the 1280 px desktop minimum. Chromium rejected anonymous and unknown-width replay requests, and a changed pinned crop remained pending. Renderer transport tests rejected missing, extra and out-of-range source frames.
+
+Private unsynced Pattern 249 was placed last in the original draft. Production Setup retained the exact identities and checksums of the fourteen previous placements. Draft 66 has 500 valid Gutenberg blocks and SHA-256 `c23fb62c77dcd71b0954195ba828b0edb1479ded5825ecbcc0196906ac6469dc`. Draft 250 passed edit, save, reload and restoration. Gutenberg reserialized it, and its exact saved bytes repeated the original visual and functional results. History event 25774 records the placement and post-edit QA.
+
+Newsletter source replay event 25769 verified all ten country choices and restored the original desktop selection. The other newsletter labels stayed inert at all required widths, and the archive exposed no form or submission endpoint. Newsletter conversion and whole-page QA remain pending. No model calls were made.
+
 History event 23342 binds draft 184 and its saved content SHA-256 `ed7bda9ee638f5b7850c01c87246a01efc2c7bb1bc93529c2368debbda2caa6e` to the native test. Event 23343 records compact source evidence against checkpoints 12136 and 12137.
 
 ### SIP & DINE alignment checkpoint, v0.12.42

@@ -208,6 +208,12 @@
                     if (!row.patternId) await finishRegion(row.id);
                 }));
             }
+            if (row.footerReplayAvailable && ['blocked','uncompleted'].includes(row.status)) {
+                entry.append(button('Verify archived footer',async()=>{
+                    manifest=await request(url(),{action:'stage_recorded_footer',region:row.id});
+                    if(!row.patternId)await finishRegion(row.id);
+                }));
+            }
             if (manifest.mode==='page' && row.settledPair?.regions?.adjacent) {
                 const partner=row.settledPair.regions.adjacent.region;
                 if (manifest.regions[partner]?.sourceCopyPlacement && ['blocked','uncompleted'].includes(row.status)) {

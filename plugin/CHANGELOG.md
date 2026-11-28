@@ -6,6 +6,17 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.65] - 2026-11-28
+
+### Added
+
+- Production Setup can replay the recorded footer at all three required widths. It binds the original logo, ordered copy and nine source destinations to an editable, full-width Gutenberg Pattern.
+- Independent browser QA checks the five recorded desktop scroll-to-top links and the four inert compact plus labels. The source crops matched at all three required widths, with ten native responsive checks.
+
+### Verified
+
+- REF-000030 now places 15 of 16 regions in its original unpublished draft with 500 verified Gutenberg blocks. The footer passed edit, save and reload plus independent QA on the exact post-edit copy. Newsletter and whole-page QA remain pending.
+
 ## [0.12.64] - 2026-11-28
 
 ### Added

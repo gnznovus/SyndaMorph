@@ -63,7 +63,7 @@ function syndamorph_internal_route_allowed( string $service, string $method, str
             'POST' => array( '/capture', '/production-source', '/production-touch', '/purr/communication-poc' ) ),
         'renderer' => array( 'GET' => array( '/healthz' ), 'POST' => array( '/render', '/inspect', '/compare', '/crop',
             '/check-tabs', '/check-scroll-strips', '/check-disclosures', '/check-image-strip', '/check-reveal-cards', '/check-rooms',
-            '/check-compact-booking', '/check-header', '/check-offer', '/check-first-fold' ) ),
+            '/check-compact-booking', '/check-header', '/check-offer', '/check-first-fold', '/check-footer' ) ),
         'gateway' => array( 'GET' => array( '/admin/v1/healthz', '/admin/v1/overview' ), 'POST' => array( '/admin/v1/customers' ) ),
     );
     if ( in_array( $path, $routes[ $service ][ $method ] ?? array(), true ) ) { return true; }
