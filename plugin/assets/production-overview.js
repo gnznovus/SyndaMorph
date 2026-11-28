@@ -21,6 +21,18 @@
         if (target) target.textContent = value;
     }
 
+    // Show exactly three complete rows; their heights vary with wrapped titles.
+    function sizeActivity() {
+        const container = $('sm-overview-jobs');
+        const rows = [...container.querySelectorAll('.sm-overview-job')];
+        container.style.maxHeight = 'none';
+        if (rows.length <= 3) return;
+        const css = getComputedStyle(container);
+        const inset = parseFloat(css.paddingTop) + parseFloat(css.paddingBottom);
+        const height = rows.slice(0, 3).reduce((sum, row) => sum + row.getBoundingClientRect().height, inset);
+        container.style.maxHeight = Math.ceil(height) + 'px';
+    }
+
     function activity(jobs) {
         const container = $('sm-overview-jobs');
         container.replaceChildren();
@@ -28,7 +40,7 @@
             container.append(element('p', 'No archived jobs in this period.', 'sm-overview-empty'));
             return;
         }
-        for (const job of jobs.slice(0, 5)) {
+        for (const job of jobs) {
             const row = element('div', undefined, 'sm-overview-job');
             const information = element('div', undefined, 'sm-overview-job-info');
             const title = element('a', job.jobId + ' · ' + job.title, 'sm-overview-job-id');
@@ -41,6 +53,8 @@
             row.append(information, pill);
             container.append(row);
         }
+        container.scrollTop = 0;
+        requestAnimationFrame(sizeActivity);
     }
 
     async function load() {
@@ -80,5 +94,6 @@
             void load();
         });
     }
+    window.addEventListener('resize', () => requestAnimationFrame(sizeActivity));
     void load();
 })();
