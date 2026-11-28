@@ -105,4 +105,18 @@ function cropScreenshots(items) {
     if(!Array.isArray(items)||items.length<1||items.length>4)throw Error('Expected one to four crops.');
     return items.map(item=>({media_type:'image/jpeg',data:cropScreenshot(item,item.rect)}));
 }
-module.exports={compareScreenshots,cropScreenshots,validViewports};
+/** Compare an exact header state crop. Small flyouts have no viewport-width identity of their own. */
+function compareHeaderImage(reference,native,width,height) {
+    const a=decode({screenshot:reference}),b=decode({screenshot:native});
+    if(a.width!==width||a.height!==height||b.width!==width||b.height!==height)
+        throw new Error('Header crop dimensions mismatch.');
+    let changed=0,total=0;
+    for(let index=0;index<a.data.length;index+=16){
+        const sum=Math.abs(a.data[index]-b.data[index])+Math.abs(a.data[index+1]-b.data[index+1])+
+            Math.abs(a.data[index+2]-b.data[index+2]);
+        if(sum>72)changed++;
+        total++;
+    }
+    return Number((changed/total).toFixed(5));
+}
+module.exports={compareScreenshots,cropScreenshots,compareHeaderImage,validViewports};

@@ -6,13 +6,14 @@ const { createHash, timingSafeEqual } = require('node:crypto');
 const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { compareScreenshots, cropScreenshots } = require('./compare');
+const { validHeaderFrames } = require('./check-header');
 const { PROTOCOL, DEFAULT_VIEWPORTS, MAX_RESPONSE, MAX_COMPARE_REQUEST,
     MAX_SCREENSHOT, RendererError, validViewports } = require('./inspection-contract');
 
 const MAX_HTML = 2 * 1024 * 1024;
 const MAX_JSON_REQUEST = MAX_HTML + 1024;
 const INSPECT_TIMEOUT = 60000;
-const build = ['server.js', 'render-worker.js', 'compare.js', 'inspection-contract.js', 'package.json']
+const build = ['server.js', 'render-worker.js', 'compare.js', 'check-header.js', 'inspection-contract.js', 'package.json']
     .reduce((hash, file) => hash.update(readFileSync(join(__dirname, file))).update('\0'), createHash('sha256')).digest('hex');
 const diagnostic = { service: 'syndamorph-renderer', inspectionProtocol: PROTOCOL, build,
     maxResponseBytes: MAX_RESPONSE, maxScreenshotBytes: MAX_SCREENSHOT };
@@ -90,7 +91,7 @@ function runBrowserWorker(html, viewports, signal, options = {}) {
         });
         child.stdin.on('error', () => {});
         child.stdin.end(JSON.stringify({ html, inspect, viewports, extent:options.extent,sourceFrames:options.sourceFrames,
-            compactBooking:options.compactBooking,
+            compactBooking:options.compactBooking,header:options.header,
             tabsRuntime:options.tabsRuntime,scrollStrips:options.scrollStrips,disclosures:options.disclosures,imageStrip:options.imageStrip,
             revealCards:options.revealCards,roomsRuntime:options.roomsRuntime }));
     });
@@ -144,7 +145,7 @@ function createRendererServer(render = runBrowserWorker, token = process.env.SYN
             if (req.headers['x-syndamorph-renderer-token'] === undefined) return reply(200, { status: 'ok' }, false);
             return authenticated(req) ? reply(200, diagnostic) : reply(401, { error: 'unauthorized' }, false);
         }
-        if (req.method !== 'POST' || !['/render','/inspect','/compare','/crop','/check-tabs','/check-scroll-strips','/check-disclosures','/check-image-strip','/check-reveal-cards','/check-rooms','/check-compact-booking'].includes(req.url))
+        if (req.method !== 'POST' || !['/render','/inspect','/compare','/crop','/check-tabs','/check-scroll-strips','/check-disclosures','/check-image-strip','/check-reveal-cards','/check-rooms','/check-compact-booking','/check-header'].includes(req.url))
             return reply(404, { error: 'not_found' }, authenticated(req));
         if (!authenticated(req)) return reply(401, { error: 'unauthorized' }, false);
         if (busy) {
@@ -184,6 +185,12 @@ function createRendererServer(render = runBrowserWorker, token = process.env.SYN
                 return reply(200,{evidence:await render(body.html,viewports,controller.signal,{revealCards:true})});
             if(req.url==='/check-compact-booking')
                 return reply(200,{evidence:await render(body.html,viewports,controller.signal,{compactBooking:true})});
+            if(req.url==='/check-header'){
+                if(typeof body.runtime!=='string'||!body.runtime||Buffer.byteLength(body.runtime)>16384||
+                    !validHeaderFrames(body.frames,viewports))throw new RendererError('invalid_html',400);
+                return reply(200,{evidence:await render(body.html,viewports,controller.signal,
+                    {header:{frames:body.frames,runtime:body.runtime}})});
+            }
             if(req.url==='/check-rooms'){
                 if(typeof body.runtime!=='string'||!body.runtime||Buffer.byteLength(body.runtime)>16384)
                     throw new RendererError('invalid_html',400);

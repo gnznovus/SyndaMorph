@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.61] - 2026-11-28
+
+### Added
+
+- Production Setup can recover the recorded site header from the sealed archive, import the verified original logo, and check the native header through a dedicated authenticated renderer route. A private Pattern requires matching visual, responsive, functional, and Gutenberg evidence.
+
+### Verified
+
+- REF-000030 saved the header as a private unsynced Pattern and placed it first in the original unpublished draft. The draft has 422 editor-verified blocks across 11 of 16 accepted regions. Closed crops differed by 0.097%, 0.043%, and 0.015%, and all six desktop menu panels and both compact drawers recorded 0% differing pixels. Whole-page QA remains pending. No model calls were made.
+
 ## [0.12.60] - 2026-11-28
 
 ### Fixed

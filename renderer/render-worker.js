@@ -3,6 +3,7 @@
 const { chromium } = require('playwright');
 const { createHash } = require('node:crypto');
 const axe = require('axe-core');
+const { checkHeader } = require('./check-header');
 const { HEIGHT, MAX_JPEG, MAX_METADATA, DEFAULT_VIEWPORTS, RendererError } = require('./inspection-contract');
 
 async function waitForInstalledFonts(page) {
@@ -421,7 +422,7 @@ process.stdin.on('end', async () => {
     const evidence = [];
     try {
         const { html, inspect, extent, sourceFrames, tabsRuntime, scrollStrips, disclosures, imageStrip, revealCards, roomsRuntime,
-            compactBooking, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
+            compactBooking, header, viewports = DEFAULT_VIEWPORTS } = JSON.parse(Buffer.concat(input).toString('utf8'));
         browser = await chromium.launch({
             headless: true, timeout: 10000,
             // Synthetic fixtures are fulfilled by Playwright. Other Chromium
@@ -433,7 +434,7 @@ process.stdin.on('end', async () => {
             ],
         });
         const context = await browser.newContext({
-            javaScriptEnabled: !inspect || Boolean(tabsRuntime || roomsRuntime),
+            javaScriptEnabled: !inspect || Boolean(tabsRuntime || roomsRuntime || header),
             serviceWorkers: 'block',
             acceptDownloads: false,
         });
@@ -444,6 +445,28 @@ process.stdin.on('end', async () => {
         const page = await context.newPage();
         page.on('crash', () => { crashed = true; });
         page.on('popup', (popup) => popup.close().catch(() => {}));
+        if(header){
+            const fixture='https://functional.invalid/';
+            await page.route(fixture+'header',route=>route.fulfill({contentType:'text/html;charset=utf-8',
+                headers:{'content-security-policy':"default-src 'none'; script-src https://functional.invalid/header.js; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'"},
+                body:'<!doctype html><meta name="viewport" content="width=device-width, initial-scale=1">'+html+
+                    '<style>html,body{margin:0;min-height:3900px}</style><script src="/header.js"></script>'}));
+            await page.route(fixture+'header.js',route=>route.fulfill({contentType:'application/javascript',body:header.runtime}));
+            for(const width of viewports){
+                await page.setViewportSize({width,height:HEIGHT});
+                const other=[];
+                const log=request=>{if(![fixture+'header',fixture+'header.js'].includes(request.url()))other.push(true);};
+                page.on('request',log);
+                try{
+                    await page.goto(fixture+'header',{waitUntil:'domcontentloaded',timeout:5000});
+                    await waitForInstalledFonts(page);
+                    const proof=await checkHeader(page,width,header.frames[width]);
+                    evidence.push({width,proof:{...proof,offline:other.length===0&&page.url()===fixture+'header'}});
+                }finally{page.off('request',log);}
+            }
+            process.stdout.write(JSON.stringify({evidence}));
+            return;
+        }
         if(compactBooking){
             for(const width of viewports){
                 await page.setViewportSize({width,height:HEIGHT});

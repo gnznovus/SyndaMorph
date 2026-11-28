@@ -8,7 +8,7 @@ Playwright Chromium waited for rendered visible content and document fonts at 14
 
 | Logical scope | 1440 px | 768 and 375 px | Pilot outcome |
 | --- | --- | --- | --- |
-| Navigation | Site header with navigation and rate CTA | Compact header with Book and menu | Discovery only. Preserve navigation destinations and menu behavior. |
+| Navigation | Site header with navigation and rate CTA | Compact header with Book and menu | Verified private Recorded Header Pattern with the pinned logo, measured menu states and original destinations. |
 | Hero and booking | Hotel hero with an overlapping booking bar | Hero with booking controls, a Best Rate Guarantee panel and a sticky booking bar | Discovery only. Booking needs action, state and responsive-placement verification. |
 | Offer overlay | Separate SPECIAL OFFER overlay | Absent in captured initial state | Dismissal verified in Chromium. It needs its own lifecycle and accessibility checks. |
 | Introductory story | Live Thonglor's rhythm ? | Headline moves into the hero and the separate prose is absent | Discovery only. Responsive copy varies by template. |
@@ -78,8 +78,8 @@ The pinned capture `c490c16d37152c757857d9d41267a758ee94bfcf4fb0de5e443b378e4593
 
 - **Discovery** has browser screenshots and visible inventories for 12 of 16 regions at every required width. Four regions have a variant gap. Separate runtime observations are needed before claiming complete behavioral understanding of each interactive region.
 - **Conversion eligibility** is 3 of 16 with v0.12.18. The original preflight overlooked two scroll strips and the corrected v0.12.15 replay held both, leaving 1 of 16. The exact archived controls now qualify under the native scroll-strip contract. A run still requires recorded movement at every active width before Bossy planning.
-- **Current conversion eligibility** is 10 of 16 with v0.12.57. The compact guarantee qualifies through recorded desktop absence, exact compact crops and verified badge assets. The fixed booking strip adds recorded scroll and label behavior.
-- **Acceptance** is 10 of 16 as of v0.12.57. REF-000030 has verified the compact guarantee, compact booking strip, Our Story, Exclusive Offers, Rooms, SIP & DINE, Neighborhood, Through Our Lens, FAQ and brand strip at source positions 5, 6, 7, 8, 9, 10, 11, 12, 14 and 15. The unpublished partial draft has 421 editor-verified blocks. Whole-page acceptance remains pending.
+- **Current conversion eligibility** is 11 of 16 with v0.12.61. Verified archive replay now binds the site header and its native interaction, alongside the earlier compact guarantee and fixed booking strip.
+- **Acceptance** is 11 of 16 as of v0.12.61. REF-000030 has verified the site header, compact guarantee, compact booking strip, Our Story, Exclusive Offers, Rooms, SIP & DINE, Neighborhood, Through Our Lens, FAQ and brand strip. The original unpublished partial draft has 422 editor-verified blocks at source positions 1, 5, 6, 7, 8, 9, 10, 11, 12, 14 and 15. Whole-page acceptance remains pending.
 
 ### Responsive intro source checkpoint, v0.12.43
 
@@ -166,6 +166,14 @@ The Full Page block verifier accepts one top-level Recorded Header with a pinned
 Local unpublished draft 220 combines the retained BKKGO header with the ten already accepted regions in a separate copy of draft 66. All 422 blocks and the pinned logo survived a real Gutenberg edit, save, reload and restoration. Gutenberg rewrote some surrounding block markup, so visual and interaction checks ran again against the exact saved draft. History event 23370 binds that draft's SHA-256 `c150a09db397f27f9b746b8bcfa1a3acdb826aed7e5ecf23154be167accf41d7` to source checkpoint 12132.
 
 Closed header crops measured 0.097%, 0.043% and 0.015% differing pixels at 1440, 768 and 375 px. The header stayed at y=0 at scroll positions 0, 500, 1400 and 3000. Chromium exercised the desktop flyout and language panel and the compact drawer, including Escape and focus restoration, with zero external requests. Production binding and placement remain pending. REF-000030 retains its ten accepted placements. No model calls were made.
+
+### v0.12.61 Recorded Header production binding and placement
+
+Production Setup binds the sticky header to source checkpoint 12132 and verifies all three closed crops byte for byte. The archived compact drawer first loads the original checksum-verified PNG from recorded responses. After sealing the browser, opening and closing the drawer adds zero requests and preserves the source copy. Desktop replay records five flyouts and the language panel, their measured bounds, and 24 declared flyout destinations without following them. Placeholder locale entries remain display text. The native drawer preserves pointer dismissal and adds Escape and focus restoration.
+
+The authenticated renderer verified closed and open states, exact navigation and responsive geometry at eight widths. The closed crops measured 0.097%, 0.043% and 0.015% differing pixels at 1440, 768 and 375 px. All desktop panel crops and compact drawer screens measured 0% differing pixels. Changed source crops, missing state screenshots, unauthorized probes and an incorrect Gutenberg block count were rejected.
+
+History events 23376 and 23382 retain the recorded source and independent QA. Private unsynced Pattern 223 was saved and placed first in draft 66. Separate editor draft 224 returned to the exact Pattern bytes after edit, save, reload and restoration, recorded in event 23388. The original ten placements and their content hashes were preserved. Draft 66 has SHA-256 `8f51c6cf5f062c34a72e39ba6750c9773b964b4ed24e44bf5d0714a36c042b65` and 422 verified blocks. Hero, offer, relocated intro, newsletter and footer still need placement. Whole-page QA remains pending. No model calls were made.
 
 History event 23342 binds draft 184 and its saved content SHA-256 `ed7bda9ee638f5b7850c01c87246a01efc2c7bb1bc93529c2368debbda2caa6e` to the native test. Event 23343 records compact source evidence against checkpoints 12136 and 12137.
 

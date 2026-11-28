@@ -24,7 +24,7 @@
         if (!response.ok) throw new Error(result.message || 'Save failed (HTTP '+response.status+').');
         return result;
     }
-    function validateNative(content, limit = 200) {
+    function validateNative(content, limit = 200, recordedHeader = false) {
         const api=window.wp?.blocks;
         if (!api || typeof api.parse!=='function' || typeof api.getBlockType!=='function' || typeof api.validateBlock!=='function')
             throw new Error('WordPress block validation API unavailable. Cannot verify native Gutenberg content.');
@@ -38,20 +38,24 @@
         if(missing.length)throw new Error('Gutenberg registry incomplete: '+missing.join(', '));
         const parsed=api.parse(content);
         if (!Array.isArray(parsed) || !parsed.length) throw new Error('Gutenberg parser returned no native blocks.');
-        let count=0;
-        function visit(blocks) {
+        let count=0, seenHeader=false;
+        function visit(blocks, root = false) {
             for(const block of blocks) {
                 count++;
-                const supported = block?.name?.startsWith('core/') || block?.name === 'syndamorph/tabs';
+                const header=block?.name==='syndamorph/recorded-header';
+                const verifiedHeader=header&&recordedHeader&&root&&!seenHeader&&!block.innerBlocks?.length&&
+                    /^[a-f0-9]{64}$/.test(block.attributes?.logoSha256 ?? '');
+                const supported = block?.name?.startsWith('core/') || block?.name === 'syndamorph/tabs' || verifiedHeader;
                 if (count>limit || !supported || !api.getBlockType(block.name))
                     throw new Error('Unknown or unsupported Gutenberg block.');
+                if(verifiedHeader)seenHeader=true;
                 const check=api.validateBlock(block);
                 const valid=Array.isArray(check) ? check[0] === true : check?.isValid === true;
                 if(!valid || block.isValid===false) throw new Error('Gutenberg serialization invalid for '+block.name+' (block '+count+'). Inspect console for expected and actual save markup.');
                 if (block.innerBlocks?.length) visit(block.innerBlocks);
             }
         }
-        visit(parsed);
+        visit(parsed,true);
         return count;
     }
     function mount(parent, {html, artifact, identity, receipts=[]}) {

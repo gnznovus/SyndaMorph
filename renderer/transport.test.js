@@ -26,7 +26,7 @@ test('renderer authenticates every job before parsing or running Chromium', asyn
     let launches = 0;
     const url = await serve(t, async () => { launches++; return []; });
     const routes = ['render','inspect','compare','crop','check-tabs','check-scroll-strips','check-disclosures',
-        'check-image-strip','check-reveal-cards','check-rooms','check-compact-booking'];
+        'check-image-strip','check-reveal-cards','check-rooms','check-compact-booking','check-header'];
     for (const path of routes) {
         for (const headers of [{}, {'x-syndamorph-renderer-token': 'x'.repeat(token.length)}]) {
             const refused = await fetch(url + '/' + path, { method: 'POST', headers, body: 'not JSON' });
@@ -75,6 +75,26 @@ test('runtime handshake and viewport request validation happen before Chromium',
     const raw = await explicit.text();
     assert.equal(Buffer.byteLength(raw), Number(explicit.headers.get('content-length')));
     assert.deepEqual(JSON.parse(raw).evidence.map(item => item.width), [375,1680,820]);
+});
+
+test('Recorded Header rejects missing or mismatched source screenshots before launching Chromium', async t => {
+    let launches = 0;
+    const url = await serve(t, async (_html, widths) => {
+        launches++;
+        return widths.map(width => ({ width }));
+    });
+    const post = (viewports,frames) => fetch(url + '/check-header', {
+        method:'POST',headers:auth,body:JSON.stringify({html:'<header>Fixture</header>',runtime:'void 0;',viewports,frames}),
+    });
+    for(const [widths,frames] of [[[375],{}],[[375],{768:{closed:'AA==',open:'AA=='}}],
+        [[1440],{1440:{closed:'AA==',panels:[]}}]]){
+        const response=await post(widths,frames);
+        assert.equal(response.status,400);
+        assert.deepEqual(await response.json(),{error:'invalid_html'});
+    }
+    assert.equal(launches,0);
+    assert.equal((await post([1024,1023],{})).status,200);
+    assert.equal(launches,1);
 });
 
 test('concurrent inspection receives a bounded busy response and the slot is released', async t => {

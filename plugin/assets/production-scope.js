@@ -196,6 +196,12 @@
                     if (!row.patternId) await finishRegion(row.id);
                 }));
             }
+            if (row.recordedHeaderReplayAvailable && ['blocked','uncompleted'].includes(row.status)) {
+                entry.append(button('Verify archived site header', async () => {
+                    manifest = await request(url(), {action:'stage_recorded_header',region:row.id});
+                    if (!row.patternId) await finishRegion(row.id);
+                }));
+            }
             if (row.checkpointAvailable) entry.append(button('Recheck browser', () => recheck(row)));
             if (checkpoint && manifest.costBounded &&
                 Number(manifest.spentUsd) + Number(manifest.unmeteredReserveUsd) < budget() * 0.8) {
@@ -248,7 +254,7 @@
         const candidate = await request(url(), null, {region: id});
         if (!candidate.eligible) throw new Error('This section is still pending source or production QA.');
         if (candidate.assetKind || candidate.verifiedLayout) {
-            const count = window.SyndaMorphAIExport.validateNative(candidate.content);
+            const count = window.SyndaMorphAIExport.validateNative(candidate.content, 200, candidate.verifiedLayout === 'recordedHeader');
             manifest = await request(url(), {action:'save_pattern',region:id,checksum:candidate.checksum,blockCount:count,valid:true});
             return;
         }
@@ -284,7 +290,7 @@
         manifest = await request(url(), {action:'assemble'});
         render();
         const draft = await request(url(), null, {draft:'1'});
-        const count = window.SyndaMorphAIExport.validateNative(draft.content,7200);
+        const count = window.SyndaMorphAIExport.validateNative(draft.content,7200,true);
         manifest = await request(url(), {action:'verify_page',checksum:draft.checksum,blockCount:count,valid:true});
     }
     async function runRemaining() {

@@ -301,12 +301,24 @@ async function verifySectionWidths(page, sections) {
    let missingFontClassRejected=false;
    try{validate(gen9.replace(' has-custom-font-size',''));}catch(e){missingFontClassRejected=/serialization invalid/.test(e.message);}
    const tabBlocks=window.tabsPost?validate(window.tabsContent):0;
+   const scopeHeader=window.nativeScopeHeader;
+   const headerBlocks=scopeHeader?validate(scopeHeader,200,true):0;
+   let headerRejected=false,duplicateHeaderRejected=false;
+   if(scopeHeader){
+    try{validate(scopeHeader);}catch(e){headerRejected=/unsupported Gutenberg block/.test(e.message);}
+    try{validate(scopeHeader+'\n\n'+scopeHeader,200,true);}catch(e){duplicateHeaderRejected=/unsupported Gutenberg block/.test(e.message);}
+   }
    return {initial,count,registered,expected:a.blockCount,rejected,cases,missingFontClassRejected,tabBlocks,
     tabsPost:window.tabsPost,bookingPost:window.bookingPost,offerPost:window.offerPost,headerPost:window.headerPost,
-    scopeHeaderPost:window.scopeHeaderPost,sections:window.nativeAlignments};
+    scopeHeaderPost:window.scopeHeaderPost,headerBlocks,headerRejected,duplicateHeaderRejected,sections:window.nativeAlignments};
   });
   console.log({...result,sections:Object.keys(result.sections)});
-  assert.ok(result.initial<=1,'Only the custom tabs block should be registered before the native validator sets up core.');
+  assert.ok(result.initial<=2,'Only the custom tabs and header should be registered before the validator sets up core.');
+  if(result.scopeHeaderPost){
+   assert.equal(result.headerBlocks,4);
+   assert.equal(result.headerRejected,true);
+   assert.equal(result.duplicateHeaderRejected,true);
+  }
   assert.equal(result.count,result.expected);
   assert.ok(result.registered>=7);
   assert.ok(result.rejected,'Original inline gap defect must fail real Gutenberg validation');

@@ -4,6 +4,7 @@ const { timingSafeEqual } = require('node:crypto');
 const { capture, captureResponsive } = require('./capture');
 const { productionSource } = require('./production-source');
 const { captureOwnedRegion, captureSettledPair, captureCompactGuarantee, captureCompactBooking } = require('./responsive-capture');
+const { replayRecordedHeader } = require('./production-header');
 const { enabled: referenceEnabled,readReference,recordedPng } = require('./production-reference');
 const { validateTouchActions,inspectTouch,disclosureRef,inspectDisclosure,inspectImageStrip,inspectLinkedImage,inspectRevealCards,inspectRooms,inspectRelocatedCopy } = require('./production-touch');
 const { createAnalyzeHandler } = require('./mvp/endpoint');
@@ -52,10 +53,13 @@ http.createServer(async (req, res) => {
             const rooms=input.kind==='room-showcase';
             const relocation=input.kind==='responsive-copy-placement';
             const settledPair=input.kind==='settled-content-pair';
+            const header=input.kind==='recorded-header';
             const compactReplay={'compact-guarantee':captureCompactGuarantee,'compact-booking':captureCompactBooking};
             const compact=Object.hasOwn(compactReplay,input.kind)?compactReplay[input.kind]:null;
-            const scoped=disclosure||imageStrip||linkedImage||revealCards||rooms||relocation||settledPair||compact;
+            const scoped=disclosure||imageStrip||linkedImage||revealCards||rooms||relocation||settledPair||compact||header;
             if(scoped&&!disclosureRef(input.sourceRef))return respond(res,400,{error:'Invalid recorded region target.'});
+            if(header&&(![1440,768,375].includes(input.width)||typeof input.pinnedSha256!=='string'||
+                !/^[a-f0-9]{64}$/.test(input.pinnedSha256)))return respond(res,400,{error:'Invalid recorded header identity.'});
             if(compact&&(input.width===1440?input.pinnedSha256!==null:
                 ![768,375].includes(input.width)||typeof input.pinnedSha256!=='string'||!/^[a-f0-9]{64}$/.test(input.pinnedSha256)))
                 return respond(res,400,{error:'Invalid compact capture identity.'});
@@ -92,6 +96,8 @@ http.createServer(async (req, res) => {
                             overlayRef:input.overlayRef,dismissTargetId:input.dismissTargetId,
                             pinnedHeroSha256:input.pinnedHeroSha256,copySha256:pinned.copySha256,
                         },seal):
+                        header?replayRecordedHeader(page,_regions,_diagnostics,{width:input.width,sourceRef:input.sourceRef,
+                            pinnedSha256:input.pinnedSha256,reference:pinned},seal):
                         compact?compact(page,_regions,_diagnostics,{
                             width:input.width,sourceRef:input.sourceRef,copySha256:pinned.copySha256,pinnedSha256:input.pinnedSha256,
                         },seal):

@@ -243,6 +243,59 @@ test('owned region crops reproduce the composed image before hiding the adjacent
 
 const fixturePng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a1ioAAAAASUVORK5CYII=','base64');
 const fixtureImage='https://image-strip.invalid/brand.png';
+test('Recorded Header verifies the sealed drawer and refuses a mismatched pinned crop',{
+    skip:process.env.SYNDAMORPH_TEST_REFERENCE!=='1',timeout:30000,
+},async()=>{
+    const {replayRecordedHeader}=require('./production-header');
+    const width=375,sourceRef='div[id="header"]',sourceUrl='https://recorded-header.invalid/';
+    const browser=await chromium.launch();
+    try{
+        const page=await browser.newPage({viewport:{width,height:900}});
+        const hashes=value=>createHash('sha256').update(value).digest('hex');
+        const logoUrl=sourceUrl+'logo.png';
+        const image={status:200,headers:{'content-type':'image/png'},body:fixturePng};
+        const blocked=[];
+        let sealed=false;
+        const document='<style>body{margin:0;min-height:3900px}#header{position:sticky;top:0;height:72px;background:white}'+
+            '#drawer{position:fixed;inset:0;background:white}img{width:40px;height:40px}</style>'+
+            '<div id="header"><a href="/"><img src="/logo.png" alt="Logo"></a><span>Book</span>'+
+            '<span role="button" aria-label="Open menu">Menu</span></div><div id="drawer" hidden>'+
+            '<div><a href="/"><img src="/logo.png" alt="Logo"></a><span role="button" aria-label="Close menu">Close</span></div>'+
+            '<div><div><span>Rooms</span><span>+</span></div><div><span>All rooms</span></div>'+
+            '<div><a href="/story">Story</a></div></div>'+
+            '<div><div><span>EN</span><a href="#">Español</a></div><a href="/rates">Check Rate</a></div></div>'+
+            '<script>const drawer=document.querySelector("#drawer");'+
+            'document.querySelector("[aria-label=\'Open menu\']").onclick=()=>{drawer.hidden=false};'+
+            'document.querySelector("[aria-label=\'Close menu\']").onclick=()=>{drawer.hidden=true};</script>';
+        await page.route('**/*',route=>{
+            const url=route.request().url();
+            if(sealed){blocked.push(url);return route.abort();}
+            if(url===logoUrl)return route.fulfill(image);
+            if(url===sourceUrl)return route.fulfill({contentType:'text/html;charset=utf-8',body:document});
+            return route.abort();
+        });
+        await page.goto(sourceUrl);
+        const sections=[{kind:'content',geometryAvailable:true,sourceRef,bounds:{x:0,y:0,width,height:72}}];
+        const diagnostics={contentReady:true};
+        const pinned=await captureResponsiveViewport(page,sections,width,diagnostics);
+        const pinnedSha256=hashes(Buffer.from(pinned.sections[0].screenshot,'base64'));
+        const reference={sourceUrl,copySha256:hashes((await page.locator('body').innerText()).replace(/\s+/gu,' ').trim()),
+            runtime:new Map([['GET '+logoUrl,image]])};
+        const run=hash=>replayRecordedHeader(page,sections,diagnostics,
+            {width,sourceRef,pinnedSha256:hash,reference},()=>{sealed=true;return blocked;});
+        assert.equal((await run('0'.repeat(64))).reason,'pinned_crop_changed');
+        assert.equal(sealed,false);
+        const result=await run(pinnedSha256);
+        assert.equal(result.status,'observed',result.reason);
+        assert.equal(result.logo.sha256,hashes(fixturePng));
+        assert.deepEqual(result.navigation.compactPrimary,[{label:'Rooms',children:[{label:'All rooms'}]}]);
+        assert.deepEqual(result.navigation.compactUtility,[{label:'Story',href:sourceUrl+'story'}]);
+        assert.deepEqual(result.scrollPositions,[0,500,1400,3000]);
+        assert.equal(result.pointerCloses,true);
+        assert.equal(result.escapeCloses,false);
+        assert.deepEqual(blocked,[]);
+    }finally{await browser.close();}
+});
 test('recorded image lookup binds one PNG to its exact archive request',()=>{
     const response={status:200,headers:{'content-type':'image/png'},body:fixturePng};
     const responses=new Map([['GET '+fixtureImage,response]]);
