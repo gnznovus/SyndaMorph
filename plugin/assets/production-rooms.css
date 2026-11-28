@@ -31,7 +31,7 @@
 .sm-rooms-layout .sm-rooms-description { max-width: 720px; margin-top: 8px; font-size: 18px; line-height: 1.6; color: #333; text-wrap: pretty; }
 .sm-rooms-layout .sm-rooms-all { font-size: 16px; font-weight: 600; white-space: nowrap; }
 
-.sm-rooms-layout .sm-rooms-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 24px; align-items: start; }
+.sm-rooms-layout .sm-rooms-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 24px; }
 .sm-rooms-layout .sm-rooms-carousel {
     grid-column: 1 / span 7;
     aspect-ratio: 4 / 3;
@@ -96,7 +96,15 @@
 .sm-rooms-layout :is(button, [data-sm-room-category], .sm-rooms-strip):focus-visible { outline: 2px solid #111; outline-offset: 3px; }
 
 .sm-rooms-layout .sm-rooms-categories { grid-column: 8 / span 5; display: flex; flex-direction: column; border-top: 1px solid #d7d3d3; }
-.sm-rooms-layout .sm-rooms-category { display: flex; flex-direction: column; gap: 8px; padding: 20px 16px; border-bottom: 1px solid #d7d3d3; }
+.sm-rooms-layout .sm-rooms-category {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+    padding: 20px 16px;
+    border-bottom: 1px solid #d7d3d3;
+}
 .sm-rooms-layout .sm-rooms-category[data-sm-room-active="true"] { background: #f8f4f4; }
 .sm-rooms-layout .sm-rooms-category-header { display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
 .sm-rooms-layout .sm-rooms-row { display: flex; justify-content: space-between; align-items: baseline; }

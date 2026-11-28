@@ -261,6 +261,34 @@ if($host!==null){
     inspection_assert($blended['status']==='pending'&&$blended['checks']['contrast']['status']==='uncertain',
         'A translucent ancestor was silently treated as an opaque background.');
 }
+$roomRows='';
+foreach(array('Standard Rooms','Premium Rooms','One Bedroom Suite','Thonglor Suite') as $index=>$label){
+    $active=$index===0;
+    $roomRows.='<div class="sm-rooms-category" data-sm-room-active="'.($active?'true':'false').'">'.
+        '<div class="sm-rooms-category-header"><p class="sm-rooms-name">'.esc_html($label).'</p>'.
+        '<p class="sm-rooms-summary">Room details</p></div>'.
+        ($active?'<div class="sm-rooms-detail" style="min-height:160px"><p>Room size and beds</p></div>':'').'</div>';
+}
+$rooms='<style>'.syndamorph_rooms_asset('production-rooms.css').'</style>'.
+    '<section class="sm-rooms-layout"><div class="sm-rooms-grid"><div class="sm-rooms-carousel"></div>'.
+    '<div class="sm-rooms-categories">'.$roomRows.'</div></div></section>';
+$roomEvidence=inspection_require_result(syndamorph_collab_inspect($rooms,array(1920),$roomsBuild,'section'));
+$roomElements=$roomEvidence[0]['snapshot']['elements'];
+$byClass=static fn(string $class):array=>array_values(array_filter($roomElements,
+    static fn(array $element):bool=>in_array($class,$element['classes'],true)));
+$list=$byClass('sm-rooms-categories')[0]['rect'];
+$stage=$byClass('sm-rooms-carousel')[0]['rect'];
+$rows=$byClass('sm-rooms-category');
+$headers=$byClass('sm-rooms-category-header');
+$rowCount=count($rows);
+inspection_assert($rowCount===4&&count($headers)===$rowCount,'Rooms accordion evidence is incomplete.');
+$closed=$rows[1]['rect'];
+$header=$headers[1]['rect'];
+$topSpace=$header[1]-$closed[1];
+$bottomSpace=$closed[1]+$closed[3]-$header[1]-$header[3]-1;
+inspection_assert(abs($list[1]-$stage[1])<0.2&&abs($list[3]-$stage[3])<0.2&&
+    $closed[3]>130&&abs($topSpace-$bottomSpace)<0.3,
+    'The desktop Rooms accordion did not fill the carousel height and center its row content.');
 echo wp_json_encode(array('renderer'=>$ready,'responses'=>$responses,'heavyScreenshotBytes'=>$shots,
     'comparisonUploadBase64Bytes'=>2*array_sum($shots[0]),'phpPeakBytes'=>memory_get_peak_usage(true),
     'recoveryCases'=>array('reordered','missing','unrecoverable'),'verifiedInstalledFont'=>$testedFont)).PHP_EOL;

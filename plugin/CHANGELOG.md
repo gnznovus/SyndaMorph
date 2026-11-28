@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.71] - 2026-11-28
+
+### Fixed
+
+- The desktop Rooms accordion now fills the carousel height when the carousel is taller and centers the content in each row, matching the archived BKKGO layout on wide screens.
+
+### Verified
+
+- All four room selections matched the recorded desktop row geometry at 1920 px. Original draft 66 retained 501 blocks, all 16 placements, and passing Full Page visual and responsive QA.
+
 ## [0.12.70] - 2026-11-28
 
 ### Fixed

@@ -254,6 +254,12 @@ After the user approved the change, History event 25802 bound the fixed styleshe
 
 The authenticated preview fit all eight tested widths from 375 to 1440 px. Desktop checks passed for local offer dismissal, navigation link parity, hover, the keyboard language picker, the newsletter country picker and footer links. Compact drawer controls and newsletter visibility also passed. Chromium observed zero external requests. Gutenberg opened and reloaded the exact original draft with 501 valid blocks. Private copy 261 started from the same bytes and retained all 501 valid blocks through edit, save, reload and restoration. REF-000030 is completed in local WordPress History and draft 66 remains unpublished. This checkpoint used zero paid model calls.
 
+### v0.12.71 wide desktop Rooms accordion
+
+When the carousel was taller than the room details, the accordion stopped at its content height. Sealed replay at 1920 px measured a 780 px carousel and a 780 px source accordion. The native accordion previously measured 589.375 px. The accordion now fills the grid height, distributes the extra space across all four rows, and centers their contents. Each of the four selected room states matched the source geometry at 1920 px, with a 317 px open row and three 154 px closed rows.
+
+Rooms source and functional QA passed in History event 25807. The authenticated preview of original draft 66 passed browser checks at 1920, 1440, 1024, 768 and 375 px. Full Page verification retained all 16 placements, 501 Gutenberg blocks and the approved intermediate desktop stylesheet. Visual QA and all 22 Full Page responsive probes passed again in History event 25810. The draft remains unpublished.
+
 ### SIP & DINE alignment checkpoint, v0.12.42
 
 The archived Pattern 79 omitted alignment on its outer Core Group. The Twenty Twenty-Five Page template constrained it to 645 px in a 1440 px viewport and to 315 px at 375 px. Fresh measurements of the approved Designer reference selected Full width. Recompiling the retained plan produced private unsynced Pattern 120 and preserved all 68 blocks and their inner layouts.
