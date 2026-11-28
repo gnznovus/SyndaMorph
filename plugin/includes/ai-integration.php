@@ -342,7 +342,7 @@ add_action( 'rest_api_init', static function (): void {
 } );
 
 add_action( 'admin_enqueue_scripts', static function ( string $hook ): void {
-    if ( 'tools_page_syndamorph' !== $hook || ! current_user_can( 'manage_options' ) ||
+    if ( 'toplevel_page_syndamorph' !== $hook || ! current_user_can( 'manage_options' ) ||
          ! isset( $_GET['tab'] ) || 'ai' !== sanitize_key( wp_unslash( $_GET['tab'] ) ) ) { return; }
     wp_enqueue_style( 'syndamorph-operations', plugin_dir_url( __DIR__ ) . 'assets/operations-dashboard.css', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/operations-dashboard.css' ) );
     wp_enqueue_script( 'syndamorph-ai-tab', plugin_dir_url( __DIR__ ) . 'assets/ai-integration.js', array(), (string) filemtime( plugin_dir_path( __DIR__ ) . 'assets/ai-integration.js' ), true );
