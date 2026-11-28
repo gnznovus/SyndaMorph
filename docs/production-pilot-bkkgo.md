@@ -241,7 +241,17 @@ Lossless replays of the 375 px archive identified RGB subpixel text rasterizatio
 
 Full Page QA retries a failed visual comparison only when the verified archive contains recorded responses. It first reproduces the original full-height and first-fold screenshots against the existing strict thresholds. The capture service must then observe the same content, links and section geometry under the versioned raster profile. The renderer must attest to that profile, retain the review build, and reproduce the native geometry, links and browser checks. QA records the two comparisons, state and screenshot hashes, archive identity and renderer build. Missing or drifting evidence leaves the original QA result in place.
 
-The ordinary source replay had 0% pixel difference at every width for both screenshot extents. The verified raster comparison measured 0.022%, 0.601% and 0.363% full-height difference at 1440, 768 and 375 px, for a 0.329% mean. First-fold differences measured 0.138%, 0.003% and 0.002%. Both visual checks passed using the existing thresholds. The original draft retained its content and all 16 placements. Full Page remains uncompleted because the responsive desktop check still fails. This checkpoint used zero paid model calls.
+History event 25796 records 0% pixel difference across both ordinary source replay extents at every required width. The verified raster comparison measured 0.022%, 0.601% and 0.363% full-height difference at 1440, 768 and 375 px, for a 0.329% mean. First-fold differences measured 0.138%, 0.003% and 0.002%. Both visual checks passed using the existing thresholds. The original draft retained its content and all 16 placements. Full Page remains uncompleted because the responsive desktop check still reports three overflows and four clipping findings. This checkpoint used zero paid model calls.
+
+### v0.12.69 accepted BKKGO Full Page draft
+
+Production Setup now displays visual and responsive outcomes independently. An authenticated browser validated all 501 Gutenberg blocks in draft 66, and reassembly retained that count, its content SHA-256, all 16 placements and the sealed source evidence.
+
+History event 25801 records the tested candidate for 1024–1279 px. It lets the recorded header, hero, intro, newsletter and footer fit the viewport and reduces desktop navigation padding and link gaps. The 21-width candidate scan passed with zero findings. Full-height screenshot bytes at 1440, 768 and 375 px matched the ordinary draft exactly.
+
+After the user approved the change, History event 25802 bound the fixed stylesheet to the exact original draft content, archived source and candidate. The resulting manifest in event 25803 passed 22 responsive widths with zero findings. Full-height differences remained 0.022%, 0.601% and 0.363% at the three required widths. The first-fold gate also passed. The original draft and all 16 Patterns retained their saved block content.
+
+The authenticated preview fit all eight tested widths from 375 to 1440 px. Desktop checks passed for local offer dismissal, navigation link parity, hover, the keyboard language picker, the newsletter country picker and footer links. Compact drawer controls and newsletter visibility also passed. Chromium observed zero external requests. Gutenberg opened and reloaded the exact original draft with 501 valid blocks. REF-000030 is completed in local WordPress History and draft 66 remains unpublished. This checkpoint used zero paid model calls.
 
 ### SIP & DINE alignment checkpoint, v0.12.42
 

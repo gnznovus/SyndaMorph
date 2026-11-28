@@ -103,6 +103,8 @@ async function verifyOverlayEvidence(browser) {
                 return {validation,blockCount,state:await request(endpoint,{action:'save_pattern',region:key})};
             }
             if(operation==='reuse') return request(endpoint,{action:'reuse_section',region:key,sectionId:args[2]});
+            if(operation==='reassemble') return request(endpoint,{action:'assemble'});
+            if(operation==='apply-layout') return request(endpoint,{action:'apply_page_layout',candidateEvent:args[1],confirmed:args[2]});
             if(operation==='assemble') {
                 await request(endpoint,{action:'assemble'});
                 const native = await request(endpoint,null,{draft:'1'});
@@ -152,6 +154,17 @@ async function verifyOverlayEvidence(browser) {
         assert.equal(complete.regions[middle].issue,undefined);
         assert.equal(complete.regions[first].attempts.length,1);
         assert.equal(complete.regions[last].attempts.length,1);
+        const repeated = await run('reassemble',archive.page);
+        assert.equal(repeated.status,'completed',JSON.stringify(repeated.page.qa));
+        assert.equal(repeated.page.id,complete.page.id);
+        assert.equal(repeated.page.contentSha256,complete.page.contentSha256);
+        assert.equal(repeated.page.editorVerified,true);
+        assert.equal(repeated.page.blockCount,complete.page.blockCount);
+        const summary = await run('open',archive.page);
+        assert.match(summary,/Page visual QA passed/);
+        assert.match(summary,/Responsive QA passed/);
+        await assert.rejects(run('apply-layout',archive.page,1,false),/sm_scope_approval/);
+        await assert.rejects(run('apply-layout',archive.page,1,true),/sm_scope_layout_candidate/);
 
         for (const [width,label] of [[1440,'Centre desktop'],[768,'Centre compact'],[375,'Centre compact']]) {
             await page.setViewportSize({width,height:900});

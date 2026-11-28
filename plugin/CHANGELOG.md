@@ -6,6 +6,18 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.69] - 2026-11-28
+
+### Fixed
+
+- Production Setup displays the Full Page visual and responsive QA results separately.
+- Reassembling the exact verified draft retains its Gutenberg block count.
+- An administrator can apply the verified intermediate desktop layout to the exact approved Full Page draft. The frontend and QA use the same stylesheet and draft identity.
+
+### Verified
+
+- BKKGO REF-000030 completed with 16 source-backed placements, 501 valid Gutenberg blocks, passing visual checks and 22 passing responsive samples. Draft 66 remains unpublished.
+
 ## [0.12.68] - 2026-11-28
 
 ### Fixed

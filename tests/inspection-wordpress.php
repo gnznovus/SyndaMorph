@@ -4,6 +4,7 @@ if (PHP_SAPI !== 'cli') exit;
 require '/var/www/html/wp-load.php';
 require_once WP_PLUGIN_DIR.'/syndamorph/includes/production-collaboration.php';
 require_once WP_PLUGIN_DIR.'/syndamorph/includes/production-block-plan.php';
+require_once WP_PLUGIN_DIR.'/syndamorph/includes/production-scope.php';
 
 function inspection_assert(bool $passed,string $message): void {
     if(!$passed)throw new RuntimeException($message);

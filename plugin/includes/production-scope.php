@@ -1646,6 +1646,23 @@ function syndamorph_scope_document(string $content,string $title,bool $includeRu
         '<body><main id="syndamorph-page">'.$body.'</main>'.($includeRuntime?$runtime:'').'</body></html>';
 }
 
+function syndamorph_scope_intermediate_desktop_css(): string {
+    return '@media (1024px <= width < 1280px){'.
+        '#syndamorph-page .sm-recorded-header,#syndamorph-page .wp-block-group.sm-recorded-desktop-width,'.
+        '#syndamorph-page .sm-recorded-footer .sm-footer-desktop,#syndamorph-page .sm-newsletter-desktop{min-width:0}'.
+        '#syndamorph-page .sm-header-main{padding-inline:36px}#syndamorph-page .sm-header-main nav{gap:20px}}';
+}
+
+function syndamorph_scope_page_document(WP_Post $page,array $record): string {
+    $html=syndamorph_scope_document($page->post_content,$page->post_title);
+    $layout=$record['responsiveLayout']??array();
+    if(($layout['profile']??null)!=='recorded-desktop-fit-v1'||($record['id']??null)!==$page->ID||
+        ($layout['contentSha256']??null)!==hash('sha256',$page->post_content))return $html;
+    $css=syndamorph_scope_intermediate_desktop_css();
+    if(($layout['cssSha256']??null)!==hash('sha256',$css))return $html;
+    return str_replace('</head>','<style>'.$css.'</style></head>',$html);
+}
+
 function syndamorph_scope_page_qa(array $manifest,WP_Post $page): array {
     $source=syndamorph_history_latest($manifest['id'],'scope_page_source');
     if(array_column($source??array(),'width')!==SYNDAMORPH_SOURCE_WIDTHS ||
@@ -1672,7 +1689,7 @@ function syndamorph_scope_page_qa(array $manifest,WP_Post $page): array {
         }
         if(($view['order']??null)!==$order)return array('passed'=>false,'reason'=>"Reconstructed section order differs from the source at {$width}px.");
     }
-    $html=syndamorph_scope_document($page->post_content,$page->post_title);
+    $html=syndamorph_scope_page_document($page,$manifest['page']);
     $build=null;
     $whole=syndamorph_collab_inspect($html,SYNDAMORPH_SOURCE_WIDTHS,$build,'page');
     $fold=syndamorph_scope_inspect($html,'page-fold');
@@ -1705,6 +1722,40 @@ function syndamorph_scope_page_qa(array $manifest,WP_Post $page): array {
         'fullExtent'=>$wholeQa,'firstFold'=>$foldQa,'browserIssues'=>$issues,'continuousResponsive'=>$responsive,
         'renderSha256'=>hash('sha256',$html))+$raster+
         ($layoutWidths?array('layoutAuthorization'=>$manifest['layoutAuthorization']):array());
+}
+
+function syndamorph_scope_apply_page_layout(array $manifest,int $candidateEvent) {
+    $record=$manifest['page']??array();
+    $page=empty($record['id'])?null:get_post($record['id']);
+    $candidate=syndamorph_scope_checkpoint($manifest['id'],$candidateEvent,'page_responsive_candidate');
+    $css=syndamorph_scope_intermediate_desktop_css();
+    if(($manifest['mode']??null)!=='page'||empty($record['allRegions'])||empty($record['editorVerified'])||
+        !$page||$page->post_status!=='draft'||get_post_meta($page->ID,'_syndamorph_scope_key',true)!==$manifest['id'].':page'||
+        ($record['contentSha256']??null)!==hash('sha256',$page->post_content)||
+        ($candidate['draft']??null)!==$page->ID||($candidate['contentSha256']??null)!==$record['contentSha256']||
+        ($candidate['candidateReceipt']['artifactSha256']??null)!==$record['contentSha256']||
+        ($candidate['candidateReceipt']['status']??null)!=='passed'||($candidate['mandatoryScreenshotsUnchanged']??null)!==true||
+        ($candidate['candidateCss']??null)!==$css)
+        return syndamorph_scope_error('layout_candidate','The verified desktop layout candidate does not match this unpublished draft.');
+    if(($record['responsiveLayout']['candidateEvent']??null)===$candidateEvent)return $manifest;
+    $layout=array('profile'=>'recorded-desktop-fit-v1','minimumWidth'=>1024,'maximumWidth'=>1279,
+        'candidateEvent'=>$candidateEvent,'contentSha256'=>$record['contentSha256'],'cssSha256'=>hash('sha256',$css),
+        'sourceArchive'=>$manifest['referenceArchive']['id']??null,'approvedBy'=>get_current_user_id(),'approvedAt'=>gmdate('c'));
+    $manifest['page']['responsiveLayout']=$layout;
+    $html=syndamorph_scope_page_document($page,$manifest['page']);
+    if(($candidate['candidateReceipt']['previewSha256']??null)!==hash('sha256',$html))
+        return syndamorph_scope_error('layout_candidate','The exact candidate render changed after responsive verification.');
+    $qa=syndamorph_scope_page_qa($manifest,$page);
+    if(empty($qa['passed']))return syndamorph_scope_error('layout_qa','The approved desktop adjustment did not pass current Full Page QA.');
+    clean_post_cache($page->ID);
+    $current=get_post($page->ID);
+    if(!$current||$current->post_status!=='draft'||$current->post_title!==$page->post_title||
+        hash('sha256',$current->post_content)!==$record['contentSha256'])
+        return syndamorph_scope_error('draft_changed','The draft changed during desktop layout verification.');
+    if(!syndamorph_history_append($manifest['id'],'page_layout_authorized',$layout+array('draft'=>$page->ID,'renderSha256'=>$qa['renderSha256'])))
+        return syndamorph_scope_error('layout_checkpoint','The desktop layout approval could not be recorded.');
+    $manifest['page']['qa']=$qa;
+    return syndamorph_scope_finish_page($manifest);
 }
 
 function syndamorph_scope_assemble(array $manifest) {
@@ -1762,8 +1813,13 @@ function syndamorph_scope_assemble(array $manifest) {
     $previous=$manifest['page'];
     $manifest['page']=array('id'=>$pageId,'editor'=>get_edit_post_link($pageId,'raw'),'preview'=>get_preview_post_link($pageId),
         'contentSha256'=>$sha,'placements'=>$placement,
-        'allRegions'=>$complete,'editorVerified'=>($previous['contentSha256']??'')===$sha&&!empty($previous['editorVerified']),
+        'allRegions'=>$complete,'editorVerified'=>($previous['id']??null)===$pageId&&
+            ($previous['contentSha256']??'')===$sha&&!empty($previous['editorVerified']),
         'qa'=>array('passed'=>false,'reason'=>$complete?'Reconstructed page visual comparison pending.':'Required regions are still missing.'));
+    if($manifest['page']['editorVerified']&&isset($previous['blockCount']))
+        $manifest['page']['blockCount']=$previous['blockCount'];
+    if($complete&&$manifest['page']['editorVerified']&&isset($previous['responsiveLayout']))
+        $manifest['page']['responsiveLayout']=$previous['responsiveLayout'];
     $manifest['status']='uncompleted';
     update_post_meta($pageId,'_syndamorph_scope_manifest',$manifest['page']);
     syndamorph_history_append($manifest['id'],'scope_manifest',$manifest);
@@ -1897,7 +1953,7 @@ add_action('rest_api_init',static function():void {
         }),
         array('methods'=>'POST','permission_callback'=>$permission,'callback'=>static function(WP_REST_Request $request) {
             $action=$request->get_param('action');
-            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_copy_placement','verify_settled_pair','verify_image','stage_image_strip','stage_linked_editorial','stage_reveal_layout','stage_rooms','stage_compact_guarantee','stage_compact_booking','stage_recorded_header','stage_desktop_offer','stage_first_fold','stage_recorded_footer','stage_recorded_newsletter','assemble','verify_page'),true))
+            if(!in_array($action,array('configure','increase_budget','recapture','run','retry','review_staged','resume_design_review','resume_checkpoint','save_pattern','reuse_section','verify_disclosure','verify_copy_placement','verify_settled_pair','verify_image','stage_image_strip','stage_linked_editorial','stage_reveal_layout','stage_rooms','stage_compact_guarantee','stage_compact_booking','stage_recorded_header','stage_desktop_offer','stage_first_fold','stage_recorded_footer','stage_recorded_newsletter','apply_page_layout','assemble','verify_page'),true))
                 return syndamorph_scope_error('action','Invalid scope action.',400);
             return syndamorph_scope_locked(static function()use($request,$action){
                 $manifest=syndamorph_history_latest((int)$request['id'],'scope_manifest');
@@ -1982,6 +2038,11 @@ add_action('rest_api_init',static function():void {
                             $sectionId=filter_var($request->get_param('sectionId'),FILTER_VALIDATE_INT,array('options'=>array('min_range'=>1)));
                             if($sectionId===false)return syndamorph_scope_error('reuse_scope','An exact saved Section ID is required.',400);
                             return syndamorph_scope_reuse_section($manifest,$sectionId,$region);
+                        case 'apply_page_layout':
+                            $event=$request->get_param('candidateEvent');
+                            if(true!==$request->get_param('confirmed')||!is_int($event)||$event<1)
+                                return syndamorph_scope_error('approval','Confirm the exact verified desktop layout candidate.',400);
+                            return syndamorph_scope_apply_page_layout($manifest,$event);
                         case 'assemble': return syndamorph_scope_assemble($manifest);
                         case 'verify_page':
                             if(true!==$request->get_param('valid'))return syndamorph_scope_error('editor','A Gutenberg validation result is required.',400);

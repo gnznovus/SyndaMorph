@@ -265,10 +265,22 @@
             list.append(entry);
         }
         panel.append(list);
-        if (manifest.page?.editor) panel.append(link('Open WordPress draft', manifest.page.editor),node('span',' · '),link('Preview draft',manifest.page.preview),
-            node('p', (manifest.page.allRegions ? 'All regions placed' : 'Partial draft') + ' · ' +
-                (manifest.page.editorVerified ? 'Gutenberg verified' : 'Gutenberg verification pending') + ' · ' +
-                (manifest.page.qa?.passed ? 'Page visual QA passed' : (manifest.page.qa?.reason || 'Page visual QA not accepted'))));
+        if (manifest.page?.editor) {
+            const {qa,allRegions,editorVerified} = manifest.page;
+            const states = [allRegions ? 'All regions placed' : 'Partial draft',
+                editorVerified ? 'Gutenberg verified' : 'Gutenberg verification pending'];
+            if (qa?.fullExtent && qa?.firstFold) {
+                states.push(qa.fullExtent.passed && qa.firstFold.passed ? 'Page visual QA passed' : 'Page visual QA pending');
+                const responsive = qa.continuousResponsive?.status;
+                states.push(responsive === 'passed' ? 'Responsive QA passed' :
+                    responsive === 'failed' ? 'Responsive QA failed' : 'Responsive QA pending');
+                if (qa.browserIssues?.length) states.push('Browser checks found issues');
+            } else {
+                states.push(qa?.reason || 'Page visual QA pending');
+            }
+            panel.append(link('Open WordPress draft', manifest.page.editor),node('span',' · '),
+                link('Preview draft',manifest.page.preview),node('p',states.join(' · ')));
+        }
         panel.append(button('Refresh checkpoint', async () => { manifest = await request(url()); }));
         if (manifest.mode === 'page' && saved > 0) panel.append(button('Assemble and verify draft', finishPage));
         if (manifest.budgetUsd && canSpend() && targets().some(row => row.status === 'ready'))

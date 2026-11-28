@@ -3,7 +3,8 @@
 if (!defined('ABSPATH')) { exit; }
 the_post();
 $page=get_post();
-$document=syndamorph_scope_document($page->post_content,$page->post_title);
+$record=get_post_meta($page->ID,'_syndamorph_scope_manifest',true);
+$document=syndamorph_scope_page_document($page,is_array($record)?$record:array());
 if(function_exists('wp_print_font_faces')){
     // This isolated canvas bypasses wp_head, including core's font-face output.
     ob_start();
