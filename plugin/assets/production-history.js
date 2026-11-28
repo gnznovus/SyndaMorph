@@ -44,7 +44,7 @@
     function section(title, value, kind='markdown') {
         const box = node('details',undefined,'sm-team-ai-agent-output');
         box.append(node('summary',title));
-        const body = node('div');
+        const body = node('div',undefined,'sm-history-report-body');
         const renderer = window.SyndaMorphRichContent.mount(body,kind);
         renderer.update(value,true); renderers.push(renderer); box.append(body); detail.append(box);
         return box;
