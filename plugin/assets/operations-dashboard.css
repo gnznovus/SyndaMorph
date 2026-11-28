@@ -983,6 +983,12 @@
 #syndamorph-production-team #sm-history-detail > .sm-history-actions {margin:18px 0 22px;gap:10px;}
 #syndamorph-production-team #sm-history-detail > .sm-team-ai-agent-output {margin:0 0 12px;}
 #syndamorph-production-team #sm-history-detail > .sm-team-ai-agent-output[open] {margin-bottom:16px;}
+/* History reports use a wrapper around the shared rich renderer. Keep all
+   formats inset consistently without changing Results rendering. */
+#syndamorph-production-team #sm-history-detail .sm-history-report-body > .sm-rich-toolbar {padding:8px 16px 0;}
+#syndamorph-production-team #sm-history-detail .sm-history-report-body > .sm-rich-content {padding:12px 16px 16px;box-sizing:border-box;}
+#syndamorph-production-team #sm-history-detail .sm-history-report-body > .sm-rich-content > :first-child {margin-top:0;}
+#syndamorph-production-team #sm-history-detail .sm-history-report-body > .sm-rich-content > :last-child {margin-bottom:0;}
 #syndamorph-production-team #sm-history-detail > .sm-history-preview {margin:16px 0 20px;}
 #syndamorph-production-team #sm-history-detail > .sm-ai-export {margin:20px 0;}
 #syndamorph-production-team #sm-history-detail .sm-history-drawer-close {position:sticky;top:0;float:right;z-index:1;min-width:36px;min-height:36px;margin:0 0 8px 8px;background:#fff;}
