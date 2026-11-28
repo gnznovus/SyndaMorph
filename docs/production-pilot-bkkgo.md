@@ -227,6 +227,14 @@ A separate diagnostic used the source's JPEG quality 58 in place of the renderer
 
 History event 23342 binds draft 184 and its saved content SHA-256 `ed7bda9ee638f5b7850c01c87246a01efc2c7bb1bc93529c2368debbda2caa6e` to the native test. Event 23343 records compact source evidence against checkpoints 12136 and 12137.
 
+### v0.12.67 full-height screenshot parity
+
+The native full-height inspector and source capture both use a Chromium clip at the page origin, an output height capped at 900 px, and JPEG quality steps 58, 40 and 22. A Chromium regression compares the encoded native full-height frame with the pinned source-frame path. The first-fold inspection path keeps its existing screenshot contract. A separate trial applying the archive's encoding there increased the aggregate difference and failed the first-fold check.
+
+History event 25793 records full-height pixel differences of 0.137%, 1.118% and 2.070% at 1440, 768 and 375 px. The previous results were 0.137%, 1.346% and 2.409%. The first-fold check passed at 0.180%, 0.177% and 0.337%. Assembly retained all 16 placements and 501 valid blocks without changing draft 66 or its content hash. The 375 px full-height result still exceeds the 1.5% per-width gate, and the three-width mean still exceeds 0.5%.
+
+Full-resolution 375 px crops localized the strongest remaining differences around FAQ, Neighborhood and SIP & DINE copy. All six embedded font binaries matched archived OpenType files by SHA-256. Chromium reported identical loaded faces and text bounds for the sampled strings in those regions. Applying the source's font-smoothing declaration changed zero pixels in the local Chromium run. The sealed source reproduces the same intermediate desktop overflow and header clipping under its 1280 px minimum width. The strict responsive gate remains failed at 1200, 1025 and 1024 px. The full page remains uncompleted and unpublished. This checkpoint used zero paid model calls.
+
 ### SIP & DINE alignment checkpoint, v0.12.42
 
 The archived Pattern 79 omitted alignment on its outer Core Group. The Twenty Twenty-Five Page template constrained it to 645 px in a 1440 px viewport and to 315 px at 375 px. Fresh measurements of the approved Designer reference selected Full width. Recompiling the retained plan produced private unsynced Pattern 120 and preserved all 68 blocks and their inner layouts.

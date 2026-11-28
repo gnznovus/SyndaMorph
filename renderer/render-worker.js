@@ -947,8 +947,10 @@ process.stdin.on('end', async () => {
                     ? Math.max(1, Math.ceil((snapshot.elements[0]?.rect[1] || 0) + (snapshot.elements[0]?.rect[3] || 0)))
                     : extent === 'page' ? snapshot.height : null;
                 if (height > 36000) throw new RendererError('screenshot_limit', 507);
-                const screenshot = top===null ? await boundedScreenshot(page, width, height) :
-                    await sourceFrameScreenshot(page,width,height,top);
+                // Compare full-height evidence using the archive's crop and JPEG settings.
+                const screenshot = top!==null ? await sourceFrameScreenshot(page,width,height,top) :
+                    extent==='page' ? await boundedScreenshot(page,width,height,0) :
+                    await boundedScreenshot(page,width,height);
                 evidence.push({width,snapshot,screenshot,a11y,...(height === null ? {} : { extent: height }),
                     ...(top===null?{}:{sourceFrame:{top,screenshotTop:Math.round(top)}})});
             }

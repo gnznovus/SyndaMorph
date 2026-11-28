@@ -6,6 +6,16 @@ version entry as the GitHub Release notes.
 
 This changelog describes implemented work, not acceptance or production readiness.
 
+## [0.12.67] - 2026-11-28
+
+### Fixed
+
+- Full-height native inspection now uses the same screenshot origin, scaling, and JPEG quality steps as the archived source.
+
+### Verified
+
+- The original REF-000030 draft retains all 16 source-backed regions and 501 valid Gutenberg blocks. The 375 px full-height visual gate and intermediate desktop responsive checks remain open.
+
 ## [0.12.66] - 2026-11-28
 
 ### Added

@@ -17,6 +17,15 @@ async function request(route, html, viewports, options = {}) {
     return payload;
 }
 
+test('full-height inspection uses the archived source encoding', async () => {
+    const html='<main style="height:1200px;background:linear-gradient(#123456,#dec8a0)"><p>Page frame</p></main>';
+    const get=async(markup,options)=>(await request('/inspect',markup,[375],options)).evidence[0];
+    const pinnedPage=await get(html,{extent:'section',sourceFrames:{375:0}});
+    const page=await get(html,{extent:'page'});
+    assert.equal(page.extent,1200);
+    assert.equal(page.screenshot,pinnedPage.screenshot);
+});
+
 test('fixed compact booking captures the viewport crop at origin and checks scrolling and control markup', async () => {
     const html='<style>.is-style-sm-compact-booking{position:fixed;inset:auto 0 0;height:68px;background:#fff}'+
         'p{margin:0}@media(min-width:1024px){.is-style-sm-compact-booking{display:none}}</style>'+
