@@ -37,7 +37,7 @@ add_action( 'admin_menu', static function (): void {
         'manage_options',
         'syndamorph',
         'syndamorph_render_operations_page',
-        'dashicons-layout',
+        plugin_dir_url( __FILE__ ) . 'assets/syndamorph-sm-white.svg',
         58
     );
 } );
